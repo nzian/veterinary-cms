@@ -16,7 +16,7 @@
     </div>
 
     {{-- Key Metrics - Modern Cards (4 Only) --}}
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+ <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       @php
         $keyMetrics = [
           [
@@ -24,51 +24,62 @@
             'value' => $totalAppointments,
             'icon' => '📅',
             'color' => 'from-blue-500 to-blue-600',
-            'change' => '+12%'
+            'change' => '+12%',
+            'route' => route('medical.index') . '?tab=appointments'
           ],
           [
             'label' => "Today's Appointments", 
             'value' => $todaysAppointments,
             'icon' => '🕒',
             'color' => 'from-emerald-500 to-emerald-600',
-            'change' => '+8%'
+            'change' => '+8%',
+            'route' => route('medical.index') . '?tab=appointments'
           ],
           [
             'label' => 'Total Pet Owners', 
             'value' => $totalOwners,
             'icon' => '👥',
             'color' => 'from-purple-500 to-purple-600',
-            'change' => '+5%'
+            'change' => '+5%',
+            'route' => route('pet-management.index') . '?tab=owners'
           ],
           [
             'label' => 'Daily Revenue', 
             'value' => '₱' . number_format($dailySales, 2),
             'icon' => '💰',
             'color' => 'from-amber-500 to-amber-600',
-            'change' => '+15%'
+            'change' => '+15%',
+             'route' => route('sales.index'). '?tab=orders'
           ],
         ];
       @endphp
 
       @foreach ($keyMetrics as $metric)
-        <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-200 hover:shadow-lg transition-all duration-300 group">
-          <div class="absolute inset-0 bg-gradient-to-br {{ $metric['color'] }} opacity-0 group-hover:opacity-5 transition-opacity"></div>
-          <div class="p-6">
-            <div class="flex items-center justify-between mb-4">
-              <div class="text-2xl">{{ $metric['icon'] }}</div>
-              <span class="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                {{ $metric['change'] }}
-              </span>
-            </div>
-            <div class="space-y-1">
-              <p class="text-sm font-medium text-gray-600">{{ $metric['label'] }}</p>
-              <p class="text-2xl font-bold text-gray-900">{{ $metric['value'] }}</p>
-            </div>
+    <a href="{{ $metric['route'] }}" class="block transform transition-all duration-300 hover:scale-105">
+      <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-200 hover:shadow-xl transition-all duration-300 group cursor-pointer">
+        <div class="absolute inset-0 bg-gradient-to-br {{ $metric['color'] }} opacity-0 group-hover:opacity-10 transition-opacity"></div>
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div class="text-2xl group-hover:scale-110 transition-transform">{{ $metric['icon'] }}</div>
+            <span class="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+              {{ $metric['change'] }}
+            </span>
+          </div>
+          <div class="space-y-1">
+            <p class="text-sm font-medium text-gray-600 group-hover:text-gray-800 transition-colors">{{ $metric['label'] }}</p>
+            <p class="text-2xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{{ $metric['value'] }}</p>
+          </div>
+          <div class="mt-3 text-xs text-gray-500 group-hover:text-blue-600 transition-colors flex items-center">
+            <span>View details</span>
+            <svg class="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
           </div>
         </div>
-      @endforeach
-    </div>
-
+      </div>
+    </a>
+  @endforeach
+</div>
     {{-- Calendar Section - Now Full Width --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 mb-8">
       <div class="p-6">

@@ -456,15 +456,19 @@
                 <div>
                     <label class="block text-sm mb-1">Appointment Type</label>
                     <select name="appoint_type" required class="w-full border rounded px-3 py-2 text-sm">
-                        <option value="">Select Type</option>
-                        <option value="Walk-in">Walk-in</option>
+                        <option value="">Walk-in</option>
+                        <option value="Walk-in">Referral</option>
                         <option value="Follow-up">Follow-up</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-sm mb-1">Appointment Date</label>
-                    <input type="date" name="appoint_date" required class="w-full border rounded px-3 py-2 text-sm" />
-                </div>
+                    <input type="date" 
+                        name="appoint_date" 
+                        value="{{ date('Y-m-d') }}" 
+                        required 
+                        class="w-full border rounded px-3 py-2 text-sm" />
+            </div>
             </div>
 
             <!-- Row 4: Appointment Time & Status -->
@@ -483,7 +487,6 @@
                 <div>
                     <label class="block text-sm mb-1">Appointment Status</label>
                     <select name="appoint_status" required class="w-full border rounded px-3 py-2 text-sm">
-                        <option value="">Select status</option>
                         <option value="pending">Pending</option>
                         <option value="arrived">Arrived</option>
                         <option value="completed">Complete</option>
@@ -545,7 +548,6 @@
                 <div>
                     <label class="block text-sm mb-1">Pet</label>
                     <select id="edit_pet_id" name="pet_id" required class="w-full border rounded px-3 py-2 text-sm">
-                        <option disabled selected>Select Pet</option>
                     </select>
                 </div>
             </div>
