@@ -171,7 +171,7 @@
 
     <!-- Logo Section -->
     <div class="h-full flex items-center justify-center bg-white w-16 md:w-64 shrink-0">
-      <img src="{{ asset('images/MultiBranchVCMS.jpg') }}" class="h-10 md:h-11 object-contain w-full" alt="Logo" />
+      <img src="{{ asset('images/header1.png') }}" class="h-10 md:h-11 object-contain w-full" alt="Logo" />
     </div>
 
     <!-- Branch Selector -->

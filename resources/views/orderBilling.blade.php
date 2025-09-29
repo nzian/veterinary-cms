@@ -161,7 +161,7 @@
                                 <td class="px-4 py-2 border text-center">
                                     <div class="flex justify-center items-center gap-1">
                                         <!-- View Button -->
-                                        <button onclick="viewBilling(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
+                                        <button onclick="viewBilling(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"title="view"
                                             data-bill-id="{{ $billing->bill_id }}"
                                             data-owner="{{ $billing->appointment?->pet?->owner?->own_name ?? 'N/A' }}"
                                             data-pet="{{ $billing->appointment?->pet?->pet_name ?? 'N/A' }}"
@@ -181,7 +181,7 @@
                                         </button>
 
                                         <!-- Direct Print Button -->
-                                        <button onclick="directPrintBilling(this)" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs"
+                                        <button onclick="directPrintBilling(this)" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs"title="print"
                                             data-bill-id="{{ $billing->bill_id }}"
                                             data-owner="{{ $billing->appointment?->pet?->owner?->own_name ?? 'N/A' }}"
                                             data-pet="{{ $billing->appointment?->pet?->pet_name ?? 'N/A' }}"
@@ -203,7 +203,7 @@
                                         <!-- Delete Button -->
                                         <form method="POST" action="{{ route('sales.destroyBilling', $billing->bill_id) }}"
                                               onsubmit="return confirm('Are you sure you want to delete this billing?');"
-                                              class="inline-block">
+                                              class="inline-block" title="delete">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit"

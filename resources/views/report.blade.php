@@ -214,8 +214,8 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button onclick="viewRecordDetails('appointments', '{{ $record->appoint_id }}')" 
-                            class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200">
-                        <i class="fas fa-eye mr-1"></i>View
+                            class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200"title="view">
+                        <i class="fas fa-eye mr-1"></i>
                     </button>
                 </td>
                 

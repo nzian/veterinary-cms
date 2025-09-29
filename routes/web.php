@@ -42,18 +42,12 @@ Route::get('/admin', [AdminController::class, 'AdminBoard']);
 Route::get('/dashboard', [dashboardController::class, 'index'])->name('dashboard-index');
 //Route::get('/select-branch', [BranchController::class, 'select'])->name('select-branch');
 
-
-// User Management Routes
 Route::get('/user-management', [UserManagementController::class, 'index'])->name('userManagement.index');
-//Route::post('/user-management/store', [UserManagementController::class, 'store'])->name('userManagement.store');
-//Route::get('/user-management/{user}/edit', [UserManagementController::class, 'edit'])->name('userManagement.edit'); // for showing edit form
-//Route::put('/user-management/{user}', [UserManagementController::class, 'update'])->name('userManagement.update'); // for updating user
-//Route::delete('/user-management/{id}', [UserManagementController::class, 'destroy'])->name('userManagement.destroy');
 
 
 // POS Routes
 Route::get('/pos', [POSController::class, 'index'])->name('pos');
-Route::post('/pos', [POSController::class, 'store'])->name('pos.store'); // Direct product sales
+Route::post('/pos', [POSController::class, 'store'])->name('pos.store'); 
 Route::post('/pos/pay-billing/{billingId}', [POSController::class, 'payBilling'])->name('pos.pay-billing'); // Pay existing bills
 Route::get('/pos/billing-details/{billingId}', [POSController::class, 'getBillingDetails'])->name('pos.billing-details'); // Optional: Get bill details
 
@@ -65,11 +59,11 @@ Route::get('/api/orders/{id}', [OrderController::class, 'getOrderDetails']);
 Route::get('/api/sales-summary', [OrderController::class, 'salesSummary'])->name('orders.sales-summary');
 Route::get('/api/daily-sales', [OrderController::class, 'dailySales'])->name('orders.daily-sales');
 Route::get('/api/top-products', [OrderController::class, 'topProducts'])->name('orders.top-products');  
-    // Sales Analytics Routes
-    Route::get('/sales/summary', [OrderController::class, 'salesSummary'])->name('sales.summary');
-    Route::get('/sales/daily', [OrderController::class, 'dailySales'])->name('sales.daily');
+  
+Route::get('/sales/summary', [OrderController::class, 'salesSummary'])->name('sales.summary');
+Route::get('/sales/daily', [OrderController::class, 'dailySales'])->name('sales.daily');
     
-//});
+
 
 use App\Http\Controllers\ProdServEquipController;
 
@@ -105,7 +99,7 @@ Route::get('/inventory/{id}/history', [ProdServEquipController::class, 'viewInve
 
 use App\Http\Controllers\MedicalManagementController;
 
-// In routes/web.php, add this line with your other medical management routes:
+
 
 Route::prefix('medical-management')->group(function () {
     // Main unified medical management route
@@ -152,7 +146,7 @@ Route::put('/branches/{id}', [BranchController::class, 'update'])->name('branch-
 Route::get('/branches/{id}', [BranchController::class, 'show'])->name('branches.show');
 Route::delete('/branches/{id}', [BranchController::class, 'destroy'])->name('branches-destroy');
 
-//Route::delete('/branches/{id}', [BranchController::class, 'destroy'])->name('branches.destroy');
+
 Route::get('/branch/switch/{id}', [BranchController::class, 'switch'])->name('branch.switch');
 Route::get('/switch-branch/{id}', function ($id) {
     Session::put('selected_branch_id', $id);
@@ -187,27 +181,6 @@ Route::get('/appointment/{id}', [AppointmentController::class, 'show'])->name('a
 Route::get('/appointment/{id}', [AppointmentController::class, 'refer'])->name('appointments.refer');
 Route::delete('/appointment/{id}', [AppointmentController::class, 'destroy'])->name('appointments.destroy');
 
-
-// Products
-//Route::get('/product', [ProductController::class, 'index'])->name('product-index');
-//Route::delete('/product/{id}', [ProductController::class, 'destroy'])->name('products.destroy');
-//Route::post('/product', [ProductController::class, 'store'])->name('products.store');
-//Route::put('/product/{id}', [ProductController::class, 'update'])->name('products.update');
-//Route::put('/products/inventory/update', [ProductController::class, 'updateInventory'])
- //   ->name('products.inventory.update');
-
-//Inventory
-//Route::put('/products/{id}/inventory', [ProductController::class, 'update'])->name('products.inventory.update');
-
-//Route::put('/productAndServices/{id}', [ProductAndServicesController::class, 'update'])->name('item.update');
-//Route::delete('/productAndServices/{id}', [ProductAndServicesController::class, 'destroy'])->name('item.destroy');
-
-//Services
-//Route::resource('services', ServiceController::class);
-//Route::get('/services', [ServiceController::class, 'index'])->name('services-index');
-//Route::post('/services/store', [ServiceController::class, 'store'])->name('services.store');Route::put('/services/update/{id}', [ServiceController::class, 'update'])->name('services.update');
-//Route::delete('/services/{id}', [ServiceController::class, 'destroy'])->name('services.destroy');
-
 //Referral
 Route::get('/referral', [ReferralController::class, 'index'])->name('referral-index');
 Route::post('/referral', [ReferralController::class, 'store'])->name('referrals.store');
@@ -219,22 +192,9 @@ Route::delete('/referral/{id}', [ReferralController::class, 'destroy'])->name('r
 Route::get('/sales', [OrderController::class, 'index'])->name('sales-index');
 Route::put('/sales/{id}', [OrderController::class, 'update'])->name('sales.update');
 
-// Inventory
-//Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory-index');
-//Route::put('/inventory/{id}', [InventoryController::class, 'update'])->name('inventory.update');
-//Route::delete('/inventory/{id}', [InventoryController::class, 'destroy'])->name('inventory.destroy');
-
-//activities
-//Route::get('/activities', [ActivitiesController::class, 'index'])->name('activities-index');
-//Route::post('/activities/store', [ActivitiesController::class, 'store'])->name('activities.store');
-//Route::put('/activities/{id}', [ActivitiesController::class, 'update'])->name('activities.update');
-//Route::delete('/activities/{id}', [ActivitiesController::class, 'destroy'])->name('activities.destroy');
-
 //Reports
 Route::get('/report', [ReportController::class, 'index'])->name('report.index');
 Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
-//Route::get('/reports/export', [ReportController::class, 'export'])->name('reports.export-pdf');
-// In routes/web.php or your routes file
 Route::get('/reports/export-pdf', [ReportController::class, 'exportPdf'])->name('reports.export-pdf');
 Route::get('/reports/export', [ReportController::class, 'export'])->name('reports.export');
 Route::get('/reports/{reportType}/{recordId}/view', [ReportController::class, 'viewRecord'])->name('reports.viewRecord');
@@ -242,15 +202,9 @@ Route::get('/reports/{reportType}/{recordId}', [ReportController::class, 'viewRe
 
 //billing
 Route::get('/billings', [BillingController::class, 'index'])->name('billing-index');
-//Route::post('/billings/store', [BillingController::class, 'store'])->name('billings.store');
 Route::put('/billings/{id}', [BillingController::class, 'update'])->name('billings.update');
 Route::delete('/billings/{id}', [BillingController::class, 'destroy'])->name('billings.destroy');
 Route::post('/billing/pay/{bill}', [BillingController::class, 'payBilling'])->name('billing.pay');
-
-//Prescription
-//Route::resource('prescriptions', PrescriptionController::class);
-//Route::get('/prescriptions', [PrescriptionController::class, 'index'])->name('prescriptions.index');
-//Route::post('/prescriptions', [PrescriptionController::class, 'store'])->name('prescriptions.store');
 
 Route::get('/prescriptions', [PrescriptionController::class, 'index'])->name('prescriptions.index');
 Route::post('/prescriptions', [PrescriptionController::class, 'store'])->name('prescriptions.store');
@@ -264,11 +218,8 @@ Route::get('/products/search', [PrescriptionController::class, 'searchProducts']
 Route::get('/orders', [OrderController::class, 'index'])->name('order-index');
 Route::get('/orders/transaction/{paymentId}', [OrderController::class, 'show'])->name('orders.transaction.show');
 Route::get('/orders/transaction/{paymentId}/print', [OrderController::class, 'printReceipt'])->name('orders.print-receipt');
-
-// Individual order routes (if you still need them)
 Route::get('/orders/order/{orderId}', [OrderController::class, 'showOrder'])->name('orders.order.show');
 
-// Export and API routes
 Route::get('/orders/export', [OrderController::class, 'export'])->name('orders.export');
 Route::get('/orders/sales-summary', [OrderController::class, 'salesSummary'])->name('orders.sales-summary');
 Route::get('/orders/daily-sales', [OrderController::class, 'dailySales'])->name('orders.daily-sales');
@@ -333,11 +284,6 @@ Route::get('/branches/{id}/complete-data', [BranchManagementController::class, '
 
 Route::get('/branch-management', [BranchManagementController::class, 'index'])->name('branch-management.index');
 
-// Branch routes
-//Route::post('/branches', [BranchManagementController::class, 'storeBranch'])->name('branches.store');
-//Route::put('/branches/{id}', [BranchManagementController::class, 'updateBranch'])->name('branches.update');
-//Route::delete('/branches/{id}', [BranchManagementController::class, 'destroyBranch'])->name('branches-destroy');
-//Route::post('/branches/switch/{id}', [BranchManagementController::class, 'switchBranch'])->name('branches.switch');
 Route::get('/branches/{id}/complete-data', [BranchManagementController::class, 'getCompleteData']);
 
 // User routes

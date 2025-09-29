@@ -115,19 +115,19 @@
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
                                         <button onclick='openEditModal(@json($appointment))'
-                                            class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs">
+                                            class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs" title="edi">
                                             <i class="fas fa-pen"></i> 
                                         </button>
                                         
                                         @if($appointment->appoint_status != 'refer')
                                         <button onclick="openReferralModal({{ $appointment->appoint_id }})"
-                                            class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 flex items-center gap-1 text-xs">
+                                            class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 flex items-center gap-1 text-xs" title="refer">
                                             <i class="fas fa-share"></i>
                                         </button>
                                         @endif
 
                                         <button onclick="openPrescriptionFromAppointment({{ $appointment->appoint_id }})"
-                                            class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs">
+                                            class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="prescribe">
                                             <i class="fas fa-prescription"></i>
                                         </button>
 
@@ -238,7 +238,7 @@
                                     data-notes="{{ $prescription->notes }}"
                                     data-branch-name="{{ $prescription->branch->branch_name ?? 'Main Branch' }}"
                                     data-branch-address="{{ $prescription->branch->branch_address ?? 'Branch Address' }}"
-                                    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}">
+                                    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}"title="View Prescription">
                                     <i class="fas fa-eye"></i>
                                 </button>
 
@@ -257,12 +257,12 @@
                                     data-notes="{{ $prescription->notes }}"
                                     data-branch-name="{{ $prescription->branch->branch_name ?? 'Main Branch' }}"
                                     data-branch-address="{{ $prescription->branch->branch_address ?? 'Branch Address' }}"
-                                    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}">
+                                    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}" title="print">
                                     <i class="fas fa-print"></i>
                                 </button>
 
                                 <!-- Edit -->
-                                <button onclick="editPrescription({{ $prescription->prescription_id }})" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs">
+                                <button onclick="editPrescription({{ $prescription->prescription_id }})" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs" title="edit">
                                     <i class="fas fa-pen"></i>
                                 </button>
 
@@ -272,7 +272,7 @@
                                     @csrf
                                     @method('DELETE')
                                     <input type="hidden" name="active_tab" value="prescriptions">
-                                    <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs">
+                                    <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs" title="delete">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </form>
@@ -361,15 +361,15 @@
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
                                         <button onclick="viewReferral({{ $referral->ref_id }})"
-                                            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs">
+                                            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs"title="view">
                                             <i class="fas fa-eye"></i>
                                         </button>
                                  <button onclick="printReferral({{ $referral->ref_id }})"
-                                            class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs">
+                                            class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="print">
                                             <i class="fas fa-print"></i>
                                         </button>
                                         <button onclick="editReferral({{ $referral->ref_id }})"
-                                            class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs">
+                                            class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs"title="edit">
                                             <i class="fas fa-pen"></i>
                                         </button>
                                         <form action="{{ route('medical.referrals.destroy', $referral->ref_id) }}" method="POST"
@@ -378,7 +378,7 @@
                                             @method('DELETE')
                                             <input type="hidden" name="active_tab" value="referrals">
                                             <button type="submit"
-                                                class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs">
+                                                class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs"title="delete">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </form>
