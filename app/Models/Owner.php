@@ -1,0 +1,30 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use App\Models\Pet;
+use App\Models\Branch;
+
+class Owner extends Model
+{
+    protected $table = 'tbl_own'; // ✅ ensure it points to the correct table
+    protected $primaryKey = 'own_id';
+    public $timestamps = false;
+
+    protected $fillable = [
+        'own_name',
+        'own_contactnum', 
+        'own_location',
+    ];
+
+    public function pets()
+    {
+        return $this->hasMany(Pet::class, 'own_id', 'own_id');
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class, 'branch_id');
+    }
+}
