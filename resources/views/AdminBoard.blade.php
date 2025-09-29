@@ -135,7 +135,7 @@
       top: 0;
       height: 100%;
       width: 4px;
-      background: #0f7ea0;
+      background: #f846a4;
       transform: scaleY(0);
       transition: transform 0.3s ease;
     }
@@ -146,7 +146,7 @@
     }
 
     .sidebar-item.active {
-      background: linear-gradient(90deg, rgba(15, 126, 160, 0.2), transparent);
+      background: linear-gradient(90deg, rgba(246, 68, 213, 0.2), transparent);
     }
 
     /* Search input modern styling */
@@ -170,8 +170,12 @@
   <header class="flex items-center h-16 gradient-bg text-white shadow-xl relative z-50">
 
     <!-- Logo Section -->
-    <div class="h-full flex items-center justify-center bg-white w-16 md:w-64 shrink-0">
-      <img src="{{ asset('images/header1.png') }}" class="h-10 md:h-11 object-contain w-full" alt="Logo" />
+    <div class="h-full flex items-centered
+     bg-white w-10
+      md:w-64 shrink-0">
+      <img src="{{ asset('images/header1.png') }}" class="h-15
+       md:h-13
+       object-contain w-full" alt="Logo" />
     </div>
 
     <!-- Branch Selector -->

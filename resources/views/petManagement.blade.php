@@ -81,6 +81,7 @@
                                         </button>
                                         <button onclick="viewOwnerDetails(this)" 
                                             class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view"
+                                            data-owner-id="{{ $owner->own_id }}"
                                             data-name="{{ $owner->own_name }}" 
                                             data-contact="{{ $owner->own_contactnum }}"
                                             data-location="{{ $owner->own_location }}">
@@ -360,7 +361,7 @@
                                             onsubmit="return confirm('Are you sure you want to delete this medical record?');" class="inline">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs"titile="delete">
+                                            <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs"title="delete">
                                                 <i class="fas fa-trash"></i> 
                                             </button>
                                         </form>
@@ -1188,6 +1189,52 @@ function openAddPetModal() {
     document.getElementById('petModal').classList.remove('hidden');
 }
 
+// Edit pet functionality - using event delegation
+document.addEventListener('click', function(e) {
+    const editBtn = e.target.closest('.editPetBtn');
+    if (!editBtn) return;
+    
+    const button = editBtn;
+    
+    document.getElementById('petForm').reset();
+    resetPhotoSections();
+
+    document.getElementById('pet_id').value = button.dataset.id;
+    document.getElementById('pet_name').value = button.dataset.name;
+    document.getElementById('pet_gender').value = button.dataset.gender;
+    document.getElementById('pet_birthdate').value = button.dataset.birthdate;
+    document.getElementById('pet_age').value = button.dataset.age;
+    document.getElementById('pet_species').value = button.dataset.species;
+    document.getElementById('pet_weight').value = button.dataset.weight;
+    document.getElementById('pet_temperature').value = button.dataset.temperature;
+    document.getElementById('pet_registration').value = button.dataset.registration;
+    document.getElementById('own_id').value = button.dataset.owner;
+
+    // Handle breed selection for edit
+    const species = button.dataset.species;
+    const breed = button.dataset.breed;
+    
+    if (species && breedData[species]) {
+        currentBreeds = breedData[species];
+        document.getElementById('pet_breed').value = breed;
+        document.getElementById('selected_breed').value = breed;
+        document.getElementById('pet_breed').placeholder = 'Search ' + species.toLowerCase() + ' breeds...';
+    }
+
+    const photo = button.dataset.photo;
+    if (photo) {
+        document.getElementById('currentImg').src = '/storage/' + photo;
+        document.getElementById('currentImage').classList.remove('hidden');
+    }
+
+    const petId = button.dataset.id;
+    document.getElementById('petForm').action = '/pet-management/pets/' + petId;
+    document.getElementById('petFormMethod').value = 'PUT';
+    document.getElementById('petModalTitle').textContent = 'Edit Pet';
+
+    document.getElementById('petModal').classList.remove('hidden');
+});
+
 // NEW FUNCTION: Add pet for specific owner
 function openAddPetForOwner(ownerId, ownerName) {
     const form = document.getElementById('petForm');
@@ -1569,6 +1616,82 @@ function showImageModal(src, caption) {
 }
 
 function viewPetDetails(button) {
+    const petId = button.dataset.petId;
+    
+    if (!petId) {
+        alert('Pet ID not found');
+        return;
+    }
+    
+    // Try to use enhanced modal with AJAX
+    fetch('/pet-management/pet/' + petId + '/details')
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to load');
+            return response.json();
+        })
+        .then(data => {
+            // Use enhanced modal
+            showEnhancedPetView(data);
+        })
+        .catch(error => {
+            // Fallback to simple modal if AJAX fails
+            console.log('Using simple view:', error);
+            showSimplePetView(button);
+        });
+}
+
+function showEnhancedPetView(data) {
+    const pet = data.pet;
+    const modal = document.getElementById('enhancedViewPetModal');
+    
+    document.getElementById('enhancedPetName').textContent = pet.pet_name;
+    document.getElementById('enhancedPetBreed').textContent = pet.pet_species + ' - ' + pet.pet_breed;
+    document.getElementById('enhancedPetAge').textContent = pet.pet_age;
+    document.getElementById('enhancedPetGender').textContent = pet.pet_gender;
+    document.getElementById('enhancedPetOwner').textContent = pet.owner ? pet.owner.own_name : 'N/A';
+    document.getElementById('enhancedPetWeight').textContent = pet.pet_weight ? pet.pet_weight + ' kg' : '-- kg';
+    document.getElementById('enhancedPetTemperature').textContent = pet.pet_temperature ? pet.pet_temperature + '°C' : '--°C';
+    
+    if (pet.pet_photo) {
+        document.getElementById('enhancedPetPhoto').src = '/storage/' + pet.pet_photo;
+        document.getElementById('enhancedPetPhoto').classList.remove('hidden');
+        document.getElementById('enhancedPetNoPhoto').classList.add('hidden');
+    } else {
+        document.getElementById('enhancedPetPhoto').classList.add('hidden');
+        document.getElementById('enhancedPetNoPhoto').classList.remove('hidden');
+    }
+    
+    document.getElementById('petStatsVisits').textContent = data.stats.visits;
+    document.getElementById('petStatsLastVisit').textContent = data.stats.lastVisit;
+    
+    const medicalList = document.getElementById('petMedicalHistoryList');
+    medicalList.innerHTML = '';
+    
+    if (data.medicalHistory && data.medicalHistory.length > 0) {
+        data.medicalHistory.forEach(function(record) {
+            const div = document.createElement('div');
+            div.className = 'bg-white p-4 rounded-lg shadow border-l-4 border-blue-500';
+            
+            let vitals = '';
+            if (record.weight || record.temperature) {
+                vitals = '<div class="mt-3 p-3 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg"><div class="text-xs text-gray-600 mb-2 font-semibold">Vital Signs</div><div class="flex gap-4 text-sm">';
+                if (record.weight) vitals += '<span class="text-green-600 font-medium"><i class="fas fa-weight"></i> ' + record.weight + ' kg</span>';
+                if (record.temperature) vitals += '<span class="text-red-600 font-medium"><i class="fas fa-thermometer-half"></i> ' + record.temperature + '°C</span>';
+                vitals += '</div></div>';
+            }
+            
+            div.innerHTML = '<div class="flex justify-between items-start mb-2"><div class="text-sm text-gray-600"><i class="fas fa-calendar"></i> ' + record.visit_date + '</div><div class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">' + record.veterinarian_name + '</div></div><div class="font-semibold text-gray-800 mb-1">' + record.diagnosis + '</div><div class="text-sm text-gray-600">' + record.treatment + '</div>' + (record.medication ? '<div class="text-sm text-gray-500 mt-1"><i class="fas fa-pills"></i> ' + record.medication + '</div>' : '') + vitals;
+            
+            medicalList.appendChild(div);
+        });
+    } else {
+        medicalList.innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fas fa-notes-medical text-3xl mb-2"></i><p>No medical history</p></div>';
+    }
+    
+    modal.classList.remove('hidden');
+}
+
+function showSimplePetView(button) {
     document.getElementById('viewPetName').innerText = button.dataset.name;
     document.getElementById('viewPetGender').innerText = button.dataset.gender;
     document.getElementById('viewPetBirthdate').innerText = button.dataset.birthdate;
@@ -1582,7 +1705,7 @@ function viewPetDetails(button) {
 
     const photo = button.dataset.photo;
     if (photo) {
-        document.getElementById('viewPetPhoto').src = `{{ asset('storage') }}/${photo}`;
+        document.getElementById('viewPetPhoto').src = '/storage/' + photo;
         document.getElementById('viewPetPhoto').classList.remove('hidden');
         document.getElementById('viewPetNoPhoto').classList.add('hidden');
     } else {
@@ -1593,49 +1716,9 @@ function viewPetDetails(button) {
     document.getElementById('viewPetModal').classList.remove('hidden');
 }
 
-// Edit pet functionality
-document.querySelectorAll('.editPetBtn').forEach(button => {
-    button.addEventListener('click', () => {
-        document.getElementById('petForm').reset();
-        resetPhotoSections();
-
-        document.getElementById('pet_id').value = button.dataset.id;
-        document.getElementById('pet_name').value = button.dataset.name;
-        document.getElementById('pet_gender').value = button.dataset.gender;
-        document.getElementById('pet_birthdate').value = button.dataset.birthdate;
-        document.getElementById('pet_age').value = button.dataset.age;
-        document.getElementById('pet_species').value = button.dataset.species;
-        document.getElementById('pet_weight').value = button.dataset.weight;
-        document.getElementById('pet_temperature').value = button.dataset.temperature;
-        document.getElementById('pet_registration').value = button.dataset.registration;
-        document.getElementById('own_id').value = button.dataset.owner;
-
-        // Handle breed selection for edit
-        const species = button.dataset.species;
-        const breed = button.dataset.breed;
-        
-        if (species && breedData[species]) {
-            currentBreeds = breedData[species];
-            document.getElementById('pet_breed').value = breed;
-            document.getElementById('selected_breed').value = breed;
-            document.getElementById('pet_breed').placeholder = `Search ${species.toLowerCase()} breeds...`;
-        }
-
-        const photo = button.dataset.photo;
-        if (photo) {
-            document.getElementById('currentImg').src = `{{ asset('storage') }}/${photo}`;
-            document.getElementById('currentImage').classList.remove('hidden');
-        }
-
-        const petId = button.dataset.id;
-        document.getElementById('petForm').action = `/pet-management/pets/${petId}`;
-        document.getElementById('petFormMethod').value = 'PUT';
-        document.getElementById('petModalTitle').textContent = 'Edit Pet';
-
-        document.getElementById('petModal').classList.remove('hidden');
-    });
-});
-
+function closeEnhancedPetModal() {
+    document.getElementById('enhancedViewPetModal').classList.add('hidden');
+}
 // Owner functionality
 function openAddOwnerModal() {
     const form = document.getElementById('ownerForm');
@@ -1663,10 +1746,83 @@ function closeOwnerModal() {
 }
 
 function viewOwnerDetails(button) {
-    document.getElementById('viewOwnerName').innerText = button.dataset.name;
-    document.getElementById('viewOwnerContact').innerText = button.dataset.contact;
-    document.getElementById('viewOwnerLocation').innerText = button.dataset.location;
-    document.getElementById('viewOwnerModal').classList.remove('hidden');
+    const ownerId = button.dataset.ownerId;
+    
+    if (!ownerId) {
+        console.error('Owner ID not found');
+        // Fallback to simple modal
+        document.getElementById('viewOwnerName').innerText = button.dataset.name;
+        document.getElementById('viewOwnerContact').innerText = button.dataset.contact;
+        document.getElementById('viewOwnerLocation').innerText = button.dataset.location;
+        document.getElementById('viewOwnerModal').classList.remove('hidden');
+        return;
+    }
+    
+    console.log('Fetching owner details for ID:', ownerId);
+    
+    fetch('/pet-management/owner/' + ownerId + '/details')
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to load');
+            return response.json();
+        })
+        .then(data => {
+            console.log('Owner data received:', data);
+            displayEnhancedOwnerModal(data);
+        })
+        .catch(error => {
+            console.log('Error, using simple view:', error);
+            // Fallback to simple modal
+            document.getElementById('viewOwnerName').innerText = button.dataset.name;
+            document.getElementById('viewOwnerContact').innerText = button.dataset.contact;
+            document.getElementById('viewOwnerLocation').innerText = button.dataset.location;
+            document.getElementById('viewOwnerModal').classList.remove('hidden');
+        });
+}
+
+function displayEnhancedOwnerModal(data) {
+    const owner = data.owner;
+    const modal = document.getElementById('enhancedViewOwnerModal');
+    
+    // Set owner info
+    document.getElementById('enhancedOwnerName').textContent = owner.own_name;
+    document.getElementById('enhancedOwnerContact').textContent = owner.own_contactnum;
+    document.getElementById('enhancedOwnerLocation').textContent = owner.own_location;
+    
+    // Set stats
+    document.getElementById('ownerStatsAnimals').textContent = data.stats.pets;
+    document.getElementById('ownerStatsAppointments').textContent = data.stats.appointments;
+    document.getElementById('ownerStatsMedical').textContent = data.stats.medicalRecords;
+    document.getElementById('ownerStatsLastVisit').textContent = data.stats.lastVisit;
+    
+    // Display pets
+    const petsList = document.getElementById('ownerPetsList');
+    petsList.innerHTML = '';
+    
+    if (data.pets && data.pets.length > 0) {
+        data.pets.forEach(function(pet) {
+            const petCard = document.createElement('div');
+            petCard.className = 'bg-white p-4 rounded-lg shadow border hover:shadow-lg transition-shadow';
+            
+            const photoHtml = pet.pet_photo 
+                ? '<img src="/storage/' + pet.pet_photo + '" alt="' + pet.pet_name + '" class="w-16 h-16 object-cover rounded-full mx-auto mb-3">'
+                : '<div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-3"><i class="fas fa-paw text-gray-400"></i></div>';
+            
+            petCard.innerHTML = photoHtml + 
+                '<h4 class="font-semibold text-center text-gray-800">' + pet.pet_name + '</h4>' +
+                '<p class="text-sm text-gray-600 text-center">' + pet.pet_species + ' - ' + pet.pet_breed + '</p>' +
+                '<p class="text-xs text-gray-500 text-center mt-1">' + pet.pet_age + ' • ' + pet.pet_gender + '</p>';
+            
+            petsList.appendChild(petCard);
+        });
+    } else {
+        petsList.innerHTML = '<div class="col-span-full text-center text-gray-500 py-8"><i class="fas fa-paw text-3xl mb-2"></i><p>No pets registered</p></div>';
+    }
+    
+    // Display appointments (placeholder)
+    const appointmentsList = document.getElementById('ownerAppointmentsList');
+    appointmentsList.innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fas fa-calendar text-3xl mb-2"></i><p>No appointments found</p></div>';
+    
+    modal.classList.remove('hidden');
 }
 
 // Medical History functionality
@@ -1715,15 +1871,108 @@ function closeMedicalModal() {
 }
 
 function viewMedicalDetails(button) {
-    document.getElementById('viewMedicalPet').innerText = button.dataset.pet;
-    document.getElementById('viewMedicalVisit').innerText = button.dataset.visit;
-    document.getElementById('viewMedicalDiagnosis').innerText = button.dataset.diagnosis;
-    document.getElementById('viewMedicalTreatment').innerText = button.dataset.treatment;
-    document.getElementById('viewMedicalMedication').innerText = button.dataset.medication || 'N/A';
-    document.getElementById('viewMedicalVeterinarian').innerText = button.dataset.veterinarian;
-    document.getElementById('viewMedicalFollowup').innerText = button.dataset.followup;
-    document.getElementById('viewMedicalNotes').innerText = button.dataset.notes || 'N/A';
-    document.getElementById('viewMedicalModal').classList.remove('hidden');
+    const medicalId = button.dataset.medicalId;
+    
+    if (!medicalId) {
+        // Fallback to simple modal
+        document.getElementById('viewMedicalPet').innerText = button.dataset.pet;
+        document.getElementById('viewMedicalVisit').innerText = button.dataset.visit;
+        document.getElementById('viewMedicalDiagnosis').innerText = button.dataset.diagnosis;
+        document.getElementById('viewMedicalTreatment').innerText = button.dataset.treatment;
+        document.getElementById('viewMedicalMedication').innerText = button.dataset.medication || 'N/A';
+        document.getElementById('viewMedicalVeterinarian').innerText = button.dataset.veterinarian;
+        document.getElementById('viewMedicalFollowup').innerText = button.dataset.followup;
+        document.getElementById('viewMedicalNotes').innerText = button.dataset.notes || 'N/A';
+        document.getElementById('viewMedicalModal').classList.remove('hidden');
+        return;
+    }
+    
+    fetch('/pet-management/medical/' + medicalId + '/details')
+        .then(response => response.json())
+        .then(data => {
+            displayEnhancedMedicalModal(data);
+        })
+        .catch(error => {
+            console.log('Using simple view:', error);
+            document.getElementById('viewMedicalPet').innerText = button.dataset.pet;
+            document.getElementById('viewMedicalVisit').innerText = button.dataset.visit;
+            document.getElementById('viewMedicalDiagnosis').innerText = button.dataset.diagnosis;
+            document.getElementById('viewMedicalTreatment').innerText = button.dataset.treatment;
+            document.getElementById('viewMedicalMedication').innerText = button.dataset.medication || 'N/A';
+            document.getElementById('viewMedicalVeterinarian').innerText = button.dataset.veterinarian;
+            document.getElementById('viewMedicalFollowup').innerText = button.dataset.followup;
+            document.getElementById('viewMedicalNotes').innerText = button.dataset.notes || 'N/A';
+            document.getElementById('viewMedicalModal').classList.remove('hidden');
+        });
+}
+
+function displayEnhancedMedicalModal(data) {
+    const medical = data.medical;
+    const pet = medical.pet;
+    const modal = document.getElementById('enhancedViewMedicalModal');
+    
+    // Set pet info
+    if (pet) {
+        document.getElementById('medicalPetName').textContent = pet.pet_name;
+        document.getElementById('medicalPetSpecies').textContent = pet.pet_species;
+        document.getElementById('medicalPetBreed').textContent = pet.pet_breed;
+        document.getElementById('medicalPetAge').textContent = pet.pet_age;
+        document.getElementById('medicalPetGender').textContent = pet.pet_gender;
+        
+        if (pet.pet_photo) {
+            document.getElementById('medicalPetPhoto').src = '/storage/' + pet.pet_photo;
+            document.getElementById('medicalPetPhoto').classList.remove('hidden');
+            document.getElementById('medicalPetNoPhoto').classList.add('hidden');
+        } else {
+            document.getElementById('medicalPetPhoto').classList.add('hidden');
+            document.getElementById('medicalPetNoPhoto').classList.remove('hidden');
+        }
+        
+        if (pet.owner) {
+            document.getElementById('medicalOwnerName').textContent = pet.owner.own_name;
+            document.getElementById('medicalOwnerContact').textContent = pet.owner.own_contactnum;
+            document.getElementById('medicalOwnerLocation').textContent = pet.owner.own_location;
+        }
+    }
+    
+    // Set current record details
+    document.getElementById('medicalVisitDate').textContent = medical.visit_date;
+    document.getElementById('medicalVeterinarian').textContent = medical.veterinarian_name;
+    document.getElementById('medicalFollowUpDate').textContent = medical.follow_up_date || 'N/A';
+    document.getElementById('medicalDiagnosis').textContent = medical.diagnosis;
+    document.getElementById('medicalTreatment').textContent = medical.treatment;
+    document.getElementById('medicalMedication').textContent = medical.medication || 'N/A';
+    document.getElementById('medicalNotes').textContent = medical.notes || 'N/A';
+    
+    // Display timeline
+    const timeline = document.getElementById('medicalTimeline');
+    timeline.innerHTML = '';
+    
+    if (data.timeline && data.timeline.length > 0) {
+        data.timeline.forEach(function(visit) {
+            const visitDiv = document.createElement('div');
+            visitDiv.className = 'bg-white p-3 rounded shadow-sm border-l-4 ' + 
+                (visit.id === medical.id ? 'border-green-500' : 'border-gray-300');
+            
+            let vitals = '';
+            if (visit.weight || visit.temperature) {
+                vitals = '<div class="mt-2 text-xs"><span class="text-green-600">⚖️ ' + 
+                    (visit.weight || '--') + ' kg</span> <span class="text-red-600">🌡️ ' + 
+                    (visit.temperature || '--') + '°C</span></div>';
+            }
+            
+            visitDiv.innerHTML = '<div class="text-xs text-gray-500">' + visit.visit_date + '</div>' +
+                '<div class="font-semibold text-sm">' + visit.diagnosis + '</div>' +
+                '<div class="text-xs text-gray-600">' + visit.veterinarian_name + '</div>' +
+                vitals;
+            
+            timeline.appendChild(visitDiv);
+        });
+    } else {
+        timeline.innerHTML = '<div class="text-center text-gray-500 py-4 text-sm">No history available</div>';
+    }
+    
+    modal.classList.remove('hidden');
 }
 
 // Close modals when clicking outside
@@ -1768,6 +2017,25 @@ document.getElementById('petForm').addEventListener('submit', function(e) {
         }
     }
 });
+
+function switchOwnerTab(tabName) {
+    document.querySelectorAll('.owner-tab-content').forEach(function(content) {
+        content.classList.add('hidden');
+    });
+    document.querySelectorAll('.owner-tab-button').forEach(function(button) {
+        button.classList.remove('active');
+    });
+    document.getElementById('owner-' + tabName + '-content').classList.remove('hidden');
+    document.getElementById('owner-' + tabName + '-tab').classList.add('active');
+}
+
+function closeEnhancedOwnerModal() {
+    document.getElementById('enhancedViewOwnerModal').classList.add('hidden');
+}
+
+function closeEnhancedMedicalModal() {
+    document.getElementById('enhancedViewMedicalModal').classList.add('hidden');
+}
 </script>
 
 @endsection

@@ -232,32 +232,26 @@ Route::group(['prefix' => 'pet-management', 'as' => 'pet-management.'], function
     // Main index page
     Route::get('/', [PetManagementController::class, 'index'])->name('index');
     
-    // Pet routes
+    // Pet CRUD routes
     Route::post('/pets', [PetManagementController::class, 'storePet'])->name('storePet');
     Route::put('/pets/{id}', [PetManagementController::class, 'updatePet'])->name('updatePet');
     Route::delete('/pets/{id}', [PetManagementController::class, 'destroyPet'])->name('destroyPet');
     
-    // Owner routes
+    // Owner CRUD routes
     Route::post('/owners', [PetManagementController::class, 'storeOwner'])->name('storeOwner');
     Route::put('/owners/{id}', [PetManagementController::class, 'updateOwner'])->name('updateOwner');
     Route::delete('/owners/{id}', [PetManagementController::class, 'destroyOwner'])->name('destroyOwner');
     
-    // Medical History routes
+    // Medical History CRUD routes
     Route::post('/medical-history', [PetManagementController::class, 'storeMedicalHistory'])->name('storeMedicalHistory');
     Route::put('/medical-history/{id}', [PetManagementController::class, 'updateMedicalHistory'])->name('updateMedicalHistory');
     Route::delete('/medical-history/{id}', [PetManagementController::class, 'destroyMedicalHistory'])->name('destroyMedicalHistory');
-
-// Add these routes to your web.php file
-Route::get('/pet-management/owner-details/{id}', [App\Http\Controllers\PetManagementController::class, 'getOwnerDetails']);
-Route::get('/pet-management/pet-details/{id}', [App\Http\Controllers\PetManagementController::class, 'getPetDetails']);
-Route::get('/pet-management/medical-details/{id}', [App\Http\Controllers\PetManagementController::class, 'getMedicalDetails']);
-// Add these routes to your routes/web.php file
-Route::get('/api/owner-details/{id}', [App\Http\Controllers\PetManagementController::class, 'getOwnerDetails']);
-Route::get('/api/pet-details/{id}', [App\Http\Controllers\PetManagementController::class, 'getPetDetails']);
-Route::get('/api/medical-details/{id}', [App\Http\Controllers\PetManagementController::class, 'getMedicalDetails']);
     
+    // AJAX routes for enhanced modals
+    Route::get('/pet/{id}/details', [PetManagementController::class, 'getPetDetails'])->name('getPetDetails');
+    Route::get('/owner/{id}/details', [PetManagementController::class, 'getOwnerDetails'])->name('getOwnerDetails');
+    Route::get('/medical/{id}/details', [PetManagementController::class, 'getMedicalDetails'])->name('getMedicalDetails');
 });
-
 
 
 Route::prefix('branch-user-management')->name('branch-user-management.')->group(function () {

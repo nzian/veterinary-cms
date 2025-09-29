@@ -5,18 +5,23 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <div class="max-w-7xl mx-auto bg-white p-6 rounded-lg shadow">
         
-        <!-- Tab Navigation -->
-        <div class="flex border-b border-gray-200 mb-6">
-            <button onclick="showTab('appointments')" id="appointmentsTab" class="px-6 py-3 text-sm font-medium text-[#0f7ea0] border-b-2 border-[#0f7ea0] bg-blue-50">
-             <h2 class="font-bold text-xl">Appointments</h2>
-            </button>
-            <button onclick="showTab('prescriptions')" id="prescriptionsTab" class="px-6 py-3 text-sm font-medium text-gray-500 hover:text-[#0f7ea0]">
-            <h2 class="font-bold text-xl"> Prescriptions </h2>
-            </button>
-            <button onclick="showTab('referrals')" id="referralsTab" class="px-6 py-3 text-sm font-medium text-gray-500 hover:text-[#0f7ea0]">
-            <h2 class="font-bold text-xl"> Referrals </h2>
-            </button>
-        </div>
+        {{-- Tab Navigation --}}
+<div class="border-b border-gray-200 mb-6">
+    <nav class="-mb-px flex space-x-8">
+        <button onclick="showTab('appointments')" id="appointments-tab" 
+            class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab', 'appointments') == 'appointments' ? 'active' : '' }}">
+            <h2 class="font-bold text-xl">Appointments</h2>
+        </button>
+        <button onclick="showTab('prescriptions')" id="prescriptions-tab" 
+            class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'prescriptions' ? 'active' : '' }}">
+            <h2 class="font-bold text-xl">Prescriptions</h2>
+        </button>
+        <button onclick="showTab('referrals')" id="referrals-tab" 
+            class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'referrals' ? 'active' : '' }}">
+            <h2 class="font-bold text-xl">Referrals</h2>
+        </button>
+    </nav>
+</div>
 
         
 
@@ -1064,6 +1069,17 @@
 
 <style>
 /* Tab Styles */
+/* Tab styles - matching pet management */
+.tab-button {
+    border-bottom-color: transparent;
+    color: #6B7280;
+}
+
+.tab-button.active {
+    border-bottom-color: #0f7ea0;
+    color: #0f7ea0;
+}
+
 .tab-content {
     display: block;
 }
@@ -1308,26 +1324,30 @@ function setupCSRF() {
 }
 
 // Tab functionality
+// Tab switching functionality - matching pet management
 function showTab(tabName) {
     // Hide all tab contents
     document.querySelectorAll('.tab-content').forEach(content => {
         content.classList.add('hidden');
     });
     
-    // Remove active styles from all tabs
-    document.querySelectorAll('[id$="Tab"]').forEach(tab => {
-        tab.classList.remove('text-[#0f7ea0]', 'border-b-2', 'border-[#0f7ea0]', 'bg-blue-50');
-        tab.classList.add('text-gray-500');
+    // Remove active class from all tab buttons
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.remove('active');
     });
     
     // Show selected tab content
     document.getElementById(tabName + 'Content').classList.remove('hidden');
     
-    // Add active styles to selected tab
-    const activeTab = document.getElementById(tabName + 'Tab');
-    activeTab.classList.add('text-[#0f7ea0]', 'border-b-2', 'border-[#0f7ea0]', 'bg-blue-50');
-    activeTab.classList.remove('text-gray-500');
+    // Add active class to selected tab button
+    document.getElementById(tabName + '-tab').classList.add('active');
+    
+    // Update URL parameter without page reload
+    const url = new URL(window.location);
+    url.searchParams.set('tab', tabName);
+    window.history.replaceState({}, '', url);
 }
+
 
 // ==================== APPOINTMENT FUNCTIONS ====================
 

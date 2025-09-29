@@ -84,29 +84,19 @@ public function getOwnerDetails($id)
             return response()->json(['error' => 'Owner not found'], 404);
         }
         
+        // Get all pets for this owner
         $pets = Pet::where('own_id', $id)->get();
         
-        // Mock data for demonstration
-        $mockAppointments = [
-            [
-                'id' => 1, 
-                'pet_name' => $pets->first() ? $pets->first()->pet_name : 'Sample Pet', 
-                'service_type' => 'General Checkup', 
-                'appointment_date' => now()->format('Y-m-d'), 
-                'appointment_time' => '10:00',
-                'status' => 'Completed'
-            ]
-        ];
+        // Get all medical records for this owner's pets
+        $petIds = $pets->pluck('pet_id');
+        $medicalRecords = MedicalHistory::whereIn('pet_id', $petIds)
+            ->orderBy('visit_date', 'desc')
+            ->get();
         
-        $mockOrders = [
-            [
-                'id' => 1, 
-                'items' => 'Pet Food Package', 
-                'total' => 1500, 
-                'order_date' => now()->format('Y-m-d'), 
-                'status' => 'Delivered'
-            ]
-        ];
+        // Calculate stats
+        $lastVisit = $medicalRecords->first() 
+            ? Carbon::parse($medicalRecords->first()->visit_date)->format('M d, Y') 
+            : 'Never';
         
         return response()->json([
             'owner' => [
@@ -122,26 +112,17 @@ public function getOwnerDetails($id)
                     'pet_species' => $pet->pet_species,
                     'pet_breed' => $pet->pet_breed,
                     'pet_age' => $pet->pet_age,
+                    'pet_gender' => $pet->pet_gender,
                     'pet_photo' => $pet->pet_photo
                 ];
             }),
-            'appointments' => $mockAppointments,
-            'referrals' => [],
-            'orders' => $mockOrders,
-            'totalSpent' => 1500,
+            'appointments' => [], // Placeholder for appointments
+            'products' => [], // Placeholder for products purchased
             'stats' => [
                 'pets' => $pets->count(),
-                'appointments' => 1,
-                'referrals' => 0,
-                'orders' => 1,
-                'lastVisit' => 'Never'
-            ],
-            'billing' => [
-                'totalOrders' => 1,
-                'totalSpent' => 1500,
-                'averageOrder' => 1500,
-                'outstandingBalance' => 0,
-                'lastPayment' => null
+                'appointments' => 0,
+                'medicalRecords' => $medicalRecords->count(),
+                'lastVisit' => $lastVisit
             ]
         ]);
         
@@ -159,7 +140,15 @@ public function getPetDetails($id)
             return response()->json(['error' => 'Pet not found'], 404);
         }
         
-        $medicalHistory = MedicalHistory::where('pet_id', $id)->orderBy('visit_date', 'desc')->get();
+        // Get all medical history including weight/temperature records
+        $medicalHistory = MedicalHistory::where('pet_id', $id)
+            ->orderBy('visit_date', 'desc')
+            ->get();
+        
+        // Separate vital signs history from regular medical records
+        $vitalSignsHistory = $medicalHistory->filter(function($record) {
+            return $record->weight !== null || $record->temperature !== null;
+        });
         
         return response()->json([
             'pet' => [
@@ -175,24 +164,35 @@ public function getPetDetails($id)
                 'pet_registration' => $pet->pet_registration,
                 'pet_photo' => $pet->pet_photo,
                 'owner' => $pet->owner ? [
-                    'own_name' => $pet->owner->own_name
+                    'own_name' => $pet->owner->own_name,
+                    'own_contactnum' => $pet->owner->own_contactnum,
+                    'own_location' => $pet->owner->own_location
                 ] : null
             ],
             'medicalHistory' => $medicalHistory->map(function($record) {
                 return [
                     'id' => $record->id,
-                    'visit_date' => $record->visit_date->format('Y-m-d'),
+                    'visit_date' => Carbon::parse($record->visit_date)->format('Y-m-d'),
                     'diagnosis' => $record->diagnosis,
                     'treatment' => $record->treatment,
+                    'medication' => $record->medication,
                     'veterinarian_name' => $record->veterinarian_name,
-                    'follow_up_date' => $record->follow_up_date ? $record->follow_up_date->format('Y-m-d') : null
+                    'follow_up_date' => $record->follow_up_date ? Carbon::parse($record->follow_up_date)->format('Y-m-d') : null,
+                    'weight' => $record->weight,
+                    'temperature' => $record->temperature,
+                    'notes' => $record->notes
                 ];
             }),
-            'prescriptions' => [],
-            'referrals' => [],
+            'vitalSignsHistory' => $vitalSignsHistory->map(function($record) {
+                return [
+                    'visit_date' => Carbon::parse($record->visit_date)->format('M d, Y'),
+                    'weight' => $record->weight,
+                    'temperature' => $record->temperature
+                ];
+            }),
             'stats' => [
                 'visits' => $medicalHistory->count(),
-                'lastVisit' => $medicalHistory->first() ? $medicalHistory->first()->visit_date->format('M d, Y') : 'Never'
+                'lastVisit' => $medicalHistory->first() ? Carbon::parse($medicalHistory->first()->visit_date)->format('M d, Y') : 'Never'
             ]
         ]);
         
@@ -217,31 +217,40 @@ public function getMedicalDetails($id)
             ->map(function($visit) {
                 return [
                     'id' => $visit->id,
-                    'visit_date' => $visit->visit_date->format('Y-m-d'),
+                    'visit_date' => Carbon::parse($visit->visit_date)->format('M d, Y'),
                     'diagnosis' => $visit->diagnosis,
                     'treatment' => $visit->treatment,
                     'medication' => $visit->medication,
-                    'veterinarian_name' => $visit->veterinarian_name
+                    'veterinarian_name' => $visit->veterinarian_name,
+                    'weight' => $visit->weight,
+                    'temperature' => $visit->temperature
                 ];
             });
         
         return response()->json([
             'medical' => [
                 'id' => $medical->id,
-                'visit_date' => $medical->visit_date->format('Y-m-d'),
+                'visit_date' => Carbon::parse($medical->visit_date)->format('M d, Y'),
                 'diagnosis' => $medical->diagnosis,
                 'treatment' => $medical->treatment,
                 'medication' => $medical->medication,
                 'veterinarian_name' => $medical->veterinarian_name,
-                'follow_up_date' => $medical->follow_up_date ? $medical->follow_up_date->format('Y-m-d') : null,
+                'follow_up_date' => $medical->follow_up_date ? Carbon::parse($medical->follow_up_date)->format('M d, Y') : null,
                 'notes' => $medical->notes,
+                'weight' => $medical->weight,
+                'temperature' => $medical->temperature,
                 'pet' => $medical->pet ? [
+                    'pet_id' => $medical->pet->pet_id,
                     'pet_name' => $medical->pet->pet_name,
                     'pet_species' => $medical->pet->pet_species,
                     'pet_breed' => $medical->pet->pet_breed,
+                    'pet_age' => $medical->pet->pet_age,
+                    'pet_gender' => $medical->pet->pet_gender,
                     'pet_photo' => $medical->pet->pet_photo,
                     'owner' => $medical->pet->owner ? [
-                        'own_name' => $medical->pet->owner->own_name
+                        'own_name' => $medical->pet->owner->own_name,
+                        'own_contactnum' => $medical->pet->owner->own_contactnum,
+                        'own_location' => $medical->pet->owner->own_location
                     ] : null
                 ] : null
             ],
@@ -282,37 +291,53 @@ public function getMedicalDetails($id)
     }
 
     public function updatePet(Request $request, $id)
-    {
-        try {
-            $validated = $request->validate([
-                'pet_name' => 'required|string|max:100',
-                'pet_weight' => 'nullable|numeric|min:0|max:200',
-                'pet_species' => 'required|string|in:Dog,Cat',
-                'pet_breed' => 'required|string|max:100',
-                'pet_birthdate' => 'required|date|before_or_equal:today',
-                'pet_age' => 'required|string|max:50',
-                'pet_gender' => 'required|in:Male,Female',
-                'pet_temperature' => 'nullable|numeric|min:30|max:45',
-                'pet_registration' => 'required|date',
-                'own_id' => 'required|exists:tbl_own,own_id',
-                'pet_photo' => 'nullable|image|mimes:jpg,jpeg,png,gif|max:2048'
+{
+    try {
+        $validated = $request->validate([
+            'pet_name' => 'required|string|max:100',
+            'pet_weight' => 'nullable|numeric|min:0|max:200',
+            'pet_species' => 'required|string|in:Dog,Cat',
+            'pet_breed' => 'required|string|max:100',
+            'pet_birthdate' => 'required|date|before_or_equal:today',
+            'pet_age' => 'required|string|max:50',
+            'pet_gender' => 'required|in:Male,Female',
+            'pet_temperature' => 'nullable|numeric|min:30|max:45',
+            'pet_registration' => 'required|date',
+            'own_id' => 'required|exists:tbl_own,own_id',
+            'pet_photo' => 'nullable|image|mimes:jpg,jpeg,png,gif|max:2048'
+        ]);
+
+        $pet = Pet::findOrFail($id);
+
+        // Check if weight or temperature changed - save old values to medical history
+        if (($validated['pet_weight'] && $validated['pet_weight'] != $pet->pet_weight) || 
+            ($validated['pet_temperature'] && $validated['pet_temperature'] != $pet->pet_temperature)) {
+            
+            MedicalHistory::create([
+                'pet_id' => $pet->pet_id,
+                'weight' => $pet->pet_weight,
+                'temperature' => $pet->pet_temperature,
+                'visit_date' => now()->format('Y-m-d'),
+                'diagnosis' => 'Routine Check - Weight/Temperature Update',
+                'treatment' => 'Weight: ' . $pet->pet_weight . ' kg, Temperature: ' . $pet->pet_temperature . '°C',
+                'veterinarian_name' => 'System Auto-Record',
+                'notes' => 'Automated record of vital signs before update'
             ]);
-
-            $pet = Pet::findOrFail($id);
-
-            if ($request->hasFile('pet_photo')) {
-                if ($pet->pet_photo) {
-                    Storage::disk('public')->delete($pet->pet_photo);
-                }
-                $validated['pet_photo'] = $request->file('pet_photo')->store('pets', 'public');
-            }
-
-            $pet->update($validated);
-            return back()->with('success', 'Pet updated successfully.');
-        } catch (\Exception $e) {
-            return back()->with('error', 'Update unsuccessful.');
         }
+
+        if ($request->hasFile('pet_photo')) {
+            if ($pet->pet_photo) {
+                Storage::disk('public')->delete($pet->pet_photo);
+            }
+            $validated['pet_photo'] = $request->file('pet_photo')->store('pets', 'public');
+        }
+
+        $pet->update($validated);
+        return back()->with('success', 'Pet updated successfully. Previous vital signs saved to medical history.');
+    } catch (\Exception $e) {
+        return back()->with('error', 'Update unsuccessful: ' . $e->getMessage());
     }
+}
 
     public function destroyPet($id)
     {
