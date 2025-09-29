@@ -78,16 +78,16 @@
                                     <button
                                         class="editBranchBtn bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs"
                                         data-id="{{ $branch->branch_id }}" data-name="{{ $branch->branch_name }}"
-                                        data-address="{{ $branch->branch_address }}" data-contact="{{ $branch->branch_contactNum }}">
+                                        data-address="{{ $branch->branch_address }}" data-contact="{{ $branch->branch_contactNum }}" title="Edit">
                                         <i class="fas fa-pen"></i> 
                                     </button>
                                     <button
                                         class="addUserToBranchBtn bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs"
-                                        data-branch-id="{{ $branch->branch_id }}" data-branch-name="{{ $branch->branch_name }}">
+                                        data-branch-id="{{ $branch->branch_id }}" data-branch-name="{{ $branch->branch_name }}"title="Add User">
                                         <i class="fas fa-user-plus"></i> 
                                     </button>
                                     <button onclick='openViewModal(@json($branch))'
-                                        class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs">
+                                        class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="View">
                                         <i class="fas fa-eye"></i> 
                                     </button>
                                     <form action="{{ route('branches-destroy', $branch->branch_id) }}" method="POST"
@@ -95,7 +95,7 @@
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit"
-                                            class="bg-[#f44336] text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs">
+                                            class="bg-[#f44336] text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs" title="Delete">
                                             <i class="fas fa-trash"></i> 
                                         </button>
                                     </form>
@@ -181,7 +181,7 @@
                                         data-id="{{ $user->user_id }}" data-name="{{ $user->user_name }}"
                                         data-email="{{ $user->user_email }}" data-contact="{{ $user->user_contactNum }}"
                                         data-role="{{ $user->user_role }}" data-license="{{ $user->user_licenseNum }}"
-                                        data-branch="{{ $user->branch_id }}">
+                                        data-branch="{{ $user->branch_id }}"title="Edit">
                                         <i class="fas fa-pen"></i> 
                                     </button>
                                     <form action="{{ route('userManagement.destroy', $user->user_id) }}" method="POST"
@@ -189,7 +189,7 @@
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit"
-                                            class="bg-[#f44336] text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs">
+                                            class="bg-[#f44336] text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs"title="Delete">
                                             <i class="fas fa-trash"></i> 
                                         </button>
                                     </form>
