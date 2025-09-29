@@ -18,7 +18,8 @@
 
     <!-- Left Side Image -->
     <div class="hidden md:block md:w-1/2 relative">
-        <img alt="Logo" src="{{ asset('images/mbvcmsLogo.png') }}" class="absolute top-0 left-0 w-[400px] z-10" />
+        <img alt="Logo" src="{{ asset('images/logo.png') }}" class="absolute top-20
+         left-5 w-[400px] z-10" />
         <img src="{{ asset('images/fQkuD2n.jpg') }}" class="w-full h-full object-cover" alt="Background" />
     </div>
 
