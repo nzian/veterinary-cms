@@ -48,8 +48,9 @@
 
     /* Modern gradient background */
     .gradient-bg {
-      background: linear-gradient(135deg, #0f7ea0 0%, #0c6b87 50%, #0a5a73 100%);
-    }
+  background: linear-gradient(135deg, #f88e28 30%, #875e0cff 50%, #f88e28 100%);
+}
+
 
     /* Hover effects */
     .hover-lift {
@@ -170,13 +171,14 @@
   <header class="flex items-center h-16 gradient-bg text-white shadow-xl relative z-50">
 
     <!-- Logo Section -->
-    <div class="h-full flex items-centered
-     bg-white w-10
-      md:w-64 shrink-0">
-      <img src="{{ asset('images/header1.png') }}" class="h-15
-       md:h-13
-       object-contain w-full" alt="Logo" />
-    </div>
+    <div class="h-full flex items-center 
+     bg-orange-500 w-10 
+     md:w-64 shrink-0">
+  <img src="{{ asset('images/header.jpg') }}" 
+       class="h-15 md:h-13 object-contain w-full" 
+       alt="Logo" />
+</div>
+
 
     <!-- Branch Selector -->
     <div class="flex-shrink-0 relative ml-4">
@@ -306,223 +308,68 @@
     <!-- SIDEBAR -->
     <aside class="bg-gradient-to-b from-slate-800 to-slate-900 w-16 md:w-64 flex flex-col shadow-2xl relative">
       <!-- Navigation -->
-      <nav class="flex-1 py-6">
-        <ul class="space-y-1 px-3">
-          <!-- Dashboard -->
-          <li class="sidebar-item {{ Route::currentRouteName() == 'dashboard-index' ? 'active' : '' }}">
-            <a href="{{ route('dashboard-index') }}"
-              class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div
-                class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-tachometer-alt text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Dashboard</span>
-            </a>
-          </li>
-
-          <!-- Pet Owners 
-          <li class="sidebar-item {{ Route::currentRouteName() == 'owners-index' ? 'active' : '' }}">
-            <a href="{{ route('owners-index') }}" class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-user-alt text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Pet Owners</span>
-            </a>
-          </li>-->
-
-          
-          <!-- Branch Management -->
-          <li class="sidebar-item {{ Route::currentRouteName() == 'branch-management.index' ? 'active' : '' }}">
-            <a href="{{ route('branch-management.index') }}"
-              class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div
-                class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-building text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Branch Management</span>
-            </a>
-          </li>
-
-           <!-- Inventory Management -->
-          <li class="sidebar-item {{ Route::currentRouteName() == 'prodservequip.index' ? 'active' : '' }}">
-            <a href="{{ route('prodservequip.index') }}"
-              class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div
-                class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-boxes text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Inventory Management</span>
-            </a>
-          </li>
-
-
-          <!-- Pet & Owner Management -->
-          <li class="sidebar-item {{ Route::currentRouteName() == 'pet-management.index' ? 'active' : '' }}">
-            <a href="{{ route('pet-management.index') }}"
-              class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div
-                class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-paw text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Pet <br>
-                Management</span>
-            </a>
-          </li>
-
-          <!-- Pets 
-          <li class="sidebar-item {{ Route::currentRouteName() == 'pets-index' ? 'active' : '' }}">
-            <a href="{{ route('pets-index') }}" class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-paw text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Pets</span>
-            </a>
-          </li>-->
-
-          <!-- Medical Management -->
-          <li class="sidebar-item {{ Route::currentRouteName() == 'medical.index' ? 'active' : '' }}">
-            <a href="{{ route('medical.index') }}"
-              class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div
-                class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-stethoscope text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Medical Management</span>
-            </a>
-          </li>
-
-          <!-- Appointments 
-          <li class="sidebar-item {{ Route::currentRouteName() == 'appointments-index' ? 'active' : '' }}">
-            <a href="{{ route('appointments-index') }}" class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-calendar-alt text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Appointments</span>
-            </a>
-          </li>-->
-
-          <!-- Prescriptions 
-<li class="sidebar-item {{ Route::currentRouteName() == 'prescriptions.index' ? 'active' : '' }}">
-  <a href="{{ route('prescriptions.index') }}" class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-    <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-      <i class="fas fa-notes-medical text-lg"></i>
-    </div>
-    <span class="hidden md:inline font-medium">Prescriptions</span>
-  </a>
-</li>-->
-
-
-          <!-- Referrals 
-          <li class="sidebar-item {{ Route::currentRouteName() == 'referral-index' ? 'active' : '' }}">
-            <a href="{{ route('referral-index') }}" class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-share text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Referrals</span>
-            </a>
-          </li> -->
-
-          <!-- Management (Branch & User) 
-<li class="sidebar-item {{ in_array(Route::currentRouteName(), ['branch-user-management.index', 'branches.index', 'userManagement.index']) ? 'active' : '' }}">
-    <a href="{{ route('branch-user-management.index') }}" class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-        <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-            <i class="fas fa-users-cog text-lg"></i>
-        </div>
-        <span class="hidden md:inline font-medium">Management</span>
-    </a>
-</li>-->
-
-          <!-- Products 
-          <li class="sidebar-item {{ Route::currentRouteName() == 'product-index' ? 'active' : '' }}">
-            <a href="{{ route('product-index') }}" class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-box-open text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Products</span>
-            </a>
-          </li>-->
-
-          <!-- Services 
-          <li class="sidebar-item {{ Route::currentRouteName() == 'services-index' ? 'active' : '' }}">
-            <a href="{{ route('services-index') }}" class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-hand-holding-medical text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Services</span>
-            </a>
-          </li>-->
-
-          <!-- Sales Management -->
-<li class="sidebar-item {{ Route::currentRouteName() == 'sales.index' ? 'active' : '' }}">
-  <a href="{{ route('sales.index') }}"
-    class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-    <div
-      class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-      <i class="fas fa-cash-register text-lg"></i>
-    </div>
-    <span class="hidden md:inline font-medium">Sales Management</span>
-  </a>
-</li>
-
-          <!-- Billings 
-          <li class="sidebar-item {{ Route::currentRouteName() == 'billing-index' ? 'active' : '' }}">
-            <a href="{{ route('billing-index') }}"
-              class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div
-                class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-receipt text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Billings</span>
-            </a>
-          </li>-->
-
-          <!--
-          <li class="sidebar-item {{ Route::currentRouteName() == 'order-index' ? 'active' : '' }}">
-            <a href="{{ route('order-index') }}"
-              class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div
-                class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-clipboard-list text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Orders</span>
-            </a>
-          </li>-->
-
-          <!-- Branches
-          <li class="sidebar-item {{ Route::currentRouteName() == 'branches-index' ? 'active' : '' }}">
-            <a href="{{ route('branches-index') }}" class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-code-branch text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Branches</span>
-            </a>
-          </li>-->
-
-          <!-- Users
-          <li class="sidebar-item {{ Route::currentRouteName() == 'userManagement.index' ? 'active' : '' }}">
-            <a href="{{ route('userManagement.index') }}" class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-users text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Users</span>
-            </a>
-          </li>-->
-
-          <!-- Reports -->
-          <li class="sidebar-item {{ Route::currentRouteName() == 'report.index' ? 'active' : '' }}">
-            <a href="{{ route('report.index') }}"
-              class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-              <div
-                class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-                <i class="fas fa-chart-bar text-lg"></i>
-              </div>
-              <span class="hidden md:inline font-medium">Reports</span>
-            </a>
-          </li>
-        </ul>
-      </nav>
+    <nav class="flex-1 py-6">
+  <ul class="space-y-1 px-3">
+    @php
+      $userRole = auth()->user()->user_role ?? '';
       
-      <div class="p-3 border-t border-white/10">
+      // Normalize role name (remove extra spaces, convert to lowercase for comparison)
+      $normalizedRole = strtolower(trim($userRole));
+      
+      // Define menu items for each role (using actual database values)
+      $menuItems = [
+        'superadmin' => [
+          ['route' => 'dashboard-index', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
+           ['route' => 'branch-management.index', 'icon' => 'fa-building', 'label' => 'Branch Management'],
+          ['route' => 'prodservequip.index', 'icon' => 'fa-boxes', 'label' => 'Inventory Management'],
+          ['route' => 'sales.index', 'icon' => 'fa-cash-register', 'label' => 'Sales Management'],
+          ['route' => 'report.index', 'icon' => 'fa-chart-bar', 'label' => 'Reports'],
+        ],
+        'veterinarian' => [
+          ['route' => 'dashboard-index', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
+          ['route' => 'pet-management.index', 'icon' => 'fa-paw', 'label' => 'Pet Management'],
+          ['route' => 'medical.index', 'icon' => 'fa-stethoscope', 'label' => 'Medical Management'],
+          ['route' => 'report.index', 'icon' => 'fa-chart-bar', 'label' => 'Reports'],
+        ],
+        'receptionist' => [
+          ['route' => 'dashboard-index', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
+          ['route' => 'prodservequip.index', 'icon' => 'fa-boxes', 'label' => 'Inventory Management'],
+          ['route' => 'pet-management.index', 'icon' => 'fa-paw', 'label' => 'Pet Management'],
+          ['route' => 'medical.index', 'icon' => 'fa-stethoscope', 'label' => 'Medical Management'],
+          ['route' => 'sales.index', 'icon' => 'fa-cash-register', 'label' => 'Sales Management'],
+        ],
+      ];
+      
+      // Get menu items for current user role
+      $currentMenuItems = $menuItems[$normalizedRole] ?? [];
+    @endphp
+
+    @foreach($currentMenuItems as $item)
+      <li class="sidebar-item {{ Route::currentRouteName() == $item['route'] ? 'active' : '' }}">
+        <a href="{{ route($item['route']) }}"
+          class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
+          <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
+            <i class="fas {{ $item['icon'] }} text-lg"></i>
+          </div>
+          <span class="hidden md:inline font-medium">{{ $item['label'] }}</span>
+        </a>
+      </li>
+    @endforeach
+
+    @if(empty($currentMenuItems))
+      <li class="px-4 py-3 text-white/60 text-sm">
+        <i class="fas fa-exclamation-triangle mr-2"></i>
+        <div>No menu items available for your role.</div>
+        <div class="mt-2 text-xs bg-white/10 p-2 rounded">
+          Debug: Your role is "<strong>{{ $userRole }}</strong>"<br>
+          Normalized: "<strong>{{ $normalizedRole }}</strong>"
+        </div>
+      </li>
+    @endif
+  </ul>
+</nav>
+      
+     <!-- <div class="p-3 border-t border-white/10">
   <a href="{{ route('sms-settings.index') }}"
      class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group w-full hover:bg-white/10 {{ request()->routeIs('sms-settings.*') ? 'bg-white/10' : '' }}">
     <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition {{ request()->routeIs('sms-settings.*') ? 'bg-[#0f7ea0]' : '' }}">
@@ -532,7 +379,7 @@
   </a>
 </div>
 
-      <!-- Settings 
+     Settings 
       <div class="p-3 border-t border-white/10">
         <button
           class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group w-full hover:bg-white/10">

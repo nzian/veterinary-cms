@@ -1,5 +1,61 @@
 @extends('AdminBoard')
-
+@php
+    $userRole = strtolower(auth()->user()->user_role ?? '');
+    
+    // Define permissions for each role
+    $permissions = [
+        'superadmin' => [
+            'add_product' => true,
+            'edit_product' => true,
+            'delete_product' => true,
+            'update_stock' => true,
+            'update_damage' => true,
+            'view_details' => true,
+            'add_service' => true,
+            'edit_service' => true,
+            'delete_service' => true,
+            'add_equipment' => true,
+            'edit_equipment' => true,
+            'delete_equipment' => true,
+        ],
+        'veterinarian' => [
+            'add_product' => true,
+            'edit_product' => true,
+            'delete_product' => true,
+            'update_stock' => true,
+            'update_damage' => true,
+            'view_details' => true,
+            'add_service' => true,
+            'edit_service' => true,
+            'delete_service' => true,
+            'add_equipment' => true,
+            'edit_equipment' => true,
+            'delete_equipment' => true,
+        ],
+        'receptionist' => [
+            'add_product' => false,
+            'edit_product' => false,
+            'delete_product' => false,
+            'update_stock' => true,
+            'update_damage' => true,
+            'view_details' => true,
+            'add_service' => false,
+            'edit_service' => false,
+            'delete_service' => false,
+            'add_equipment' => false,
+            'edit_equipment' => false,
+            'delete_equipment' => false,
+        ],
+    ];
+    
+    // Get permissions for current user
+    $can = $permissions[$userRole] ?? [];
+    
+    // Helper function to check permission
+    function hasPermission($permission, $can) {
+        return $can[$permission] ?? false;
+    }
+@endphp
 @section('content')
 <div class="min-h-screen">
     <div class="max-w-7xl mx-auto bg-white p-6 rounded-lg shadow">
@@ -26,16 +82,18 @@
         <!-- PRODUCTS & INVENTORY TAB -->
         <div id="productInventoryTab" class="main-tab-content">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-white">Product Management</h3>
-                <div class="flex gap-2">
-                    <button onclick="openInventoryOverview()" class="bg-purple-600 text-white text-sm px-4 py-2 rounded hover:bg-purple-700">
-                        📊 Inventory Overview
-                    </button>
-                    <button onclick="openAddProductModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-                        + Add Product
-                    </button>
-                </div>
-            </div>
+    <h3 class="text-lg font-bold text-white">Product Management</h3>
+    <div class="flex gap-2">
+        <button onclick="openInventoryOverview()" class="bg-purple-600 text-white text-sm px-4 py-2 rounded hover:bg-purple-700">
+            📊 Inventory Overview
+        </button>
+        @if(hasPermission('add_product', $can))
+            <button onclick="openAddProductModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
+                + Add Product
+            </button>
+        @endif
+    </div>
+</div>
 
             <!-- Products Table -->
             <div class="overflow-x-auto">
@@ -110,28 +168,42 @@
                             </td>
                             <td class="p-2 border">{{ $product->branch->branch_name ?? 'N/A' }}</td>
                             <td class="p-2 border">
-                                <div class="flex justify-center gap-1 flex-wrap">
-                                    <button onclick="viewProductDetails({{ $product->prod_id }})" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="View Details">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                    <button onclick="openEditProductModal({{ json_encode($product) }})" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="Edit Product">
-                                        <i class="fas fa-pen"></i>
-                                    </button>
-                                    <button onclick="openUpdateStockModal({{ json_encode($product) }})" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs" title="Update Stock">
-                                        <i class="fas fa-boxes"></i>
-                                    </button>
-                                    <button onclick="openDamagePulloutModal({{ json_encode($product) }})" class="bg-orange-500 text-white px-2 py-1 rounded hover:bg-orange-600 text-xs" title="Damage/Pull-out">
-                                        <i class="fas fa-exclamation-triangle"></i>
-                                    </button>
-                                    <form action="{{ route('products.destroy', $product->prod_id) }}" method="POST" onsubmit="return confirm('Delete this product?')" class="inline">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600" title="Delete">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
+    <div class="flex justify-center gap-1 flex-wrap">
+        @if(hasPermission('view_details', $can))
+            <button onclick="viewProductDetails({{ $product->prod_id }})" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="View Details">
+                <i class="fas fa-eye"></i>
+            </button>
+        @endif
+        
+        @if(hasPermission('edit_product', $can))
+            <button onclick="openEditProductModal({{ json_encode($product) }})" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="Edit Product">
+                <i class="fas fa-pen"></i>
+            </button>
+        @endif
+        
+        @if(hasPermission('update_stock', $can))
+            <button onclick="openUpdateStockModal({{ json_encode($product) }})" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs" title="Update Stock">
+                <i class="fas fa-boxes"></i>
+            </button>
+        @endif
+        
+        @if(hasPermission('update_damage', $can))
+            <button onclick="openDamagePulloutModal({{ json_encode($product) }})" class="bg-orange-500 text-white px-2 py-1 rounded hover:bg-orange-600 text-xs" title="Damage/Pull-out">
+                <i class="fas fa-exclamation-triangle"></i>
+            </button>
+        @endif
+        
+        @if(hasPermission('delete_product', $can))
+            <form action="{{ route('products.destroy', $product->prod_id) }}" method="POST" onsubmit="return confirm('Delete this product?')" class="inline">
+                @csrf
+                @method('DELETE')
+                <button class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600" title="Delete">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </form>
+        @endif
+    </div>
+</td>
                         </tr>
                         @endforeach
                     </tbody>
@@ -142,11 +214,13 @@
         <!-- SERVICES TAB -->
         <div id="servicesTab" class="main-tab-content hidden">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-white">Service Management</h3>
-                <button onclick="openAddModal('service')" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-                    + Add Service
-                </button>
-            </div>
+    <h3 class="text-lg font-bold text-white">Service Management</h3>
+    @if(hasPermission('add_service', $can))
+        <button onclick="openAddModal('service')" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
+            + Add Service
+        </button>
+    @endif
+</div>
             <div class="overflow-x-auto">
                 <table class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
@@ -166,19 +240,24 @@
                             <td class="p-2 border">{{ Str::limit($service->serv_description, 50) }}</td>
                             <td class="p-2 border">₱{{ number_format($service->serv_price, 2) }}</td>
                             <td class="p-2 border">
-                                <div class="flex justify-center gap-2">
-                                    <button onclick="openEditModal('service', {{ json_encode($service) }})" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs">
-                                        <i class="fas fa-pen"></i>
-                                    </button>
-                                    <form action="{{ route('services.destroy', $service->serv_id) }}" method="POST" onsubmit="return confirm('Delete this service?')" class="inline">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
+    <div class="flex justify-center gap-2">
+        @if(hasPermission('edit_service', $can))
+            <button onclick="openEditModal('service', {{ json_encode($service) }})" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs">
+                <i class="fas fa-pen"></i>
+            </button>
+        @endif
+        
+        @if(hasPermission('delete_service', $can))
+            <form action="{{ route('services.destroy', $service->serv_id) }}" method="POST" onsubmit="return confirm('Delete this service?')" class="inline">
+                @csrf
+                @method('DELETE')
+                <button class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </form>
+        @endif
+    </div>
+</td>
                         </tr>
                         @endforeach
                     </tbody>
@@ -189,11 +268,13 @@
         <!-- EQUIPMENT TAB -->
         <div id="equipmentTab" class="main-tab-content hidden">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-white">Equipment Management</h3>
-                <button onclick="openAddModal('equipment')" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-                    + Add Equipment
-                </button>
-            </div>
+    <h3 class="text-lg font-bold text-white">Equipment Management</h3>
+    @if(hasPermission('add_equipment', $can))
+        <button onclick="openAddModal('equipment')" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
+            + Add Equipment
+        </button>
+    @endif
+</div>
             <div class="overflow-x-auto">
                 <table class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
@@ -221,19 +302,24 @@
                             <td class="p-2 border">{{ Str::limit($equip->equipment_description ?? 'N/A', 50) }}</td>
                             <td class="p-2 border">{{ $equip->equipment_quantity }}</td>
                             <td class="p-2 border">
-                                <div class="flex justify-center gap-2">
-                                    <button onclick="openEditModal('equipment', {{ json_encode($equip) }})" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs">
-                                        <i class="fas fa-pen"></i>
-                                    </button>
-                                    <form action="{{ route('equipment.destroy', $equip->equipment_id) }}" method="POST" onsubmit="return confirm('Delete this equipment?')" class="inline">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
+    <div class="flex justify-center gap-2">
+        @if(hasPermission('edit_equipment', $can))
+            <button onclick="openEditModal('equipment', {{ json_encode($equip) }})" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs">
+                <i class="fas fa-pen"></i>
+            </button>
+        @endif
+        
+        @if(hasPermission('delete_equipment', $can))
+            <form action="{{ route('equipment.destroy', $equip->equipment_id) }}" method="POST" onsubmit="return confirm('Delete this equipment?')" class="inline">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </form>
+        @endif
+    </div>
+</td>
                         </tr>
                         @endforeach
                     </tbody>

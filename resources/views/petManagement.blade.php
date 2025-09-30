@@ -1,4 +1,61 @@
 @extends('AdminBoard')
+@php
+    $userRole = strtolower(auth()->user()->user_role ?? '');
+    
+    // Define permissions for each role
+    $permissions = [
+        'superadmin' => [
+            'view_owners' => true,
+            'add_owner' => true,
+            'edit_owner' => true,
+            'delete_owner' => true,
+            'view_pets' => true,
+            'add_pet' => true,
+            'edit_pet' => true,
+            'delete_pet' => true,
+            'view_medical' => true,
+            'add_medical' => true,
+            'edit_medical' => true,
+            'delete_medical' => true,
+        ],
+        'veterinarian' => [
+            'view_owners' => true,
+            'add_owner' => false,
+            'edit_owner' => false,
+            'delete_owner' => false,
+            'view_pets' => true,
+            'add_pet' => true,
+            'edit_pet' => true,
+            'delete_pet' => false,
+            'view_medical' => true,
+            'add_medical' => true,
+            'edit_medical' => true,
+            'delete_medical' => true,
+        ],
+        'receptionist' => [
+            'view_owners' => true,
+            'add_owner' => true,
+            'edit_owner' => true,
+            'delete_owner' => true,
+            'view_pets' => true,
+            'add_pet' => true,
+            'edit_pet' => true,
+            'delete_pet' => true,
+            'view_medical' => true,  // Can only VIEW medical
+            'add_medical' => false,
+            'edit_medical' => false,
+            'delete_medical' => false,
+        ],
+    ];
+    
+    // Get permissions for current user
+    $can = $permissions[$userRole] ?? [];
+    
+    // Helper function to check permission
+    function hasPermission($permission, $can) {
+        return $can[$permission] ?? false;
+    }
+@endphp
 
 @section('content')
 <div class="min-h-screen">
@@ -34,26 +91,30 @@
             </div>
         @endif
 
-        {{-- Pet Owners Tab Content (Now First) --}}
-        <div id="owners-content" class="tab-content {{ request('tab', 'owners') != 'owners' ? 'hidden' : '' }}">
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
-                    <input type="hidden" name="tab" value="owners">
-                    <label for="ownersPerPage" class="text-sm text-black">Show</label>
-                    <select name="ownersPerPage" id="ownersPerPage" onchange="this.form.submit()"
-                        class="border border-gray-400 rounded px-2 py-1 text-sm">
-                        @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                            <option value="{{ $limit }}" {{ request('ownersPerPage') == $limit ? 'selected' : '' }}>
-                                {{ $limit === 'all' ? 'All' : $limit }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <span>entries</span>
-                </form>
-                   <button onclick="openAddOwnerModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-                    + Add Pet Owner
-                </button>
-            </div>
+        
+       {{-- Pet Owners Tab Content (Now First) --}}
+<div id="owners-content" class="tab-content {{ request('tab', 'owners') != 'owners' ? 'hidden' : '' }}">
+    <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+    <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
+        <input type="hidden" name="tab" value="owners">
+        <label for="ownersPerPage" class="text-sm text-black">Show</label>
+        <select name="ownersPerPage" id="ownersPerPage" onchange="this.form.submit()"
+            class="border border-gray-400 rounded px-2 py-1 text-sm">
+            @foreach ([10, 20, 50, 100, 'all'] as $limit)
+                <option value="{{ $limit }}" {{ request('ownersPerPage') == $limit ? 'selected' : '' }}>
+                    {{ $limit === 'all' ? 'All' : $limit }}
+                </option>
+            @endforeach
+        </select>
+        <span>entries</span>
+    </form>
+    
+    @if(hasPermission('add_owner', $can))
+        <button onclick="openAddOwnerModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
+            + Add Pet Owner
+        </button>
+    @endif
+</div>
 
             <div class="overflow-x-auto mt-4">
                 <table class="w-full table-auto text-sm border text-center">
@@ -74,34 +135,42 @@
                                 <td class="border px-2 py-2">{{ $owner->own_contactnum }}</td>
                                 <td class="border px-2 py-2">{{ $owner->own_location }}</td>
                                 <td class="border px-2 py-1">
-                                    <div class="flex justify-center items-center gap-1">
+                                <div class="flex justify-center items-center gap-1">
+                                    @if(hasPermission('edit_owner', $can))
                                         <button onclick="openEditOwnerModal({{ json_encode($owner) }})" 
-                                            class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs"title="edit">
+                                            class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs" title="edit">
                                             <i class="fas fa-pen"></i> 
                                         </button>
-                                        <button onclick="viewOwnerDetails(this)" 
-                                            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view"
-                                            data-owner-id="{{ $owner->own_id }}"
-                                            data-name="{{ $owner->own_name }}" 
-                                            data-contact="{{ $owner->own_contactnum }}"
-                                            data-location="{{ $owner->own_location }}">
-                                            <i class="fas fa-eye"></i> 
-                                        </button>
+                                    @endif
+                                    
+                                    <button onclick="viewOwnerDetails(this)" 
+                                        class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view"
+                                        data-owner-id="{{ $owner->own_id }}"
+                                        data-name="{{ $owner->own_name }}" 
+                                        data-contact="{{ $owner->own_contactnum }}"
+                                        data-location="{{ $owner->own_location }}">
+                                        <i class="fas fa-eye"></i> 
+                                    </button>
+                                    
+                                    @if(hasPermission('add_pet', $can))
                                         <button onclick="openAddPetForOwner({{ $owner->own_id }}, '{{ $owner->own_name }}')"
-                                            class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs"title="add pet">
+                                            class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="add pet">
                                             <i class="fa-solid fa-paw"></i>
                                         </button>
+                                    @endif
 
+                                    @if(hasPermission('delete_owner', $can))
                                         <form action="{{ route('pet-management.destroyOwner', $owner->own_id) }}" method="POST"
                                             onsubmit="return confirm('Are you sure you want to delete this owner?');" class="inline">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs"title="delete">
+                                            <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs" title="delete">
                                                 <i class="fas fa-trash"></i> 
                                             </button>
                                         </form>
-                                    </div>
-                                </td>
+                                    @endif
+                                </div>
+                            </td>
                             </tr>
                         @empty
                             <tr>
@@ -138,6 +207,7 @@
                 </div>
             </div>
         </div>
+        
 
         {{-- Pets Tab Content (Now Second) --}}
         <div id="pets-content" class="tab-content {{ request('tab') != 'pets' ? 'hidden' : '' }}">
@@ -202,55 +272,62 @@
                                 <td class="border px-2 py-2">{{ $pet->pet_age }}</td>
                                 <td class="border px-2 py-2">{{ $pet->owner ? $pet->owner->own_name : 'N/A' }}</td>
                                 <td class="border px-2 py-1">
-                                    <div class="flex justify-center items-center gap-1">
-                                        <button class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs editPetBtn" title="edit"
-                                            data-id="{{ $pet->pet_id }}"
-                                            data-name="{{ $pet->pet_name }}"
-                                            data-gender="{{ $pet->pet_gender }}"
-                                            data-age="{{ $pet->pet_age }}"
-                                            data-birthdate="{{ $pet->pet_birthdate }}"
-                                            data-species="{{ $pet->pet_species }}"
-                                            data-breed="{{ $pet->pet_breed }}"
-                                            data-weight="{{ $pet->pet_weight }}"
-                                            data-temperature="{{ $pet->pet_temperature }}"
-                                            data-registration="{{ $pet->pet_registration }}"
-                                            data-owner="{{ $pet->own_id }}"
-                                            data-photo="{{ $pet->pet_photo }}">
-                                            <i class="fas fa-pen"></i>
-                                        </button>
-                                        
-                                        <button onclick="viewPetDetails(this)" 
-                                            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view"
-                                            data-pet-id="{{ $pet->pet_id }}"
-                                            data-name="{{ $pet->pet_name }}"
-                                            data-gender="{{ $pet->pet_gender }}"
-                                            data-age="{{ $pet->pet_age }}"
-                                            data-birthdate="{{ $pet->pet_birthdate ? \Carbon\Carbon::parse($pet->pet_birthdate)->format('F d, Y') : 'N/A' }}"
-                                            data-species="{{ $pet->pet_species }}"
-                                            data-breed="{{ $pet->pet_breed }}"
-                                            data-weight="{{ $pet->pet_weight }}"
-                                            data-temperature="{{ $pet->pet_temperature }}"
-                                            data-registration="{{ \Carbon\Carbon::parse($pet->pet_registration)->format('F d, Y') }}"
-                                            data-photo="{{ $pet->pet_photo }}"
-                                            data-owner="{{ $pet->owner ? $pet->owner->own_name : 'N/A' }}">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
+    <div class="flex justify-center items-center gap-1">
+        @if(hasPermission('edit_pet', $can))
+            <button class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs editPetBtn" title="edit"
+                data-id="{{ $pet->pet_id }}"
+                data-name="{{ $pet->pet_name }}"
+                data-gender="{{ $pet->pet_gender }}"
+                data-age="{{ $pet->pet_age }}"
+                data-birthdate="{{ $pet->pet_birthdate }}"
+                data-species="{{ $pet->pet_species }}"
+                data-breed="{{ $pet->pet_breed }}"
+                data-weight="{{ $pet->pet_weight }}"
+                data-temperature="{{ $pet->pet_temperature }}"
+                data-registration="{{ $pet->pet_registration }}"
+                data-owner="{{ $pet->own_id }}"
+                data-photo="{{ $pet->pet_photo }}">
+                <i class="fas fa-pen"></i>
+            </button>
+        @endif
+        
+        <button onclick="viewPetDetails(this)" 
+            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view"
+            data-pet-id="{{ $pet->pet_id }}"
+            data-name="{{ $pet->pet_name }}"
+            data-gender="{{ $pet->pet_gender }}"
+            data-age="{{ $pet->pet_age }}"
+            data-birthdate="{{ $pet->pet_birthdate ? \Carbon\Carbon::parse($pet->pet_birthdate)->format('F d, Y') : 'N/A' }}"
+            data-species="{{ $pet->pet_species }}"
+            data-breed="{{ $pet->pet_breed }}"
+            data-weight="{{ $pet->pet_weight }}"
+            data-temperature="{{ $pet->pet_temperature }}"
+            data-registration="{{ \Carbon\Carbon::parse($pet->pet_registration)->format('F d, Y') }}"
+            data-photo="{{ $pet->pet_photo }}"
+            data-owner="{{ $pet->owner ? $pet->owner->own_name : 'N/A' }}">
+            <i class="fas fa-eye"></i>
+        </button>
 
-                                        <button onclick="openAddMedicalForPet({{ $pet->pet_id }}, '{{ $pet->pet_name }}')"
-                                            class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="add medical">
-                                           <i class="fa-solid fa-notes-medical"></i>
-                                        </button>
+        @if(hasPermission('add_medical', $can))
+            <button onclick="openAddMedicalForPet({{ $pet->pet_id }}, '{{ $pet->pet_name }}')"
+                class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="add medical">
+               <i class="fa-solid fa-notes-medical"></i>
+            </button>
+        @endif
 
-                                        <form action="{{ route('pet-management.destroyPet', $pet->pet_id) }}" method="POST"
-                                            onsubmit="return confirm('Are you sure you want to delete this pet?');" class="inline">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs"title="delete">
-                                                <i class="fas fa-trash"></i> 
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
+        @if(hasPermission('delete_pet', $can))
+            <form action="{{ route('pet-management.destroyPet', $pet->pet_id) }}" method="POST"
+                onsubmit="return confirm('Are you sure you want to delete this pet?');" class="inline">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs" title="delete">
+                    <i class="fas fa-trash"></i> 
+                </button>
+            </form>
+        @endif
+    </div>
+</td>
+
                             </tr>
                         @empty
                             <tr>
@@ -336,37 +413,41 @@
                                 <td class="border px-2 py-2">
                                     {{ $medical->follow_up_date ? \Carbon\Carbon::parse($medical->follow_up_date)->format('M d, Y') : 'N/A' }}
                                 </td>
-                                <td class="border px-2 py-1">
-                                    <div class="flex justify-center items-center gap-1">
-                                        <button onclick="openEditMedicalModal({{ json_encode($medical) }})" 
-                                            class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs"title="edit">
-                                            <i class="fas fa-pen"></i> 
-                                        </button>
+                               <td class="border px-2 py-1">
+    <div class="flex justify-center items-center gap-1">
+        @if(hasPermission('edit_medical', $can))
+            <button onclick="openEditMedicalModal({{ json_encode($medical) }})" 
+                class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs" title="edit">
+                <i class="fas fa-pen"></i> 
+            </button>
+        @endif
 
-                                       <button onclick="viewMedicalDetails(this)" 
-                                            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs"title="view"
-                                            data-medical-id="{{ $medical->id }}"
-                                            data-pet="{{ $medical->pet ? $medical->pet->pet_name : 'N/A' }}"
-                                            data-visit="{{ \Carbon\Carbon::parse($medical->visit_date)->format('F d, Y') }}"
-                                            data-diagnosis="{{ $medical->diagnosis }}"
-                                            data-treatment="{{ $medical->treatment }}"
-                                            data-medication="{{ $medical->medication }}"
-                                            data-veterinarian="{{ $medical->veterinarian_name }}"
-                                            data-followup="{{ $medical->follow_up_date ? \Carbon\Carbon::parse($medical->follow_up_date)->format('F d, Y') : 'N/A' }}"
-                                            data-notes="{{ $medical->notes }}">
-                                            <i class="fas fa-eye"></i> 
-                                        </button>
+        <button onclick="viewMedicalDetails(this)" 
+            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view"
+            data-medical-id="{{ $medical->id }}"
+            data-pet="{{ $medical->pet ? $medical->pet->pet_name : 'N/A' }}"
+            data-visit="{{ \Carbon\Carbon::parse($medical->visit_date)->format('F d, Y') }}"
+            data-diagnosis="{{ $medical->diagnosis }}"
+            data-treatment="{{ $medical->treatment }}"
+            data-medication="{{ $medical->medication }}"
+            data-veterinarian="{{ $medical->veterinarian_name }}"
+            data-followup="{{ $medical->follow_up_date ? \Carbon\Carbon::parse($medical->follow_up_date)->format('F d, Y') : 'N/A' }}"
+            data-notes="{{ $medical->notes }}">
+            <i class="fas fa-eye"></i> 
+        </button>
 
-                                        <form action="{{ route('pet-management.destroyMedicalHistory', $medical->id) }}" method="POST"
-                                            onsubmit="return confirm('Are you sure you want to delete this medical record?');" class="inline">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs"title="delete">
-                                                <i class="fas fa-trash"></i> 
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
+        @if(hasPermission('delete_medical', $can))
+            <form action="{{ route('pet-management.destroyMedicalHistory', $medical->id) }}" method="POST"
+                onsubmit="return confirm('Are you sure you want to delete this medical record?');" class="inline">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs" title="delete">
+                    <i class="fas fa-trash"></i> 
+                </button>
+            </form>
+        @endif
+    </div>
+</td>
                             </tr>
                         @empty
                             <tr>

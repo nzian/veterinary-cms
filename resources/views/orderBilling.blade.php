@@ -1,5 +1,40 @@
 @extends('AdminBoard')
-
+@php
+    $userRole = strtolower(auth()->user()->user_role ?? '');
+    
+    // Define permissions for each role
+    $permissions = [
+        'superadmin' => [
+            'view_billing' => true,
+            'print_billing' => true,
+            'delete_billing' => true,
+            'view_pos_sales' => true,
+            'print_pos_sales' => true,
+        ],
+        'veterinarian' => [
+            'view_billing' => true,
+            'print_billing' => true,
+            'delete_billing' => false,
+            'view_pos_sales' => true,
+            'print_pos_sales' => true,
+        ],
+        'receptionist' => [
+            'view_billing' => true,
+            'print_billing' => true,
+            'delete_billing' => false,
+            'view_pos_sales' => true,
+            'print_pos_sales' => true,
+        ],
+    ];
+    
+    // Get permissions for current user
+    $can = $permissions[$userRole] ?? [];
+    
+    // Helper function to check permission
+    function hasPermission($permission, $can) {
+        return $can[$permission] ?? false;
+    }
+@endphp
 @section('content')
 <div class="min-h-screen">
     <div class="max-w-7xl mx-auto bg-white p-6 rounded-lg shadow">
@@ -159,60 +194,64 @@
                                 </td>
                                 <td class="px-4 py-2 border">{{ \Carbon\Carbon::parse($billing->bill_date)->format('M d, Y') }}</td>
                                 <td class="px-4 py-2 border text-center">
-                                    <div class="flex justify-center items-center gap-1">
-                                        <!-- View Button -->
-                                        <button onclick="viewBilling(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"title="view"
-                                            data-bill-id="{{ $billing->bill_id }}"
-                                            data-owner="{{ $billing->appointment?->pet?->owner?->own_name ?? 'N/A' }}"
-                                            data-pet="{{ $billing->appointment?->pet?->pet_name ?? 'N/A' }}"
-                                            data-pet-species="{{ $billing->appointment?->pet?->pet_species ?? 'N/A' }}"
-                                            data-pet-breed="{{ $billing->appointment?->pet?->pet_breed ?? 'N/A' }}"
-                                            data-date="{{ \Carbon\Carbon::parse($billing->bill_date)->format('F d, Y') }}"
-                                            data-services-total="{{ $servicesTotal }}"
-                                            data-prescription-total="{{ $prescriptionTotal }}"
-                                            data-grand-total="{{ $grandTotal }}"
-                                            data-status="{{ $billingStatus }}"
-                                            data-services="{{ $billing->appointment && $billing->appointment->services ? $billing->appointment->services->map(function($service) { return $service->serv_name . ' - ₱' . number_format($service->serv_price ?? 0, 2); })->implode('|') : 'No services' }}"
-                                            data-prescription-items="{{ json_encode($prescriptionItems) }}"
-                                            data-branch-name="{{ $billing->appointment?->branch?->branch_name ?? 'Main Branch' }}"
-                                            data-branch-address="{{ $billing->appointment?->branch?->branch_address ?? 'Branch Address' }}"
-                                            data-branch-contact="{{ $billing->appointment?->branch?->branch_contactNum ?? 'Contact Number' }}">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
+    <div class="flex justify-center items-center gap-1">
+        <!-- View Button -->
+        <button onclick="viewBilling(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="view"
+            data-bill-id="{{ $billing->bill_id }}"
+            data-owner="{{ $billing->appointment?->pet?->owner?->own_name ?? 'N/A' }}"
+            data-pet="{{ $billing->appointment?->pet?->pet_name ?? 'N/A' }}"
+            data-pet-species="{{ $billing->appointment?->pet?->pet_species ?? 'N/A' }}"
+            data-pet-breed="{{ $billing->appointment?->pet?->pet_breed ?? 'N/A' }}"
+            data-date="{{ \Carbon\Carbon::parse($billing->bill_date)->format('F d, Y') }}"
+            data-services-total="{{ $servicesTotal }}"
+            data-prescription-total="{{ $prescriptionTotal }}"
+            data-grand-total="{{ $grandTotal }}"
+            data-status="{{ $billingStatus }}"
+            data-services="{{ $billing->appointment && $billing->appointment->services ? $billing->appointment->services->map(function($service) { return $service->serv_name . ' - ₱' . number_format($service->serv_price ?? 0, 2); })->implode('|') : 'No services' }}"
+            data-prescription-items="{{ json_encode($prescriptionItems) }}"
+            data-branch-name="{{ $billing->appointment?->branch?->branch_name ?? 'Main Branch' }}"
+            data-branch-address="{{ $billing->appointment?->branch?->branch_address ?? 'Branch Address' }}"
+            data-branch-contact="{{ $billing->appointment?->branch?->branch_contactNum ?? 'Contact Number' }}">
+            <i class="fas fa-eye"></i>
+        </button>
 
-                                        <!-- Direct Print Button -->
-                                        <button onclick="directPrintBilling(this)" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs"title="print"
-                                            data-bill-id="{{ $billing->bill_id }}"
-                                            data-owner="{{ $billing->appointment?->pet?->owner?->own_name ?? 'N/A' }}"
-                                            data-pet="{{ $billing->appointment?->pet?->pet_name ?? 'N/A' }}"
-                                            data-pet-species="{{ $billing->appointment?->pet?->pet_species ?? 'N/A' }}"
-                                            data-pet-breed="{{ $billing->appointment?->pet?->pet_breed ?? 'N/A' }}"
-                                            data-date="{{ \Carbon\Carbon::parse($billing->bill_date)->format('F d, Y') }}"
-                                            data-services-total="{{ $servicesTotal }}"
-                                            data-prescription-total="{{ $prescriptionTotal }}"
-                                            data-grand-total="{{ $grandTotal }}"
-                                            data-status="{{ $billingStatus }}"
-                                            data-services="{{ $billing->appointment && $billing->appointment->services ? $billing->appointment->services->map(function($service) { return $service->serv_name . ' - ₱' . number_format($service->serv_price ?? 0, 2); })->implode('|') : 'No services' }}"
-                                            data-prescription-items="{{ json_encode($prescriptionItems) }}"
-                                            data-branch-name="{{ $billing->appointment?->branch?->branch_name ?? 'Main Branch' }}"
-                                            data-branch-address="{{ $billing->appointment?->branch?->branch_address ?? 'Branch Address' }}"
-                                            data-branch-contact="{{ $billing->appointment?->branch?->branch_contactNum ?? 'Contact Number' }}">
-                                            <i class="fas fa-print"></i>
-                                        </button>
+        @if(hasPermission('print_billing', $can))
+            <!-- Direct Print Button -->
+            <button onclick="directPrintBilling(this)" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="print"
+                data-bill-id="{{ $billing->bill_id }}"
+                data-owner="{{ $billing->appointment?->pet?->owner?->own_name ?? 'N/A' }}"
+                data-pet="{{ $billing->appointment?->pet?->pet_name ?? 'N/A' }}"
+                data-pet-species="{{ $billing->appointment?->pet?->pet_species ?? 'N/A' }}"
+                data-pet-breed="{{ $billing->appointment?->pet?->pet_breed ?? 'N/A' }}"
+                data-date="{{ \Carbon\Carbon::parse($billing->bill_date)->format('F d, Y') }}"
+                data-services-total="{{ $servicesTotal }}"
+                data-prescription-total="{{ $prescriptionTotal }}"
+                data-grand-total="{{ $grandTotal }}"
+                data-status="{{ $billingStatus }}"
+                data-services="{{ $billing->appointment && $billing->appointment->services ? $billing->appointment->services->map(function($service) { return $service->serv_name . ' - ₱' . number_format($service->serv_price ?? 0, 2); })->implode('|') : 'No services' }}"
+                data-prescription-items="{{ json_encode($prescriptionItems) }}"
+                data-branch-name="{{ $billing->appointment?->branch?->branch_name ?? 'Main Branch' }}"
+                data-branch-address="{{ $billing->appointment?->branch?->branch_address ?? 'Branch Address' }}"
+                data-branch-contact="{{ $billing->appointment?->branch?->branch_contactNum ?? 'Contact Number' }}">
+                <i class="fas fa-print"></i>
+            </button>
+        @endif
 
-                                        <!-- Delete Button -->
-                                        <form method="POST" action="{{ route('sales.destroyBilling', $billing->bill_id) }}"
-                                              onsubmit="return confirm('Are you sure you want to delete this billing?');"
-                                              class="inline-block" title="delete">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit"
-                                                    class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs">
-                                                <i class="fas fa-trash"></i> 
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
+        @if(hasPermission('delete_billing', $can))
+            <!-- Delete Button -->
+            <form method="POST" action="{{ route('sales.destroyBilling', $billing->bill_id) }}"
+                  onsubmit="return confirm('Are you sure you want to delete this billing?');"
+                  class="inline-block" title="delete">
+                @csrf
+                @method('DELETE')
+                <button type="submit"
+                        class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs">
+                    <i class="fas fa-trash"></i> 
+                </button>
+            </form>
+        @endif
+    </div>
+</td>
                             </tr>
                         @empty
                             <tr>
@@ -351,18 +390,18 @@
                                     {{ $firstOrder->user->user_name ?? 'N/A' }}
                                 </td>
                                 <td class="border px-4 py-2">
-                                    <button onclick="viewTransaction('{{ $transactionId }}')" 
-                                            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
-                                            title="View Transaction Details">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                    <button onclick="printTransaction(this)" 
-                                            data-id="{{ $transactionId }}" 
-                                            class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
-                                            title="Print Receipt">
-                                        <i class="fas fa-print"></i>
-                                    </button>
-                                </td>
+    <button onclick="viewTransaction('{{ $transactionId }}')" 
+            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
+            title="View Transaction Details">
+        <i class="fas fa-eye"></i>
+    </button>
+    <button onclick="printTransaction(this)" 
+            data-id="{{ $transactionId }}" 
+            class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+            title="Print Receipt">
+        <i class="fas fa-print"></i>
+    </button>
+</td>
                             </tr>
                         @empty
                             <tr>
