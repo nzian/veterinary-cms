@@ -7,7 +7,7 @@
         <div class="border-b border-gray-200 mb-6">
             <nav class="-mb-px flex space-x-8">
                 <button id="branchTab" onclick="switchTab('branch')" 
-                    class="tab-button active py-2 px-1 border-b-2 border-[#0f7ea0] font-medium text-sm text-[#0f7ea0]">
+                    class="tab-button active py-2 px-1 border-b-2 border-[#ff8c42] font-medium text-sm text-[#ff8c42]">
                    <h2 class="font-bold text-xl">Branches</h2>
                 </button>
                 <button id="userTab" onclick="switchTab('user')" 

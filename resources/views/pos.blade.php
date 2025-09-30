@@ -63,8 +63,8 @@
             position: relative;
         }
         .tab-button.active {
-            color: #0f7ea0;
-            background: rgba(15, 126, 160, 0.1);
+            color: #ff8c42;
+            background: rgba(232, 187, 55, 0.1);
         }
         .tab-button.active::after {
             content: '';
@@ -73,19 +73,19 @@
             left: 0;
             right: 0;
             height: 3px;
-            background: linear-gradient(90deg, #0f7ea0, #0c6b87);
+            background: linear-gradient(90deg, #ff8c42, #ff8c42);
             border-radius: 2px 2px 0 0;
         }
 
         /* Quantity input */
         .qty-control { transition: all 0.2s ease; }
-        .qty-control:hover { background: #0f7ea0; color: white; transform: scale(1.1); }
+        .qty-control:hover { background: #ff8c42; color: white; transform: scale(1.1); }
 
         /* Scrollbar */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: linear-gradient(135deg, #0f7ea0, #0c6b87); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: linear-gradient(135deg, #0c6b87, #0a5a73); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: linear-gradient(135deg, #ff8c42, #ff8c42); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: linear-gradient(135deg, #ff8c42, #ff8c42); }
 
         /* Ripple effect */
         .ripple { position: relative; overflow: hidden; }
@@ -111,7 +111,7 @@
         <div class="glass-card rounded-2xl p-6 mb-6 shadow-xl">
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center gap-4">
-                    <div class="w-12 h-12 bg-gradient-to-br from-[#0f7ea0] to-[#0c6b87] rounded-xl flex items-center justify-center shadow-lg">
+                    <div class="w-12 h-12 bg-gradient-to-br from-[#ff8c42] to-[#875e0cff] rounded-xl flex items-center justify-center shadow-lg">
                         <i class="fas fa-cash-register text-white text-xl"></i>
                     </div>
                     <div>
@@ -128,9 +128,9 @@
             <!-- Pet Owner Selection (for direct sales) -->
             <div class="bg-white/70 rounded-xl p-4 border border-white/50">
                 <label for="petOwner" class="block text-sm font-semibold text-gray-700 mb-2">
-                    <i class="fas fa-user mr-2 text-[#0f7ea0]"></i>Select Customer (for direct sales)
+                    <i class="fas fa-user mr-2 text-[#ff8c42]"></i>Select Customer (for direct sales)
                 </label>
-                <select id="petOwner" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0f7ea0] focus:border-transparent transition-all duration-300 bg-white shadow-sm">
+                <select id="petOwner" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#ff8c42] focus:border-transparent transition-all duration-300 bg-white shadow-sm">
                     @foreach ($owners as $owner)
                         <option value="{{ $owner->own_id }}">{{ $owner->own_name }}</option>
                     @endforeach
@@ -142,7 +142,7 @@
             <!-- Cart Section -->
             <div class="lg:col-span-2">
                 <div class="glass-card rounded-2xl shadow-xl overflow-hidden">
-                    <div class="bg-gradient-to-r from-[#0f7ea0] to-[#0c6b87] text-white p-6">
+                    <div class="bg-gradient-to-r from-[#ff8c42] to-[#875e0cff] text-white p-6">
                         <h2 class="text-xl font-bold flex items-center gap-3">
                             <i class="fas fa-shopping-cart"></i> Shopping Cart
                         </h2>
@@ -156,10 +156,10 @@
                     <div class="bg-gray-50 border-t border-gray-200 p-4">
                         <div class="flex justify-between items-center mb-4">
                             <div class="text-lg font-semibold text-gray-700">
-                                Total Items: <span id="totalQty" class="text-[#0f7ea0]">0</span>
+                                Total Items: <span id="totalQty" class="text-[#ff8c42]">0</span>
                             </div>
                             <div class="text-2xl font-bold text-gray-800">
-                                Total: <span id="grandTotal" class="text-[#0f7ea0]">₱0.00</span>
+                                Total: <span id="grandTotal" class="text-[#ff8c42]">₱0.00</span>
                             </div>
                         </div>
                         <div class="flex gap-3 justify-end">
@@ -167,7 +167,7 @@
                                 <i class="fas fa-trash"></i> Clear Cart
                             </button>
                             <button id="payNow" class="modern-btn ripple px-8 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold shadow-lg hover:from-green-600 hover:to-green-700 flex items-center gap-2">
-                                <i class="fas fa-credit-card"></i> Pay Now
+                                <i class="fas fa-credit-card"></i> Pay
                             </button>
                         </div>
                     </div>
@@ -178,7 +178,7 @@
             <div class="lg:col-span-1">
                 <div class="glass-card rounded-2xl shadow-xl overflow-hidden">
                     <!-- Tab Headers -->
-                    <div class="bg-gradient-to-r from-[#0f7ea0] to-[#0c6b87] text-white p-4">
+                    <div class="bg-gradient-to-r from-[#ff8c42] to-[#875e0cff] text-white p-4">
                         <div class="flex gap-2">
                             <button id="productsTab" class="tab-button active flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300">
                                 <i class="fas fa-box-open mr-2"></i>Products
@@ -197,13 +197,13 @@
                                     <i class="fas fa-search text-gray-400"></i>
                                 </div>
                                 <input type="search" id="searchItem" placeholder="Search products..." 
-                                    class="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0f7ea0] focus:border-transparent transition-all duration-300 bg-white shadow-sm" />
+                                    class="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#ff8c42] focus:border-transparent transition-all duration-300 bg-white shadow-sm" />
                             </div>
                         </div>
                         <div id="productContainer" class="p-4 grid grid-cols-1 gap-3 custom-scrollbar max-h-96 overflow-y-auto bg-white">
                             @forelse ($items as $item)
                                 <button type="button"
-                                    class="product-card product-btn bg-white border-2 border-gray-100 rounded-xl p-4 text-left hover:border-[#0f7ea0] transition-all duration-300 shadow-sm"
+                                    class="product-card product-btn bg-white border-2 border-gray-100 rounded-xl p-4 text-left hover:border-[#ff8c42] transition-all duration-300 shadow-sm"
                                     data-id="{{ $item->prod_id }}"
                                     data-name="{{ $item->prod_name }}"
                                     data-price="{{ $item->prod_price }}"
@@ -212,10 +212,10 @@
                                     <div class="flex items-center justify-between">
                                         <div>
                                             <h4 class="font-semibold text-gray-800 text-sm mb-1">{{ $item->prod_name }}</h4>
-                                            <p class="text-[#0f7ea0] font-bold">₱{{ number_format($item->prod_price, 2) }}</p>
+                                            <p class="text-[#ff8c42] font-bold">₱{{ number_format($item->prod_price, 2) }}</p>
                                             <p class="text-xs text-gray-500">Stock: {{ $item->prod_stocks }}</p>
                                         </div>
-                                        <div class="w-10 h-10 bg-gradient-to-br from-[#0f7ea0] to-[#0c6b87] rounded-lg flex items-center justify-center">
+                                        <div class="w-10 h-10 bg-gradient-to-br from-[#ff8c42] to-[#875e0cff] rounded-lg flex items-center justify-center">
                                             <i class="fas fa-plus text-white text-sm"></i>
                                         </div>
                                     </div>
@@ -238,7 +238,7 @@
                         <div id="billingContainer" class="p-4 grid grid-cols-1 gap-3 max-h-96 overflow-y-auto bg-white custom-scrollbar">
                             @forelse ($billings as $bill)
                                 <button type="button"
-                                    class="billing-card bg-white border-2 border-gray-100 rounded-xl p-4 text-left hover:border-[#0f7ea0] transition-all duration-300 shadow-sm"
+                                    class="billing-card bg-white border-2 border-gray-100 rounded-xl p-4 text-left hover:border-[#ff8c42] transition-all duration-300 shadow-sm"
                                     data-id="{{ $bill->bill_id }}"
                                     data-total="{{ $bill->calculated_total }}"
                                     data-owner="{{ $bill->appointment?->pet?->owner?->own_name ?? 'N/A' }}"
@@ -246,7 +246,7 @@
                                     <div class="flex items-center justify-between">
                                         <div>
                                             <h4 class="font-semibold text-gray-800 text-sm mb-1">Bill #{{ $bill->bill_id }}</h4>
-                                            <p class="text-[#0f7ea0] font-bold">₱{{ number_format($bill->calculated_total, 2) }}</p>
+                                            <p class="text-[#ff8c42] font-bold">₱{{ number_format($bill->calculated_total, 2) }}</p>
                                             <p class="text-xs text-gray-500">{{ $bill->appointment?->pet?->owner?->own_name ?? 'N/A' }} - {{ $bill->appointment?->pet?->pet_name ?? 'N/A' }}</p>
                                         </div>
                                         <div class="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center">
@@ -319,7 +319,7 @@
                 <div class="text-sm text-gray-600 mb-1">Change Given</div>
                 <div class="text-2xl font-bold text-green-600" id="successChange">₱0.00</div>
             </div>
-            <button id="closeSuccess" class="modern-btn ripple px-8 py-3 bg-gradient-to-r from-[#0f7ea0] to-[#0c6b87] text-white rounded-xl font-semibold shadow-lg">Continue</button>
+            <button id="closeSuccess" class="modern-btn ripple px-8 py-3 bg-gradient-to-r from-[#ff8c42] to-[#f88e28] text-white rounded-xl font-semibold shadow-lg">Continue</button>
         </div>
     </div>
 </div>
@@ -484,7 +484,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 </button>
             </div>
             <div class="price font-semibold text-gray-700" data-price="${price}">₱${parseFloat(price).toFixed(2)}</div>
-            <div class="font-bold text-[#0f7ea0] total">₱${(price*qty).toFixed(2)}</div>
+            <div class="font-bold text-[#ff8c42] total">₱${(price*qty).toFixed(2)}</div>
             <div class="flex justify-center">
                 <button class="btn-remove w-8 h-8 rounded-lg bg-red-100 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all duration-200 group">
                     <i class="fas fa-trash text-xs text-red-500 group-hover:text-white"></i>

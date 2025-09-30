@@ -1,67 +1,5 @@
 @extends('AdminBoard')
-@php
-    $userRole = strtolower(auth()->user()->user_role ?? '');
-    
-    // Define permissions for each role
-    $permissions = [
-        'superadmin' => [
-            'view_appointments' => true,
-            'add_appointment' => true,
-            'edit_appointment' => true,
-            'delete_appointment' => true,
-            'refer_appointment' => true,
-            'prescribe_appointment' => true,
-            'view_prescriptions' => true,
-            'print_prescription' => true,
-            'edit_prescription' => true,
-            'delete_prescription' => true,
-            'view_referrals' => true,
-            'print_referral' => true,
-            'edit_referral' => true,
-            'delete_referral' => true,
-        ],
-        'veterinarian' => [
-            'view_appointments' => true,
-            'add_appointment' => true,
-            'edit_appointment' => true,
-            'delete_appointment' => true,
-            'refer_appointment' => true,
-            'prescribe_appointment' => true,
-            'view_prescriptions' => true,
-            'print_prescription' => true,
-            'edit_prescription' => true,
-            'delete_prescription' => true,
-            'view_referrals' => true,
-            'print_referral' => true,
-            'edit_referral' => true,
-            'delete_referral' => true,
-        ],
-        'receptionist' => [
-            'view_appointments' => true,
-            'add_appointment' => false,
-            'edit_appointment' => true,
-            'delete_appointment' => false,
-            'refer_appointment' => false,
-            'prescribe_appointment' => false,
-            'view_prescriptions' => true,
-            'print_prescription' => true,
-            'edit_prescription' => false,
-            'delete_prescription' => false,
-            'view_referrals' => true,
-            'print_referral' => true,
-            'edit_referral' => false,
-            'delete_referral' => false,
-        ],
-    ];
-    
-    // Get permissions for current user
-    $can = $permissions[$userRole] ?? [];
-    
-    // Helper function to check permission
-    function hasPermission($permission, $can) {
-        return $can[$permission] ?? false;
-    }
-@endphp
+
 @section('content')
 <div class="min-h-screen">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -113,25 +51,24 @@
         <!-- ==================== APPOINTMENTS TAB ==================== -->
         <div id="appointmentsContent" class="tab-content">
 
+            <!-- Show Entries Dropdown -->
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-    <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
-        <input type="hidden" name="active_tab" value="appointments">
-        <label for="perPage" class="text-sm text-black">Show</label>
-        <select name="perPage" id="perPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
-            @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                <option value="{{ $limit }}" {{ request('perPage') == $limit ? 'selected' : '' }}>
-                    {{ $limit === 'all' ? 'All' : $limit }}
-                </option>
-            @endforeach
-        </select>
-        <span>entries</span>
-    </form>
-    @if(hasPermission('add_appointment', $can))
-        <button onclick="openAddModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-            + Add Appointment
-        </button>
-    @endif
-</div>
+                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
+                    <input type="hidden" name="active_tab" value="appointments">
+                    <label for="perPage" class="text-sm text-black">Show</label>
+                    <select name="perPage" id="perPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                        @foreach ([10, 20, 50, 100, 'all'] as $limit)
+                            <option value="{{ $limit }}" {{ request('perPage') == $limit ? 'selected' : '' }}>
+                                {{ $limit === 'all' ? 'All' : $limit }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <span>entries</span>
+                </form>
+                <button onclick="openAddModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
+                    + Add Appointment
+                </button>
+            </div>
             <br>
 
             <!-- Appointments Table -->
@@ -181,41 +118,35 @@
                                     </span>
                                 </td>
                                 <td class="border px-2 py-1">
-    <div class="flex justify-center items-center gap-1">
-        @if(hasPermission('edit_appointment', $can))
-            <button onclick='openEditModal(@json($appointment))'
-                class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs" title="edit">
-                <i class="fas fa-pen"></i> 
-            </button>
-        @endif
-        
-        @if(hasPermission('refer_appointment', $can) && $appointment->appoint_status != 'refer')
-            <button onclick="openReferralModal({{ $appointment->appoint_id }})"
-                class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 flex items-center gap-1 text-xs" title="refer">
-                <i class="fas fa-share"></i>
-            </button>
-        @endif
+                                    <div class="flex justify-center items-center gap-1">
+                                        <button onclick='openEditModal(@json($appointment))'
+                                            class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs" title="edi">
+                                            <i class="fas fa-pen"></i> 
+                                        </button>
+                                        
+                                        @if($appointment->appoint_status != 'refer')
+                                        <button onclick="openReferralModal({{ $appointment->appoint_id }})"
+                                            class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 flex items-center gap-1 text-xs" title="refer">
+                                            <i class="fas fa-share"></i>
+                                        </button>
+                                        @endif
 
-        @if(hasPermission('prescribe_appointment', $can))
-            <button onclick="openPrescriptionFromAppointment({{ $appointment->appoint_id }})"
-                class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="prescribe">
-                <i class="fas fa-prescription"></i>
-            </button>
-        @endif
+                                        <button onclick="openPrescriptionFromAppointment({{ $appointment->appoint_id }})"
+                                            class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="prescribe">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
 
-        @if(hasPermission('delete_appointment', $can))
-            <form action="{{ route('medical.appointments.destroy', $appointment->appoint_id) }}" method="POST" onsubmit="return confirm('Are you sure?');" class="inline">
-                @csrf
-                @method('DELETE')
-                <input type="hidden" name="active_tab" value="appointments">
-                <button type="submit"
-                    class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs" title="delete">
-                    <i class="fas fa-trash"></i> 
-                </button>
-            </form>
-        @endif
-    </div>
-</td>
+                                        <form action="{{ route('medical.appointments.destroy', $appointment->appoint_id) }}" method="POST" onsubmit="return confirm('Are you sure?');" class="inline">
+                                            @csrf
+                                            @method('DELETE')
+                                            <input type="hidden" name="active_tab" value="appointments">
+                                            <button type="submit"
+                                                class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs">
+                                                <i class="fas fa-trash"></i> 
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
                             </tr>
                         @empty
                             <tr>
@@ -297,66 +228,62 @@
                                 @endif
                             </td>
                             <td class="border px-2 py-1 flex justify-center gap-1">
-    <!-- View -->
-    <button onclick="viewPrescription(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
-        data-id="{{ $prescription->prescription_id }}"
-        data-pet="{{ $prescription->pet->pet_name }}"
-        data-species="{{ $prescription->pet->pet_species }}"
-        data-breed="{{ $prescription->pet->pet_breed }}"
-        data-weight="{{ $prescription->pet->pet_weight }}"
-        data-age="{{ $prescription->pet->pet_age }}"
-        data-temp="{{ $prescription->pet->pet_temperature }}"
-        data-gender="{{ $prescription->pet->pet_gender }}"
-        data-date="{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}"
-        data-medication="{{ $prescription->medication }}"
-        data-notes="{{ $prescription->notes }}"
-        data-branch-name="{{ $prescription->branch->branch_name ?? 'Main Branch' }}"
-        data-branch-address="{{ $prescription->branch->branch_address ?? 'Branch Address' }}"
-        data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}" title="View Prescription">
-        <i class="fas fa-eye"></i>
-    </button>
+                                <!-- View -->
+                                <button onclick="viewPrescription(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
+                                    data-id="{{ $prescription->prescription_id }}"
+                                    data-pet="{{ $prescription->pet->pet_name }}"
+                                    data-species="{{ $prescription->pet->pet_species }}"
+                                    data-breed="{{ $prescription->pet->pet_breed }}"
+                                    data-weight="{{ $prescription->pet->pet_weight }}"
+                                    data-age="{{ $prescription->pet->pet_age }}"
+                                    data-temp="{{ $prescription->pet->pet_temperature }}"
+                                    data-gender="{{ $prescription->pet->pet_gender }}"
+                                    data-date="{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}"
+                                    data-medication="{{ $prescription->medication }}"
+                                     data-differential-diagnosis="{{ $prescription->differential_diagnosis }}"
+                                    data-notes="{{ $prescription->notes }}"
+                                    data-branch-name="{{ $prescription->branch->branch_name ?? 'Main Branch' }}"
+                                    data-branch-address="{{ $prescription->branch->branch_address ?? 'Branch Address' }}"
+                                    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}"title="View Prescription">
+                                    <i class="fas fa-eye"></i>
+                                </button>
 
-    @if(hasPermission('print_prescription', $can))
-        <!-- Direct Print Button -->
-        <button onclick="directPrint(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
-            data-id="{{ $prescription->prescription_id }}"
-            data-pet="{{ $prescription->pet->pet_name }}"
-            data-species="{{ $prescription->pet->pet_species }}"
-            data-breed="{{ $prescription->pet->pet_breed }}"
-            data-weight="{{ $prescription->pet->pet_weight }}"
-            data-age="{{ $prescription->pet->pet_age }}"
-            data-temp="{{ $prescription->pet->pet_temperature }}"
-            data-gender="{{ $prescription->pet->pet_gender }}"
-            data-date="{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}"
-            data-medication="{{ $prescription->medication }}"
-            data-notes="{{ $prescription->notes }}"
-            data-branch-name="{{ $prescription->branch->branch_name ?? 'Main Branch' }}"
-            data-branch-address="{{ $prescription->branch->branch_address ?? 'Branch Address' }}"
-            data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}" title="print">
-            <i class="fas fa-print"></i>
-        </button>
-    @endif
+                                <!-- Direct Print Button -->
+                                <button onclick="directPrint(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                    data-id="{{ $prescription->prescription_id }}"
+                                    data-pet="{{ $prescription->pet->pet_name }}"
+                                    data-species="{{ $prescription->pet->pet_species }}"
+                                    data-breed="{{ $prescription->pet->pet_breed }}"
+                                    data-weight="{{ $prescription->pet->pet_weight }}"
+                                    data-age="{{ $prescription->pet->pet_age }}"
+                                    data-temp="{{ $prescription->pet->pet_temperature }}"
+                                    data-gender="{{ $prescription->pet->pet_gender }}"
+                                    data-date="{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}"
+                                    data-medication="{{ $prescription->medication }}"
+                                     data-differential-diagnosis="{{ $prescription->differential_diagnosis }}"
+                                    data-notes="{{ $prescription->notes }}"
+                                    data-branch-name="{{ $prescription->branch->branch_name ?? 'Main Branch' }}"
+                                    data-branch-address="{{ $prescription->branch->branch_address ?? 'Branch Address' }}"
+                                    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}" title="print">
+                                    <i class="fas fa-print"></i>
+                                </button>
 
-    @if(hasPermission('edit_prescription', $can))
-        <!-- Edit -->
-        <button onclick="editPrescription({{ $prescription->prescription_id }})" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs" title="edit">
-            <i class="fas fa-pen"></i>
-        </button>
-    @endif
+                                <!-- Edit -->
+                                <button onclick="editPrescription({{ $prescription->prescription_id }})" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs" title="edit">
+                                    <i class="fas fa-pen"></i>
+                                </button>
 
-    @if(hasPermission('delete_prescription', $can))
-        <!-- Delete -->
-        <form action="{{ route('medical.prescriptions.destroy', $prescription->prescription_id) }}" method="POST"
-            onsubmit="return confirm('Are you sure you want to delete this prescription?');" class="inline">
-            @csrf
-            @method('DELETE')
-            <input type="hidden" name="active_tab" value="prescriptions">
-            <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs" title="delete">
-                <i class="fas fa-trash"></i>
-            </button>
-        </form>
-    @endif
-</td>
+                                <!-- Delete -->
+                                <form action="{{ route('medical.prescriptions.destroy', $prescription->prescription_id) }}" method="POST"
+                                    onsubmit="return confirm('Are you sure you want to delete this prescription?');" class="inline">
+                                    @csrf
+                                    @method('DELETE')
+                                    <input type="hidden" name="active_tab" value="prescriptions">
+                                    <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs" title="delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
                         </tr>
                         @empty
                         <tr>
@@ -439,40 +366,31 @@
                                     </span>
                                 </td>
                                 <td class="border px-2 py-1">
-    <div class="flex justify-center items-center gap-1">
-        <button onclick="viewReferral({{ $referral->ref_id }})"
-            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view">
-            <i class="fas fa-eye"></i>
-        </button>
-        
-        @if(hasPermission('print_referral', $can))
-            <button onclick="printReferral({{ $referral->ref_id }})"
-                class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="print">
-                <i class="fas fa-print"></i>
-            </button>
-        @endif
-        
-        @if(hasPermission('edit_referral', $can))
-            <button onclick="editReferral({{ $referral->ref_id }})"
-                class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs" title="edit">
-                <i class="fas fa-pen"></i>
-            </button>
-        @endif
-        
-        @if(hasPermission('delete_referral', $can))
-            <form action="{{ route('medical.referrals.destroy', $referral->ref_id) }}" method="POST"
-                onsubmit="return confirm('Are you sure you want to delete this referral?');" class="inline">
-                @csrf
-                @method('DELETE')
-                <input type="hidden" name="active_tab" value="referrals">
-                <button type="submit"
-                    class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs" title="delete">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </form>
-        @endif
-    </div>
-</td>
+                                    <div class="flex justify-center items-center gap-1">
+                                        <button onclick="viewReferral({{ $referral->ref_id }})"
+                                            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs"title="view">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                 <button onclick="printReferral({{ $referral->ref_id }})"
+                                            class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="print">
+                                            <i class="fas fa-print"></i>
+                                        </button>
+                                        <button onclick="editReferral({{ $referral->ref_id }})"
+                                            class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs"title="edit">
+                                            <i class="fas fa-pen"></i>
+                                        </button>
+                                        <form action="{{ route('medical.referrals.destroy', $referral->ref_id) }}" method="POST"
+                                            onsubmit="return confirm('Are you sure you want to delete this referral?');" class="inline">
+                                            @csrf
+                                            @method('DELETE')
+                                            <input type="hidden" name="active_tab" value="referrals">
+                                            <button type="submit"
+                                                class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs"title="delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
                             </tr>
                         @empty
                             <tr>
@@ -756,6 +674,13 @@
             </div>
 
             <div class="mb-4">
+                <label class="block text-sm font-medium">Differential Diagnosis</label>
+                <textarea name="differential_diagnosis" id="differential_diagnosis" rows="3" 
+                          class="w-full border px-2 py-1 rounded" 
+                          placeholder="Enter differential diagnosis (conditions being considered)"></textarea>
+            </div>
+
+            <div class="mb-4">
                 <label class="block text-sm">Notes/Recommendations</label>
                 <textarea name="notes" id="prescription_notes" rows="3" class="w-full border px-2 py-1 rounded" placeholder="Additional notes or recommendations"></textarea>
             </div>
@@ -816,6 +741,11 @@
                 <div class="medication-section mb-8">
                     <div class="section-title text-base font-bold mb-4">MEDICATION</div>
                     <div id="medicationsList" class="space-y-3"></div>
+                </div>
+
+                <div class="differential-diagnosis mb-6">
+                    <h3 class="text-base font-bold mb-2">DIFFERENTIAL DIAGNOSIS:</h3>
+                    <div id="viewDifferentialDiagnosis" class="text-sm bg-blue-50 p-3 rounded border-l-4 border-blue-500"></div>
                 </div>
 
                 <div class="recommendations mb-8">
@@ -1584,10 +1514,12 @@ function openPrescriptionModal() {
     document.getElementById('prescriptionFormMethod').value = 'POST';
     document.getElementById('prescriptionModalTitle').textContent = 'Add Prescription';
     document.getElementById('prescription_id').value = '';
-    
     document.getElementById('medicationContainer').innerHTML = '';
+    
     medicationCounter = 0;
     addMedicationField();
+
+    document.getElementById('differential_diagnosis').value = ''; 
     
     document.getElementById('prescriptionModal').classList.remove('hidden');
 }
@@ -1907,6 +1839,7 @@ function populatePrescriptionData(button) {
         gender: button.dataset.gender || 'N/A',
         date: button.dataset.date,
         medications: medications,
+        differentialDiagnosis: button.dataset.differentialDiagnosis || 'Not specified',
         notes: button.dataset.notes || 'No specific recommendations',
         branchName: button.dataset.branchName.toUpperCase(),
         branchAddress: 'Address: ' + button.dataset.branchAddress,
@@ -2002,6 +1935,9 @@ function viewPrescription(button) {
     document.getElementById('branch_address').innerText = data.branchAddress;
     document.getElementById('branch_contactNum').innerText = data.branchContact;
 
+    const diffDiagElement = document.getElementById('viewDifferentialDiagnosis');
+    diffDiagElement.innerText = data.differentialDiagnosis;
+    
     const medsContainer = document.getElementById('medicationsList');
     medsContainer.innerHTML = '';
     

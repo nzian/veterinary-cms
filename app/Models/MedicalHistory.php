@@ -19,7 +19,8 @@ class MedicalHistory extends Model
         'medication',
         'veterinarian_name',
         'follow_up_date',
-        'notes'
+        'notes',
+        'differential_diagnosis'
     ];
 
     protected $casts = [

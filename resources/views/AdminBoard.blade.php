@@ -48,7 +48,7 @@
 
     /* Modern gradient background */
     .gradient-bg {
-  background: linear-gradient(135deg, #f88e28 30%, #875e0cff 50%, #f88e28 100%);
+  background: linear-gradient(135deg,  #ff8c42 30%, #875e0cff 50%, #f88e28 100%);
 }
 
 
@@ -136,7 +136,7 @@
       top: 0;
       height: 100%;
       width: 4px;
-      background: #f846a4;
+      background: #ff8c42;
       transform: scaleY(0);
       transition: transform 0.3s ease;
     }
@@ -147,7 +147,7 @@
     }
 
     .sidebar-item.active {
-      background: linear-gradient(90deg, rgba(246, 68, 213, 0.2), transparent);
+      background: linear-gradient(90deg, rgba(246, 207, 68, 0.2), transparent);
     }
 
     /* Search input modern styling */
@@ -159,7 +159,7 @@
 
     .modern-search:focus {
       background: rgba(255, 255, 255, 1);
-      border-color: rgba(15, 126, 160, 0.5);
+      border-color: rgba(202, 141, 10, 0.5);
       outline: none;
       box-shadow: 0 0 0 3px rgba(15, 126, 160, 0.1);
     }
@@ -168,14 +168,12 @@
 
 <body class="h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
   <!-- HEADER -->
-  <header class="flex items-center h-16 gradient-bg text-white shadow-xl relative z-50">
+  <header class="flex items-center h-17 gradient-bg text-white shadow-xl relative z-50">
 
     <!-- Logo Section -->
-    <div class="h-full flex items-center 
-     bg-orange-500 w-10 
-     md:w-64 shrink-0">
-  <img src="{{ asset('images/header.jpg') }}" 
-       class="h-15 md:h-13 object-contain w-full" 
+   <div class="h-full flex items-center w-10 md:w-64 shrink-0" style="background-color: #ff8c42;">
+  <img src="{{ asset('images/header5.png') }}" 
+       class="h-15 md:h-16 object-contain w-full" 
        alt="Logo" />
 </div>
 
@@ -195,7 +193,7 @@
         <div class="py-2">
           @foreach($branches as $branch)
             <a href="{{ route('branch.switch', ['id' => $branch->branch_id]) }}" data-branch="{{ $branch->branch_id }}"
-              class="branch-link block px-4 py-3 text-sm font-medium text-gray-700 hover:bg-[#0f7ea0] hover:text-white smooth-transition border-l-4 border-transparent hover:border-[#0f7ea0]">
+              class="branch-link block px-4 py-3 text-sm font-medium text-gray-700 hover:bg-[#f846a4] hover:text-white smooth-transition border-l-4 border-transparent hover:border-[#0f7ea0]">
               <i class="fas fa-building mr-3 text-xs opacity-70"></i>
               {{ $branch->branch_name }}
             </a>
@@ -233,7 +231,7 @@
 
       <div id="notificationDropdown"
         class="hidden absolute right-0 mt-3 w-80 modern-dropdown rounded-xl z-50 overflow-hidden">
-        <div class="px-4 py-3 bg-gradient-to-r from-[#0f7ea0] to-[#0c6b87] text-white">
+        <div class="px-4 py-3 bg-gradient-to-r from-[#ff8c42] to-[#875e0cff] text-white">
           <h3 class="font-semibold text-sm">Notifications</h3>
           <p class="text-xs opacity-90">Stock alerts and updates</p>
         </div>
@@ -260,7 +258,9 @@
       </div>
     </div>
 
-    <!-- POS Button -->
+    <!-- POS Button (only visible to receptionist) -->
+@auth
+  @if(strtolower(trim(auth()->user()->user_role)) === 'receptionist')
     <a href="{{ route('pos') }}" class="mr-4">
       <button
         class="bg-gradient-to-r from-[#8bc34a] to-[#7cb342] text-white font-semibold px-6 py-2.5 rounded-xl hover-lift modern-btn shadow-lg hover:shadow-xl smooth-transition">
@@ -268,6 +268,9 @@
         <span class="hidden sm:inline">POS</span>
       </button>
     </a>
+  @endif
+@endauth
+
 
     <!-- User Dropdown -->
     <div class="relative mr-4">
@@ -348,7 +351,7 @@
       <li class="sidebar-item {{ Route::currentRouteName() == $item['route'] ? 'active' : '' }}">
         <a href="{{ route($item['route']) }}"
           class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group">
-          <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
+          <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#875e0cff] smooth-transition">
             <i class="fas {{ $item['icon'] }} text-lg"></i>
           </div>
           <span class="hidden md:inline font-medium">{{ $item['label'] }}</span>

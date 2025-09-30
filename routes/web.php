@@ -129,9 +129,16 @@ Route::prefix('medical-management')->group(function () {
     Route::get('/referrals/{id}', [MedicalManagementController::class, 'showReferral'])->name('medical.referrals.show');
     Route::delete('/referrals/{id}', [MedicalManagementController::class, 'destroyReferral'])->name('medical.referrals.destroy');
 
+    // Add these routes with your other medical management routes
+Route::get('/medical-management/prescriptions/{id}/edit', [MedicalManagementController::class, 'editPrescription'])
+    ->name('medical.prescriptions.edit');
+
+Route::get('/medical-management/appointments/{id}/for-prescription', [MedicalManagementController::class, 'getAppointmentForPrescription'])
+    ->name('medical.appointments.for-prescription');
     // In your routes file (web.php or wherever your medical routes are)
 Route::get('/medical-management/appointments/{id}/for-prescription', [MedicalManagementController::class, 'getAppointmentForPrescription'])
     ->name('medical.appointments.for-prescription');
+
 
 });
 

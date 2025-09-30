@@ -1,19 +1,59 @@
 @extends('AdminBoard')
 
 @section('content')
-<div class="min-h-screen bg-gray-50">
-  <div class="max-w-7xl mx-auto p-6">
+<div class="min-h-screen bg-gray-50 animate-fadeInScale">
+  
+       <div id="welcomeCard" 
+     class="w-full bg-white shadow-xl rounded-xl p-6 mb-6 animate-fadeSlideUp">
 
-    {{-- Branch Header --}}
-    <div class="flex justify-between items-center mb-8">
-      <div>
-        <h1 class="text-3xl font-bold text-[#0f7ea0]">{{ $branchName }}</h1>
-        <p class="text-gray-600 mt-1">Dashboard Overview</p>
-      </div>
-      <div class="text-sm text-gray-500">
-        {{ date('l, F j, Y') }}
-      </div>
+    <div class="flex items-center justify-between">
+        <!-- Left Side: User Welcome -->
+        <div>
+             <h1 class="text-3xl font-bold text-[#f88e28]">{{ $branchName }}</h1>
+    <p class="text-gray-600 mt-1">Dashboard Overview</p>
+        </div>
+
+        <!-- Right Side: Date -->
+        <div class="text-sm text-gray-500">
+            {{ date('l, F j, Y') }}
+        </div>
     </div>
+</div>
+
+      
+    
+
+    <style>
+
+  @keyframes fadeSlideUp {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fadeSlideUp {
+    animation: fadeSlideUp 0.8s ease-out forwards;
+  }
+   @keyframes fadeInScale {
+    0% { opacity: 0; transform: scale(0.95); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  .animate-fadeInScale {
+    animation: fadeInScale 0.8s ease-out forwards;
+  }
+  @keyframes fadeSlideUp {
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-fadeSlideUp {
+    animation: fadeSlideUp 0.8s ease-out forwards;
+  }
+</style>
 
     {{-- Key Metrics - Modern Cards (4 Only) --}}
  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
