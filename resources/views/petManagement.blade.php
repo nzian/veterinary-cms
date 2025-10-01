@@ -6,17 +6,17 @@
     $permissions = [
         'superadmin' => [
             'view_owners' => true,
-            'add_owner' => true,
-            'edit_owner' => true,
-            'delete_owner' => true,
+            'add_owner' => false,
+            'edit_owner' => false,
+            'delete_owner' => false,
             'view_pets' => true,
-            'add_pet' => true,
-            'edit_pet' => true,
-            'delete_pet' => true,
+            'add_pet' => false,
+            'edit_pet' => false,
+            'delete_pet' => false,
             'view_medical' => true,
-            'add_medical' => true,
-            'edit_medical' => true,
-            'delete_medical' => true,
+            'add_medical' => false,
+            'edit_medical' => false,
+            'delete_medical' => false
         ],
         'veterinarian' => [
             'view_owners' => true,

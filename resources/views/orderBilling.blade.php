@@ -963,5 +963,16 @@ function viewTransaction(transactionId) {
 window.addEventListener('afterprint', function() {
     console.log('Print dialog closed');
 });
+
+// Add this at the end of your existing script section, before 
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if we should switch to orders tab when coming back from transaction view
+    const activeTab = sessionStorage.getItem('activeTab');
+    if (activeTab === 'orders') {
+        switchTab('orders');
+        sessionStorage.removeItem('activeTab'); // Clean up
+    }
+});
+
 </script>
 @endsection

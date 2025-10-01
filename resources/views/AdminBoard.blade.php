@@ -177,7 +177,8 @@
        alt="Logo" />
 </div>
 
-
+{{-- Show only if user is super admin --}}
+@if(auth()->user()->user_role === 'superadmin')
     <!-- Branch Selector -->
     <div class="flex-shrink-0 relative ml-4">
       <button id="branchDropdownBtn"
@@ -201,6 +202,8 @@
         </div>
       </div>
     </div>
+@endif
+
 
     <!-- Search Section -->
     <form method="GET" action="{{ route('pets-index') }}" class="flex-1 mx-6 relative">
@@ -323,8 +326,10 @@
       $menuItems = [
         'superadmin' => [
           ['route' => 'dashboard-index', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
-           ['route' => 'branch-management.index', 'icon' => 'fa-building', 'label' => 'Branch Management'],
+          ['route' => 'branch-management.index', 'icon' => 'fa-building', 'label' => 'Branch Management'],
           ['route' => 'prodservequip.index', 'icon' => 'fa-boxes', 'label' => 'Inventory Management'],
+          ['route' => 'pet-management.index', 'icon' => 'fa-paw', 'label' => 'Pet Management'],
+          ['route' => 'medical.index', 'icon' => 'fa-stethoscope', 'label' => 'Medical Management'],
           ['route' => 'sales.index', 'icon' => 'fa-cash-register', 'label' => 'Sales Management'],
           ['route' => 'report.index', 'icon' => 'fa-chart-bar', 'label' => 'Reports'],
         ],

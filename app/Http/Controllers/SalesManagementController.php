@@ -162,50 +162,71 @@ class SalesManagementController extends Controller
     }
 
     public function showTransaction($transactionId)
-    {
-        $firstOrderId = str_replace('T', '', $transactionId);
+{
+    // Check if this is a billing transaction
+    if (str_starts_with($transactionId, 'BILL-')) {
+        $billId = str_replace('BILL-', '', $transactionId);
         
-        $firstOrder = Order::with(['product', 'user', 'owner', 'payment'])
-            ->find($firstOrderId);
+        // Get all orders with this bill_id
+        $orders = Order::with(['product', 'user', 'owner', 'payment', 'billing'])
+            ->where('bill_id', $billId)
+            ->orderBy('ord_date', 'desc')
+            ->get();
         
-        if (!$firstOrder) {
+        if ($orders->isEmpty()) {
             abort(404, 'Transaction not found');
         }
         
-        $startTime = Carbon::parse($firstOrder->ord_date)->subMinutes(2);
-        $endTime = Carbon::parse($firstOrder->ord_date)->addMinutes(3);
-        
-        $orders = Order::with(['product', 'user', 'owner', 'payment'])
-            ->whereBetween('ord_date', [$startTime, $endTime])
-            ->where(function($query) use ($firstOrder) {
-                if ($firstOrder->user_id !== null) {
-                    $query->where('user_id', $firstOrder->user_id);
-                } else {
-                    $query->whereNull('user_id');
-                }
-            })
-            ->where(function($query) use ($firstOrder) {
-                if ($firstOrder->own_id !== null) {
-                    $query->where('own_id', $firstOrder->own_id);
-                } else {
-                    $query->whereNull('own_id');
-                }
-            })
-            ->orderBy('ord_date', 'desc')
-            ->get();
-
-        if ($orders->isEmpty() || !$orders->contains('ord_id', $firstOrderId)) {
-            $orders = collect([$firstOrder]);
-        }
-
         $transactionTotal = $orders->sum(function($order) {
             return $order->ord_quantity * ($order->product->prod_price ?? 0);
         });
         
         $totalItems = $orders->sum('ord_quantity');
-
+        
         return view('order-detail', compact('orders', 'transactionId', 'transactionTotal', 'totalItems'));
     }
+    
+    // Handle SALE- transactions (direct sales)
+    $firstOrderId = str_replace(['SALE-', 'T'], '', $transactionId);
+    
+    $firstOrder = Order::with(['product', 'user', 'owner', 'payment'])
+        ->find($firstOrderId);
+    
+    if (!$firstOrder) {
+        abort(404, 'Transaction not found');
+    }
+    
+    // Use the EXACT same logic as in index() method
+    $orderTime = Carbon::parse($firstOrder->ord_date);
+    
+    // Get all orders from the database to filter
+    $allOrders = Order::with(['product', 'user', 'owner', 'payment'])
+        ->whereNull('bill_id') // Only direct sales
+        ->whereDate('ord_date', $orderTime->toDateString()) // Same day
+        ->get();
+    
+    // Filter orders using the same logic as index()
+    $orders = $allOrders->filter(function($order) use ($firstOrder, $orderTime) {
+        $oTime = Carbon::parse($order->ord_date);
+        $timeDiff = abs($orderTime->diffInSeconds($oTime));
+        $sameUser = ($order->user_id ?? 0) === ($firstOrder->user_id ?? 0);
+        $sameCustomer = ($order->own_id ?? 0) === ($firstOrder->own_id ?? 0);
+        
+        return $timeDiff <= 1 && $sameUser && $sameCustomer;
+    });
+
+    if ($orders->isEmpty()) {
+        $orders = collect([$firstOrder]);
+    }
+
+    $transactionTotal = $orders->sum(function($order) {
+        return $order->ord_quantity * ($order->product->prod_price ?? 0);
+    });
+    
+    $totalItems = $orders->sum('ord_quantity');
+
+    return view('order-detail', compact('orders', 'transactionId', 'transactionTotal', 'totalItems'));
+}
 
     public function printTransaction($transactionId)
     {

@@ -7,24 +7,24 @@
         'superadmin' => [
             // Appointments
             'view_appointments' => true,
-            'add_appointment' => true,
-            'edit_appointment' => true,
-            'delete_appointment' => true,
-            'prescribe_appointment' => true,
-            'refer_appointment' => true,
+            'add_appointment' => false,
+            'edit_appointment' => false,
+            'delete_appointment' => false,
+            'prescribe_appointment' => false,
+            'refer_appointment' => false,
             
             // Prescriptions
             'view_prescriptions' => true,
-            'add_prescription' => true,
-            'edit_prescription' => true,
+            'add_prescription' => false,
+            'edit_prescription' => false,
             'delete_prescription' => true,
             'print_prescription' => true,
             
             // Referrals
             'view_referrals' => true,
-            'add_referral' => true,
-            'edit_referral' => true,
-            'delete_referral' => true,
+            'add_referral' => false,
+            'edit_referral' => false,
+            'delete_referral' => false,
             'print_referral' => true,
         ],
         'veterinarian' => [

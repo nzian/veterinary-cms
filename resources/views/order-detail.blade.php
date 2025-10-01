@@ -1,4 +1,4 @@
-<p style="margin:@extends('AdminBoard')
+@extends('AdminBoard')
 
 @section('content')
 <div class="min-h-screen">
@@ -13,11 +13,13 @@
                 </p>
             </div>
             <div class="flex gap-2">
-                <a href="{{ url('/orders') }}" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded">
+                <a href="{{ route('sales.index') }}" 
+                   onclick="sessionStorage.setItem('activeTab', 'orders'); return true;"
+                   class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm">
                     Back to Sales
                 </a>
-                <button onclick="printReceipt()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
-                    Print Receipt
+                <button onclick="printReceipt()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm">
+                    <i class="fas fa-print"></i> Print Receipt
                 </button>
             </div>
         </div>
@@ -35,9 +37,9 @@
         <!-- Transaction Information Card -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <!-- Transaction Details -->
-            <div class="bg-gray-50 p-4 rounded-lg">
+            <div class="bg-gray-50 p-4 rounded-lg border">
                 <h3 class="font-semibold text-lg mb-3 text-gray-800">Transaction Information</h3>
-                <div class="space-y-2">
+                <div class="space-y-2 text-sm">
                     <div class="flex justify-between">
                         <span class="text-gray-600">Transaction ID:</span>
                         <span class="font-medium font-mono">#{{ $transactionId }}</span>
@@ -62,9 +64,9 @@
             </div>
 
             <!-- Customer & Staff Details -->
-            <div class="bg-gray-50 p-4 rounded-lg">
+            <div class="bg-gray-50 p-4 rounded-lg border">
                 <h3 class="font-semibold text-lg mb-3 text-gray-800">Customer & Staff</h3>
-                <div class="space-y-2">
+                <div class="space-y-2 text-sm">
                     <div class="flex justify-between">
                         <span class="text-gray-600">Customer:</span>
                         <span class="font-medium">
@@ -106,25 +108,25 @@
                 <h3 class="font-semibold text-lg text-gray-800">Products in this Transaction</h3>
             </div>
             <div class="overflow-x-auto">
-                <table class="w-full">
+                <table class="w-full text-sm">
                     <thead class="bg-gray-100">
                         <tr>
-                            <th class="text-left px-4 py-3 text-sm font-medium text-gray-700">#</th>
-                            <th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Product</th>
-                            <th class="text-center px-4 py-3 text-sm font-medium text-gray-700">Unit Price</th>
-                            <th class="text-center px-4 py-3 text-sm font-medium text-gray-700">Quantity</th>
-                            <th class="text-right px-4 py-3 text-sm font-medium text-gray-700">Subtotal</th>
+                            <th class="text-left px-4 py-3 font-medium text-gray-700">#</th>
+                            <th class="text-left px-4 py-3 font-medium text-gray-700">Product</th>
+                            <th class="text-center px-4 py-3 font-medium text-gray-700">Unit Price</th>
+                            <th class="text-center px-4 py-3 font-medium text-gray-700">Quantity</th>
+                            <th class="text-right px-4 py-3 font-medium text-gray-700">Subtotal</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($orders as $order)
                         <tr class="border-b border-gray-100 hover:bg-gray-50">
-                            <td class="px-4 py-3 text-sm">{{ $loop->iteration }}</td>
+                            <td class="px-4 py-3">{{ $loop->iteration }}</td>
                             <td class="px-4 py-3">
                                 <div>
                                     <p class="font-medium text-gray-800">{{ $order->product->prod_name ?? 'Product Not Found' }}</p>
                                     @if($order->product && $order->product->prod_description)
-                                    <p class="text-sm text-gray-500">{{ Str::limit($order->product->prod_description, 50) }}</p>
+                                    <p class="text-xs text-gray-500">{{ Str::limit($order->product->prod_description, 50) }}</p>
                                     @endif
                                     <p class="text-xs text-gray-400">Product ID: {{ $order->product->prod_id ?? 'N/A' }}</p>
                                 </div>
@@ -133,7 +135,7 @@
                                 <span class="font-medium">₱{{ number_format($order->product->prod_price ?? 0, 2) }}</span>
                             </td>
                             <td class="px-4 py-3 text-center">
-                                <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm font-medium">
+                                <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
                                     {{ $order->ord_quantity }}
                                 </span>
                             </td>
@@ -167,7 +169,7 @@
                 <h3 class="font-semibold text-lg text-gray-800">Payment Information</h3>
             </div>
             <div class="p-4">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
                         <span class="text-gray-600">Payment ID:</span>
                         <p class="font-medium">{{ $firstOrder->payment->payment_id ?? 'N/A' }}</p>
@@ -179,7 +181,7 @@
                     <div>
                         <span class="text-gray-600">Status:</span>
                         <p class="font-medium">
-                            <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-sm">
+                            <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
                                 {{ $firstOrder->payment->payment_status ?? 'Completed' }}
                             </span>
                         </p>
@@ -216,20 +218,31 @@
     </div>
 </div>
 
-<!-- Print Receipt Modal/Styles -->
+<!-- Hidden Print Container -->
+<div id="printContainer" style="display: none;">
+    <div id="printContent" style="font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
+        <!-- Content will be populated by JavaScript -->
+    </div>
+</div>
+
+<!-- Print Receipt Styles -->
 <style>
 @media print {
     body * {
         visibility: hidden;
     }
-    .printable, .printable * {
-        visibility: visible;
+    #printContainer,
+    #printContainer *,
+    #printContent,
+    #printContent * {
+        visibility: visible !important;
     }
-    .printable {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
+    #printContainer {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        display: block !important;
     }
     .no-print {
         display: none !important;
@@ -239,52 +252,58 @@
 
 <script>
 function printReceipt() {
-    // Create a printable receipt for the entire transaction
     const printContent = `
-        <div class="printable" style="font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
-            <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px;">
-                <h2 style="margin: 0;">TRANSACTION RECEIPT</h2>
-                <p style="margin: 5px 0;">Transaction ID: #{{ $transactionId }}</p>
-                <p style="margin: 5px 0;">{{ \Carbon\Carbon::parse($firstOrder->ord_date)->format('M d, Y h:i A') }}</p>
-            </div>
+        <div style="text-align: center; margin-bottom: 20px;">
+           <img src="{{ asset('images/pets2go.png') }}" alt="Pets2GO Logo" style="width: 60px; height: 60px; object-fit: contain; margin: 0 auto 5px auto; display: block;">
             
-            <div style="margin-bottom: 15px;">
-                <p><strong>Customer:</strong> {{ $firstOrder->owner?->own_name ?? 'Walk-in Customer' }}</p>
-                <p><strong>Cashier:</strong> {{ $firstOrder->user->user_name ?? 'N/A' }}</p>
-            </div>
-            
-            <div style="border-top: 1px solid #ccc; border-bottom: 1px solid #ccc; padding: 10px 0; margin-bottom: 15px;">
-                @foreach($orders as $order)
-                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                    <div>
-                        <strong>{{ $order->product->prod_name ?? 'Product' }}</strong><br>
-                        <small>{{ $order->ord_quantity }} × ₱{{ number_format($order->product->prod_price ?? 0, 2) }}</small>
-                    </div>
-                    <div style="text-align: right;">
-                        ₱{{ number_format(($order->product->prod_price ?? 0) * $order->ord_quantity, 2) }}
-                    </div>
+            <div style="font-size: 18px; font-weight: bold; color: #a86520; margin-bottom: 5px;">PETS 2GO VETERINARY CLINIC</div>
+        </div>
+        
+        <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px;">
+            <h2 style="margin: 0; font-size: 16px;">TRANSACTION RECEIPT</h2>
+            <p style="margin: 5px 0; font-size: 13px;">Transaction ID: #{{ $transactionId }}</p>
+            <p style="margin: 5px 0; font-size: 12px;">{{ \Carbon\Carbon::parse($firstOrder->ord_date)->format('M d, Y h:i A') }}</p>
+        </div>
+        
+        <div style="margin-bottom: 15px; font-size: 13px;">
+            <p style="margin: 3px 0;"><strong>Customer:</strong> {{ $firstOrder->owner?->own_name ?? 'Walk-in Customer' }}</p>
+            <p style="margin: 3px 0;"><strong>Cashier:</strong> {{ $firstOrder->user->user_name ?? 'N/A' }}</p>
+        </div>
+        
+        <div style="border-top: 1px solid #ccc; border-bottom: 1px solid #ccc; padding: 10px 0; margin-bottom: 15px;">
+            @foreach($orders as $order)
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px;">
+                <div style="flex: 1;">
+                    <strong>{{ $order->product->prod_name ?? 'Product' }}</strong><br>
+                    <small style="color: #666;">{{ $order->ord_quantity }} × ₱{{ number_format($order->product->prod_price ?? 0, 2) }}</small>
                 </div>
-                @endforeach
+                <div style="text-align: right; font-weight: bold;">
+                    ₱{{ number_format(($order->product->prod_price ?? 0) * $order->ord_quantity, 2) }}
+                </div>
             </div>
-            
-            <div style="text-align: center; font-size: 18px; font-weight: bold; border-top: 2px solid #000; padding-top: 10px;">
-                <p>TOTAL: ₱{{ number_format($transactionTotal, 2) }}</p>
-                <p style="font-size: 14px; font-weight: normal;">Payment: CASH</p>
-                <p style="font-size: 12px; font-weight: normal;">Items: {{ $totalItems }}</p>
-            </div>
-            
-            <div style="text-align: center; margin-top: 20px; font-size: 12px;">
-                <p>Thank you for your purchase!</p>
-                <p>{{ date('Y-m-d H:i:s') }}</p>
-            </div>
+            @endforeach
+        </div>
+        
+        <div style="text-align: center; font-size: 16px; font-weight: bold; border-top: 2px solid #000; padding-top: 10px; margin-bottom: 10px;">
+            <p style="margin: 5px 0;">TOTAL: ₱{{ number_format($transactionTotal, 2) }}</p>
+            <p style="font-size: 13px; font-weight: normal; margin: 5px 0;">Payment: CASH</p>
+            <p style="font-size: 12px; font-weight: normal; margin: 5px 0;">Total Items: {{ $totalItems }}</p>
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px; padding-top: 15px; border-top: 1px dashed #999; font-size: 11px; color: #666;">
+            <p style="margin: 5px 0; font-weight: bold;">Thank you for your purchase!</p>
+            <p style="margin: 5px 0;">Your pet's health is our priority</p>
+            <p style="margin: 10px 0 5px 0;">{{ \Carbon\Carbon::now()->format('F d, Y h:i A') }}</p>
         </div>
     `;
     
-    const printWindow = window.open('', '', 'height=600,width=400');
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.print();
-    printWindow.close();
+    document.getElementById('printContent').innerHTML = printContent;
+    document.getElementById('printContainer').style.display = 'block';
+    
+    setTimeout(() => {
+        window.print();
+        document.getElementById('printContainer').style.display = 'none';
+    }, 200);
 }
 
 // Auto-hide success message after 5 seconds
