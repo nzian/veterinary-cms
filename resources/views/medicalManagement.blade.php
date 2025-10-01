@@ -1,4 +1,88 @@
 @extends('AdminBoard')
+@php
+    $userRole = strtolower(auth()->user()->user_role ?? '');
+    
+    // Define permissions for each role
+    $permissions = [
+        'superadmin' => [
+            // Appointments
+            'view_appointments' => true,
+            'add_appointment' => true,
+            'edit_appointment' => true,
+            'delete_appointment' => true,
+            'prescribe_appointment' => true,
+            'refer_appointment' => true,
+            
+            // Prescriptions
+            'view_prescriptions' => true,
+            'add_prescription' => true,
+            'edit_prescription' => true,
+            'delete_prescription' => true,
+            'print_prescription' => true,
+            
+            // Referrals
+            'view_referrals' => true,
+            'add_referral' => true,
+            'edit_referral' => true,
+            'delete_referral' => true,
+            'print_referral' => true,
+        ],
+        'veterinarian' => [
+            // Appointments
+            'view_appointments' => true,
+            'add_appointment' => false,
+            'edit_appointment' => true,
+            'delete_appointment' => false,
+            'prescribe_appointment' => true,
+            'refer_appointment' => true,
+            
+            // Prescriptions - FULL ACCESS
+            'view_prescriptions' => true,
+            'add_prescription' => true,
+            'edit_prescription' => true,
+            'delete_prescription' => true,
+            'print_prescription' => true,
+            
+            // Referrals - FULL ACCESS
+            'view_referrals' => true,
+            'add_referral' => true,
+            'edit_referral' => true,
+            'delete_referral' => true,
+            'print_referral' => true,
+        ],
+        'receptionist' => [
+            // Appointments
+            'view_appointments' => true,
+            'add_appointment' => true,
+            'edit_appointment' => true,
+            'delete_appointment' => true,
+            'prescribe_appointment' => false,
+            'refer_appointment' => false,
+            
+            // Prescriptions - VIEW AND PRINT ONLY
+            'view_prescriptions' => true,
+            'add_prescription' => false,
+            'edit_prescription' => false,
+            'delete_prescription' => false,
+            'print_prescription' => true,
+            
+            // Referrals - VIEW AND PRINT ONLY
+            'view_referrals' => true,
+            'add_referral' => false,
+            'edit_referral' => false,
+            'delete_referral' => false,
+            'print_referral' => true,
+        ],
+    ];
+    
+    // Get permissions for current user
+    $can = $permissions[$userRole] ?? $permissions['receptionist'];
+    
+    // Helper function to check permission
+    function hasPermission($permission, $can) {
+        return $can[$permission] ?? false;
+    }
+@endphp
 
 @section('content')
 <div class="min-h-screen">
@@ -65,9 +149,11 @@
                     </select>
                     <span>entries</span>
                 </form>
-                <button onclick="openAddModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-                    + Add Appointment
-                </button>
+               @if(auth()->check() && in_array(auth()->user()->user_role, [ 'receptionist']))
+    <button onclick="openAddModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
+        + Add Appointment
+    </button>
+@endif
             </div>
             <br>
 
@@ -117,36 +203,46 @@
                                         {{ ucfirst($appointment->appoint_status) }}
                                     </span>
                                 </td>
-                                <td class="border px-2 py-1">
-                                    <div class="flex justify-center items-center gap-1">
-                                        <button onclick='openEditModal(@json($appointment))'
-                                            class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs" title="edi">
-                                            <i class="fas fa-pen"></i> 
-                                        </button>
-                                        
-                                        @if($appointment->appoint_status != 'refer')
-                                        <button onclick="openReferralModal({{ $appointment->appoint_id }})"
-                                            class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 flex items-center gap-1 text-xs" title="refer">
-                                            <i class="fas fa-share"></i>
-                                        </button>
-                                        @endif
+                               <td class="border px-2 py-1">
+    <div class="flex justify-center items-center gap-1">
+         <button onclick="viewAppointment({{ $appointment->appoint_id }})"
+            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view">
+            <i class="fas fa-eye"></i> 
+        </button>
+        @if(hasPermission('edit_appointment', $can))
+            <button onclick='openEditModal(@json($appointment))'
+                class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs" title="edit">
+                <i class="fas fa-pen"></i> 
+            </button>
+        @endif
+        
+        @if(hasPermission('refer_appointment', $can) && $appointment->appoint_status != 'refer')
+            <button onclick="openReferralModal({{ $appointment->appoint_id }})"
+                class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 flex items-center gap-1 text-xs" title="refer">
+                <i class="fas fa-share"></i>
+            </button>
+        @endif
 
-                                        <button onclick="openPrescriptionFromAppointment({{ $appointment->appoint_id }})"
-                                            class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="prescribe">
-                                            <i class="fas fa-prescription"></i>
-                                        </button>
+        @if(hasPermission('prescribe_appointment', $can))
+            <button onclick="openPrescriptionFromAppointment({{ $appointment->appoint_id }}, '{{ $appointment->pet?->pet_name ?? '' }}', '{{ $appointment->appoint_date }}')"
+                class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="prescribe">
+                <i class="fas fa-prescription"></i>
+            </button>
+        @endif
 
-                                        <form action="{{ route('medical.appointments.destroy', $appointment->appoint_id) }}" method="POST" onsubmit="return confirm('Are you sure?');" class="inline">
-                                            @csrf
-                                            @method('DELETE')
-                                            <input type="hidden" name="active_tab" value="appointments">
-                                            <button type="submit"
-                                                class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs">
-                                                <i class="fas fa-trash"></i> 
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
+        @if(hasPermission('delete_appointment', $can))
+            <form action="{{ route('medical.appointments.destroy', $appointment->appoint_id) }}" method="POST" onsubmit="return confirm('Are you sure?');" class="inline">
+                @csrf
+                @method('DELETE')
+                <input type="hidden" name="active_tab" value="appointments">
+                <button type="submit"
+                    class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs">
+                    <i class="fas fa-trash"></i> 
+                </button>
+            </form>
+        @endif
+    </div>
+</td>
                             </tr>
                         @empty
                             <tr>
@@ -228,7 +324,7 @@
                                 @endif
                             </td>
                             <td class="border px-2 py-1 flex justify-center gap-1">
-                                <!-- View -->
+                               @if(hasPermission('view_prescriptions', $can))
                                 <button onclick="viewPrescription(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
                                     data-id="{{ $prescription->prescription_id }}"
                                     data-pet="{{ $prescription->pet->pet_name }}"
@@ -247,7 +343,8 @@
                                     data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}"title="View Prescription">
                                     <i class="fas fa-eye"></i>
                                 </button>
-
+                                 @endif
+@if(hasPermission('print_prescription', $can))
                                 <!-- Direct Print Button -->
                                 <button onclick="directPrint(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
                                     data-id="{{ $prescription->prescription_id }}"
@@ -266,13 +363,15 @@
                                     data-branch-address="{{ $prescription->branch->branch_address ?? 'Branch Address' }}"
                                     data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}" title="print">
                                     <i class="fas fa-print"></i>
-                                </button>
-
+                                </button> 
+                                @endif
+@if(hasPermission('edit_prescription', $can))
                                 <!-- Edit -->
                                 <button onclick="editPrescription({{ $prescription->prescription_id }})" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs" title="edit">
                                     <i class="fas fa-pen"></i>
                                 </button>
-
+ @endif
+ @if(hasPermission('edit_prescription', $can))
                                 <!-- Delete -->
                                 <form action="{{ route('medical.prescriptions.destroy', $prescription->prescription_id) }}" method="POST"
                                     onsubmit="return confirm('Are you sure you want to delete this prescription?');" class="inline">
@@ -283,6 +382,7 @@
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </form>
+                                 @endif
                             </td>
                         </tr>
                         @empty
@@ -366,31 +466,42 @@
                                     </span>
                                 </td>
                                 <td class="border px-2 py-1">
-                                    <div class="flex justify-center items-center gap-1">
-                                        <button onclick="viewReferral({{ $referral->ref_id }})"
-                                            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs"title="view">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
-                                 <button onclick="printReferral({{ $referral->ref_id }})"
-                                            class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="print">
-                                            <i class="fas fa-print"></i>
-                                        </button>
-                                        <button onclick="editReferral({{ $referral->ref_id }})"
-                                            class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs"title="edit">
-                                            <i class="fas fa-pen"></i>
-                                        </button>
-                                        <form action="{{ route('medical.referrals.destroy', $referral->ref_id) }}" method="POST"
-                                            onsubmit="return confirm('Are you sure you want to delete this referral?');" class="inline">
-                                            @csrf
-                                            @method('DELETE')
-                                            <input type="hidden" name="active_tab" value="referrals">
-                                            <button type="submit"
-                                                class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs"title="delete">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
+    <div class="flex justify-center items-center gap-1">
+        @if(hasPermission('view_referrals', $can))
+            <button onclick="viewReferral({{ $referral->ref_id }})"
+                class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view">
+                <i class="fas fa-eye"></i>
+            </button>
+        @endif
+        
+        @if(hasPermission('print_referral', $can))
+            <button onclick="printReferral({{ $referral->ref_id }})"
+                class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="print">
+                <i class="fas fa-print"></i>
+            </button>
+        @endif
+        
+        @if(hasPermission('edit_referral', $can))
+            <button onclick="editReferral({{ $referral->ref_id }})"
+                class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs" title="edit">
+                <i class="fas fa-pen"></i>
+            </button>
+        @endif
+        
+        @if(hasPermission('delete_referral', $can))
+            <form action="{{ route('medical.referrals.destroy', $referral->ref_id) }}" method="POST"
+                onsubmit="return confirm('Are you sure you want to delete this referral?');" class="inline">
+                @csrf
+                @method('DELETE')
+                <input type="hidden" name="active_tab" value="referrals">
+                <button type="submit"
+                    class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs" title="delete">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </form>
+        @endif
+    </div>
+</td>
                             </tr>
                         @empty
                             <tr>
@@ -453,13 +564,13 @@
                 </div>
             </div>
 
-            <!-- Row 3: Appointment Type & Appointment Date -->
+                    <!-- Row 3: Appointment Type & Appointment Date -->
             <div class="grid grid-cols-2 gap-4 mb-3">
                 <div>
                     <label class="block text-sm mb-1">Appointment Type</label>
                     <select name="appoint_type" required class="w-full border rounded px-3 py-2 text-sm">
-                        <option value="">Walk-in</option>
-                        <option value="Walk-in">Referral</option>
+                        <option value="Walk-in" selected>Walk-in</option>
+                        <option value="Referral">Referral</option>
                         <option value="Follow-up">Follow-up</option>
                     </select>
                 </div>
@@ -470,7 +581,7 @@
                         value="{{ date('Y-m-d') }}" 
                         required 
                         class="w-full border rounded px-3 py-2 text-sm" />
-            </div>
+                </div>
             </div>
 
             <!-- Row 4: Appointment Time & Status -->
@@ -984,6 +1095,117 @@
 <div id="printReferralContainer" style="display: none;">
     <div id="printReferralContent" class="referral-container bg-white p-8">
         <!-- Content will be populated by JavaScript -->
+    </div>
+</div>
+
+<!-- View Appointment Modal -->
+<div id="viewAppointmentModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white w-full max-w-4xl p-6 rounded-lg shadow-lg max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6 border-b pb-4">
+            <h2 class="text-xl font-bold text-[#0f7ea0]">
+                <i class="fas fa-calendar-check mr-2"></i>
+                Appointment Details
+            </h2>
+            <button onclick="closeViewAppointmentModal()" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+        </div>
+        
+        <!-- Current Appointment Information -->
+        <div class="grid grid-cols-2 gap-6 mb-6">
+            <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                <h3 class="font-semibold text-gray-700 mb-3 pb-2 border-b border-blue-300 flex items-center">
+                    <i class="fas fa-info-circle mr-2 text-blue-600"></i>
+                    Appointment Information
+                </h3>
+                <div class="space-y-2 text-sm">
+                    <div class="flex">
+                        <span class="font-medium w-32 text-gray-600">
+                            <i class="fas fa-calendar mr-1"></i>Date:
+                        </span>
+                        <span id="view_appoint_date" class="text-gray-800 font-medium">-</span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-medium w-32 text-gray-600">
+                            <i class="fas fa-clock mr-1"></i>Time:
+                        </span>
+                        <span id="view_appoint_time" class="text-gray-800 font-medium">-</span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-medium w-32 text-gray-600">
+                            <i class="fas fa-tag mr-1"></i>Type:
+                        </span>
+                        <span id="view_appoint_type" class="text-gray-800 font-medium">-</span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-medium w-32 text-gray-600">
+                            <i class="fas fa-flag mr-1"></i>Status:
+                        </span>
+                        <span id="view_appoint_status">-</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+                <h3 class="font-semibold text-gray-700 mb-3 pb-2 border-b border-green-300 flex items-center">
+                    <i class="fas fa-paw mr-2 text-green-600"></i>
+                    Pet & Owner Details
+                </h3>
+                <div class="space-y-2 text-sm">
+                    <div class="flex">
+                        <span class="font-medium w-32 text-gray-600">
+                            <i class="fas fa-dog mr-1"></i>Pet Name:
+                        </span>
+                        <span id="view_pet_name_appt" class="text-gray-800 font-medium">-</span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-medium w-32 text-gray-600">
+                            <i class="fas fa-user mr-1"></i>Owner:
+                        </span>
+                        <span id="view_owner_name_appt" class="text-gray-800 font-medium">-</span>
+                    </div>
+                    <div class="flex">
+                        <span class="font-medium w-32 text-gray-600">
+                            <i class="fas fa-phone mr-1"></i>Contact:
+                        </span>
+                        <span id="view_owner_contact_appt" class="text-gray-800 font-medium">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Services -->
+        <div class="mb-6">
+            <h3 class="font-semibold text-gray-700 mb-3 flex items-center">
+                <i class="fas fa-briefcase-medical mr-2 text-purple-600"></i>
+                Services
+            </h3>
+            <div id="view_services" class="bg-purple-50 p-3 rounded-lg text-sm text-gray-700 border border-purple-200">-</div>
+        </div>
+        
+        <!-- Description -->
+        <div class="mb-6">
+            <h3 class="font-semibold text-gray-700 mb-3 flex items-center">
+                <i class="fas fa-file-alt mr-2 text-orange-600"></i>
+                Description
+            </h3>
+            <div id="view_description" class="bg-orange-50 p-3 rounded-lg text-sm text-gray-700 border border-orange-200">No description provided</div>
+        </div>
+        
+        <!-- History Timeline -->
+        <div>
+            <h3 class="font-semibold text-gray-700 mb-4 flex items-center">
+                <i class="fas fa-history mr-2 text-indigo-600"></i>
+                Change History Timeline
+            </h3>
+            <div id="appointment_history" class="space-y-3 bg-gray-50 p-4 rounded-lg">
+                <!-- History items will be inserted here -->
+            </div>
+        </div>
+        
+        <div class="mt-6 flex justify-end">
+            <button onclick="closeViewAppointmentModal()" class="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600">
+                Close
+            </button>
+        </div>
     </div>
 </div>
 
@@ -1524,40 +1746,77 @@ function openPrescriptionModal() {
     document.getElementById('prescriptionModal').classList.remove('hidden');
 }
 
-function openPrescriptionFromAppointment(appointmentId) {
-    // First open the prescription modal
-    openPrescriptionModal();
+function openPrescriptionFromAppointment(appointmentId, petName = null, appointDate = null) {
+    // First, open the modal and reset form
+    const form = document.getElementById('prescriptionForm');
+    form.reset();
+    form.action = "{{ route('medical.prescriptions.store') }}";
+    document.getElementById('prescriptionFormMethod').value = 'POST';
+    document.getElementById('prescriptionModalTitle').textContent = 'Add Prescription';
+    document.getElementById('prescription_id').value = '';
+    document.getElementById('medicationContainer').innerHTML = '';
     
-    // Then fetch appointment data and auto-populate
-    fetch(`/medical-management/appointments/${appointmentId}/for-prescription`, {
-        headers: {
-            'X-CSRF-TOKEN': window.csrfToken || '{{ csrf_token() }}',
-            'Accept': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.pet_id) {
-            // Set the pet
-            document.getElementById('prescription_pet_id').value = data.pet_id;
+    medicationCounter = 0;
+    addMedicationField();
+    document.getElementById('differential_diagnosis').value = ''; 
+    
+    // Set today's date as default
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('prescription_date').value = today;
+    
+    // Show the modal
+    document.getElementById('prescriptionModal').classList.remove('hidden');
+    
+    // Then fetch and populate appointment data if appointmentId is provided
+    if (appointmentId) {
+        fetch(`/medical-management/appointments/${appointmentId}/for-prescription`, {
+            headers: {
+                'X-CSRF-TOKEN': window.csrfToken || '{{ csrf_token() }}',
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Received prescription data:', data);
             
-            // Set the date to appointment date
-            document.getElementById('prescription_date').value = data.appointment_date;
-            
-            // Add a note about the appointment services if available
-            if (data.services) {
-                const notesField = document.getElementById('prescription_notes');
-                notesField.value = `Prescription for appointment on ${data.appointment_date}. Services provided: ${data.services}`;
+            // Auto-populate the pet
+            if (data.pet_id) {
+                document.getElementById('prescription_pet_id').value = data.pet_id;
             }
             
-            // Show success message
-            console.log(`Auto-populated prescription for ${data.pet_name} from appointment`);
-        }
-    })
-    .catch(error => {
-        console.error('Error loading appointment data for prescription:', error);
-        // Don't show error to user, just continue with empty form
-    });
+            // Auto-populate the date from appointment
+            if (data.appointment_date) {
+                document.getElementById('prescription_date').value = data.appointment_date;
+            }
+            
+            // Optional: Add appointment info to notes
+            if (data.services) {
+                const notesField = document.getElementById('prescription_notes');
+                notesField.value = `Prescription for appointment on ${data.appointment_date}\nServices: ${data.services}`;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading appointment data:', error);
+            // If fetch fails but we have the data from parameters, use that
+            if (petName && appointDate) {
+                // Find the pet in the dropdown by name
+                const petSelect = document.getElementById('prescription_pet_id');
+                const options = petSelect.options;
+                for (let i = 0; i < options.length; i++) {
+                    if (options[i].text.includes(petName)) {
+                        petSelect.value = options[i].value;
+                        break;
+                    }
+                }
+                document.getElementById('prescription_date').value = appointDate;
+            }
+        });
+    }
 }
 
 function closePrescriptionModal() {
@@ -1815,7 +2074,6 @@ function editPrescription(id) {
             alert('Error loading prescription data: ' + error.message);
         });
 }
-
 function populatePrescriptionData(button) {
     let medications = [];
     try {
@@ -1839,7 +2097,7 @@ function populatePrescriptionData(button) {
         gender: button.dataset.gender || 'N/A',
         date: button.dataset.date,
         medications: medications,
-        differentialDiagnosis: button.dataset.differentialDiagnosis || 'Not specified',
+        differentialDiagnosis: button.dataset.differentialDiagnosis || 'Not specified', // Fixed
         notes: button.dataset.notes || 'No specific recommendations',
         branchName: button.dataset.branchName.toUpperCase(),
         branchAddress: 'Address: ' + button.dataset.branchAddress,
@@ -1889,18 +2147,23 @@ function updatePrescriptionContent(targetId, data) {
                 </div>
             </div>
 
-            <div class="rx-symbol text-center my-8 text-6xl font-bold text-gray-800">℞</div>
+            <div class="rx-symbol text-left my-8 text-6xl font-bold text-gray-800">℞</div>
 
             <div class="medication-section mb-8">
                 <div class="section-title text-base font-bold mb-4">MEDICATION</div>
                 <div class="space-y-3">
-                    ${data.medications.length > 0 ? data.medications.map((med, index) => `
+                    ${data.medications && data.medications.length > 0 ? data.medications.map((med, index) => `
                         <div class="medication-item">
                             <div class="text-sm font-medium text-red-600 mb-1">${index+1}. ${med.product_name || med.name || 'Unknown medication'}</div>
                             <div class="text-sm text-gray-700 ml-4"><strong>SIG.</strong> ${med.instructions || '[Instructions will be added here]'}</div>
                         </div>
                     `).join('') : '<div class="medication-item text-gray-500">No medications prescribed</div>'}
                 </div>
+            </div>
+
+            <div class="differential-diagnosis mb-6">
+                <h3 class="text-base font-bold mb-2">DIFFERENTIAL DIAGNOSIS:</h3>
+                <div class="text-sm bg-blue-50 p-3 rounded border-l-4 border-blue-500">${data.differentialDiagnosis || 'Not specified'}</div>
             </div>
 
             <div class="recommendations mb-8">
@@ -1918,47 +2181,62 @@ function updatePrescriptionContent(targetId, data) {
         </div>
     `;
 }
-
 function viewPrescription(button) {
+    console.log('All button data:', button.dataset); // Debug: see all data attributes
+    
     currentPrescriptionId = button.dataset.id;
-    const data = populatePrescriptionData(button);
     
-    document.getElementById('viewPet').innerText = data.pet;
-    document.getElementById('viewWeight').innerText = data.weight;
-    document.getElementById('viewTemp').innerText = data.temp;
-    document.getElementById('viewAge').innerText = data.age;
-    document.getElementById('viewGender').innerText = data.gender;
-    document.getElementById('viewDate').innerText = data.date;
+    // Get differential diagnosis - HTML data attributes with hyphens become camelCase in dataset
+    let diffDiagnosis = button.dataset.differentialDiagnosis || 'Not specified';
     
-    // Fix: Use the data from populatePrescriptionData function
-    document.getElementById('branch_name').innerText = data.branchName;
-    document.getElementById('branch_address').innerText = data.branchAddress;
-    document.getElementById('branch_contactNum').innerText = data.branchContact;
-
-    const diffDiagElement = document.getElementById('viewDifferentialDiagnosis');
-    diffDiagElement.innerText = data.differentialDiagnosis;
+    console.log('Differential Diagnosis:', diffDiagnosis); // Debug log
+    
+    // Set all the basic fields
+    document.getElementById('viewPet').innerText = button.dataset.pet || 'N/A';
+    document.getElementById('viewWeight').innerText = button.dataset.weight || 'N/A';
+    document.getElementById('viewTemp').innerText = button.dataset.temp || 'N/A';
+    document.getElementById('viewAge').innerText = button.dataset.age || 'N/A';
+    document.getElementById('viewGender').innerText = button.dataset.gender || 'N/A';
+    document.getElementById('viewDate').innerText = button.dataset.date || 'N/A';
+    
+    document.getElementById('branch_name').innerText = (button.dataset.branchName || 'Main Branch').toUpperCase();
+    document.getElementById('branch_address').innerText = 'Address: ' + (button.dataset.branchAddress || 'Branch Address');
+    document.getElementById('branch_contactNum').innerText = 'Contact No: ' + (button.dataset.branchContact || 'Contact Number');
+    
+    // Set differential diagnosis
+    document.getElementById('viewDifferentialDiagnosis').innerText = diffDiagnosis;
+    
+    // Parse and display medications
+    let medications = [];
+    try {
+        if (button.dataset.medication) {
+            medications = JSON.parse(button.dataset.medication);
+        }
+    } catch (e) {
+        console.error('Error parsing medications:', e);
+    }
     
     const medsContainer = document.getElementById('medicationsList');
     medsContainer.innerHTML = '';
     
-    if (data.medications && data.medications.length > 0) {
-        data.medications.forEach((med, index) => {
+    if (medications && medications.length > 0) {
+        medications.forEach((med, index) => {
             const medDiv = document.createElement('div');
             medDiv.classList.add('medication-item');
             medDiv.innerHTML = `
-                <div class="text-sm font-medium text-red-600 mb-1">${index+1}. ${med.product_name || med.name || 'Unknown medication'}</div>
-                <div class="text-sm text-gray-700 ml-4"><strong>SIG.</strong> ${med.instructions || '[Instructions will be added here]'}</div>
+                <div class="text-sm font-medium text-red-600 mb-1">${index+1}. ${med.product_name || 'Unknown medication'}</div>
+                <div class="text-sm text-gray-700 ml-4"><strong>SIG.</strong> ${med.instructions || 'No instructions'}</div>
             `;
             medsContainer.appendChild(medDiv);
         });
     } else {
-        const medDiv = document.createElement('div');
-        medDiv.classList.add('medication-item', 'text-gray-500');
-        medDiv.innerHTML = 'No medications prescribed';
-        medsContainer.appendChild(medDiv);
+        medsContainer.innerHTML = '<div class="medication-item text-gray-500">No medications prescribed</div>';
     }
-
-    document.getElementById('viewNotes').innerText = data.notes;
+    
+    // Set notes
+    document.getElementById('viewNotes').innerText = button.dataset.notes || 'No recommendations';
+    
+    // Show modal
     document.getElementById('viewPrescriptionModal').classList.remove('hidden');
 }
 
@@ -2583,15 +2861,290 @@ function setupKeyboardNavigation() {
     });
 }
 
-// Initialize enhanced features
 document.addEventListener('DOMContentLoaded', function() {
     setupKeyboardNavigation();
     
-    // Enable auto-save for forms (optional)
-    // enableAutoSave('addForm', 'appointment_draft');
-    // enableAutoSave('prescriptionForm', 'prescription_draft');
-    // enableAutoSave('referralForm', 'referral_draft');
 });
+
+// ==================== VIEW APPOINTMENT FUNCTIONS ====================
+
+function viewAppointment(appointmentId) {
+    const url = `/medical-management/appointments/${appointmentId}/view`;
+    console.log('Fetching URL:', url);
+    
+    fetch(url, {
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            'Accept': 'application/json'
+        }
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        console.log('Response:', response);
+        
+        // Get the error text if response is not ok
+        if (!response.ok) {
+            return response.text().then(text => {
+                console.error('Error response:', text);
+                throw new Error(`Server error: ${response.status} - ${text.substring(0, 100)}`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Received data:', data);
+        const appt = data.appointment;
+        
+        // ... rest of your existing code
+        document.getElementById('view_appoint_date').textContent = 
+            new Date(appt.appoint_date).toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            });
+        
+        document.getElementById('view_appoint_time').textContent = 
+            new Date('2000-01-01 ' + appt.appoint_time).toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+        
+        document.getElementById('view_appoint_type').textContent = appt.appoint_type || '-';
+        
+        const statusBadge = `<span class="px-3 py-1 rounded-full text-xs font-medium ${
+            appt.appoint_status === 'completed' ? 'bg-green-100 text-green-800' : 
+            appt.appoint_status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+            appt.appoint_status === 'arrived' ? 'bg-blue-100 text-blue-800' :
+            appt.appoint_status === 'refer' ? 'bg-purple-100 text-purple-800' : 
+            'bg-gray-100 text-gray-800'
+        }">
+            ${appt.appoint_status.charAt(0).toUpperCase() + appt.appoint_status.slice(1)}
+        </span>`;
+        document.getElementById('view_appoint_status').innerHTML = statusBadge;
+        
+        document.getElementById('view_pet_name_appt').textContent = appt.pet?.pet_name || 'N/A';
+        document.getElementById('view_owner_name_appt').textContent = appt.pet?.owner?.own_name || 'N/A';
+        document.getElementById('view_owner_contact_appt').textContent = appt.pet?.owner?.own_contactnum || 'N/A';
+        
+        const servicesText = appt.services && appt.services.length > 0 
+            ? appt.services.map(s => s.serv_name).join(', ')
+            : 'No services assigned';
+        document.getElementById('view_services').textContent = servicesText;
+        
+        document.getElementById('view_description').textContent = appt.appoint_description || 'No description provided';
+        
+        populateAppointmentHistory(data.history || []);
+        
+        document.getElementById('viewAppointmentModal').classList.remove('hidden');
+    })
+    .catch(error => {
+        console.error('Full error:', error);
+        alert('Error: ' + error.message);
+    });
+}
+
+function populateAppointmentHistory(history) {
+    const container = document.getElementById('appointment_history');
+    
+    if (!history || history.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-gray-500 py-8">
+                <i class="fas fa-info-circle text-3xl mb-2"></i>
+                <p>No history available for this appointment</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Reverse to show newest first
+    const reversedHistory = [...history].reverse();
+    
+    container.innerHTML = reversedHistory.map((item, index) => {
+        const isLast = index === reversedHistory.length - 1;
+        const changeIcon = getChangeIcon(item.change_type);
+        const changeColor = getChangeColor(item.change_type);
+        
+        return `
+            <div class="relative ${isLast ? '' : 'pl-8 pb-6'}">
+                ${!isLast ? '<div class="absolute left-3 top-8 bottom-0 w-0.5 bg-gray-300"></div>' : ''}
+                <div class="flex items-start gap-3">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full ${changeColor} flex items-center justify-center text-white shadow-md">
+                        <i class="fas ${changeIcon} text-xs"></i>
+                    </div>
+                    <div class="flex-grow bg-white border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex justify-between items-start mb-2 flex-wrap gap-2">
+                            <span class="font-semibold text-sm ${changeColor.replace('bg-', 'text-').replace('-500', '-700')} flex items-center gap-2">
+                                ${formatChangeType(item.change_type)}
+                            </span>
+                            <span class="text-xs text-gray-500 flex items-center gap-1">
+                                <i class="fas fa-clock"></i>
+                                ${formatDateTime(item.changed_at)}
+                            </span>
+                        </div>
+                        ${formatChanges(item)}
+                        <div class="mt-3 pt-3 border-t text-xs text-gray-600 flex items-center gap-2">
+                            <i class="fas fa-user-circle"></i>
+                            <span>Changed by: <strong>${item.changed_by}</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function getChangeIcon(changeType) {
+    switch(changeType) {
+        case 'created': return 'fa-plus-circle';
+        case 'rescheduled': return 'fa-calendar-alt';
+        case 'status_changed': return 'fa-exchange-alt';
+        default: return 'fa-edit';
+    }
+}
+
+function getChangeColor(changeType) {
+    switch(changeType) {
+        case 'created': return 'bg-green-500';
+        case 'rescheduled': return 'bg-blue-500';
+        case 'status_changed': return 'bg-purple-500';
+        default: return 'bg-gray-500';
+    }
+}
+
+function formatChangeType(changeType) {
+    const types = {
+        'created': 'Appointment Created',
+        'rescheduled': 'Schedule Changed',
+        'status_changed': 'Status Updated',
+        'updated': 'Information Updated'
+    };
+    return types[changeType] || changeType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+function formatDateTime(dateTimeString) {
+    if (!dateTimeString) return '-';
+    try {
+        return new Date(dateTimeString).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (e) {
+        return dateTimeString;
+    }
+}
+
+function formatChanges(item) {
+    let html = '';
+    
+    if (item.old_data && Object.keys(item.old_data).length > 0) {
+        html += '<div class="space-y-2">';
+        
+        // Date change
+        if (item.old_data.date && item.new_data.date) {
+            html += `
+                <div class="flex items-center gap-2 text-sm bg-gray-50 p-2 rounded">
+                    <i class="fas fa-calendar text-gray-400"></i>
+                    <span class="text-red-600 line-through">${formatDate(item.old_data.date)}</span>
+                    <i class="fas fa-arrow-right text-gray-400"></i>
+                    <span class="text-green-600 font-medium">${formatDate(item.new_data.date)}</span>
+                </div>
+            `;
+        }
+        
+        // Time change
+        if (item.old_data.time && item.new_data.time) {
+            html += `
+                <div class="flex items-center gap-2 text-sm bg-gray-50 p-2 rounded">
+                    <i class="fas fa-clock text-gray-400"></i>
+                    <span class="text-red-600 line-through">${formatTime(item.old_data.time)}</span>
+                    <i class="fas fa-arrow-right text-gray-400"></i>
+                    <span class="text-green-600 font-medium">${formatTime(item.new_data.time)}</span>
+                </div>
+            `;
+        }
+        
+        // Status change
+        if (item.old_data.status && item.new_data.status) {
+            html += `
+                <div class="flex items-center gap-2 text-sm bg-gray-50 p-2 rounded">
+                    <i class="fas fa-flag text-gray-400"></i>
+                    <span class="text-red-600 line-through capitalize">${item.old_data.status}</span>
+                    <i class="fas fa-arrow-right text-gray-400"></i>
+                    <span class="text-green-600 font-medium capitalize">${item.new_data.status}</span>
+                </div>
+            `;
+        }
+        
+        // Type change
+        if (item.old_data.type && item.new_data.type) {
+            html += `
+                <div class="flex items-center gap-2 text-sm bg-gray-50 p-2 rounded">
+                    <i class="fas fa-tag text-gray-400"></i>
+                    <span class="text-red-600 line-through capitalize">${item.old_data.type}</span>
+                    <i class="fas fa-arrow-right text-gray-400"></i>
+                    <span class="text-green-600 font-medium capitalize">${item.new_data.type}</span>
+                </div>
+            `;
+        }
+        
+        html += '</div>';
+    } else if (item.new_data) {
+        // Initial creation
+        html += '<div class="text-sm text-gray-700 space-y-1 bg-green-50 p-3 rounded">';
+        html += '<div class="font-medium text-green-700 mb-2">Initial Appointment Details:</div>';
+        
+        if (item.new_data.date) {
+            html += `<div><i class="fas fa-calendar mr-2 text-gray-500"></i>Date: <strong>${formatDate(item.new_data.date)}</strong></div>`;
+        }
+        if (item.new_data.time) {
+            html += `<div><i class="fas fa-clock mr-2 text-gray-500"></i>Time: <strong>${formatTime(item.new_data.time)}</strong></div>`;
+        }
+        if (item.new_data.status) {
+            html += `<div><i class="fas fa-flag mr-2 text-gray-500"></i>Status: <strong class="capitalize">${item.new_data.status}</strong></div>`;
+        }
+        if (item.new_data.type) {
+            html += `<div><i class="fas fa-tag mr-2 text-gray-500"></i>Type: <strong class="capitalize">${item.new_data.type}</strong></div>`;
+        }
+        
+        html += '</div>';
+    } else {
+        html += `<div class="text-sm text-gray-600 italic">${item.notes || 'No details available'}</div>`;
+    }
+    
+    return html;
+}
+
+function formatDate(dateString) {
+    if (!dateString) return '-';
+    try {
+        return new Date(dateString).toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric' 
+        });
+    } catch (e) {
+        return dateString;
+    }
+}
+
+function formatTime(timeString) {
+    if (!timeString) return '-';
+    try {
+        return new Date('2000-01-01 ' + timeString).toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+    } catch (e) {
+        return timeString;
+    }
+}
+
+function closeViewAppointmentModal() {
+    document.getElementById('viewAppointmentModal').classList.add('hidden');
+}
 </script>
 
 @endsection

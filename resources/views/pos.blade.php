@@ -324,7 +324,7 @@
     </div>
 </div>
 
-<script>
+<<script>
 document.addEventListener("DOMContentLoaded", function () {
     const searchInput = document.getElementById("searchItem");
     const productButtons = document.querySelectorAll(".product-btn");
@@ -350,6 +350,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     let isPayingBill = false;
     let currentBillId = null;
+    let paymentInProgress = false; // Add this flag
 
     // Tab functionality
     productsTab.addEventListener("click", () => {
@@ -496,6 +497,87 @@ document.addEventListener("DOMContentLoaded", function () {
         updateTotals();
     }
 
+    function printReceipt(transactionData) {
+        const receiptContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Receipt</title>
+                <style>
+                    body { font-family: 'Courier New', monospace; margin: 0; padding: 20px; background: white; font-size: 12px; }
+                    .receipt { max-width: 300px; margin: 0 auto; border: 1px solid #ddd; padding: 15px; background: white; }
+                    .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }
+                    .header h1 { margin: 0; font-size: 16px; font-weight: bold; }
+                    .header p { margin: 3px 0; font-size: 11px; }
+                    .customer-info { margin-bottom: 15px; font-size: 11px; border-bottom: 1px dashed #999; padding-bottom: 10px; }
+                    .items { border-bottom: 1px dashed #999; padding-bottom: 10px; margin-bottom: 15px; }
+                    .item { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 11px; }
+                    .item-details { flex: 1; }
+                    .item-name { font-weight: bold; margin-bottom: 2px; }
+                    .item-qty-price { font-size: 10px; color: #666; }
+                    .item-total { text-align: right; min-width: 60px; font-weight: bold; }
+                    .totals { font-size: 12px; margin-bottom: 15px; }
+                    .total-row { display: flex; justify-content: space-between; margin-bottom: 5px; padding: 2px 0; }
+                    .total-row.grand-total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; border-bottom: 1px solid #000; padding: 8px 0; margin-top: 10px; }
+                    .payment-info { text-align: center; margin: 15px 0; font-size: 12px; }
+                    .payment-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+                    .change-amount { font-size: 16px; font-weight: bold; color: #000; }
+                    .footer { text-align: center; margin-top: 20px; font-size: 10px; color: #666; }
+                    .divider { border-top: 1px dashed #999; margin: 10px 0; }
+                    @media print { body { padding: 0; } .receipt { border: none; box-shadow: none; max-width: none; margin: 0; } }
+                </style>
+            </head>
+            <body onload="window.print(); window.close();">
+                <div class="receipt">
+                    <div class="header">
+                        <h1>VETERINARY CLINIC</h1>
+                        <p>Point of Sale System</p>
+                        <p>Receipt #${transactionData.receiptNumber || new Date().getTime()}</p>
+                        <p>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
+                    </div>
+                    <div class="customer-info">
+                        <div><strong>Customer:</strong> ${transactionData.customerName || 'Walk-in Customer'}</div>
+                        <div><strong>Cashier:</strong> ${transactionData.cashier || 'System'}</div>
+                        <div><strong>Transaction Type:</strong> ${transactionData.type || 'Direct Sale'}</div>
+                    </div>
+                    <div class="items">
+                        ${transactionData.items.map(item => `
+                            <div class="item">
+                                <div class="item-details">
+                                    <div class="item-name">${item.name}</div>
+                                    <div class="item-qty-price">${item.quantity} × ₱${item.price.toFixed(2)}</div>
+                                </div>
+                                <div class="item-total">₱${(item.quantity * item.price).toFixed(2)}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="totals">
+                        <div class="total-row"><span>Subtotal:</span><span>₱${transactionData.subtotal.toFixed(2)}</span></div>
+                        <div class="total-row"><span>Total Items:</span><span>${transactionData.totalItems}</span></div>
+                        <div class="total-row grand-total"><span>TOTAL:</span><span>₱${transactionData.total.toFixed(2)}</span></div>
+                    </div>
+                    <div class="payment-info">
+                        <div class="payment-row"><span>Cash Received:</span><span>₱${transactionData.cash.toFixed(2)}</span></div>
+                        <div class="payment-row"><span>Change:</span><span class="change-amount">₱${transactionData.change.toFixed(2)}</span></div>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="footer">
+                        <p>Thank you for your purchase!</p>
+                        <p>Please keep this receipt for your records</p>
+                        <div class="divider"></div>
+                        <p>This serves as your official receipt</p>
+                        <p>For inquiries, please contact us</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+        
+        const printWindow = window.open('', '_blank', 'width=400,height=600,scrollbars=yes');
+        printWindow.document.write(receiptContent);
+        printWindow.document.close();
+    }
+
     // Add product to cart
     productButtons.forEach(btn => {
         btn.addEventListener("click", function () {
@@ -507,7 +589,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
             
-            // Visual feedback
             this.style.transform = 'scale(0.95)';
             setTimeout(() => this.style.transform = '', 150);
             
@@ -524,14 +605,12 @@ document.addEventListener("DOMContentLoaded", function () {
             const owner = this.dataset.owner;
             const pet = this.dataset.pet;
             
-            // Clear cart and set up for billing payment
             posItems.innerHTML = "";
             updateTotals();
             
             isPayingBill = true;
             currentBillId = billId;
             
-            // Show payment modal for billing
             document.getElementById("paymentModalTitle").textContent = "Pay Billing";
             document.getElementById("paymentModalSubtitle").textContent = `Bill #${billId} - ${owner} (${pet})`;
             document.getElementById("paymentItemsList").innerHTML = `
@@ -556,8 +635,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const keyword = this.value.toLowerCase();
         productButtons.forEach(btn => {
             const name = btn.dataset.name.toLowerCase();
-            const shouldShow = name.includes(keyword);
-            btn.style.display = shouldShow ? "block" : "none";
+            btn.style.display = name.includes(keyword) ? "block" : "none";
         });
     });
 
@@ -571,12 +649,11 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // Pay Now button (for products)
+    // Pay Now button
     payNowBtn.addEventListener("click", () => {
         const grandTotal = parseFloat(grandTotalEl.textContent.replace("₱", "").replace(",", ""));
         
         if (isPayingBill && currentBillId) {
-            // This shouldn't happen as billing payments are handled directly
             alert("Please use the billing payment option from the Pending Bills tab.");
             return;
         }
@@ -588,11 +665,9 @@ document.addEventListener("DOMContentLoaded", function () {
         
         isPayingBill = false;
         
-        // Set up payment modal for direct sales
         document.getElementById("paymentModalTitle").textContent = "Process Payment";
         document.getElementById("paymentModalSubtitle").textContent = "Enter the cash amount received";
         
-        // Show cart items in payment modal
         const cartItems = Array.from(document.querySelectorAll(".pos-row")).map(row => {
             const name = row.querySelector(".item-name div").textContent;
             const qty = row.querySelector(".qty").value;
@@ -613,6 +688,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // Cancel payment
     cancelPaymentBtn.addEventListener("click", () => {
         paymentModal.classList.add("hidden");
+        paymentInProgress = false;
         isPayingBill = false;
         currentBillId = null;
     });
@@ -632,23 +708,51 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // Confirm payment
-    confirmPaymentBtn.addEventListener("click", () => {
+    // SINGLE Confirm Payment Handler
+    confirmPaymentBtn.addEventListener("click", function() {
+        // Prevent double submission
+        if (paymentInProgress) {
+            console.log("Payment already in progress");
+            return false;
+        }
+
         const total = parseFloat(document.getElementById("paymentTotal").textContent.replace("₱", "").replace(",", ""));
         const cash = parseFloat(cashInput.value) || 0;
+        const change = cash - total;
         
         if (cash < total) {
             alert("Insufficient cash amount. Please enter enough to cover the total.");
             cashInput.focus();
-            return;
+            return false;
         }
 
-        // Show loading state
-        confirmPaymentBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
+        // Lock immediately
+        paymentInProgress = true;
         confirmPaymentBtn.disabled = true;
+        cancelPaymentBtn.disabled = true;
+        confirmPaymentBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
+
+        // Prepare receipt data
+        let receiptData = {
+            receiptNumber: new Date().getTime(),
+            cash: cash,
+            total: total,
+            change: change,
+            customerName: 'Walk-in Customer',
+            cashier: 'POS System',
+            items: [],
+            subtotal: total,
+            totalItems: 0,
+            type: 'Direct Sale'
+        };
 
         if (isPayingBill && currentBillId) {
-            // Pay existing billing
+            // Billing payment
+            receiptData.type = 'Bill Payment';
+            receiptData.items = [{ name: `Bill #${currentBillId}`, quantity: 1, price: total }];
+            receiptData.totalItems = 1;
+            receiptData.customerName = document.querySelector(`[data-id="${currentBillId}"]`).dataset.owner;
+
             fetch(`/pos/pay-billing/${currentBillId}`, {
                 method: 'POST',
                 headers: {
@@ -656,26 +760,17 @@ document.addEventListener("DOMContentLoaded", function () {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                     'Accept': 'application/json'
                 },
-                body: JSON.stringify({
-                    cash: cash,
-                    total: total
-                })
+                body: JSON.stringify({ cash: cash, total: total })
             })
-            .then(response => {
-                if (!response.ok) {
-                    return response.json().then(err => Promise.reject(err));
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     paymentModal.classList.add("hidden");
                     document.getElementById("successMessage").textContent = `Bill #${currentBillId} paid successfully!`;
-                    document.getElementById("successChange").textContent = `₱${(cash - total).toFixed(2)}`;
+                    document.getElementById("successChange").textContent = `₱${change.toFixed(2)}`;
                     successModal.classList.remove("hidden");
-                    
-                    // Remove the bill from the list
-                    document.querySelector(`[data-id="${currentBillId}"]`).remove();
+                    printReceipt(receiptData);
+                    document.querySelector(`[data-id="${currentBillId}"]`)?.remove();
                 } else {
                     throw new Error(data.message || 'Payment failed');
                 }
@@ -687,9 +782,11 @@ document.addEventListener("DOMContentLoaded", function () {
             .finally(() => {
                 confirmPaymentBtn.innerHTML = '<i class="fas fa-credit-card mr-2"></i>Confirm Payment';
                 confirmPaymentBtn.disabled = false;
+                cancelPaymentBtn.disabled = false;
+                paymentInProgress = false;
             });
         } else {
-            // Process direct sale
+            // Direct sale
             const items = Array.from(document.querySelectorAll(".pos-row")).map(row => ({
                 product_id: parseInt(row.dataset.id),
                 type: row.dataset.type,
@@ -702,7 +799,17 @@ document.addEventListener("DOMContentLoaded", function () {
                 alert("No items in cart.");
                 confirmPaymentBtn.innerHTML = '<i class="fas fa-credit-card mr-2"></i>Confirm Payment';
                 confirmPaymentBtn.disabled = false;
+                cancelPaymentBtn.disabled = false;
+                paymentInProgress = false;
                 return;
+            }
+
+            receiptData.items = items.map(item => ({ name: item.name, quantity: item.quantity, price: item.price }));
+            receiptData.totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+            
+            const selectedOwner = document.getElementById("petOwner");
+            if (selectedOwner.value !== "0") {
+                receiptData.customerName = selectedOwner.options[selectedOwner.selectedIndex].text;
             }
 
             const ownerId = document.getElementById("petOwner").value;
@@ -721,18 +828,15 @@ document.addEventListener("DOMContentLoaded", function () {
                     owner_id: ownerId !== "0" ? parseInt(ownerId) : null
                 })
             })
-            .then(response => {
-                if (!response.ok) {
-                    return response.json().then(err => Promise.reject(err));
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     paymentModal.classList.add("hidden");
                     document.getElementById("successMessage").textContent = "Direct sale completed successfully!";
                     document.getElementById("successChange").textContent = `₱${data.change.toFixed(2)}`;
                     successModal.classList.remove("hidden");
+                    receiptData.change = data.change;
+                    printReceipt(receiptData);
                 } else {
                     throw new Error(data.message || 'Payment failed');
                 }
@@ -744,376 +848,13 @@ document.addEventListener("DOMContentLoaded", function () {
             .finally(() => {
                 confirmPaymentBtn.innerHTML = '<i class="fas fa-credit-card mr-2"></i>Confirm Payment';
                 confirmPaymentBtn.disabled = false;
+                cancelPaymentBtn.disabled = false;
+                paymentInProgress = false;
             });
         }
-    });
-    // Add this function to your existing script section, right after the confirmPaymentBtn click event
-
-function printReceipt(transactionData) {
-    const receiptContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Receipt</title>
-            <style>
-                body {
-                    font-family: 'Courier New', monospace;
-                    margin: 0;
-                    padding: 20px;
-                    background: white;
-                    font-size: 12px;
-                }
-                .receipt {
-                    max-width: 300px;
-                    margin: 0 auto;
-                    border: 1px solid #ddd;
-                    padding: 15px;
-                    background: white;
-                }
-                .header {
-                    text-align: center;
-                    border-bottom: 2px solid #000;
-                    padding-bottom: 10px;
-                    margin-bottom: 15px;
-                }
-                .header h1 {
-                    margin: 0;
-                    font-size: 16px;
-                    font-weight: bold;
-                }
-                .header p {
-                    margin: 3px 0;
-                    font-size: 11px;
-                }
-                .customer-info {
-                    margin-bottom: 15px;
-                    font-size: 11px;
-                    border-bottom: 1px dashed #999;
-                    padding-bottom: 10px;
-                }
-                .items {
-                    border-bottom: 1px dashed #999;
-                    padding-bottom: 10px;
-                    margin-bottom: 15px;
-                }
-                .item {
-                    display: flex;
-                    justify-content: space-between;
-                    margin-bottom: 5px;
-                    font-size: 11px;
-                }
-                .item-details {
-                    flex: 1;
-                }
-                .item-name {
-                    font-weight: bold;
-                    margin-bottom: 2px;
-                }
-                .item-qty-price {
-                    font-size: 10px;
-                    color: #666;
-                }
-                .item-total {
-                    text-align: right;
-                    min-width: 60px;
-                    font-weight: bold;
-                }
-                .totals {
-                    font-size: 12px;
-                    margin-bottom: 15px;
-                }
-                .total-row {
-                    display: flex;
-                    justify-content: space-between;
-                    margin-bottom: 5px;
-                    padding: 2px 0;
-                }
-                .total-row.grand-total {
-                    font-weight: bold;
-                    font-size: 14px;
-                    border-top: 2px solid #000;
-                    border-bottom: 1px solid #000;
-                    padding: 8px 0;
-                    margin-top: 10px;
-                }
-                .payment-info {
-                    text-align: center;
-                    margin: 15px 0;
-                    font-size: 12px;
-                }
-                .payment-row {
-                    display: flex;
-                    justify-content: space-between;
-                    margin-bottom: 5px;
-                }
-                .change-amount {
-                    font-size: 16px;
-                    font-weight: bold;
-                    color: #000;
-                }
-                .footer {
-                    text-align: center;
-                    margin-top: 20px;
-                    font-size: 10px;
-                    color: #666;
-                }
-                .divider {
-                    border-top: 1px dashed #999;
-                    margin: 10px 0;
-                }
-                @media print {
-                    body {
-                        padding: 0;
-                    }
-                    .receipt {
-                        border: none;
-                        box-shadow: none;
-                        max-width: none;
-                        margin: 0;
-                    }
-                }
-            </style>
-        </head>
-        <body onload="window.print(); window.close();">
-            <div class="receipt">
-                <!-- Header -->
-                <div class="header">
-                    <h1>VETERINARY CLINIC</h1>
-                    <p>Point of Sale System</p>
-                    <p>Receipt #${transactionData.receiptNumber || new Date().getTime()}</p>
-                    <p>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
-                </div>
-                
-                <!-- Customer Info -->
-                <div class="customer-info">
-                    <div><strong>Customer:</strong> ${transactionData.customerName || 'Walk-in Customer'}</div>
-                    <div><strong>Cashier:</strong> ${transactionData.cashier || 'System'}</div>
-                    <div><strong>Transaction Type:</strong> ${transactionData.type || 'Direct Sale'}</div>
-                </div>
-                
-                <!-- Items -->
-                <div class="items">
-                    ${transactionData.items.map(item => `
-                        <div class="item">
-                            <div class="item-details">
-                                <div class="item-name">${item.name}</div>
-                                <div class="item-qty-price">${item.quantity} × ₱${item.price.toFixed(2)}</div>
-                            </div>
-                            <div class="item-total">₱${(item.quantity * item.price).toFixed(2)}</div>
-                        </div>
-                    `).join('')}
-                </div>
-                
-                <!-- Totals -->
-                <div class="totals">
-                    <div class="total-row">
-                        <span>Subtotal:</span>
-                        <span>₱${transactionData.subtotal.toFixed(2)}</span>
-                    </div>
-                    <div class="total-row">
-                        <span>Total Items:</span>
-                        <span>${transactionData.totalItems}</span>
-                    </div>
-                    <div class="total-row grand-total">
-                        <span>TOTAL:</span>
-                        <span>₱${transactionData.total.toFixed(2)}</span>
-                    </div>
-                </div>
-                
-                <!-- Payment Info -->
-                <div class="payment-info">
-                    <div class="payment-row">
-                        <span>Cash Received:</span>
-                        <span>₱${transactionData.cash.toFixed(2)}</span>
-                    </div>
-                    <div class="payment-row">
-                        <span>Change:</span>
-                        <span class="change-amount">₱${transactionData.change.toFixed(2)}</span>
-                    </div>
-                </div>
-                
-                <div class="divider"></div>
-                
-                <!-- Footer -->
-                <div class="footer">
-                    <p>Thank you for your purchase!</p>
-                    <p>Please keep this receipt for your records</p>
-                    <div class="divider"></div>
-                    <p>This serves as your official receipt</p>
-                    <p>For inquiries, please contact us</p>
-                </div>
-            </div>
-        </body>
-        </html>
-    `;
-    
-    // Open new window with receipt content
-    const printWindow = window.open('', '_blank', 'width=400,height=600,scrollbars=yes');
-    printWindow.document.write(receiptContent);
-    printWindow.document.close();
-}
-
-// Update your existing confirmPaymentBtn event listener
-// Replace the existing confirmPaymentBtn.addEventListener("click", () => { ... }); with this updated version:
-
-confirmPaymentBtn.addEventListener("click", () => {
-    const total = parseFloat(document.getElementById("paymentTotal").textContent.replace("₱", "").replace(",", ""));
-    const cash = parseFloat(cashInput.value) || 0;
-    const change = cash - total;
-    
-    if (cash < total) {
-        alert("Insufficient cash amount. Please enter enough to cover the total.");
-        cashInput.focus();
-        return;
-    }
-
-    // Show loading state
-    confirmPaymentBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
-    confirmPaymentBtn.disabled = true;
-
-    // Prepare receipt data
-    let receiptData = {
-        receiptNumber: new Date().getTime(),
-        cash: cash,
-        total: total,
-        change: change,
-        customerName: 'Walk-in Customer',
-        cashier: 'POS System',
-        items: [],
-        subtotal: total,
-        totalItems: 0,
-        type: 'Direct Sale'
-    };
-
-    if (isPayingBill && currentBillId) {
-        // Pay existing billing
-        receiptData.type = 'Bill Payment';
-        receiptData.items = [{
-            name: `Bill #${currentBillId}`,
-            quantity: 1,
-            price: total
-        }];
-        receiptData.totalItems = 1;
-        receiptData.customerName = document.querySelector(`[data-id="${currentBillId}"]`).dataset.owner;
-
-        fetch(`/pos/pay-billing/${currentBillId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({
-                cash: cash,
-                total: total
-            })
-        })
-        .then(response => {
-            if (!response.ok) {
-                return response.json().then(err => Promise.reject(err));
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                paymentModal.classList.add("hidden");
-                document.getElementById("successMessage").textContent = `Bill #${currentBillId} paid successfully!`;
-                document.getElementById("successChange").textContent = `₱${change.toFixed(2)}`;
-                successModal.classList.remove("hidden");
-                
-                // Print receipt
-                printReceipt(receiptData);
-                
-                // Remove the bill from the list
-                document.querySelector(`[data-id="${currentBillId}"]`).remove();
-            } else {
-                throw new Error(data.message || 'Payment failed');
-            }
-        })
-        .catch(error => {
-            console.error("Billing payment error:", error);
-            alert(error.message || "Payment failed. Please try again.");
-        })
-        .finally(() => {
-            confirmPaymentBtn.innerHTML = '<i class="fas fa-credit-card mr-2"></i>Confirm Payment';
-            confirmPaymentBtn.disabled = false;
-        });
-    } else {
-        // Process direct sale
-        const items = Array.from(document.querySelectorAll(".pos-row")).map(row => ({
-            product_id: parseInt(row.dataset.id),
-            type: row.dataset.type,
-            name: row.querySelector(".item-name div").textContent,
-            quantity: parseInt(row.querySelector(".qty").value),
-            price: parseFloat(row.querySelector(".price").dataset.price)
-        }));
-
-        if (items.length === 0) {
-            alert("No items in cart.");
-            confirmPaymentBtn.innerHTML = '<i class="fas fa-credit-card mr-2"></i>Confirm Payment';
-            confirmPaymentBtn.disabled = false;
-            return;
-        }
-
-        // Prepare receipt data for direct sale
-        receiptData.items = items.map(item => ({
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price
-        }));
-        receiptData.totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
         
-        const selectedOwner = document.getElementById("petOwner");
-        if (selectedOwner.value !== "0") {
-            receiptData.customerName = selectedOwner.options[selectedOwner.selectedIndex].text;
-        }
-
-        const ownerId = document.getElementById("petOwner").value;
-
-        fetch("/pos", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({
-                items: items,
-                cash: cash,
-                total: total,
-                owner_id: ownerId !== "0" ? parseInt(ownerId) : null
-            })
-        })
-        .then(response => {
-            if (!response.ok) {
-                return response.json().then(err => Promise.reject(err));
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                paymentModal.classList.add("hidden");
-                document.getElementById("successMessage").textContent = "Direct sale completed successfully!";
-                document.getElementById("successChange").textContent = `₱${data.change.toFixed(2)}`;
-                successModal.classList.remove("hidden");
-                
-                // Print receipt
-                receiptData.change = data.change;
-                printReceipt(receiptData);
-            } else {
-                throw new Error(data.message || 'Payment failed');
-            }
-        })
-        .catch(error => {
-            console.error("Payment error:", error);
-            alert(error.message || "Payment failed. Please try again.");
-        })
-        .finally(() => {
-            confirmPaymentBtn.innerHTML = '<i class="fas fa-credit-card mr-2"></i>Confirm Payment';
-            confirmPaymentBtn.disabled = false;
-        });
-    }
-});
+        return false;
+    });
 
     // Close success modal
     closeSuccessBtn.addEventListener("click", () => {
@@ -1134,7 +875,6 @@ confirmPaymentBtn.addEventListener("click", () => {
         });
     });
 
-    // Initial setup
     updateTotals();
 });
 </script>

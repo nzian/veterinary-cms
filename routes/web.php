@@ -97,6 +97,11 @@ Route::get('/services/{id}/view', [ProdServEquipController::class, 'viewService'
 Route::get('/equipment/{id}/view', [ProdServEquipController::class, 'viewEquipment'])->name('equipment.view');
 Route::get('/inventory/{id}/history', [ProdServEquipController::class, 'viewInventoryHistory'])->name('inventory.history');
 
+Route::get('/services/{id}/view', [ProdServEquipController::class, 'viewService']);
+Route::get('/equipment/{id}/view', [ProdServEquipController::class, 'viewEquipment']);
+Route::get('/services/{id}/history', [ProdServEquipController::class, 'viewServiceHistory']);
+Route::get('/equipment/{id}/history', [ProdServEquipController::class, 'viewEquipmentHistory']);
+
 use App\Http\Controllers\MedicalManagementController;
 
 
@@ -112,6 +117,8 @@ Route::prefix('medical-management')->group(function () {
     Route::delete('/appointments/{id}', [MedicalManagementController::class, 'destroyAppointment'])->name('medical.appointments.destroy');
     Route::get('/appointments/{id}/details', [MedicalManagementController::class, 'getAppointmentDetails'])->name('medical.appointments.details');
     Route::get('/appointments/{id}', [MedicalManagementController::class, 'showAppointment'])->name('medical.appointments.show');
+    Route::get('/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])->name('medical.appointments.show');
+    
 
     // Prescription routes
     Route::post('/prescriptions', [MedicalManagementController::class, 'storePrescription'])->name('medical.prescriptions.store');
@@ -135,9 +142,12 @@ Route::get('/medical-management/prescriptions/{id}/edit', [MedicalManagementCont
 
 Route::get('/medical-management/appointments/{id}/for-prescription', [MedicalManagementController::class, 'getAppointmentForPrescription'])
     ->name('medical.appointments.for-prescription');
-    // In your routes file (web.php or wherever your medical routes are)
-Route::get('/medical-management/appointments/{id}/for-prescription', [MedicalManagementController::class, 'getAppointmentForPrescription'])
-    ->name('medical.appointments.for-prescription');
+    Route::put('/medical-management/appointments/{id}', [YourController::class, 'update'])->name('medical.appointments.update');
+ 
+    Route::get('/medical-management/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])
+    ->name('medical.appointments.show');
+
+
 
 
 });

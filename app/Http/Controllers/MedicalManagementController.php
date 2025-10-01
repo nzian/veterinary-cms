@@ -42,6 +42,8 @@ class MedicalManagementController extends Controller
             $prescriptions = $prescriptionsQuery->paginate((int) $prescriptionPerPage);
         }
 
+        
+
         // Get referrals with pagination
         $referralPerPage = $request->get('referralPerPage', 10);
         $referralsQuery = Referral::with([
@@ -87,13 +89,37 @@ class MedicalManagementController extends Controller
 
     $appointment = Appointment::create($validated);
 
+    // ===== ADD HISTORY TRACKING - START =====
+    // Initialize history for new appointment
+    $history = [];
+    $history[] = [
+        'change_type' => 'created',
+        'old_data' => null,
+        'new_data' => [
+            'date' => $appointment->appoint_date,
+            'time' => $appointment->appoint_time,
+            'status' => $appointment->appoint_status,
+            'type' => $appointment->appoint_type,
+        ],
+        'notes' => 'Appointment created',
+        'changed_by' => auth()->check() ? auth()->user()->user_name : 'System',
+        'changed_at' => now()->toDateTimeString(),
+    ];
+    
+    $appointment->change_history = $history;
+    $appointment->save();
+    
+    Log::info("History initialized for new appointment {$appointment->appoint_id}");
+    // ===== ADD HISTORY TRACKING - END =====
+
     if (!empty($services)) {
         $appointment->services()->sync($services);
         
         // Auto-generate billing when appointment has services
         $this->generateBillingForAppointment($appointment);
     } 
-     if (strtolower($validated['appoint_type']) === 'follow-up') {
+    
+    if (strtolower($validated['appoint_type']) === 'follow-up') {
         try {
             $smsService = new \App\Services\DynamicSMSService();
             $smsResult = $smsService->sendFollowUpSMS($appointment);
@@ -109,100 +135,189 @@ class MedicalManagementController extends Controller
         }
     }
     
-
     $activeTab = $request->input('active_tab', 'appointments');
-    
     
     return redirect()->route('medical.index', ['active_tab' => $activeTab])
                    ->with('success', 'Appointment added successfully');
 }
-
+public function showAppointment($id)
+{
+    try {
+        $appointment = \App\Models\Appointment::with(['pet.owner', 'services'])->findOrFail($id);
+        
+        return response()->json([
+            'appointment' => $appointment,
+            'history' => $appointment->change_history ?? []
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Appointment not found',
+            'message' => $e->getMessage()
+        ], 404);
+    }
+}
      /**
      * Update an existing appointment
      */
-    public function updateAppointment(Request $request, Appointment $appointment)
-    {
-        $validated = $request->validate([
-            'appoint_date' => 'required|date',
-            'appoint_time' => 'required',
-            'appoint_status' => 'required|string',
-            'appoint_type' => 'required|string',
-            'pet_id' => 'required|integer|exists:tbl_pet,pet_id',
-            'appoint_description' => 'nullable|string',
-            'services' => 'array',
-            'services.*' => 'exists:tbl_serv,serv_id',
+   public function updateAppointment(Request $request, Appointment $appointment)
+{
+    $validated = $request->validate([
+        'appoint_date' => 'required|date',
+        'appoint_time' => 'required',
+        'appoint_status' => 'required|in:pending,arrived,completed,refer,rescheduled',
+        'appoint_type' => 'required|string',
+        'pet_id' => 'required|integer|exists:tbl_pet,pet_id',
+        'appoint_description' => 'nullable|string',
+        'services' => 'array',
+        'services.*' => 'exists:tbl_serv,serv_id',
+    ]);
+
+    // ===== ADD HISTORY TRACKING - START =====
+    // Track what's being changed BEFORE updating
+    $changeType = 'updated';
+    $old = [];
+    $new = [];
+    
+    if ($appointment->appoint_date !== $validated['appoint_date']) {
+        $changeType = 'rescheduled';
+        $old['date'] = $appointment->appoint_date;
+        $new['date'] = $validated['appoint_date'];
+    }
+    
+    if ($appointment->appoint_time !== $validated['appoint_time']) {
+        $changeType = 'rescheduled';
+        $old['time'] = $appointment->appoint_time;
+        $new['time'] = $validated['appoint_time'];
+    }
+    
+    if ($appointment->appoint_status !== $validated['appoint_status']) {
+        if ($changeType !== 'rescheduled') {
+            $changeType = 'status_changed';
+        }
+        $old['status'] = $appointment->appoint_status;
+        $new['status'] = $validated['appoint_status'];
+    }
+    
+    if ($appointment->appoint_type !== $validated['appoint_type']) {
+        $old['type'] = $appointment->appoint_type;
+        $new['type'] = $validated['appoint_type'];
+    }
+    // ===== ADD HISTORY TRACKING - END =====
+
+    // Check if date or time has changed for SMS notification
+    $dateChanged = $appointment->appoint_date !== $validated['appoint_date'];
+    $timeChanged = $appointment->appoint_time !== $validated['appoint_time'];
+    $isRescheduled = $dateChanged || $timeChanged;
+
+    // Store original values for logging
+    $originalDate = $appointment->appoint_date;
+    $originalTime = $appointment->appoint_time;
+
+    // Update the appointment
+    $appointment->update($validated);
+
+    // ===== SAVE HISTORY TO DATABASE - START =====
+    if (!empty($old) || !empty($new)) {
+        $history = $appointment->change_history ?? [];
+        
+        $history[] = [
+            'change_type' => $changeType,
+            'old_data' => $old,
+            'new_data' => $new,
+            'notes' => 'Appointment updated',
+            'changed_by' => auth()->check() ? auth()->user()->user_name : 'System',
+            'changed_at' => now()->toDateTimeString(),
+        ];
+        
+        $appointment->change_history = $history;
+        $appointment->save();
+        
+        Log::info("History tracked for appointment {$appointment->appoint_id}", [
+            'change_type' => $changeType,
+            'old_data' => $old,
+            'new_data' => $new
         ]);
+    }
+    // ===== SAVE HISTORY TO DATABASE - END =====
 
-        // Check if date or time has changed for SMS notification
-        $dateChanged = $appointment->appoint_date !== $validated['appoint_date'];
-        $timeChanged = $appointment->appoint_time !== $validated['appoint_time'];
-        $isRescheduled = $dateChanged || $timeChanged;
+    // Sync services
+    if ($request->has('services')) {
+        $appointment->services()->sync($request->services);
+    } else {
+        $appointment->services()->sync([]);
+    }
 
-        // Store original values for logging
-        $originalDate = $appointment->appoint_date;
-        $originalTime = $appointment->appoint_time;
-
-        // Update the appointment
-        $appointment->update($validated);
-
-        // Sync services
-        if ($request->has('services')) {
-            $appointment->services()->sync($request->services);
-        } else {
-            $appointment->services()->sync([]);
-        }
-
-        // Send reschedule SMS if date or time changed
-        if ($isRescheduled) {
-            try {
-                // Load the pet and owner relationships
-                $appointment->load('pet.owner');
-                
-                $smsService = new \App\Services\DynamicSMSService();
-                $smsResult = $smsService->sendRescheduleSMS($appointment);
-                
-                if ($smsResult) {
-                    Log::info("Reschedule SMS sent successfully for appointment {$appointment->appoint_id}", [
-                        'owner' => $appointment->pet->owner->own_name ?? 'Unknown',
-                        'pet' => $appointment->pet->pet_name ?? 'Unknown',
-                        'original_date' => $originalDate,
-                        'original_time' => $originalTime,
-                        'new_date' => $validated['appoint_date'],
-                        'new_time' => $validated['appoint_time']
-                    ]);
-                } else {
-                    Log::warning("Reschedule SMS failed to send for appointment {$appointment->appoint_id}");
-                }
-            } catch (\Exception $e) {
-                Log::error("Reschedule SMS notification failed for appointment {$appointment->appoint_id}: " . $e->getMessage());
-                // Don't fail the appointment update, just log the error
+    // Send reschedule SMS if date or time changed
+    if ($isRescheduled) {
+        try {
+            // Load the pet and owner relationships
+            $appointment->load('pet.owner');
+            
+            $smsService = new \App\Services\DynamicSMSService();
+            $smsResult = $smsService->sendRescheduleSMS($appointment);
+            
+            if ($smsResult) {
+                Log::info("Reschedule SMS sent successfully for appointment {$appointment->appoint_id}", [
+                    'owner' => $appointment->pet->owner->own_name ?? 'Unknown',
+                    'pet' => $appointment->pet->pet_name ?? 'Unknown',
+                    'original_date' => $originalDate,
+                    'original_time' => $originalTime,
+                    'new_date' => $validated['appoint_date'],
+                    'new_time' => $validated['appoint_time']
+                ]);
+            } else {
+                Log::warning("Reschedule SMS failed to send for appointment {$appointment->appoint_id}");
             }
+        } catch (\Exception $e) {
+            Log::error("Reschedule SMS notification failed for appointment {$appointment->appoint_id}: " . $e->getMessage());
+            // Don't fail the appointment update, just log the error
         }
-        
-        $activeTab = $request->input('active_tab', 'appointments');
-        
-        $successMessage = 'Appointment updated successfully';
-        if ($isRescheduled) {
-            $successMessage .= ' and reschedule notification sent';
-        }
-        
-        return redirect()->route('medical.index', ['active_tab' => $activeTab])
-                       ->with('success', $successMessage);
+    }
+    
+    $successMessage = 'Appointment updated successfully';
+    if ($isRescheduled) {
+        $successMessage .= ' and reschedule notification sent';
     }
 
-    /**
-     * Delete an appointment
-     */
-    public function destroyAppointment(Request $request, $id)
-    {
-        $appointment = Appointment::findOrFail($id);
-        $appointment->services()->detach();
-        $appointment->delete();
-
-        $activeTab = $request->input('active_tab', 'appointments');
-        return redirect()->route('medical.index', ['active_tab' => $activeTab])
-                       ->with('success', 'Appointment deleted successfully');
+    // **FIX: Handle AJAX requests from calendar**
+    if ($request->expectsJson() || $request->wantsJson() || $request->header('Accept') === 'application/json') {
+        $appointment->load('pet.owner');
+        return response()->json([
+            'success' => true,
+            'message' => $successMessage,
+            'appointment' => [
+                'id' => $appointment->appoint_id,
+                'pet_id' => $appointment->pet_id,
+                'pet_name' => $appointment->pet->pet_name ?? 'Unknown Pet',
+                'owner_name' => $appointment->pet->owner->own_name ?? 'Unknown Owner',
+                'date' => $appointment->appoint_date,
+                'time' => $appointment->appoint_time,
+                'status' => strtolower($appointment->appoint_status),
+                'notes' => $appointment->appoint_description ?? '',
+                'type' => $appointment->appoint_type,
+            ]
+        ]);
     }
+    
+    // Regular form submission redirect
+    $activeTab = $request->input('active_tab', 'appointments');
+    return redirect()->route('medical.index', ['active_tab' => $activeTab])
+                   ->with('success', $successMessage);
+}
+
+/**
+ * Delete an appointment
+ */
+public function destroyAppointment(Request $request, $id)
+{
+    $appointment = Appointment::findOrFail($id);
+    $appointment->services()->detach();
+    $appointment->delete();
+
+    $activeTab = $request->input('active_tab', 'appointments');
+    return redirect()->route('medical.index', ['active_tab' => $activeTab])
+                   ->with('success', 'Appointment deleted successfully');
+}
 
     /**
      * Get appointment details for referral
@@ -252,21 +367,22 @@ class MedicalManagementController extends Controller
     /**
      * Get appointment for prescription (new method)
      */
-    public function getAppointmentForPrescription($id)
-    {
-        try {
-            $appointment = Appointment::with(['pet.owner', 'services'])->findOrFail($id);
-            
-            return response()->json([
-                'pet_id' => $appointment->pet_id,
-                'pet_name' => $appointment->pet->pet_name,
-                'appointment_date' => $appointment->appoint_date,
-                'services' => $appointment->services->pluck('serv_name')->join(', ')
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Appointment not found'], 404);
-        }
+   public function getAppointmentForPrescription($id)
+{
+    try {
+        $appointment = Appointment::with(['pet.owner', 'services'])->findOrFail($id);
+        
+        return response()->json([
+            'pet_id' => $appointment->pet_id,
+            'pet_name' => $appointment->pet->pet_name,
+            'appointment_date' => $appointment->appoint_date,
+            'services' => $appointment->services->pluck('serv_name')->join(', ')
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Error in getAppointmentForPrescription: ' . $e->getMessage());
+        return response()->json(['error' => 'Appointment not found'], 404);
     }
+}
 
     /**
      * Generate billing for appointment
@@ -292,40 +408,44 @@ class MedicalManagementController extends Controller
     // ==================== PRESCRIPTION METHODS ====================
 
     public function storePrescription(Request $request)
-    {
-        try {
-            $request->validate([
-                'pet_id' => 'required|exists:tbl_pet,pet_id',
-                'prescription_date' => 'required|date',
-                'medications_json' => 'required|string',
-                'notes' => 'nullable|string'
-            ]);
+{
+    try {
+        $request->validate([
+            'pet_id' => 'required|exists:tbl_pet,pet_id',
+            'prescription_date' => 'required|date',
+            'medications_json' => 'required|string',
+            'differential_diagnosis' => 'nullable|string',
+            'notes' => 'nullable|string'
+        ]);
 
-            $medications = json_decode($request->medications_json, true);
-            if (empty($medications)) {
-                $activeTab = $request->input('active_tab', 'prescriptions');
-                return redirect()->route('medical.index', ['active_tab' => $activeTab])
-                               ->with('error', 'At least one medication is required');
-            }
-
-            Prescription::create([
-                'pet_id' => $request->pet_id,
-                'prescription_date' => $request->prescription_date,
-                'medication' => json_encode($medications),
-                'notes' => $request->notes,
-                'branch_id' => auth()->user()->branch_id ?? 1
-            ]);
-
-            $activeTab = $request->input('active_tab', 'prescriptions');
-            return redirect()->route('medical.index', ['active_tab' => $activeTab])
-                           ->with('success', 'Prescription created successfully!');
-        } catch (\Exception $e) {
-            Log::error('Prescription creation error: ' . $e->getMessage());
-            $activeTab = $request->input('active_tab', 'prescriptions');
-            return redirect()->route('medical.index', ['active_tab' => $activeTab])
-                           ->with('error', 'Error creating prescription. Please try again.');
+        $medications = json_decode($request->medications_json, true);
+        if (empty($medications)) {
+            // ... error handling ...
         }
+
+        // Debug logging
+        \Log::info('Saving prescription with differential_diagnosis: ' . $request->differential_diagnosis);
+
+        $prescription = Prescription::create([
+            'pet_id' => $request->pet_id,
+            'prescription_date' => $request->prescription_date,
+            'medication' => json_encode($medications),
+            'differential_diagnosis' => $request->differential_diagnosis,
+            'notes' => $request->notes,
+            'branch_id' => auth()->user()->branch_id ?? 1
+        ]);
+        
+        // Verify it was saved
+        \Log::info('Saved prescription differential_diagnosis: ' . $prescription->differential_diagnosis);
+
+        $activeTab = $request->input('active_tab', 'prescriptions');
+        return redirect()->route('medical.index', ['active_tab' => $activeTab])
+                       ->with('success', 'Prescription created successfully!');
+    } catch (\Exception $e) {
+        Log::error('Prescription creation error: ' . $e->getMessage());
+        // ... rest of error handling ...
     }
+}
 
     public function editPrescription($id)
     {
@@ -574,9 +694,5 @@ class MedicalManagementController extends Controller
         return view('prescription-print', compact('prescription'));
     }
 
-    public function showAppointment($id)
-    {
-        $appointment = Appointment::with(['pet.owner', 'services', 'user'])->findOrFail($id);
-        return response()->json($appointment);
-    }
+    
 }

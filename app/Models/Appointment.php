@@ -13,7 +13,9 @@ class Appointment extends Model
     protected $keyType = 'int';
     public $timestamps = false;
 
-
+protected $casts = [
+    'change_history' => 'array',
+];
 
     protected $fillable = [
         'appoint_time',

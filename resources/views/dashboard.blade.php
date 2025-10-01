@@ -1,6 +1,7 @@
 @extends('AdminBoard')
 
 @section('content')
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <div class="min-h-screen bg-gray-50 animate-fadeInScale">
   
        <div id="welcomeCard" 
@@ -24,6 +25,21 @@
     
 
     <style>
+
+      .calendar-notification {
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
   @keyframes fadeSlideUp {
     0% { opacity: 0; transform: translateY(20px); }
@@ -120,13 +136,25 @@
     </a>
   @endforeach
 </div>
+
+@if (session('success'))
+    <div class="mb-3 text-sm text-green-600 bg-green-100 border border-green-300 rounded px-3 py-2">
+        {{ session('success') }}
+    </div>
+@endif
+
+{{-- Error Message --}}
+@if (session('error'))
+    <div class="mb-3 text-sm text-red-600 bg-red-100 border border-red-300 rounded px-3 py-2">
+        {{ session('error') }}
+    </div>
+@endif
     {{-- Calendar Section - Now Full Width --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 mb-8">
       <div class="p-6">
         <div class="flex items-center justify-between mb-6">
           <h2 class="text-xl font-semibold text-gray-900">Appointment Calendar</h2>
-          <div class="flex items-center space-x-2">
-            
+          <div class="flex items-center space-x-2">            
             <button id="monthlyBtn" class="px-3 py-1.5 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-[#0f7ea0 transition-colors">Monthly</button>
             <button id="weeklyBtn" class="px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">Weekly</button>
             <button id="todayBtn" class="px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">Today</button>
@@ -152,19 +180,24 @@
             </table>
           </div>
         </div>
-        <div class="mt-4 flex flex-wrap items-center gap-4 text-sm">
+       <div class="mt-4 flex flex-wrap items-center gap-4 text-sm">
   <div class="flex items-center gap-2">
     <span class="inline-block w-4 h-4 bg-green-100 border border-green-300 rounded"></span> Arrived / Completed
   </div>
   <div class="flex items-center gap-2">
-    <span class="inline-block w-4 h-4 bg-yellow-100 border border-yellow-300 rounded"></span> Pending / Approved
+    <span class="inline-block w-4 h-4 bg-yellow-100 border border-yellow-300 rounded"></span> Pending
   </div>
   <div class="flex items-center gap-2">
-    <span class="inline-block w-4 h-4 bg-orange-100 border border-orange-300 rounded"></span> Rescheduled
+    <span class="inline-block w-4 h-4 bg-purple-100 border border-purple-300 rounded"></span> Refer
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="inline-block w-4 h-4 bg-orange-100 border border-orange-300 rounded"></span> Reschedule
   </div>
   <div class="flex items-center gap-2">
     <span class="inline-block w-4 h-4 bg-red-100 border border-red-300 rounded"></span> Missed (Did not arrive)
   </div>
+  
+</div>
 </div>
 
       </div>
@@ -365,17 +398,17 @@
   }
 
   function getStatusColor(status) {
-    const colors = {
-      'arrive': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
-      'arrived': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
-      'completed': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
-      'pending': 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-200',
-      'approved': 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-200',
-      'rescheduled': 'bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-orange-200'
-    };
-    return colors[(status || 'pending').toLowerCase()] || 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-200';
-  }
-
+  const colors = {
+    'arrive': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
+    'arrived': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
+    'completed': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
+    'pending': 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-200',
+    'approved': 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-200',
+    'refer': 'bg-purple-100 text-purple-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-purple-200',
+    'rescheduled': 'bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-orange-200'
+  };
+  return colors[(status || 'pending').toLowerCase()] || 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-200';
+}
   function updateViewButtons(activeView) {
     const buttons = ['monthlyBtn', 'weeklyBtn', 'todayBtn'];
     buttons.forEach(id => {
@@ -630,15 +663,57 @@
     modal.classList.remove('hidden');
   }
 
-  function updateVisit() {
-    if (!currentAppointment) return;
+function updateVisit() {
+  if (!currentAppointment) return;
+  
+  const statusSelect = document.getElementById('visitStatus');
+  const notesTextarea = document.getElementById('visitNotes');
+  const newStatus = statusSelect.value;
+  const newNotes = notesTextarea.value;
+  const updateBtn = document.getElementById('updateVisitBtn');
+  
+  // Disable button during update
+  updateBtn.disabled = true;
+  updateBtn.textContent = 'Updating...';
+  
+  // Get CSRF token
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+  
+  // Make AJAX request to update appointment
+  fetch(`/medical-management/appointments/${currentAppointment.id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': csrfToken,
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify({
+      appoint_status: newStatus,
+      appoint_description: newNotes,
+      appoint_date: currentAppointment.date,
+      appoint_time: currentAppointment.time,
+      pet_id: currentAppointment.pet_id,
+      appoint_type: currentAppointment.type || 'Walk-in'
+    })
+  })
+  .then(response => {
+    // Log the response for debugging
+    console.log('Response status:', response.status);
+    console.log('Response headers:', response.headers);
     
-    const statusSelect = document.getElementById('visitStatus');
-    const notesTextarea = document.getElementById('visitNotes');
-    const newStatus = statusSelect.value;
-    const newNotes = notesTextarea.value;
+    if (!response.ok) {
+      // Try to get error details
+      return response.text().then(text => {
+        console.error('Error response:', text);
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      });
+    }
+    return response.json();
+  })
+  .then(data => {
+    console.log('Success response:', data);
     
-    // Update the appointment object
+    // Update the appointment object locally
     currentAppointment.status = newStatus;
     currentAppointment.notes = newNotes;
     
@@ -646,27 +721,63 @@
     const dateStr = currentAppointment.date;
     if (appointments[dateStr]) {
       const appointmentIndex = appointments[dateStr].findIndex(apt => 
-        apt.id === currentAppointment.id || 
-        (apt.pet_name === currentAppointment.pet_name && apt.date === currentAppointment.date)
+        apt.id === currentAppointment.id
       );
       
       if (appointmentIndex !== -1) {
-        appointments[dateStr][appointmentIndex] = { ...currentAppointment };
+        appointments[dateStr][appointmentIndex].status = newStatus;
+        appointments[dateStr][appointmentIndex].notes = newNotes;
       }
     }
     
-    // Here you would typically make an AJAX call to update the backend
-    // For now, we'll simulate a successful update
-    console.log('Visit updated:', { 
-      appointment_id: currentAppointment.id,
-      status: newStatus,
-      notes: newNotes 
-    });
+    // Show success message
+    showNotification('Appointment updated successfully!', 'success');
     
-    // Close modal and refresh calendar - status will now be green
+    // Close modal and refresh calendar
     document.getElementById('visitModal').classList.add('hidden');
     renderCalendar(currentView);
+    
+    // Re-enable button
+    updateBtn.disabled = false;
+    updateBtn.textContent = 'Update Visit';
+  })
+  .catch(error => {
+    console.error('Error updating appointment:', error);
+    showNotification(`Error: ${error.message}`, 'error');
+    
+    // Re-enable button
+    updateBtn.disabled = false;
+    updateBtn.textContent = 'Update Visit';
+  });
+}
+
+function showNotification(message, type = 'success') {
+  // Remove any existing notifications first
+  const existingNotification = document.querySelector('.calendar-notification');
+  if (existingNotification) {
+    existingNotification.remove();
   }
+  
+  // Create notification element
+  const notification = document.createElement('div');
+  notification.className = `calendar-notification mb-4 px-4 py-2 rounded text-sm ${
+    type === 'success' 
+      ? 'text-green-700 bg-green-100 border border-green-400' 
+      : 'text-red-700 bg-red-100 border border-red-400'
+  }`;
+  notification.textContent = message;
+  
+  // Insert notification right before the calendar header (inside the calendar section)
+  const calendarContainer = document.getElementById('calendar');
+  calendarContainer.insertBefore(notification, calendarContainer.firstChild);
+  
+  // Auto-remove after 5 seconds
+  setTimeout(() => {
+    if (notification.parentElement) {
+      notification.remove();
+    }
+  }, 5000);
+}
 
   // Modal Event Listeners
   document.getElementById('closeModal').onclick = () => appointmentModal.classList.add('hidden');

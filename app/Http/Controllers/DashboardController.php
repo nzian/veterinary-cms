@@ -73,6 +73,7 @@ class DashboardController extends Controller
 
         // Complete appointment data with all pet and owner details
         $appointments = Appointment::with(['pet.owner'])
+            ->whereNotIn('appoint_status', ['completed','Canceled'])
             ->get()
             ->groupBy(function ($item) {
                 return Carbon::parse($item->appoint_date)->format('Y-m-d');
@@ -80,7 +81,8 @@ class DashboardController extends Controller
             ->map(function ($group) {
                 return $group->map(function ($item) {
                     return [
-                        'id' => $item->id,
+                       'id' => $item->appoint_id, // Changed from $item->id to $item->appoint_id
+                        'pet_id' => $item->pet_id,
                         'title' => ($item->appoint_type ?? 'Checkup') . ' - ' . ($item->pet->pet_name ?? 'Unknown'),
                         'pet_name' => $item->pet->pet_name ?? 'Unknown Pet',
                         'owner_name' => $item->pet->owner->own_name ?? 'Unknown Owner',

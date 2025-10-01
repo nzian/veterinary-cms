@@ -333,90 +333,108 @@
                 </div>
             </div>-->
 
-            <!-- Sales Table -->
-            <div class="overflow-x-auto">
-                <table class="table-auto w-full border-collapse border text-sm text-center">
-                    <thead class="bg-gray-200">
-                        <tr>
-                            <th class="border px-4 py-2">#</th>
-                            <th class="border px-4 py-2">Transaction ID</th>
-                            <th class="border px-4 py-2">Sale Date</th>
-                            <th class="border px-4 py-2">Products</th>
-                            <th class="border px-4 py-2">Total Items</th>
-                            <th class="border px-4 py-2">Transaction Total</th>
-                            <th class="border px-4 py-2">Customer</th>
-                            <th class="border px-4 py-2">Cashier</th>
-                            <th class="border px-4 py-2">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($paginatedTransactions as $transactionId => $orders)
-                            @php
-                                $firstOrder = $orders->first();
-                                $transactionTotal = $orders->sum(function($order) {
-                                    return $order->ord_quantity * ($order->product->prod_price ?? 0);
-                                });
-                                $totalItems = $orders->sum('ord_quantity');
-                            @endphp
-                            <tr class="hover:bg-gray-50">
-                                <td class="border px-4 py-2">{{ $loop->iteration + (($paginator->currentPage() - 1) * $paginator->perPage()) }}</td>
-                                <td class="border px-4 py-2 font-mono text-blue-600">
-                                    #{{ $transactionId }}
-                                </td>
-                                <td class="border px-4 py-2">
-                                    {{ \Carbon\Carbon::parse($firstOrder->ord_date)->format('M d, Y h:i A') }}
-                                </td>
-                                <td class="border px-4 py-2 text-left">
-                                    @foreach($orders as $order)
-                                        <div class="flex justify-between items-center py-1 {{ !$loop->last ? 'border-b border-gray-100' : '' }}">
-                                            <span class="text-gray-700">{{ $order->product->prod_name ?? 'N/A' }}</span>
-                                            <span class="text-sm text-gray-500 ml-2">×{{ $order->ord_quantity }}</span>
-                                        </div>
-                                    @endforeach
-                                </td>
-                                <td class="border px-4 py-2 font-semibold">
-                                    {{ $totalItems }}
-                                </td>
-                                <td class="border px-4 py-2 font-bold text-green-600">
-                                    ₱{{ number_format($transactionTotal, 2) }}
-                                </td>
-                                <td class="border px-4 py-2">
-                                    <span class="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full
-                                        {{ $firstOrder->owner ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800' }}">
-                                        {{ $firstOrder->owner->own_name ?? 'Walk-in Customer' }}
-                                    </span>
-                                </td>
-                                <td class="border px-4 py-2">
-                                    {{ $firstOrder->user->user_name ?? 'N/A' }}
-                                </td>
-                                <td class="border px-4 py-2">
-    <button onclick="viewTransaction('{{ $transactionId }}')" 
-            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
-            title="View Transaction Details">
-        <i class="fas fa-eye"></i>
-    </button>
-    <button onclick="printTransaction(this)" 
-            data-id="{{ $transactionId }}" 
-            class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
-            title="Print Receipt">
-        <i class="fas fa-print"></i>
-    </button>
-</td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="9" class="py-8 text-gray-500">
-                                    <div class="text-center">
-                                        <i class="fas fa-receipt text-4xl mb-4 opacity-50"></i>
-                                        <p class="text-lg">No transactions found.</p>
-                                        <p class="text-sm">Try adjusting your date filters or check back later.</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+           
+               <!-- Sales Table -->
+<div class="overflow-x-auto">
+    <table class="table-auto w-full border-collapse border text-sm text-center">
+        <thead class="bg-gray-200">
+            <tr>
+                <th class="border px-4 py-2">#</th>
+                <th class="border px-4 py-2">Transaction ID</th>
+                <th class="border px-4 py-2">Source</th>
+                <th class="border px-4 py-2">Sale Date</th>
+                <th class="border px-4 py-2">Products</th>
+                <th class="border px-4 py-2">Total Items</th>
+                <th class="border px-4 py-2">Transaction Total</th>
+                <th class="border px-4 py-2">Customer</th>
+                <th class="border px-4 py-2">Cashier</th>
+                <th class="border px-4 py-2">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($paginatedTransactions as $transactionId => $transaction)
+                @php
+                    $orders = $transaction['orders'];
+                    $source = $transaction['source'];
+                    $billId = $transaction['bill_id'] ?? null;
+                    $firstOrder = $orders->first();
+                    $transactionTotal = $orders->sum(function($order) {
+                        return $order->ord_quantity * ($order->product->prod_price ?? 0);
+                    });
+                    $totalItems = $orders->sum('ord_quantity');
+                @endphp
+                <tr class="hover:bg-gray-50">
+                    <td class="border px-4 py-2">{{ $loop->iteration + (($paginator->currentPage() - 1) * $paginator->perPage()) }}</td>
+                    <td class="border px-4 py-2 font-mono text-blue-600">
+                        #{{ $transactionId }}
+                    </td>
+                    <td class="border px-4 py-2">
+                        @if($source === 'Billing Payment')
+                            <span class="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                                <i class="fas fa-file-invoice mr-1"></i>
+                                Billing #{{ $billId }}
+                            </span>
+                        @else
+                            <span class="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                                <i class="fas fa-shopping-cart mr-1"></i>
+                                Direct Sale
+                            </span>
+                        @endif
+                    </td>
+                    <td class="border px-4 py-2">
+                        {{ \Carbon\Carbon::parse($firstOrder->ord_date)->format('M d, Y h:i A') }}
+                    </td>
+                    <td class="border px-4 py-2 text-left">
+                        @foreach($orders as $order)
+                            <div class="flex justify-between items-center py-1 {{ !$loop->last ? 'border-b border-gray-100' : '' }}">
+                                <span class="text-gray-700">{{ $order->product->prod_name ?? 'N/A' }}</span>
+                                <span class="text-sm text-gray-500 ml-2">×{{ $order->ord_quantity }}</span>
+                            </div>
+                        @endforeach
+                    </td>
+                    <td class="border px-4 py-2 font-semibold">
+                        {{ $totalItems }}
+                    </td>
+                    <td class="border px-4 py-2 font-bold text-green-600">
+                        ₱{{ number_format($transactionTotal, 2) }}
+                    </td>
+                    <td class="border px-4 py-2">
+                        <span class="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full
+                            {{ $firstOrder->owner ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800' }}">
+                            {{ $firstOrder->owner->own_name ?? 'Walk-in Customer' }}
+                        </span>
+                    </td>
+                    <td class="border px-4 py-2">
+                        {{ $firstOrder->user->user_name ?? 'N/A' }}
+                    </td>
+                    <td class="border px-4 py-2">
+                        <button onclick="viewTransaction('{{ $transactionId }}')" 
+                                class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
+                                title="View Transaction Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button onclick="printTransaction(this)" 
+                                data-id="{{ $transactionId }}" 
+                                class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                title="Print Receipt">
+                            <i class="fas fa-print"></i>
+                        </button>
+                    </td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="10" class="py-8 text-gray-500">
+                        <div class="text-center">
+                            <i class="fas fa-receipt text-4xl mb-4 opacity-50"></i>
+                            <p class="text-lg">No transactions found.</p>
+                            <p class="text-sm">Try adjusting your date filters or check back later.</p>
+                        </div>
+                    </td>
+                </tr>
+            @endforelse
+        </tbody>
+    </table>
+</div>
 
             <!-- Pagination -->
             <div class="mt-6">

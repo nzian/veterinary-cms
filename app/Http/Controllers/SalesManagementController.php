@@ -11,101 +11,134 @@ use Carbon\Carbon;
 
 class SalesManagementController extends Controller
 {
-    public function index(Request $request)
-    {
-        // Get billing data
-        $billings = Billing::with([
-            'appointment.pet.owner', 
-            'appointment.services',
-            'branch'
-        ])
-        ->orderBy('bill_date', 'desc')
-        ->paginate(10);
+  public function index(Request $request)
+{
+    // Get billing data
+    $billings = Billing::with([
+        'appointment.pet.owner', 
+        'appointment.services',
+        'branch'
+    ])
+    ->orderBy('bill_date', 'desc')
+    ->paginate(10);
 
-        // Get order data with date filters
-        $startDate = $request->input('start_date');
-        $endDate = $request->input('end_date');
-        
-        // Build query with relationships
-        $query = Order::with(['product', 'user', 'owner', 'payment']);
-        
-        // Apply date filters if provided
-        if ($startDate) {
-            $query->where('ord_date', '>=', $startDate);
+    // Get order data with date filters
+    $startDate = $request->input('start_date');
+    $endDate = $request->input('end_date');
+    
+    // Build query with relationships
+    $query = Order::with(['product', 'user', 'owner', 'payment', 'billing']);
+    
+    // Apply date filters if provided
+    if ($startDate) {
+        $query->where('ord_date', '>=', $startDate);
+    }
+    if ($endDate) {
+        $query->where('ord_date', '<=', $endDate . ' 23:59:59');
+    }
+    
+    // Get all orders
+    $allOrders = $query->orderBy('ord_date', 'desc')->get();
+    
+    // Create transaction grouping with source tracking
+    $transactions = [];
+    
+    // Group by timestamp (within 1 second) and user_id for direct sales
+    // OR by bill_id for billing payments
+    $processedOrderIds = [];
+    
+    foreach ($allOrders as $order) {
+        if (in_array($order->ord_id, $processedOrderIds)) {
+            continue;
         }
-        if ($endDate) {
-            $query->where('ord_date', '<=', $endDate . ' 23:59:59');
-        }
         
-        // Get all orders
-        $allOrders = $query->orderBy('ord_date', 'desc')->get();
+        $transactionKey = null;
+        $transactionSource = 'Direct Sale'; // Default
         
-        // Create transaction grouping
-        $transactions = [];
-        $processedOrderIds = [];
-        
-        foreach ($allOrders as $order) {
-            if (in_array($order->ord_id, $processedOrderIds)) {
-                continue;
-            }
+        // Check if this order is from a billing payment
+        if ($order->bill_id) {
+            $transactionKey = 'BILL-' . $order->bill_id;
+            $transactionSource = 'Billing Payment';
             
-            $transactionId = 'T' . $order->ord_id;
-            $orderTime = Carbon::parse($order->ord_date);
-            $startTime = $orderTime->copy()->subMinutes(2);
-            $endTime = $orderTime->copy()->addMinutes(3);
+            // Get all orders with the same bill_id
+            $relatedOrders = $allOrders->filter(function($o) use ($order, $processedOrderIds) {
+                return !in_array($o->ord_id, $processedOrderIds) && 
+                       $o->bill_id && 
+                       $o->bill_id === $order->bill_id;
+            });
+        } else {
+            // Direct sale - group by timestamp (within 1 second) and user
+            $transactionKey = 'SALE-' . $order->ord_id;
+            $orderTime = \Carbon\Carbon::parse($order->ord_date);
             
-            $similarOrders = $allOrders->filter(function($o) use ($order, $startTime, $endTime) {
-                $oTime = Carbon::parse($o->ord_date);
-                $withinTimeWindow = $oTime->between($startTime, $endTime);
+            $relatedOrders = $allOrders->filter(function($o) use ($order, $orderTime, $processedOrderIds) {
+                if (in_array($o->ord_id, $processedOrderIds) || $o->bill_id) {
+                    return false;
+                }
+                
+                $oTime = \Carbon\Carbon::parse($o->ord_date);
+                $timeDiff = abs($orderTime->diffInSeconds($oTime));
                 $sameUser = ($o->user_id ?? 0) === ($order->user_id ?? 0);
                 $sameCustomer = ($o->own_id ?? 0) === ($order->own_id ?? 0);
                 
-                return $withinTimeWindow && $sameUser && $sameCustomer;
+                return $timeDiff <= 1 && $sameUser && $sameCustomer;
             });
-            
-            $transactions[$transactionId] = $similarOrders;
-            
-            foreach ($similarOrders as $so) {
-                $processedOrderIds[] = $so->ord_id;
-            }
         }
         
-        // Paginate transactions
-        $page = $request->get('page', 1);
-        $perPage = 15;
-        $offset = ($page - 1) * $perPage;
-        
-        $totalTransactions = count($transactions);
-        $paginatedTransactions = collect($transactions)->slice($offset, $perPage);
-        
-        $paginator = new \Illuminate\Pagination\LengthAwarePaginator(
-            $paginatedTransactions,
-            $totalTransactions,
-            $perPage,
-            $page,
-            [
-                'path' => $request->url(),
-                'pageName' => 'page',
-            ]
-        );
-        
-        // Calculate order totals
-        $totalSales = $allOrders->sum(function($order) {
-            return $order->ord_quantity * ($order->product->prod_price ?? 0);
-        });
-        $totalItemsSold = $allOrders->sum('ord_quantity');
-        $averageSale = $totalTransactions > 0 ? $totalSales / $totalTransactions : 0;
-
-        return view('orderBilling', compact(
-            'billings',
-            'paginatedTransactions', 
-            'paginator',
-            'totalSales',
-            'totalTransactions', 
-            'totalItemsSold',
-            'averageSale'
-        ));
+        if ($relatedOrders->isNotEmpty()) {
+            $transactions[$transactionKey] = [
+                'orders' => $relatedOrders,
+                'source' => $transactionSource,
+                'bill_id' => $order->bill_id
+            ];
+            
+            foreach ($relatedOrders as $ro) {
+                $processedOrderIds[] = $ro->ord_id;
+            }
+        }
     }
+    
+    // Sort transactions by date (newest first)
+    $transactions = collect($transactions)->sortByDesc(function($transaction) {
+        return $transaction['orders']->first()->ord_date;
+    });
+    
+    // Paginate transactions
+    $page = $request->get('page', 1);
+    $perPage = 15;
+    $offset = ($page - 1) * $perPage;
+    
+    $totalTransactions = $transactions->count();
+    $paginatedTransactions = $transactions->slice($offset, $perPage);
+    
+    $paginator = new \Illuminate\Pagination\LengthAwarePaginator(
+        $paginatedTransactions,
+        $totalTransactions,
+        $perPage,
+        $page,
+        [
+            'path' => $request->url(),
+            'pageName' => 'page',
+        ]
+    );
+    
+    // Calculate order totals
+    $totalSales = $allOrders->sum(function($order) {
+        return $order->ord_quantity * ($order->product->prod_price ?? 0);
+    });
+    $totalItemsSold = $allOrders->sum('ord_quantity');
+    $averageSale = $totalTransactions > 0 ? $totalSales / $totalTransactions : 0;
+
+    return view('orderBilling', compact(
+        'billings',
+        'paginatedTransactions', 
+        'paginator',
+        'totalSales',
+        'totalTransactions', 
+        'totalItemsSold',
+        'averageSale'
+    ));
+}
 
     public function destroyBilling($id)
     {

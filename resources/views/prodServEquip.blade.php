@@ -241,6 +241,11 @@
                             <td class="p-2 border">₱{{ number_format($service->serv_price, 2) }}</td>
                             <td class="p-2 border">
     <div class="flex justify-center gap-2">
+         <button onclick="viewServiceDetails({{ $service->serv_id }})" 
+                class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" 
+                title="View Details">
+            <i class="fas fa-eye"></i>
+        </button>
         @if(hasPermission('edit_service', $can))
             <button onclick="openEditModal('service', {{ json_encode($service) }})" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs">
                 <i class="fas fa-pen"></i>
@@ -303,6 +308,12 @@
                             <td class="p-2 border">{{ $equip->equipment_quantity }}</td>
                             <td class="p-2 border">
     <div class="flex justify-center gap-2">
+          <!-- Add View Button -->
+        <button onclick="viewEquipmentDetails({{ $equip->equipment_id }})" 
+                class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" 
+                title="View Details">
+            <i class="fas fa-eye"></i>
+        </button>
         @if(hasPermission('edit_equipment', $can))
             <button onclick="openEditModal('equipment', {{ json_encode($equip) }})" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs">
                 <i class="fas fa-pen"></i>
@@ -459,7 +470,7 @@
 <div id="productDetailsModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
     <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-bold">Product Details</h3>
+            <h3 class="text-white font-bold">Product Details</h3>
             <button onclick="closeProductDetailsModal()" class="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
         </div>
         <div id="productDetailsContent">
@@ -585,7 +596,9 @@
         <h3 id="generalModalTitle" class="text-lg font-bold mb-4"></h3>
         <form id="generalModalForm" method="POST" enctype="multipart/form-data">
             @csrf
+             <input type="hidden" name="active_tab" id="active_tab" value="">
             <div id="generalModalFields" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+           
             <div class="flex justify-end gap-2 mt-6">
                 <button type="button" onclick="closeGeneralModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
                 <button type="submit" class="px-4 py-2 bg-[#0f7ea0] text-white rounded hover:bg-[#0c6a86]">Save</button>
@@ -1062,10 +1075,201 @@ function closeDamagePulloutModal(){
     document.getElementById('damagePulloutForm').reset();
 }
 
-// GENERAL MODAL FOR SERVICES AND EQUIPMENT
+// SERVICE DETAILS MODAL
+function viewServiceDetails(serviceId){
+    document.getElementById('productDetailsModal').classList.remove('hidden');
+    document.getElementById('productDetailsContent').innerHTML = '<div class="text-center py-8"><div class="spinner-border animate-spin inline-block w-8 h-8 border-4 rounded-full" role="status"></div><p>Loading service details...</p></div>';
+    
+    fetch(`/services/${serviceId}/view`)
+        .then(response => response.json())
+        .then(data => {
+            if(data.error) {
+                document.getElementById('productDetailsContent').innerHTML = `<div class="text-red-500">${data.error}</div>`;
+                return;
+            }
+            
+            const service = data.service;
+            const revenueData = data.revenue_data;
+            const monthlyRevenue = data.monthly_revenue;
+            const recentAppointments = data.recent_appointments;
+            const utilizationData = data.utilization_data;
+            const peakTimes = data.peak_times;
+            
+            let content = `
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Service Information -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-3">Service Information</h4>
+                        <div class="space-y-2">
+                            <div><span class="font-medium">Name:</span> ${service.serv_name}</div>
+                            <div><span class="font-medium">Type:</span> ${service.serv_type || 'N/A'}</div>
+                            <div><span class="font-medium">Description:</span> ${service.serv_description || 'N/A'}</div>
+                            <div><span class="font-medium">Price:</span> ₱${parseFloat(service.serv_price).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                            <div><span class="font-medium">Branch:</span> ${service.branch ? service.branch.branch_name : 'N/A'}</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Revenue Status -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-3">Revenue Overview</h4>
+                        <div class="space-y-2">
+                            <div><span class="font-medium">Total Bookings:</span> <span class="text-lg font-bold text-blue-600">${revenueData.total_bookings || 0}</span></div>
+                            <div><span class="font-medium">Total Revenue:</span> <span class="text-lg font-bold text-green-600">₱${parseFloat(revenueData.total_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span></div>
+                            <div><span class="font-medium">Average Booking Value:</span> ₱${parseFloat(revenueData.average_booking_value || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Utilization Analytics -->
+                <div class="mt-6">
+                    <h4 class="font-bold text-lg mb-3">Service Utilization</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">`;
+            
+            utilizationData.forEach(status => {
+                const statusColors = {
+                    'completed': 'bg-green-50 text-green-600',
+                    'pending': 'bg-yellow-50 text-yellow-600',
+                    'cancelled': 'bg-red-50 text-red-600'
+                };
+                const colorClass = statusColors[status.appoint_status] || 'bg-gray-50 text-gray-600';
+                content += `
+                    <div class="${colorClass} p-4 rounded-lg">
+                        <div class="text-sm capitalize">${status.appoint_status}</div>
+                        <div class="text-2xl font-bold">${status.count}</div>
+                    </div>`;
+            });
+            
+            content += `
+                    </div>
+                </div>
+                
+                <!-- Recent Appointments -->
+                <div class="mt-6">
+                    <h4 class="font-bold text-lg mb-3">Recent Appointments</h4>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm border">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="p-2 border">Date</th>
+                                    <th class="p-2 border">Pet</th>
+                                    <th class="p-2 border">Owner</th>
+                                    <th class="p-2 border">Veterinarian</th>
+                                    <th class="p-2 border">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+            
+            if(recentAppointments && recentAppointments.length > 0) {
+                recentAppointments.forEach(appt => {
+                    const appointDate = appt.appoint_date ? new Date(appt.appoint_date) : new Date();
+                    const statusColors = {
+                        'completed': 'bg-green-100 text-green-800',
+                        'pending': 'bg-yellow-100 text-yellow-800',
+                        'cancelled': 'bg-red-100 text-red-800'
+                    };
+                    const statusClass = statusColors[appt.appoint_status] || 'bg-gray-100 text-gray-800';
+                    
+                    content += `
+                        <tr>
+                            <td class="p-2 border">${appointDate.toLocaleDateString()}</td>
+                            <td class="p-2 border">${appt.pet_name || 'N/A'}</td>
+                            <td class="p-2 border">${appt.own_name || 'N/A'}</td>
+                            <td class="p-2 border">${appt.user_name || 'N/A'}</td>
+                            <td class="p-2 border">
+                                <span class="px-2 py-1 rounded text-xs ${statusClass}">${appt.appoint_status}</span>
+                            </td>
+                        </tr>`;
+                });
+            } else {
+                content += '<tr><td colspan="5" class="p-4 text-center text-gray-500">No recent appointments found</td></tr>';
+            }
+            
+            content += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>`;
+            
+            document.getElementById('productDetailsContent').innerHTML = content;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('productDetailsContent').innerHTML = '<div class="text-red-500">Error loading service details</div>';
+        });
+}
+
+// EQUIPMENT DETAILS MODAL
+function viewEquipmentDetails(equipmentId){
+    document.getElementById('productDetailsModal').classList.remove('hidden');
+    document.getElementById('productDetailsContent').innerHTML = '<div class="text-center py-8"><div class="spinner-border animate-spin inline-block w-8 h-8 border-4 rounded-full" role="status"></div><p>Loading equipment details...</p></div>';
+    
+    fetch(`/equipment/${equipmentId}/view`)
+        .then(response => response.json())
+        .then(data => {
+            if(data.error) {
+                document.getElementById('productDetailsContent').innerHTML = `<div class="text-red-500">${data.error}</div>`;
+                return;
+            }
+            
+            const equipment = data.equipment;
+            const usageData = data.usage_data;
+            const availabilityStatus = data.availability_status;
+            const conditionData = data.condition_data;
+            
+            const statusColors = {
+                'available': 'text-green-600',
+                'low': 'text-yellow-600',
+                'none': 'text-red-600'
+            };
+            
+            let content = `
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Equipment Information -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-3">Equipment Information</h4>
+                        <div class="space-y-2">
+                            ${equipment.equipment_image ? `<div class="mb-3"><img src="/storage/${equipment.equipment_image}" class="h-32 w-32 object-cover rounded mx-auto"></div>` : ''}
+                            <div><span class="font-medium">Name:</span> ${equipment.equipment_name}</div>
+                            <div><span class="font-medium">Category:</span> ${equipment.equipment_category || 'N/A'}</div>
+                            <div><span class="font-medium">Description:</span> ${equipment.equipment_description || 'N/A'}</div>
+                            <div><span class="font-medium">Branch:</span> ${usageData.branch}</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Availability Status -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-3">Availability Status</h4>
+                        <div class="space-y-2">
+                            <div><span class="font-medium">Total Quantity:</span> <span class="text-lg font-bold ${statusColors[availabilityStatus]}">${usageData.total_quantity}</span></div>
+                            <div><span class="font-medium">Available:</span> <span class="text-lg font-bold text-green-600">${usageData.available_quantity}</span></div>
+                            <div><span class="font-medium">Status:</span> <span class="capitalize font-bold ${statusColors[availabilityStatus]}">${availabilityStatus}</span></div>
+                            <div><span class="font-medium">Last Updated:</span> ${new Date(conditionData.last_updated).toLocaleDateString()}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-6 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <p class="text-sm text-blue-800">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        <strong>Note:</strong> Equipment usage tracking is based on available quantity. 
+                        Update quantity through the edit function to reflect current availability.
+                    </p>
+                </div>`;
+            
+            document.getElementById('productDetailsContent').innerHTML = content;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('productDetailsContent').innerHTML = '<div class="text-red-500">Error loading equipment details</div>';
+        });
+}
 function openAddModal(type){
     document.getElementById('generalModal').classList.remove('hidden');
     document.getElementById('generalModalTitle').innerText = 'Add ' + capitalize(type);
+    
+    // Set active tab
+    document.getElementById('active_tab').value = type === 'service' ? 'servicesTab' : 'equipmentTab';
+    
     let fields = '';
     
     if(type === 'service'){
@@ -1159,8 +1363,11 @@ function openAddModal(type){
 function openEditModal(type, data){
     document.getElementById('generalModal').classList.remove('hidden');
     document.getElementById('generalModalTitle').innerText = 'Edit ' + capitalize(type);
-    let fields = '';
     
+    // Set active tab
+    document.getElementById('active_tab').value = type === 'service' ? 'servicesTab' : 'equipmentTab';
+    
+    let fields = '';
     if(type === 'service'){
         fields = `
             <div class="mb-4">
