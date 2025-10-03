@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Services\NotificationService;
 
 class MedicalManagementController extends Controller
 {
@@ -32,6 +33,13 @@ class MedicalManagementController extends Controller
         } else {
             $appointments = $appointmentsQuery->paginate((int) $perPage);
         }
+         $prescriptionPerPage = $request->get('prescriptionPerPage', 10);
+         $prescriptionsQuery = Prescription::with(['pet.owner', 'branch', 'user']); // Added 'user'
+           if ($prescriptionPerPage === 'all') {
+          $prescriptions = $prescriptionsQuery->get();
+    } else {
+        $prescriptions = $prescriptionsQuery->paginate((int) $prescriptionPerPage);
+    }
 
         // Get prescriptions with pagination
         $prescriptionPerPage = $request->get('prescriptionPerPage', 10);
@@ -143,11 +151,24 @@ class MedicalManagementController extends Controller
 public function showAppointment($id)
 {
     try {
-        $appointment = \App\Models\Appointment::with(['pet.owner', 'services'])->findOrFail($id);
+        $appointment = \App\Models\Appointment::with([
+            'pet.owner', 
+            'services',
+            'user.branch' // Add this to load user and their branch
+        ])->findOrFail($id);
         
         return response()->json([
             'appointment' => $appointment,
-            'history' => $appointment->change_history ?? []
+            'history' => $appointment->change_history ?? [],
+            'veterinarian' => [
+                'name' => $appointment->user->user_name ?? 'N/A',
+                'license' => $appointment->user->user_license ?? 'N/A'
+            ],
+            'branch' => [
+                'name' => $appointment->user->branch->branch_name ?? 'N/A',
+                'address' => $appointment->user->branch->branch_address ?? 'N/A',
+                'contact' => $appointment->user->branch->branch_contactNum ?? 'N/A'
+            ]
         ]);
     } catch (\Exception $e) {
         return response()->json([
@@ -161,6 +182,7 @@ public function showAppointment($id)
      */
    public function updateAppointment(Request $request, Appointment $appointment)
 {
+    
     $validated = $request->validate([
         'appoint_date' => 'required|date',
         'appoint_time' => 'required',
@@ -298,6 +320,16 @@ public function showAppointment($id)
             ]
         ]);
     }
+    $oldStatus = $appointment->getOriginal('appoint_status');
+    
+    // Update the appointment
+    $appointment->update($validated);
+
+    // Check if status changed to arrived
+    if ($appointment->appoint_status === 'arrived' && $oldStatus !== 'arrived') {
+        $notificationService = new NotificationService();
+        $notificationService->notifyAppointmentArrived($appointment);
+    }
     
     // Regular form submission redirect
     $activeTab = $request->input('active_tab', 'appointments');
@@ -420,32 +452,36 @@ public function destroyAppointment(Request $request, $id)
 
         $medications = json_decode($request->medications_json, true);
         if (empty($medications)) {
-            // ... error handling ...
+            return redirect()->back()->with('error', 'At least one medication is required.');
         }
 
-        // Debug logging
-        \Log::info('Saving prescription with differential_diagnosis: ' . $request->differential_diagnosis);
+        $user = auth()->user();
 
         $prescription = Prescription::create([
             'pet_id' => $request->pet_id,
             'prescription_date' => $request->prescription_date,
             'medication' => json_encode($medications),
-            'differential_diagnosis' => $request->differential_diagnosis,
+            'differential_diagnosis' => $request->differential_diagnosis, // ensure this column exists in DB & in $fillable
             'notes' => $request->notes,
-            'branch_id' => auth()->user()->branch_id ?? 1
+            'branch_id' => $user->branch_id ?? 1, // get user branch
+            'user_id' => $user->user_id ?? null,  // get user id
         ]);
-        
-        // Verify it was saved
-        \Log::info('Saved prescription differential_diagnosis: ' . $prescription->differential_diagnosis);
+
+        \Log::info('Prescription saved by user_id: ' . ($user->user_id ?? 'N/A') . 
+                   ' for branch_id: ' . ($user->branch_id ?? 'N/A') . 
+                   ' with differential diagnosis: ' . $request->differential_diagnosis);
 
         $activeTab = $request->input('active_tab', 'prescriptions');
         return redirect()->route('medical.index', ['active_tab' => $activeTab])
                        ->with('success', 'Prescription created successfully!');
     } catch (\Exception $e) {
         Log::error('Prescription creation error: ' . $e->getMessage());
-        // ... rest of error handling ...
+        $activeTab = $request->input('active_tab', 'prescriptions');
+        return redirect()->route('medical.index', ['active_tab' => $activeTab])
+                       ->with('error', 'Error creating prescription. Please try again.');
     }
 }
+
 
     public function editPrescription($id)
     {
@@ -552,37 +588,6 @@ public function destroyAppointment(Request $request, $id)
     }
 
     // ==================== REFERRAL METHODS ====================
-
-    public function storeReferral(Request $request)
-    {
-        $request->validate([
-            'ref_date' => 'required|date',
-            'ref_description' => 'required|string',
-            'ref_to' => 'required|exists:tbl_branch,branch_id',
-            'appointment_id' => 'required|exists:tbl_appoint,appoint_id',
-            'medical_history' => 'nullable|string',
-            'tests_conducted' => 'nullable|string',
-            'medications_given' => 'nullable|string',
-        ]);
-
-        $appointment = Appointment::findOrFail($request->appointment_id);
-        $appointment->update(['appoint_status' => 'refer']);
-
-        Referral::create([
-            'ref_date' => $request->ref_date,
-            'ref_description' => $request->ref_description,
-            'appoint_id' => $request->appointment_id,
-            'ref_to' => $request->ref_to,
-            'ref_by' => auth()->user()->branch_id ?? null,
-            'medical_history' => $request->medical_history,
-            'tests_conducted' => $request->tests_conducted,
-            'medications_given' => $request->medications_given,
-        ]);
-
-        $activeTab = $request->input('active_tab', 'referrals');
-        return redirect()->route('medical.index', ['active_tab' => $activeTab])
-                       ->with('success', 'Referral submitted successfully.');
-    }
 
     public function editReferral($id)
     {

@@ -725,19 +725,34 @@ class ReportController extends Controller
     }
 
     private function getReferralDetails($referralId)
-    {
-        if (!DB::getSchemaBuilder()->hasTable('tbl_ref')) {
-            return null;
-        }
-
-        return DB::table('tbl_ref')
-            ->leftJoin('tbl_appoint', 'tbl_appoint.appoint_id', '=', 'tbl_ref.appoint_id')
-            ->leftJoin('tbl_pet', 'tbl_pet.pet_id', '=', 'tbl_appoint.pet_id')
-            ->leftJoin('tbl_own', 'tbl_own.own_id', '=', 'tbl_pet.own_id')
-            ->select('*')
-            ->where('tbl_ref.ref_id', $referralId)
-            ->first();
+{
+    if (!DB::getSchemaBuilder()->hasTable('tbl_ref')) {
+        return null;
     }
+
+    return DB::table('tbl_ref')
+        ->leftJoin('tbl_appoint', 'tbl_appoint.appoint_id', '=', 'tbl_ref.appoint_id')
+        ->leftJoin('tbl_pet', 'tbl_pet.pet_id', '=', 'tbl_appoint.pet_id')
+        ->leftJoin('tbl_own', 'tbl_own.own_id', '=', 'tbl_pet.own_id')
+        ->leftJoin('tbl_user', 'tbl_user.user_id', '=', 'tbl_ref.ref_by')
+        ->leftJoin('tbl_branch', 'tbl_branch.branch_id', '=', 'tbl_user.branch_id')
+        ->select(
+            'tbl_ref.*',
+            'tbl_pet.pet_name',
+            'tbl_pet.pet_birthdate',
+            'tbl_pet.pet_gender',
+            'tbl_pet.pet_species',
+            'tbl_pet.pet_breed',
+            'tbl_own.own_name',
+            'tbl_own.own_contactnum',
+            'tbl_user.user_name as referring_vet_name',
+            'tbl_user.user_licenseNum as referring_vet_license',
+            'tbl_user.user_contactNum as referring_vet_contact',
+            'tbl_branch.branch_name as referring_branch'
+        )
+        ->where('tbl_ref.ref_id', $referralId)
+        ->first();
+}
 
     private function getEquipmentDetails($equipmentId)
     {
