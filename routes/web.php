@@ -22,7 +22,10 @@ use App\Http\Controllers\PrescriptionController;
 use App\Http\Controllers\PetManagementController;
 use App\Http\Controllers\BranchManagementController;
 use App\Http\Controllers\SalesManagementController;
+use Illuminate\Support\Facades\Session;
+use App\Http\Controllers\MedicalManagementController;
 
+Route::redirect('/', '/login');
 
 // Register
 Route::get('/register', [RegisterController::class, 'showRegistrationForm'])->name('register');
@@ -102,7 +105,7 @@ Route::get('/equipment/{id}/view', [ProdServEquipController::class, 'viewEquipme
 Route::get('/services/{id}/history', [ProdServEquipController::class, 'viewServiceHistory']);
 Route::get('/equipment/{id}/history', [ProdServEquipController::class, 'viewEquipmentHistory']);
 
-use App\Http\Controllers\MedicalManagementController;
+
 
 
 
@@ -142,7 +145,7 @@ Route::get('/medical-management/prescriptions/{id}/edit', [MedicalManagementCont
 
 Route::get('/medical-management/appointments/{id}/for-prescription', [MedicalManagementController::class, 'getAppointmentForPrescription'])
     ->name('medical.appointments.for-prescription');
-    Route::put('/medical-management/appointments/{id}', [YourController::class, 'update'])->name('medical.appointments.update');
+    Route::put('/medical-management/appointments/{id}', [MedicalManagementController::class, 'update'])->name('medical.appointments.update');
  
     Route::get('/medical-management/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])
     ->name('medical.appointments.show');
@@ -271,7 +274,7 @@ Route::group(['prefix' => 'pet-management', 'as' => 'pet-management.'], function
 });
 
 
-Route::prefix('branch-user-management')->name('branch-user-management.')->group(function () {
+/*Route::prefix('branch-user-management')->name('branch-user-management.')->group(function () {
     Route::get('/', [BranchUserManagementController::class, 'index'])->name('index');
     
     // Branch routes
@@ -288,7 +291,7 @@ Route::prefix('branch-user-management')->name('branch-user-management.')->group(
     Route::post('/switch-branch/{id}', [BranchUserManagementController::class, 'switchBranch'])->name('switchBranch');
     // Add these routes for the new functionality
 
-});
+});*/
 
 Route::post('/user-management/add-to-branch', [BranchManagementController::class, 'addUserToBranch'])->name('userManagement.addToBranch');
 Route::get('/branches/{id}/complete-data', [BranchManagementController::class, 'getCompleteData']);
