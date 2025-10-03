@@ -285,7 +285,7 @@
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $record->referred_by }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $record->referred_to }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                                <button onclick="viewReferralDetails('{{ $record->ref_id }}')" 
+                                                <button onclick="viewRecordDetails('referrals', '{{ $record->ref_id }}')" 
                                                         class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View Details">
                                                     <i class="fas fa-eye"></i>
                                                 </button>
@@ -388,8 +388,7 @@
         @endif
     </div>
 </div>
-
-<!-- Universal Record Details Modal -->
+<!-- Universal Record Details Modal (including Referrals) -->
 <div id="recordModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
     <div class="flex items-center justify-center min-h-screen p-4">
         <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -402,9 +401,6 @@
             
             <div class="flex justify-between items-center p-6 border-b border-gray-200">
                 <h3 class="text-lg font-semibold text-gray-900" id="modalTitle">Record Details</h3>
-                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
             </div>
             <div class="p-6" id="modalContent">
                 <!-- Content will be loaded here -->
@@ -412,24 +408,6 @@
         </div>
     </div>
 </div>
-
-<!-- Referral Details Modal -->
-<div id="referralModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
-    <div class="flex items-center justify-center min-h-screen p-4">
-        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div class="flex justify-between items-center p-6 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900">Referral Details</h3>
-                <button onclick="closeReferralModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
-            </div>
-            <div class="p-6" id="referralModalContent">
-                <!-- Content will be loaded here -->
-            </div>
-        </div>
-    </div>
-</div>
-
 <style>
 /* Enhanced Print Styles */
 @media print {
@@ -769,27 +747,6 @@ function viewRecordDetails(reportType, recordId) {
         .catch(error => {
             console.error('Error fetching record details:', error);
             alert('Error loading record details: ' + error.message);
-        });
-}
-
-function viewReferralDetails(referralId) {
-    fetch(`/reports/referrals/${referralId}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data) {
-                showReferralModal(data);
-            } else {
-                alert('Referral details not found');
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching referral details:', error);
-            alert('Error loading referral details: ' + error.message);
         });
 }
 
@@ -1857,6 +1814,127 @@ function showRecordModal(data, reportType) {
                 </div>
             `;
             break;
+
+           case 'referrals':
+    html += `
+        <!-- Basic Information -->
+        <div class="bg-gray-50 p-4 rounded-lg">
+            <h4 class="text-md font-semibold text-gray-800 mb-3 border-b border-gray-300 pb-2">Basic Information</h4>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Referral ID</dt>
+                    <dd class="mt-1 text-sm text-gray-900">${data.ref_id || 'N/A'}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Date</dt>
+                    <dd class="mt-1 text-sm text-gray-900">${formatDate(data.ref_date)}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Owner Name</dt>
+                    <dd class="mt-1 text-sm text-gray-900">${data.own_name || 'N/A'}</dd>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pet Information -->
+        <div class="bg-blue-50 p-4 rounded-lg">
+            <h4 class="text-md font-semibold text-gray-800 mb-3 border-b border-gray-300 pb-2">Pet Information</h4>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Pet Name</dt>
+                    <dd class="mt-1 text-sm text-gray-900">${data.pet_name || 'N/A'}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Date of Birth</dt>
+                    <dd class="mt-1 text-sm text-gray-900">${formatDate(data.pet_birthdate)}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Gender</dt>
+                    <dd class="mt-1 text-sm text-gray-900">${data.pet_gender ? data.pet_gender.charAt(0).toUpperCase() + data.pet_gender.slice(1) : 'N/A'}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Species</dt>
+                    <dd class="mt-1 text-sm text-gray-900">${data.pet_species || 'N/A'}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Breed</dt>
+                    <dd class="mt-1 text-sm text-gray-900">${data.pet_breed || 'N/A'}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Contact Number</dt>
+                    <dd class="mt-1 text-sm text-gray-900">${data.own_contactnum || 'N/A'}</dd>
+                </div>
+            </div>
+        </div>
+
+        <!-- Medical History -->
+        <div class="bg-white border border-gray-200 p-4 rounded-lg">
+            <h4 class="text-md font-semibold text-gray-800 mb-3 border-b border-gray-300 pb-2">Medical History</h4>
+            <div class="text-sm text-gray-700 whitespace-pre-wrap">${data.medical_history || 'No medical history provided'}</div>
+        </div>
+
+        <!-- Tests Conducted -->
+        <div class="bg-white border border-gray-200 p-4 rounded-lg">
+            <h4 class="text-md font-semibold text-gray-800 mb-3 border-b border-gray-300 pb-2">Tests Conducted</h4>
+            <div class="text-sm text-gray-700 whitespace-pre-wrap">${data.tests_conducted || 'No tests documented'}</div>
+        </div>
+
+        <!-- Medications Given -->
+        <div class="bg-white border border-gray-200 p-4 rounded-lg">
+            <h4 class="text-md font-semibold text-gray-800 mb-3 border-b border-gray-300 pb-2">Medications Given</h4>
+            <div class="text-sm text-gray-700 whitespace-pre-wrap">${data.medications_given || 'No medications documented'}</div>
+        </div>
+
+        <!-- Reason for Referral -->
+        <div class="bg-yellow-50 p-4 rounded-lg">
+            <h4 class="text-md font-semibold text-gray-800 mb-3 border-b border-gray-300 pb-2">Reason for Referral</h4>
+            <div class="text-sm text-gray-700 whitespace-pre-wrap">${data.ref_description || 'No reason provided'}</div>
+        </div>
+
+        <!-- Referral Information -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-orange-50 p-4 rounded-lg border-l-4 border-orange-400">
+                <h4 class="text-md font-semibold text-gray-800 mb-3">Referring Veterinarian</h4>
+                <div class="space-y-2">
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Veterinarian</dt>
+                        <dd class="mt-1 text-sm text-gray-900 font-semibold">${data.referring_vet_name || data.user_name || 'N/A'}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">License No.</dt>
+                        <dd class="mt-1 text-sm text-gray-900">${data.referring_vet_license || data.user_license || 'N/A'}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">From Branch</dt>
+                        <dd class="mt-1 text-sm text-gray-900">${data.branch_name || data.referring_branch || 'N/A'}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Contact</dt>
+                        <dd class="mt-1 text-sm text-gray-900">${data.referring_vet_contact || data.user_contact || 'N/A'}</dd>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                <h4 class="text-md font-semibold text-gray-800 mb-3">Referred To</h4>
+                <div class="space-y-2">
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Branch/Facility</dt>
+                        <dd class="mt-1 text-sm text-gray-900 font-semibold">${data.ref_to || 'N/A'}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Purpose</dt>
+                        <dd class="mt-1 text-sm text-gray-900">Specialist Veterinary Care</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">For</dt>
+                        <dd class="mt-1 text-sm text-gray-900">Specialized treatment and consultation</dd>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    break;
             
 
           default:
@@ -2124,17 +2202,19 @@ function addModalActions() {
         actionsDiv.className = 'flex gap-2';
         actionsDiv.innerHTML = `
             <button onclick="printModalContent()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm flex items-center no-print">
-                <i class="fas fa-print mr-2"></i>
-                Print
+                <i class="fas fa-print "></i>
             </button>
             <button onclick="downloadModalPDF()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm flex items-center no-print">
-                <i class="fas fa-file-pdf mr-2"></i>
-                Download PDF
+                <i class="fas fa-file-pdf "></i>
             </button>
             <button onclick="openModalInNewTab()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm flex items-center no-print">
-                <i class="fas fa-external-link-alt mr-2"></i>
-                New Tab
+                <i class="fas fa-external-link-alt "></i>
             </button>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                  <i class="fa-solid fa-circle-xmark"></i>
+                </button>
+
+
         `;
         modalTitle.parentElement.appendChild(actionsDiv);
     }

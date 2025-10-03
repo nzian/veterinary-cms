@@ -412,6 +412,13 @@
     </main>
   </div>
 
+<!-- Footer -->
+<footer class="bg-gradient-to-l from-slate-800 to-slate-900 text-gray-300 text-sm py-3 px-6 w-full text-center">
+    &copy; {{ date('Y') }} TEAM-ORIENTED. All rights reserved.
+</footer>
+
+
+
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       // Branch dropdown functionality
