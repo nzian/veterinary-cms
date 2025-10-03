@@ -97,27 +97,43 @@ class AutoCancelOldAppointments extends Command
                 $markedMissed++;
             }
 
-            // Cancel if 14 or more days have passed since original date
-            if ($daysSinceOriginal >= 14) {
-                $appointment->update([
-                    'appoint_status' => 'cancelled',
-                ]);
-                
-                $this->error("✗ Cancelled: Appointment #{$appointment->appoint_id} - {$petName} ({$ownerName})");
-                $this->line("  Original date: {$originalDate->format('Y-m-d')} ({$daysSinceOriginal} days ago)");
-                $this->line("  Reason: Exceeded 2-week grace period");
-                
-                Log::info("Appointment {$appointment->appoint_id} cancelled - exceeded 2 week grace period", [
-                    'pet' => $petName,
-                    'owner' => $ownerName,
-                    'original_date' => $originalDate->format('Y-m-d'),
-                    'last_scheduled_date' => $appointment->appoint_date,
-                    'days_since_original' => $daysSinceOriginal,
-                ]);
-                
-                $cancelled++;
-                continue;
-            }
+           if ($daysSinceOriginal >= 14) {
+    $appointment->update([
+        'appoint_status' => 'cancelled',
+    ]);
+    
+    $this->error("✗ Cancelled: Appointment #{$appointment->appoint_id} - {$petName} ({$ownerName})");
+    $this->line("  Original date: {$originalDate->format('Y-m-d')} ({$daysSinceOriginal} days ago)");
+    $this->line("  Reason: Exceeded 2-week grace period");
+    
+    // **ADD: Send SMS notification for auto-cancellation**
+    try {
+        $smsService = new \App\Services\DynamicSMSService();
+        $smsResult = $smsService->sendAutoCancelSMS($appointment, 'exceeded 2-week grace period');
+        
+        if ($smsResult) {
+            $this->info("  ✓ Cancellation SMS notification sent");
+            Log::info("Auto-cancel SMS sent for appointment {$appointment->appoint_id}");
+        } else {
+            $this->warn("  ⚠ Cancellation SMS notification failed");
+            Log::warning("Auto-cancel SMS failed for appointment {$appointment->appoint_id}");
+        }
+    } catch (\Exception $e) {
+        $this->error("  ✗ SMS error: " . $e->getMessage());
+        Log::error("Auto-cancel SMS error for appointment {$appointment->appoint_id}: " . $e->getMessage());
+    }
+    
+    Log::info("Appointment {$appointment->appoint_id} cancelled - exceeded 2 week grace period", [
+        'pet' => $petName,
+        'owner' => $ownerName,
+        'original_date' => $originalDate->format('Y-m-d'),
+        'last_scheduled_date' => $appointment->appoint_date,
+        'days_since_original' => $daysSinceOriginal,
+    ]);
+    
+    $cancelled++;
+    continue;
+}
 
             // Find next available time slot
             $nextAvailable = $this->findNextAvailableSlot($today);

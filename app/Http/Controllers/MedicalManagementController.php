@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Services\NotificationService;
 
 class MedicalManagementController extends Controller
 {
@@ -181,6 +182,7 @@ public function showAppointment($id)
      */
    public function updateAppointment(Request $request, Appointment $appointment)
 {
+    
     $validated = $request->validate([
         'appoint_date' => 'required|date',
         'appoint_time' => 'required',
@@ -317,6 +319,16 @@ public function showAppointment($id)
                 'type' => $appointment->appoint_type,
             ]
         ]);
+    }
+    $oldStatus = $appointment->getOriginal('appoint_status');
+    
+    // Update the appointment
+    $appointment->update($validated);
+
+    // Check if status changed to arrived
+    if ($appointment->appoint_status === 'arrived' && $oldStatus !== 'arrived') {
+        $notificationService = new NotificationService();
+        $notificationService->notifyAppointmentArrived($appointment);
     }
     
     // Regular form submission redirect
@@ -576,37 +588,6 @@ public function destroyAppointment(Request $request, $id)
     }
 
     // ==================== REFERRAL METHODS ====================
-
-    public function storeReferral(Request $request)
-    {
-        $request->validate([
-            'ref_date' => 'required|date',
-            'ref_description' => 'required|string',
-            'ref_to' => 'required|exists:tbl_branch,branch_id',
-            'appointment_id' => 'required|exists:tbl_appoint,appoint_id',
-            'medical_history' => 'nullable|string',
-            'tests_conducted' => 'nullable|string',
-            'medications_given' => 'nullable|string',
-        ]);
-
-        $appointment = Appointment::findOrFail($request->appointment_id);
-        $appointment->update(['appoint_status' => 'refer']);
-
-        Referral::create([
-            'ref_date' => $request->ref_date,
-            'ref_description' => $request->ref_description,
-            'appoint_id' => $request->appointment_id,
-            'ref_to' => $request->ref_to,
-            'ref_by' => auth()->user()->branch_id ?? null,
-            'medical_history' => $request->medical_history,
-            'tests_conducted' => $request->tests_conducted,
-            'medications_given' => $request->medications_given,
-        ]);
-
-        $activeTab = $request->input('active_tab', 'referrals');
-        return redirect()->route('medical.index', ['active_tab' => $activeTab])
-                       ->with('success', 'Referral submitted successfully.');
-    }
 
     public function editReferral($id)
     {

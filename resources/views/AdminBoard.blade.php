@@ -221,46 +221,90 @@
       </div>
     </form>
 
-    <!-- Notifications -->
-    <div class="relative mr-4">
-      <button
-        class="flex items-center justify-center w-11 h-11 rounded-xl bg-white/10 backdrop-blur-sm hover:bg-white/20 smooth-transition hover-lift modern-btn relative"
-        onclick="toggleNotificationDropdown()">
-        <i class="fas fa-bell text-lg"></i>
-        @if(!empty($lowStockItems))
-          <span class="notification-badge">{{ count($lowStockItems) }}</span>
-        @endif
-      </button>
+   <!-- Notifications -->
+<div class="relative mr-4">
+  <button
+    class="flex items-center justify-center w-11 h-11 rounded-xl bg-white/10 backdrop-blur-sm hover:bg-white/20 smooth-transition hover-lift modern-btn relative"
+    onclick="toggleNotificationDropdown()">
+    <i class="fas fa-bell text-lg"></i>
+    @php
+      $totalNotifications = ($unreadNotificationCount ?? 0) + count($lowStockItems ?? []);
+    @endphp
+    @if($totalNotifications > 0)
+      <span class="notification-badge">{{ $totalNotifications }}</span>
+    @endif
+  </button>
 
-      <div id="notificationDropdown"
-        class="hidden absolute right-0 mt-3 w-80 modern-dropdown rounded-xl z-50 overflow-hidden">
-        <div class="px-4 py-3 bg-gradient-to-r from-[#ff8c42] to-[#875e0cff] text-white">
-          <h3 class="font-semibold text-sm">Notifications</h3>
-          <p class="text-xs opacity-90">Stock alerts and updates</p>
-        </div>
-        <div class="max-h-64 overflow-y-auto">
-          @forelse($lowStockItems as $item)
-            <div class="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 smooth-transition">
-              <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
-                  <i class="fas fa-exclamation-triangle text-red-500 text-sm"></i>
-                </div>
-                <div class="flex-1">
-                  <p class="font-medium text-sm text-gray-900">{{ $item->prod_name }}</p>
-                  <p class="text-xs text-gray-500">Only {{ $item->prod_stocks }} items left</p>
-                </div>
-              </div>
-            </div>
-          @empty
-            <div class="px-4 py-8 text-center text-gray-500">
-              <i class="fas fa-check-circle text-2xl mb-2"></i>
-              <p class="text-sm">No alerts at the moment</p>
-            </div>
-          @endforelse
-        </div>
-      </div>
+  <div id="notificationDropdown"
+    class="hidden absolute right-0 mt-3 w-96 modern-dropdown rounded-xl z-50 overflow-hidden">
+    <div class="px-4 py-3 bg-gradient-to-r from-[#ff8c42] to-[#875e0cff] text-white">
+      <h3 class="font-semibold text-sm">Notifications</h3>
+      <p class="text-xs opacity-90">
+        {{ $totalNotifications }} unread
+      </p>
     </div>
-
+    
+    <div class="max-h-96 overflow-y-auto">
+      {{-- System Notifications --}}
+      @forelse($notifications ?? [] as $notification)
+        <div class="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 smooth-transition cursor-pointer {{ !$notification->is_read ? 'bg-blue-50' : '' }}"
+             onclick="markAsRead('{{ $notification->id }}', '{{ $notification->type }}')">
+          <div class="flex items-start gap-3">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0
+                        {{ $notification->type === 'appointment_arrived' ? 'bg-green-100' : '' }}
+                        {{ $notification->type === 'user_login' ? 'bg-blue-100' : '' }}
+                        {{ $notification->type === 'referral_received' ? 'bg-purple-100' : '' }}">
+              <i class="fas {{ $notification->data['icon'] ?? 'fa-bell' }}
+                        {{ $notification->type === 'appointment_arrived' ? 'text-green-500' : '' }}
+                        {{ $notification->type === 'user_login' ? 'text-blue-500' : '' }}
+                        {{ $notification->type === 'referral_received' ? 'text-purple-500' : '' }} text-sm"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-medium text-sm text-gray-900">{{ $notification->title }}</p>
+              <p class="text-xs text-gray-600 mt-1">{{ $notification->message }}</p>
+              <p class="text-xs text-gray-400 mt-1">{{ $notification->created_at->diffForHumans() }}</p>
+            </div>
+            @if(!$notification->is_read)
+              <div class="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2"></div>
+            @endif
+          </div>
+        </div>
+      @empty
+      @endforelse
+      
+      {{-- Low Stock Alerts --}}
+      @forelse($lowStockItems ?? [] as $item)
+        <div class="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 smooth-transition">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+              <i class="fas fa-exclamation-triangle text-red-500 text-sm"></i>
+            </div>
+            <div class="flex-1">
+              <p class="font-medium text-sm text-gray-900">{{ $item->prod_name }}</p>
+              <p class="text-xs text-gray-500">Only {{ $item->prod_stocks }} items left</p>
+            </div>
+          </div>
+        </div>
+      @empty
+      @endforelse
+      
+      @if(count($notifications ?? []) === 0 && count($lowStockItems ?? []) === 0)
+        <div class="px-4 py-8 text-center text-gray-500">
+          <i class="fas fa-check-circle text-2xl mb-2"></i>
+          <p class="text-sm">No notifications</p>
+        </div>
+      @endif
+    </div>
+    
+    @if(count($notifications ?? []) > 0)
+      <div class="px-4 py-2 bg-gray-50 border-t border-gray-100">
+        <button onclick="markAllAsRead()" class="text-xs text-blue-600 hover:text-blue-700 font-medium">
+          Mark all as read
+        </button>
+      </div>
+    @endif
+  </div>
+</div>
     <!-- POS Button (only visible to receptionist) -->
 @auth
   @if(strtolower(trim(auth()->user()->user_role)) === 'receptionist')
@@ -345,6 +389,7 @@
           ['route' => 'pet-management.index', 'icon' => 'fa-paw', 'label' => 'Pet Management'],
           ['route' => 'medical.index', 'icon' => 'fa-stethoscope', 'label' => 'Medical Management'],
           ['route' => 'sales.index', 'icon' => 'fa-cash-register', 'label' => 'Sales Management'],
+          ['route' => 'report.index', 'icon' => 'fa-chart-bar', 'label' => 'Reports'],
         ],
       ];
       
@@ -420,6 +465,33 @@
 
 
   <script>
+    function markAsRead(notificationId, type) {
+  fetch(`/notifications/${notificationId}/read`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+    }
+  }).then(() => {
+    if (type === 'appointment_arrived') {
+      window.location.href = `/medical-management?active_tab=appointments`;
+    } else if (type === 'referral_received') {
+      window.location.href = `/medical-management?active_tab=referrals`;
+    } else {
+      location.reload();
+    }
+  });
+}
+
+function markAllAsRead() {
+  fetch('/notifications/mark-all-read', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+    }
+  }).then(() => location.reload());
+}
     document.addEventListener('DOMContentLoaded', function () {
       // Branch dropdown functionality
       const btn = document.getElementById('branchDropdownBtn');
