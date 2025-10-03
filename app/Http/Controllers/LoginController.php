@@ -6,11 +6,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
-use App\Services\NotificationService;
 
 class LoginController extends Controller
 {
-    
     public function showLoginForm()
     {
         return view('login');
@@ -53,22 +51,12 @@ class LoginController extends Controller
     if ($passwordCheck) {
         \Log::info('LOGIN SUCCESS');
         auth()->login($user);
-
-        // Fetch notifications and unread count after successful login
-        $notifications = NotificationService::getUserNotifications(auth()->id());
-        $unreadNotificationCount = NotificationService::getUnreadCount(auth()->id());
-
-        return view('dashboard', compact(
-            // ... existing variables ...
-            'notifications',
-            'unreadNotificationCount'
-        ));
+        return redirect('/dashboard');
     }
 
     \Log::info('LOGIN FAILED');
     return back()->withErrors(['user_email' => 'Invalid credentials'])->withInput();
 }
-
     public function logout(Request $request)
     {
         Auth::logout();

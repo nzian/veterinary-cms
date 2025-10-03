@@ -2,121 +2,138 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Http\Request;
-use App\Services\NotificationService;
-use App\Models\Appointment;
+use App\Models\Branch;
+use App\Models\Product;
+use App\Models\Service;
+use App\Models\Pet;
+use App\Models\Order;
 use App\Models\Owner;
 use App\Models\Referral;
-use App\Models\Billing;
+use App\Models\Appointment;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class DashboardController extends Controller
 {
     public function index()
     {
-        // Branch name
-        $branchName = auth()->user()->branch->branch_name ?? 'Dashboard';
-        
-        // Notifications
-        $notifications = NotificationService::getUserNotifications(auth()->id());
-        $unreadNotificationCount = NotificationService::getUnreadCount(auth()->id());
-        
-        // Low stock items (your existing code)
-        $lowStockItems = DB::table('tbl_prod')
-            ->where('prod_stocks', '<=', 10)
-            ->get();
-        
-        // Total appointments
+        $today = Carbon::today();
+        $selectedBranchId = Session::get('selected_branch_id');
+
+        $activeBranch = Branch::find($selectedBranchId);
+        $branchName = $activeBranch ? $activeBranch->branch_name : 'Main Branch';
+
+        // Metrics
+        $totalPets = Pet::count();
+        $totalServices = Service::count();
+        $totalProducts = Product::count();
+        $totalOrders = Order::count();
+        $totalBranches = Branch::count();
         $totalAppointments = Appointment::count();
-        
-        // Today's appointments
-        $todaysAppointments = Appointment::whereDate('appoint_date', today())->count();
-        
-        // Total owners
+        $todaysAppointments = Appointment::whereDate('appoint_date', $today)->count();
         $totalOwners = Owner::count();
-        
-        // Daily sales
-        $dailySales = Billing::whereDate('bill_date', today())
-            ->where('bill_status', 'Paid')
-            ->sum('bill_total') ?? 0;
-        
-        // Calendar appointments grouped by date
-        $appointments = Appointment::with(['pet.owner'])
-            ->get()
-            ->groupBy(function($appointment) {
-                return Carbon::parse($appointment->appoint_date)->format('Y-m-d');
-            })
-            ->map(function($dayAppointments) {
-                return $dayAppointments->map(function($appointment) {
-                    return [
-                        'id' => $appointment->appoint_id,
-                        'pet_id' => $appointment->pet_id,
-                        'pet_name' => $appointment->pet->pet_name ?? 'Unknown',
-                        'pet_breed' => $appointment->pet->pet_breed ?? 'N/A',
-                        'pet_age' => $appointment->pet->pet_age ?? 'N/A',
-                        'pet_gender' => $appointment->pet->pet_gender ?? 'N/A',
-                        'owner_name' => $appointment->pet->owner->own_name ?? 'Unknown',
-                        'date' => $appointment->appoint_date,
-                        'time' => $appointment->appoint_time,
-                        'status' => strtolower($appointment->appoint_status),
-                        'type' => $appointment->appoint_type,
-                        'notes' => $appointment->appoint_description,
-                    ];
-                });
-            });
-        
-        // Recent appointments
-        $recentAppointments = Appointment::with('pet.owner')
+
+        // Recent Appointments
+        $recentAppointments = Appointment::with(['pet.owner'])
             ->orderBy('appoint_date', 'desc')
-            ->take(5)
+            ->limit(5)
             ->get();
-        
-        // Recent referrals
-        $recentReferrals = Referral::with('appointment.pet.owner')
-            ->orderBy('ref_date', 'desc')
-            ->take(5)
-            ->get();
-        
-        // Daily revenue chart data (last 7 days)
+
+        // Daily Sales
+        $dailySales = Order::whereDate('ord_date', $today)->sum('ord_total');
+
+        // 7-Day Sales
         $orderDates = [];
         $orderTotals = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = Carbon::today()->subDays($i);
             $orderDates[] = $date->format('M d');
-            $orderTotals[] = Billing::whereDate('bill_date', $date)
-                ->where('bill_status', 'Paid')
-                ->sum('bill_total') ?? 0;
+            $total = Order::whereDate('ord_date', $date)->sum('ord_total');
+            $orderTotals[] = $total;
         }
-        
-        // Monthly revenue chart data (current year)
+
+        // Monthly Sales
+        $monthlySales = DB::table('tbl_ord')
+            ->selectRaw('MONTH(ord_date) as month, SUM(ord_total) as total')
+            ->whereYear('ord_date', now()->year)
+            ->groupBy(DB::raw('MONTH(ord_date)'))
+            ->orderBy(DB::raw('MONTH(ord_date)'))
+            ->get();
+
         $months = [];
         $monthlySalesTotals = [];
-        for ($i = 0; $i < 12; $i++) {
-            $month = Carbon::now()->startOfYear()->addMonths($i);
-            $months[] = $month->format('M');
-            $monthlySalesTotals[] = Billing::whereYear('bill_date', $month->year)
-                ->whereMonth('bill_date', $month->month)
-                ->where('bill_status', 'Paid')
-                ->sum('bill_total') ?? 0;
+        for ($i = 1; $i <= 12; $i++) {
+            $months[] = Carbon::create()->month($i)->format('F');
+            $monthData = $monthlySales->firstWhere('month', $i);
+            $monthlySalesTotals[] = $monthData ? (float) $monthData->total : 0;
         }
+
+        // Complete appointment data with all pet and owner details
+        $appointments = Appointment::with(['pet.owner'])
+            ->whereNotIn('appoint_status', ['completed','Canceled'])
+            ->get()
+            ->groupBy(function ($item) {
+                return Carbon::parse($item->appoint_date)->format('Y-m-d');
+            })
+            ->map(function ($group) {
+                return $group->map(function ($item) {
+                    return [
+                       'id' => $item->appoint_id, // Changed from $item->id to $item->appoint_id
+                        'pet_id' => $item->pet_id,
+                        'title' => ($item->appoint_type ?? 'Checkup') . ' - ' . ($item->pet->pet_name ?? 'Unknown'),
+                        'pet_name' => $item->pet->pet_name ?? 'Unknown Pet',
+                        'owner_name' => $item->pet->owner->own_name ?? 'Unknown Owner',
+                        'date' => Carbon::parse($item->appoint_date)->format('Y-m-d'),
+                        'time' => $item->appoint_time ?? 'No time set',
+                        'status' => Str::lower($item->appoint_status ?? 'pending'),
+                        'notes' => $item->appoint_notes ?? '',
+                        'type' => $item->appoint_type ?? 'Checkup',
+                        'pet_breed' => $item->pet->pet_breed ?? '',
+                        'pet_age' => $item->pet->pet_age ?? '',
+                        'pet_gender' => $item->pet->pet_gender ?? '',
+                        'owner_contact' => $item->pet->owner->own_contactnum ?? '',
+                    ];
+                });
+            });
+
+        $recentReferrals = Referral::with(['appointment.pet.owner', 'appointment.service'])
+            ->latest('ref_date')
+            ->take(5)
+            ->get();
         
+        $recentAppointments = Appointment::with([
+            'pet.owner',
+            'user.branch'
+        ])
+        ->latest('appoint_date')
+        ->take(5)
+        ->get();
+
+        $branches = Branch::all();
+
         return view('dashboard', compact(
-            'branchName',
-            'notifications',
-            'unreadNotificationCount',
-            'lowStockItems',
+            'totalPets',
+            'totalServices',
+            'totalProducts',
+            'totalOrders',
+            'totalBranches',
             'totalAppointments',
             'todaysAppointments',
-            'totalOwners',
-            'dailySales',
-            'appointments',
             'recentAppointments',
-            'recentReferrals',
+            'dailySales',
             'orderDates',
             'orderTotals',
             'months',
-            'monthlySalesTotals'
+            'monthlySalesTotals',
+            'branches',
+            'branchName',
+            'totalOwners',
+            'appointments',
+            'recentReferrals',
+            'recentAppointments'
         ));
     }
 }
