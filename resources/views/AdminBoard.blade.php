@@ -422,7 +422,7 @@
   </ul>
 </nav>
       
-     <!-- <div class="p-3 border-t border-white/10">
+    <div class="p-3 border-t border-white/10">
   <a href="{{ route('sms-settings.index') }}"
      class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group w-full hover:bg-white/10 {{ request()->routeIs('sms-settings.*') ? 'bg-white/10' : '' }}">
     <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition {{ request()->routeIs('sms-settings.*') ? 'bg-[#0f7ea0]' : '' }}">
@@ -432,7 +432,7 @@
   </a>
 </div>
 
-     Settings 
+  <!--     Settings 
       <div class="p-3 border-t border-white/10">
         <button
           class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group w-full hover:bg-white/10">
