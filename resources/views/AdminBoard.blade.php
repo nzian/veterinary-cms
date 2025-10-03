@@ -376,6 +376,7 @@
           ['route' => 'medical.index', 'icon' => 'fa-stethoscope', 'label' => 'Medical Management'],
           ['route' => 'sales.index', 'icon' => 'fa-cash-register', 'label' => 'Sales Management'],
           ['route' => 'report.index', 'icon' => 'fa-chart-bar', 'label' => 'Reports'],
+          ['route' => 'sms-settings.index', 'icon' => 'fa-cog', 'label' => 'Settings'], 
         ],
         'veterinarian' => [
           ['route' => 'dashboard-index', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
