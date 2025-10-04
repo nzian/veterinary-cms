@@ -202,4 +202,6 @@ function updateAPIURL() {
 document.addEventListener('DOMContentLoaded', updateAPIURL);
 </script>
 
+
+
 @endsection

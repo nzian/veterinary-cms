@@ -10,43 +10,19 @@ use Illuminate\Support\Facades\DB;
 
 class AutoCancelOldAppointments extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'app:auto-cancel-old-appointments';
-
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
     protected $description = 'Mark missed appointments, reschedule to next available time slot for up to 2 weeks, then cancel';
 
-    /**
-     * Available appointment time slots
-     */
     private $availableTimeSlots = [
-        '09:00:00', // 09:00 AM
-        '10:00:00', // 10:00 AM
-        '11:00:00', // 11:00 AM
-        '13:00:00', // 01:00 PM
-        '14:00:00', // 02:00 PM
-        '15:00:00', // 03:00 PM
-        '16:00:00', // 04:00 PM
-        '17:00:00', // 05:00 PM
+        '09:00:00', '10:00:00', '11:00:00', '13:00:00',
+        '14:00:00', '15:00:00', '16:00:00', '17:00:00',
     ];
 
-    /**
-     * Execute the console command.
-     */
     public function handle()
     {
         $today = Carbon::today();
         $this->info("Running auto-cancel/reschedule for appointments as of {$today->format('Y-m-d')}");
         
-        // Find appointments that are YESTERDAY or older and not arrived/completed/cancelled
         $missedAppointments = Appointment::with('pet.owner')
             ->where('appoint_date', '<', $today)
             ->whereNotIn('appoint_status', ['arrived', 'completed', 'cancelled'])
@@ -69,7 +45,7 @@ class AutoCancelOldAppointments extends Command
             $currentDate = Carbon::parse($appointment->appoint_date);
             $currentTime = $appointment->appoint_time;
 
-            // Set original_date if not set (first time being processed as missed)
+            // Set original_date if not set
             if (!$appointment->original_date) {
                 $appointment->original_date = $appointment->appoint_date;
                 $appointment->save();
@@ -78,62 +54,46 @@ class AutoCancelOldAppointments extends Command
             $originalDate = Carbon::parse($appointment->original_date);
             $daysSinceOriginal = $today->diffInDays($originalDate);
 
-            // First, mark as missed if not already
+            // Mark as missed if not already
             if ($appointment->appoint_status !== 'missed' && $appointment->appoint_status !== 'rescheduled') {
-                $appointment->update([
-                    'appoint_status' => 'missed',
-                ]);
+                $appointment->update(['appoint_status' => 'missed']);
                 
                 $this->warn("⚠ Marked as Missed: Appointment #{$appointment->appoint_id} - {$petName} ({$ownerName})");
                 $this->line("  Date: {$currentDate->format('Y-m-d')} at {$currentTime}");
                 
-                Log::info("Appointment {$appointment->appoint_id} marked as missed", [
-                    'pet' => $petName,
-                    'owner' => $ownerName,
-                    'appointment_date' => $currentDate->format('Y-m-d'),
-                    'appointment_time' => $currentTime,
-                ]);
-                
+                Log::info("Appointment {$appointment->appoint_id} marked as missed");
                 $markedMissed++;
             }
 
-           if ($daysSinceOriginal >= 14) {
-    $appointment->update([
-        'appoint_status' => 'cancelled',
-    ]);
-    
-    $this->error("✗ Cancelled: Appointment #{$appointment->appoint_id} - {$petName} ({$ownerName})");
-    $this->line("  Original date: {$originalDate->format('Y-m-d')} ({$daysSinceOriginal} days ago)");
-    $this->line("  Reason: Exceeded 2-week grace period");
-    
-    // **ADD: Send SMS notification for auto-cancellation**
-    try {
-        $smsService = new \App\Services\DynamicSMSService();
-        $smsResult = $smsService->sendAutoCancelSMS($appointment, 'exceeded 2-week grace period');
-        
-        if ($smsResult) {
-            $this->info("  ✓ Cancellation SMS notification sent");
-            Log::info("Auto-cancel SMS sent for appointment {$appointment->appoint_id}");
-        } else {
-            $this->warn("  ⚠ Cancellation SMS notification failed");
-            Log::warning("Auto-cancel SMS failed for appointment {$appointment->appoint_id}");
-        }
-    } catch (\Exception $e) {
-        $this->error("  ✗ SMS error: " . $e->getMessage());
-        Log::error("Auto-cancel SMS error for appointment {$appointment->appoint_id}: " . $e->getMessage());
-    }
-    
-    Log::info("Appointment {$appointment->appoint_id} cancelled - exceeded 2 week grace period", [
-        'pet' => $petName,
-        'owner' => $ownerName,
-        'original_date' => $originalDate->format('Y-m-d'),
-        'last_scheduled_date' => $appointment->appoint_date,
-        'days_since_original' => $daysSinceOriginal,
-    ]);
-    
-    $cancelled++;
-    continue;
-}
+            // Cancel if 14 or more days have passed
+            if ($daysSinceOriginal >= 14) {
+                $appointment->update(['appoint_status' => 'cancelled']);
+                
+                $this->error("✗ Cancelled: Appointment #{$appointment->appoint_id} - {$petName} ({$ownerName})");
+                $this->line("  Original date: {$originalDate->format('Y-m-d')} ({$daysSinceOriginal} days ago)");
+                $this->line("  Reason: Exceeded 2-week grace period");
+                
+                // **SEND AUTO-CANCEL SMS**
+                try {
+                    $smsService = new \App\Services\DynamicSMSService();
+                    $smsResult = $smsService->sendAutoCancelSMS($appointment, 'exceeded 2-week grace period');
+                    
+                    if ($smsResult) {
+                        $this->info("  ✓ Cancellation SMS notification sent");
+                        Log::info("Auto-cancel SMS sent for appointment {$appointment->appoint_id}");
+                    } else {
+                        $this->warn("  ⚠ Cancellation SMS notification failed");
+                        Log::warning("Auto-cancel SMS failed for appointment {$appointment->appoint_id}");
+                    }
+                } catch (\Exception $e) {
+                    $this->error("  ✗ SMS error: " . $e->getMessage());
+                    Log::error("Auto-cancel SMS error for appointment {$appointment->appoint_id}: " . $e->getMessage());
+                }
+                
+                Log::info("Appointment {$appointment->appoint_id} cancelled - exceeded 2 week grace period");
+                $cancelled++;
+                continue;
+            }
 
             // Find next available time slot
             $nextAvailable = $this->findNextAvailableSlot($today);
@@ -142,6 +102,10 @@ class AutoCancelOldAppointments extends Command
                 $this->warn("  No available slots found for next 7 days, skipping for now.");
                 continue;
             }
+
+            // Store original values for SMS
+            $originalDateForSMS = $appointment->appoint_date;
+            $originalTimeForSMS = $appointment->appoint_time;
 
             $appointment->update([
                 'appoint_date' => $nextAvailable['date'],
@@ -157,19 +121,24 @@ class AutoCancelOldAppointments extends Command
             $this->line("  Original date: {$originalDate->format('Y-m-d')} ({$daysSinceOriginal} days ago)");
             $this->line("  Reschedule count: {$appointment->reschedule_count} | Days remaining: " . (14 - $daysSinceOriginal));
 
-            Log::info("Appointment {$appointment->appoint_id} rescheduled", [
-                'pet' => $petName,
-                'owner' => $ownerName,
-                'from_date' => $currentDate->format('Y-m-d'),
-                'from_time' => $currentTime,
-                'to_date' => $nextAvailable['date'],
-                'to_time' => $nextAvailable['time'],
-                'original_date' => $originalDate->format('Y-m-d'),
-                'reschedule_count' => $appointment->reschedule_count,
-                'days_since_original' => $daysSinceOriginal,
-                'days_remaining_before_cancel' => 14 - $daysSinceOriginal,
-            ]);
+            // **SEND AUTO-RESCHEDULE SMS**
+            try {
+                $smsService = new \App\Services\DynamicSMSService();
+                $smsResult = $smsService->sendAutoRescheduleSMS($appointment, $originalDateForSMS, $originalTimeForSMS);
+                
+                if ($smsResult) {
+                    $this->info("  ✓ SMS notification sent");
+                    Log::info("Auto-reschedule SMS sent for appointment {$appointment->appoint_id}");
+                } else {
+                    $this->warn("  ⚠ SMS notification failed");
+                    Log::warning("Auto-reschedule SMS failed for appointment {$appointment->appoint_id}");
+                }
+            } catch (\Exception $e) {
+                $this->error("  ✗ SMS error: " . $e->getMessage());
+                Log::error("Auto-reschedule SMS error for appointment {$appointment->appoint_id}: " . $e->getMessage());
+            }
 
+            Log::info("Appointment {$appointment->appoint_id} rescheduled");
             $rescheduled++;
         }
 
@@ -184,33 +153,22 @@ class AutoCancelOldAppointments extends Command
         return Command::SUCCESS;
     }
 
-    /**
-     * Find the next available time slot
-     * 
-     * @param Carbon $startDate
-     * @return array|null ['date' => 'Y-m-d', 'time' => 'H:i:s']
-     */
     private function findNextAvailableSlot(Carbon $startDate)
     {
-        // Check up to 7 days ahead
         for ($dayOffset = 0; $dayOffset < 7; $dayOffset++) {
             $checkDate = $startDate->copy()->addDays($dayOffset);
             
-            // Skip weekends (optional - remove if you want to include weekends)
             if ($checkDate->isWeekend()) {
                 continue;
             }
 
-            // Check each time slot for this date
             foreach ($this->availableTimeSlots as $timeSlot) {
-                // Check if this time slot is already booked
                 $isBooked = Appointment::where('appoint_date', $checkDate->format('Y-m-d'))
                     ->where('appoint_time', $timeSlot)
                     ->whereNotIn('appoint_status', ['cancelled'])
                     ->exists();
 
                 if (!$isBooked) {
-                    // Found an available slot!
                     return [
                         'date' => $checkDate->format('Y-m-d'),
                         'time' => $timeSlot,
@@ -219,7 +177,6 @@ class AutoCancelOldAppointments extends Command
             }
         }
 
-        // No available slots found in the next 7 days
         return null;
     }
 }
