@@ -15,7 +15,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Services\NotificationService;
-use App\Services\NotificationService;
 
 class MedicalManagementController extends Controller
 {
