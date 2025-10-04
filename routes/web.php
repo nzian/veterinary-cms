@@ -25,6 +25,13 @@ use App\Http\Controllers\SalesManagementController;
 
 
 // Register
+
+
+
+Route::get('/', function () {
+    return redirect('/login');
+});
+
 Route::get('/register', [RegisterController::class, 'showRegistrationForm'])->name('register');
 Route::post('/register', [RegisterController::class, 'register'])->name('register.submit');
 
