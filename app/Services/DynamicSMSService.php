@@ -472,6 +472,51 @@ private function createReferralMessage($appointment, $referral)
 }
 
 /**
+ * Create SMS message for AUTO appointment reschedule (from missed appointments)
+ */
+private function createAutoRescheduleMessage($appointment, $originalDate, $originalTime)
+{
+    $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
+    $petName = $appointment->pet->pet_name ?? 'your pet';
+    $newDate = \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y');
+    $newTime = \Carbon\Carbon::parse($appointment->appoint_time)->format('g:i A');
+    
+    // SIMPLIFIED MESSAGE - Less likely to trigger spam filters
+    return "Hello {$ownerName},\n\n"
+         . "{$petName}'s appointment has been rescheduled to {$newDate} at {$newTime}.\n\n"
+         . "Thank you!\n\n"
+         . "- Pets 2Go Veterinary Clinic";
+}
+/**
+ * Send auto-reschedule notification SMS (from missed appointments)
+ */
+public function sendAutoRescheduleSMS($appointment, $originalDate, $originalTime)
+{
+    if (!$this->config || empty($this->config->sms_api_key)) {
+        return false;
+    }
+
+    // Load the pet and owner relationships if not already loaded
+    if (!$appointment->relationLoaded('pet') || !$appointment->pet->relationLoaded('owner')) {
+        $appointment->load('pet.owner');
+    }
+
+    $phoneNumber = $appointment->pet->owner->own_contactnum ?? null;
+    if (!$phoneNumber) {
+        Log::warning("No phone number found for appointment {$appointment->appoint_id}");
+        return false;
+    }
+
+    $message = $this->createAutoRescheduleMessage($appointment, $originalDate, $originalTime);
+    $result  = $this->sendSMS($phoneNumber, $message);
+
+    return $result['success'] ?? false;
+}
+
+/**
+ * Create SMS message for auto-cancelled appointment
+ */
+/**
  * Create SMS message for auto-cancelled appointment
  */
 private function createAutoCancelMessage($appointment, $reason)
@@ -480,11 +525,52 @@ private function createAutoCancelMessage($appointment, $reason)
     $petName = $appointment->pet->pet_name ?? 'your pet';
     $originalDate = \Carbon\Carbon::parse($appointment->original_date ?? $appointment->appoint_date)->format('M d, Y');
     
+    // SIMPLIFIED MESSAGE
     return "Hello {$ownerName},\n\n"
-         . "We regret to inform you that {$petName}'s appointment originally scheduled for {$originalDate} has been CANCELLED.\n\n"
-         . "Reason: The appointment was not attended for more than 2 weeks despite automatic rescheduling attempts.\n\n"
-         . "If you still need our services, please contact us to schedule a new appointment.\n\n"
-         . "We look forward to serving you and {$petName}.\n\n"
+         . "{$petName}'s appointment from {$originalDate} has been cancelled.\n\n"
+         . "Thank you!\n\n"
          . "- Pets 2Go Veterinary Clinic";
 }
+
+/**
+ * Send SMS when appointment is completed
+ */
+public function sendCompletionSMS($appointment)
+{
+    if (!$this->config || empty($this->config->sms_api_key)) {
+        return false;
+    }
+
+    // Load the pet and owner relationships if not already loaded
+    if (!$appointment->relationLoaded('pet') || !$appointment->pet->relationLoaded('owner')) {
+        $appointment->load('pet.owner');
+    }
+
+    $phoneNumber = $appointment->pet->owner->own_contactnum ?? null;
+    if (!$phoneNumber) {
+        Log::warning("No phone number found for appointment {$appointment->appoint_id}");
+        return false;
+    }
+
+    $message = $this->createCompletionMessage($appointment);
+    $result  = $this->sendSMS($phoneNumber, $message);
+
+    return $result['success'] ?? false;
+}
+
+/**
+ * Create SMS message for completed appointment
+ */
+private function createCompletionMessage($appointment)
+{
+    $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
+    $petName = $appointment->pet->pet_name ?? 'your pet';
+    $appointDate = \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y');
+    
+    return "Hello {$ownerName},\n\n"
+         . "{$petName}'s appointment on {$appointDate} has been COMPLETED.\n\n"
+         . "Thank you for choosing Pets 2Go Veterinary Clinic. We hope to see you again soon!\n\n"
+         . "- Pets 2Go Veterinary Clinic";
+}
+
 }

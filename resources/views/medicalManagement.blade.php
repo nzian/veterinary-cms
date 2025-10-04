@@ -1611,7 +1611,11 @@ function openEditModal(appointment) {
     document.getElementById('editForm').action = `/medical-management/appointments/${appointment.appoint_id}`;
     document.getElementById('edit_appoint_id').value = appointment.appoint_id ?? '';
     document.getElementById('edit_appoint_date').value = appointment.appoint_date ?? '';
-    document.getElementById('edit_appoint_time').value = appointment.appoint_time ?? '';
+
+     let appointTime = appointment.appoint_time ?? '';
+    if (appointTime && appointTime.length > 5) {
+        appointTime = appointTime.substring(0, 5); // Extract HH:MM from HH:MM:SS
+    }
     document.getElementById('edit_appoint_contactNum').value = appointment.appoint_contactNum ?? '';
     document.getElementById('edit_appoint_status').value = appointment.appoint_status ?? '';
     document.getElementById('edit_appoint_type').value = appointment.appoint_type ?? '';
