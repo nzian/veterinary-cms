@@ -21,10 +21,11 @@ public $incrementing = true;
 public $keyType = 'int';
 
 
+
     public function users()
-    {
-        return $this->hasMany(User::class, 'branch_id');
-    }
+{
+    return $this->hasMany(User::class, 'branch_id', 'branch_id');
+}
 
     // In your Branch model
 public function products()

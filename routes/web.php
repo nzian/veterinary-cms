@@ -28,6 +28,13 @@ use App\Http\Controllers\MedicalManagementController;
 Route::redirect('/', '/login');
 
 // Register
+
+
+
+Route::get('/', function () {
+    return redirect('/login');
+});
+
 Route::get('/register', [RegisterController::class, 'showRegistrationForm'])->name('register');
 Route::post('/register', [RegisterController::class, 'register'])->name('register.submit');
 
@@ -317,3 +324,13 @@ use App\Http\Controllers\SMSSettingsController;
 Route::get('/sms-settings', [SMSSettingsController::class, 'index'])->name('sms-settings.index');
 Route::put('/sms-settings', [SMSSettingsController::class, 'update'])->name('sms-settings.update');
 Route::post('/sms-settings/test', [SMSSettingsController::class, 'testSMS'])->name('sms-settings.test');
+
+Route::post('/notifications/{id}/read', function($id) {
+    App\Services\NotificationService::markAsRead(auth()->id(), $id);
+    return response()->json(['success' => true]);
+})->name('notifications.read');
+
+Route::post('/notifications/mark-all-read', function() {
+    App\Services\NotificationService::markAllAsRead(auth()->id());
+    return response()->json(['success' => true]);
+})->name('notifications.markAllRead');

@@ -413,12 +413,7 @@
                                 title="View Transaction Details">
                             <i class="fas fa-eye"></i>
                         </button>
-                        <button onclick="printTransaction(this)" 
-                                data-id="{{ $transactionId }}" 
-                                class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
-                                title="Print Receipt">
-                            <i class="fas fa-print"></i>
-                        </button>
+                        
                     </td>
                 </tr>
             @empty
@@ -537,12 +532,7 @@
         <button onclick="document.getElementById('viewBillingModal').classList.add('hidden')" 
                 class="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl no-print">&times;</button>
         
-        <!-- Print Button inside the modal -->
-        <div class="absolute top-2 left-2 no-print">
-            <button onclick="printBillingFromModal()" class="bg-purple-500 text-white px-3 py-1 rounded hover:bg-purple-600 text-sm">
-                <i class="fas fa-print"></i> Print
-            </button>
-        </div>
+        
     </div>
 </div>
 
