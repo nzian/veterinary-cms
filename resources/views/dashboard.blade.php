@@ -4,22 +4,29 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <div class="min-h-screen bg-gray-50 animate-fadeInScale px-2 sm:px-4 lg:px-6">
   
-  {{-- Welcome Card - Mobile Responsive --}}
-  <div id="welcomeCard" 
-       class="w-full bg-white shadow-xl rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 animate-fadeSlideUp">
-    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
-      <!-- Left Side: User Welcome -->
-      <div>
-        <h1 class="text-2xl sm:text-3xl font-bold text-[#f88e28]">{{ $branchName }}</h1>
-        <p class="text-gray-600 mt-1 text-sm sm:text-base">Dashboard Overview</p>
-      </div>
+ <div id="welcomeCard" 
+     class="w-full bg-white shadow-xl rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 animate-fadeSlideUp">
+  <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+    
+    <!-- Left Side: User Welcome -->
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-bold text-[#f88e28]">
+        Welcome back, {{ Auth::user()->user_name ?? 'User' }}!
+      </h1>
+      <p class="text-gray-600 mt-1 text-sm sm:text-base">
+        {{ now()->format('l, F j, Y') }}
+      </p>
+    </div>
 
-      <!-- Right Side: Date -->
-      <div class="text-xs sm:text-sm text-gray-500">
-        {{ date('l, F j, Y') }}
+    <!-- Right Side: Quick Info (Optional) -->
+    <div class="flex items-center gap-2 sm:gap-3">
+      <div class="bg-gradient-to-r from-[#f88e28] to-[#ff6b35] text-white px-4 py-2 rounded-lg shadow-md">
+        <p class="text-sm font-bold">{{ $branchName ?? 'Main Branch' }}</p>
       </div>
     </div>
+
   </div>
+</div>
 
   <style>
     .calendar-notification {

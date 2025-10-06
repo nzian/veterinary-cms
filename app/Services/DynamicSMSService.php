@@ -2,16 +2,19 @@
 
 namespace App\Services;
 
-use App\Models\SmsSettings;
 use Illuminate\Support\Facades\Log;
 
 class DynamicSMSService
 {
-    private $config;
+    // Built-in PhilSMS Configuration - NO DATABASE NEEDED
+    private $apiKey = '1460|y6x2ozwUdq2tYYCq1gRr2ltFe42I7sNRYPuDT7wB';
+    private $senderId = 'PHILSMS';
+    private $apiUrl = 'https://app.philsms.com/api/v3/sms/send';
+    private $isActive = true;
 
     public function __construct()
     {
-        $this->config = SmsSettings::getActiveConfig();
+        // No database lookup needed - everything is built-in!
     }
 
     /**
@@ -19,29 +22,38 @@ class DynamicSMSService
      */
     public function sendTestSMS($phoneNumber)
     {
-        if (!$this->config) {
+        if (!$this->isActive) {
             return ['success' => false, 'message' => 'SMS not configured'];
         }
 
-        // Fix: Check for correct Twilio credentials based on provider
-        if ($this->config->sms_provider === 'twilio') {
-            if (empty($this->config->sms_api_key) || empty($this->config->sms_twilio_token)) {
-                Log::error('Twilio credentials check failed', [
-                    'has_sid' => !empty($this->config->sms_api_key),
-                    'has_token' => !empty($this->config->sms_twilio_token),
-                    'sid_length' => strlen($this->config->sms_api_key ?? ''),
-                    'token_length' => strlen($this->config->sms_twilio_token ?? '')
-                ]);
-                return ['success' => false, 'message' => 'Twilio credentials not configured'];
-            }
-        } else {
-            if (empty($this->config->sms_api_key)) {
-                return ['success' => false, 'message' => 'API key not configured'];
-            }
+        $message = "Test SMS from {$this->senderId}. Configuration is working!";
+        return $this->sendSMS($phoneNumber, $message, true);
+    }
+
+    /**
+     * Send SMS for NEW appointment creation
+     */
+    public function sendNewAppointmentSMS($appointment)
+    {
+        if (!$this->isActive) {
+            return false;
         }
 
-        $message = "Test SMS from " . ($this->config->sms_sender_id ?? 'YourClinic') . ". Configuration is working!";
-        return $this->sendSMS($phoneNumber, $message, true);
+        // Load the pet and owner relationships if not already loaded
+        if (!$appointment->relationLoaded('pet') || !$appointment->pet->relationLoaded('owner')) {
+            $appointment->load('pet.owner');
+        }
+
+        $phoneNumber = $appointment->pet->owner->own_contactnum ?? null;
+        if (!$phoneNumber) {
+            Log::warning("No phone number found for appointment {$appointment->appoint_id}");
+            return false;
+        }
+
+        $message = $this->createNewAppointmentMessage($appointment);
+        $result  = $this->sendSMS($phoneNumber, $message);
+
+        return $result['success'] ?? false;
     }
 
     /**
@@ -49,7 +61,7 @@ class DynamicSMSService
      */
     public function sendFollowUpSMS($appointment)
     {
-        if (!$this->config || empty($this->config->sms_api_key)) {
+        if (!$this->isActive) {
             return false;
         }
 
@@ -79,7 +91,7 @@ class DynamicSMSService
      */
     public function sendRescheduleSMS($appointment)
     {
-        if (!$this->config || empty($this->config->sms_api_key)) {
+        if (!$this->isActive) {
             return false;
         }
 
@@ -101,15 +113,26 @@ class DynamicSMSService
     }
 
     /**
-     * Create SMS message for appointment
+     * Create SMS message for NEW appointment
+     */
+    private function createNewAppointmentMessage($appointment)
+    {
+        $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
+        $petName = $appointment->pet->pet_name ?? 'your pet';
+        $appointDate = \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y');
+        $appointTime = \Carbon\Carbon::parse($appointment->appoint_time)->format('g:i A');
+        
+        return "Hello {$ownerName}, this is from Pets 2Go. Your appointment for {$petName} has been scheduled on {$appointDate} at {$appointTime}. Please arrive 15 minutes early. Thank you!";
+    }
+
+    /**
+     * Create SMS message for follow-up appointment
      */
     private function createSMSMessage($appointment)
     {
         $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
         $petName = $appointment->pet->pet_name ?? 'your pet';
         $appointDate = \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y');
-        
-        // Convert 24-hour time to 12-hour format
         $appointTime = \Carbon\Carbon::parse($appointment->appoint_time)->format('g:i A');
         
         return "Hello {$ownerName}, this is from Pets 2Go. This is a reminder for {$petName}'s follow-up appointment on {$appointDate} at {$appointTime}. Please arrive 15 minutes early. Thank you!";
@@ -123,15 +146,13 @@ class DynamicSMSService
         $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
         $petName = $appointment->pet->pet_name ?? 'your pet';
         $appointDate = \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y');
-        
-        // Convert 24-hour time to 12-hour format
         $appointTime = \Carbon\Carbon::parse($appointment->appoint_time)->format('g:i A');
         
         return "Hello {$ownerName}, this is from Pets 2Go. {$petName}'s appointment has been rescheduled to {$appointDate} at {$appointTime}. Please arrive 15 minutes early. Thank you for your understanding!";
     }
 
     /**
-     * Main SMS router
+     * Main SMS sender - PhilSMS only
      */
     private function sendSMS($phoneNumber, $message, $isTest = false)
     {
@@ -143,26 +164,10 @@ class DynamicSMSService
                 'formatted_number' => $formattedNumber,
                 'message_length'   => strlen($message),
                 'is_test'          => $isTest,
-                'provider'         => $this->config->sms_provider ?? 'unknown',
+                'provider'         => 'PhilSMS',
             ]);
 
-            $provider = strtolower($this->config->sms_provider ?? 'philsms');
-            switch ($provider) {
-                case 'twilio':
-                    $result = $this->sendTwilioSMS($formattedNumber, $message);
-                    break;
-
-                case 'philsms':
-                    $result = $this->sendPhilSMS($formattedNumber, $message);
-                    break;
-
-                case 'semaphore':
-                    $result = $this->sendSemaphoreSMS($formattedNumber, $message);
-                    break;
-
-                default:
-                    return ['success' => false, 'message' => "Invalid SMS provider: $provider"];
-            }
+            $result = $this->sendPhilSMS($formattedNumber, $message);
 
             if ($result['success']) {
                 $logMessage = $isTest ? "✅ Test SMS sent successfully" : "✅ SMS sent successfully";
@@ -213,109 +218,28 @@ class DynamicSMSService
     }
 
     /**
-     * Twilio sender - FIXED
-     */
-    private function sendTwilioSMS($phoneNumber, $message)
-    {
-        $sid   = $this->config->sms_api_key;        // Twilio Account SID
-        $token = $this->config->sms_twilio_token;   // Twilio Auth Token
-        $from  = $this->config->sms_sender_id;      // Sender ID (phone or alphanumeric)
-
-        if (empty($sid) || empty($token) || empty($from)) {
-            return ['success' => false, 'message' => 'Twilio credentials missing'];
-        }
-
-        $postData = [
-            'To'   => $phoneNumber,
-            'Body' => $message,
-        ];
-
-        // FIXED: Proper handling of alphanumeric vs phone number sender IDs
-        if (preg_match('/^\+?[1-9]\d{10,14}$/', $from)) {
-            // It's a phone number - ensure E.164 format
-            if (strpos($from, '+') !== 0) {
-                $from = '+' . preg_replace('/\D/', '', $from);
-            }
-            $postData['From'] = $from;
-        } else {
-            // It's alphanumeric - use as-is, don't modify
-            $postData['From'] = $from;
-        }
-
-        $url = "https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages.json";
-
-        Log::info('Twilio SMS Request Debug', [
-            'original_sender' => $this->config->sms_sender_id,
-            'processed_sender' => $postData['From'],
-            'to_number' => $phoneNumber,
-            'is_phone_number' => preg_match('/^\+?[1-9]\d{10,14}$/', $this->config->sms_sender_id) ? 'yes' : 'no'
-        ]);
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
-        curl_setopt($ch, CURLOPT_USERPWD, "$sid:$token");
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/x-www-form-urlencoded'
-        ]);
-
-        $response  = curl_exec($ch);
-        $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
-
-        if ($curlError) {
-            return ['success' => false, 'message' => $curlError];
-        }
-
-        $respData = json_decode($response, true);
-        
-        Log::info('Twilio SMS Response', [
-            'httpCode' => $httpCode,
-            'response' => $respData
-        ]);
-
-        if ($httpCode >= 200 && $httpCode < 300) {
-            return ['success' => true, 'message' => 'SMS sent via Twilio', 'response' => $respData];
-        }
-
-        return [
-            'success'  => false,
-            'message'  => $respData['message'] ?? 'Twilio error',
-            'response' => $respData
-        ];
-    }
-
-    /**
-     * PhilSMS sender
+     * PhilSMS sender - Built-in credentials
      */
     private function sendPhilSMS($phoneNumber, $message)
     {
-        $apiKey = $this->config->sms_api_key;
-        $senderId = $this->config->sms_sender_id;
-        $url = $this->config->sms_api_url;
-
-        if (empty($apiKey)) {
-            return ['success' => false, 'message' => 'PhilSMS API key missing'];
-        }
-
         $postData = [
             'recipient' => $phoneNumber,
-            'sender_id' => $senderId,
+            'sender_id' => $this->senderId,
             'type' => 'plain',
             'message' => $message
         ];
 
-        $ch = curl_init($url);
+        $ch = curl_init($this->apiUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . $apiKey,
+            'Authorization: Bearer ' . $this->apiKey,
             'Content-Type: application/json',
             'Accept: application/json'
         ]);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -327,8 +251,14 @@ class DynamicSMSService
         }
 
         $respData = json_decode($response, true);
+        
         if ($httpCode >= 200 && $httpCode < 300) {
-            return ['success' => true, 'message' => 'SMS sent via PhilSMS', 'response' => $respData];
+            return [
+                'success' => true, 
+                'message' => 'SMS sent via PhilSMS', 
+                'response' => $respData,
+                'message_id' => $respData['data']['id'] ?? null
+            ];
         }
 
         return [
@@ -339,238 +269,179 @@ class DynamicSMSService
     }
 
     /**
-     * Semaphore sender
+     * Send SMS when appointment is referred to another branch
      */
-    private function sendSemaphoreSMS($phoneNumber, $message)
+    public function sendReferralSMS($appointment, $referral)
     {
-        $apiKey = $this->config->sms_api_key;
-        $senderId = $this->config->sms_sender_id;
-        $url = $this->config->sms_api_url;
-
-        if (empty($apiKey)) {
-            return ['success' => false, 'message' => 'Semaphore API key missing'];
+        if (!$this->isActive) {
+            return false;
         }
 
-        $postData = [
-            'apikey' => $apiKey,
-            'number' => $phoneNumber,
-            'message' => $message,
-            'sendername' => $senderId
-        ];
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/x-www-form-urlencoded'
-        ]);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
-
-        if ($curlError) {
-            return ['success' => false, 'message' => $curlError];
+        if (!$appointment->relationLoaded('pet') || !$appointment->pet->relationLoaded('owner')) {
+            $appointment->load('pet.owner');
         }
 
-        $respData = json_decode($response, true);
-        if ($httpCode >= 200 && $httpCode < 300) {
-            return ['success' => true, 'message' => 'SMS sent via Semaphore', 'response' => $respData];
+        $phoneNumber = $appointment->pet->owner->own_contactnum ?? null;
+        if (!$phoneNumber) {
+            Log::warning("No phone number found for appointment {$appointment->appoint_id}");
+            return false;
         }
 
-        return [
-            'success' => false,
-            'message' => $respData['message'] ?? 'Semaphore error',
-            'response' => $respData
-        ];
+        $message = $this->createReferralMessage($appointment, $referral);
+        $result  = $this->sendSMS($phoneNumber, $message);
+
+        return $result['success'] ?? false;
     }
 
     /**
- * Send SMS when appointment is referred to another branch
- */
-public function sendReferralSMS($appointment, $referral)
-{
-    if (!$this->config || empty($this->config->sms_api_key)) {
-        return false;
+     * Send SMS when appointment is auto-cancelled
+     */
+    public function sendAutoCancelSMS($appointment, $reason = 'exceeded grace period')
+    {
+        if (!$this->isActive) {
+            return false;
+        }
+
+        if (!$appointment->relationLoaded('pet') || !$appointment->pet->relationLoaded('owner')) {
+            $appointment->load('pet.owner');
+        }
+
+        $phoneNumber = $appointment->pet->owner->own_contactnum ?? null;
+        if (!$phoneNumber) {
+            Log::warning("No phone number found for appointment {$appointment->appoint_id}");
+            return false;
+        }
+
+        $message = $this->createAutoCancelMessage($appointment, $reason);
+        $result  = $this->sendSMS($phoneNumber, $message);
+
+        return $result['success'] ?? false;
     }
 
-    // Load the pet and owner relationships if not already loaded
-    if (!$appointment->relationLoaded('pet') || !$appointment->pet->relationLoaded('owner')) {
-        $appointment->load('pet.owner');
+    /**
+     * Create SMS message for referral to another branch
+     */
+    private function createReferralMessage($appointment, $referral)
+    {
+        $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
+        $petName = $appointment->pet->pet_name ?? 'your pet';
+        $appointDate = \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y');
+        $appointTime = \Carbon\Carbon::parse($appointment->appoint_time)->format('g:i A');
+        
+        $fromBranch = $referral->refByBranch->branch_name ?? 'our clinic';
+        $toBranch = $referral->refToBranch->branch_name ?? 'another branch';
+        $toBranchAddress = $referral->refToBranch->branch_address ?? 'Please contact us for address';
+        $toBranchContact = $referral->refToBranch->branch_contactNum ?? '';
+        
+        $message = "Hello {$ownerName},\n\n"
+                 . "{$petName}'s appointment on {$appointDate} at {$appointTime} has been REFERRED from {$fromBranch} to:\n\n"
+                 . "Branch: {$toBranch}\n"
+                 . "Address: {$toBranchAddress}\n";
+        
+        if ($toBranchContact) {
+            $message .= "Contact: {$toBranchContact}\n";
+        }
+        
+        $message .= "\nReason: " . ($referral->ref_description ?? 'Specialized care required') . "\n\n"
+                  . "Please contact the referred branch to confirm your appointment.\n\n"
+                  . "- Pets 2Go Veterinary Clinic";
+        
+        return $message;
     }
 
-    $phoneNumber = $appointment->pet->owner->own_contactnum ?? null;
-    if (!$phoneNumber) {
-        Log::warning("No phone number found for appointment {$appointment->appoint_id}");
-        return false;
+    /**
+     * Create SMS message for AUTO appointment reschedule
+     */
+    private function createAutoRescheduleMessage($appointment, $originalDate, $originalTime)
+    {
+        $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
+        $petName = $appointment->pet->pet_name ?? 'your pet';
+        $newDate = \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y');
+        $newTime = \Carbon\Carbon::parse($appointment->appoint_time)->format('g:i A');
+        
+        return "Hello {$ownerName},\n\n"
+             . "{$petName}'s appointment has been rescheduled to {$newDate} at {$newTime}.\n\n"
+             . "Thank you!\n\n"
+             . "- Pets 2Go Veterinary Clinic";
     }
 
-    $message = $this->createReferralMessage($appointment, $referral);
-    $result  = $this->sendSMS($phoneNumber, $message);
+    /**
+     * Send auto-reschedule notification SMS
+     */
+    public function sendAutoRescheduleSMS($appointment, $originalDate, $originalTime)
+    {
+        if (!$this->isActive) {
+            return false;
+        }
 
-    return $result['success'] ?? false;
-}
+        if (!$appointment->relationLoaded('pet') || !$appointment->pet->relationLoaded('owner')) {
+            $appointment->load('pet.owner');
+        }
 
-/**
- * Send SMS when appointment is auto-cancelled
- */
-public function sendAutoCancelSMS($appointment, $reason = 'exceeded grace period')
-{
-    if (!$this->config || empty($this->config->sms_api_key)) {
-        return false;
+        $phoneNumber = $appointment->pet->owner->own_contactnum ?? null;
+        if (!$phoneNumber) {
+            Log::warning("No phone number found for appointment {$appointment->appoint_id}");
+            return false;
+        }
+
+        $message = $this->createAutoRescheduleMessage($appointment, $originalDate, $originalTime);
+        $result  = $this->sendSMS($phoneNumber, $message);
+
+        return $result['success'] ?? false;
     }
 
-    // Load the pet and owner relationships if not already loaded
-    if (!$appointment->relationLoaded('pet') || !$appointment->pet->relationLoaded('owner')) {
-        $appointment->load('pet.owner');
+    /**
+     * Create SMS message for auto-cancelled appointment
+     */
+    private function createAutoCancelMessage($appointment, $reason)
+    {
+        $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
+        $petName = $appointment->pet->pet_name ?? 'your pet';
+        $originalDate = \Carbon\Carbon::parse($appointment->original_date ?? $appointment->appoint_date)->format('M d, Y');
+        
+        return "Hello {$ownerName},\n\n"
+             . "{$petName}'s appointment from {$originalDate} has been cancelled.\n\n"
+             . "Thank you!\n\n"
+             . "- Pets 2Go Veterinary Clinic";
     }
 
-    $phoneNumber = $appointment->pet->owner->own_contactnum ?? null;
-    if (!$phoneNumber) {
-        Log::warning("No phone number found for appointment {$appointment->appoint_id}");
-        return false;
+    /**
+     * Send SMS when appointment is completed
+     */
+    public function sendCompletionSMS($appointment)
+    {
+        if (!$this->isActive) {
+            return false;
+        }
+
+        if (!$appointment->relationLoaded('pet') || !$appointment->pet->relationLoaded('owner')) {
+            $appointment->load('pet.owner');
+        }
+
+        $phoneNumber = $appointment->pet->owner->own_contactnum ?? null;
+        if (!$phoneNumber) {
+            Log::warning("No phone number found for appointment {$appointment->appoint_id}");
+            return false;
+        }
+
+        $message = $this->createCompletionMessage($appointment);
+        $result  = $this->sendSMS($phoneNumber, $message);
+
+        return $result['success'] ?? false;
     }
 
-    $message = $this->createAutoCancelMessage($appointment, $reason);
-    $result  = $this->sendSMS($phoneNumber, $message);
-
-    return $result['success'] ?? false;
-}
-
-/**
- * Create SMS message for referral to another branch
- */
-private function createReferralMessage($appointment, $referral)
-{
-    $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
-    $petName = $appointment->pet->pet_name ?? 'your pet';
-    $appointDate = \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y');
-    $appointTime = \Carbon\Carbon::parse($appointment->appoint_time)->format('g:i A');
-    
-    // Get branch information
-    $fromBranch = $referral->refByBranch->branch_name ?? 'our clinic';
-    $toBranch = $referral->refToBranch->branch_name ?? 'another branch';
-    $toBranchAddress = $referral->refToBranch->branch_address ?? 'Please contact us for address';
-    $toBranchContact = $referral->refToBranch->branch_contactNum ?? '';
-    
-    $message = "Hello {$ownerName},\n\n"
-             . "{$petName}'s appointment on {$appointDate} at {$appointTime} has been REFERRED from {$fromBranch} to:\n\n"
-             . "Branch: {$toBranch}\n"
-             . "Address: {$toBranchAddress}\n";
-    
-    if ($toBranchContact) {
-        $message .= "Contact: {$toBranchContact}\n";
+    /**
+     * Create SMS message for completed appointment
+     */
+    private function createCompletionMessage($appointment)
+    {
+        $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
+        $petName = $appointment->pet->pet_name ?? 'your pet';
+        $appointDate = \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y');
+        
+        return "Hello {$ownerName},\n\n"
+             . "{$petName}'s appointment on {$appointDate} has been COMPLETED.\n\n"
+             . "Thank you for choosing Pets 2Go Veterinary Clinic. We hope to see you again soon!\n\n"
+             . "- Pets 2Go Veterinary Clinic";
     }
-    
-    $message .= "\nReason: " . ($referral->ref_description ?? 'Specialized care required') . "\n\n"
-              . "Please contact the referred branch to confirm your appointment.\n\n"
-              . "- Pets 2Go Veterinary Clinic";
-    
-    return $message;
-}
-
-/**
- * Create SMS message for AUTO appointment reschedule (from missed appointments)
- */
-private function createAutoRescheduleMessage($appointment, $originalDate, $originalTime)
-{
-    $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
-    $petName = $appointment->pet->pet_name ?? 'your pet';
-    $newDate = \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y');
-    $newTime = \Carbon\Carbon::parse($appointment->appoint_time)->format('g:i A');
-    
-    // SIMPLIFIED MESSAGE - Less likely to trigger spam filters
-    return "Hello {$ownerName},\n\n"
-         . "{$petName}'s appointment has been rescheduled to {$newDate} at {$newTime}.\n\n"
-         . "Thank you!\n\n"
-         . "- Pets 2Go Veterinary Clinic";
-}
-/**
- * Send auto-reschedule notification SMS (from missed appointments)
- */
-public function sendAutoRescheduleSMS($appointment, $originalDate, $originalTime)
-{
-    if (!$this->config || empty($this->config->sms_api_key)) {
-        return false;
-    }
-
-    // Load the pet and owner relationships if not already loaded
-    if (!$appointment->relationLoaded('pet') || !$appointment->pet->relationLoaded('owner')) {
-        $appointment->load('pet.owner');
-    }
-
-    $phoneNumber = $appointment->pet->owner->own_contactnum ?? null;
-    if (!$phoneNumber) {
-        Log::warning("No phone number found for appointment {$appointment->appoint_id}");
-        return false;
-    }
-
-    $message = $this->createAutoRescheduleMessage($appointment, $originalDate, $originalTime);
-    $result  = $this->sendSMS($phoneNumber, $message);
-
-    return $result['success'] ?? false;
-}
-
-/**
- * Create SMS message for auto-cancelled appointment
- */
-/**
- * Create SMS message for auto-cancelled appointment
- */
-private function createAutoCancelMessage($appointment, $reason)
-{
-    $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
-    $petName = $appointment->pet->pet_name ?? 'your pet';
-    $originalDate = \Carbon\Carbon::parse($appointment->original_date ?? $appointment->appoint_date)->format('M d, Y');
-    
-    // SIMPLIFIED MESSAGE
-    return "Hello {$ownerName},\n\n"
-         . "{$petName}'s appointment from {$originalDate} has been cancelled.\n\n"
-         . "Thank you!\n\n"
-         . "- Pets 2Go Veterinary Clinic";
-}
-
-/**
- * Send SMS when appointment is completed
- */
-public function sendCompletionSMS($appointment)
-{
-    if (!$this->config || empty($this->config->sms_api_key)) {
-        return false;
-    }
-
-    // Load the pet and owner relationships if not already loaded
-    if (!$appointment->relationLoaded('pet') || !$appointment->pet->relationLoaded('owner')) {
-        $appointment->load('pet.owner');
-    }
-
-    $phoneNumber = $appointment->pet->owner->own_contactnum ?? null;
-    if (!$phoneNumber) {
-        Log::warning("No phone number found for appointment {$appointment->appoint_id}");
-        return false;
-    }
-
-    $message = $this->createCompletionMessage($appointment);
-    $result  = $this->sendSMS($phoneNumber, $message);
-
-    return $result['success'] ?? false;
-}
-
-/**
- * Create SMS message for completed appointment
- */
-private function createCompletionMessage($appointment)
-{
-    $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
-    $petName = $appointment->pet->pet_name ?? 'your pet';
-    $appointDate = \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y');
-    
-    return "Hello {$ownerName},\n\n"
-         . "{$petName}'s appointment on {$appointDate} has been COMPLETED.\n\n"
-         . "Thank you for choosing Pets 2Go Veterinary Clinic. We hope to see you again soon!\n\n"
-         . "- Pets 2Go Veterinary Clinic";
-}
-
 }

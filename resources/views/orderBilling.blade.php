@@ -5,21 +5,21 @@
     // Define permissions for each role
     $permissions = [
         'superadmin' => [
-            'view_billing' => true,
+            'view_billing' => false,
             'print_billing' => true,
             'delete_billing' => true,
             'view_pos_sales' => true,
             'print_pos_sales' => true,
         ],
         'veterinarian' => [
-            'view_billing' => true,
+            'view_billing' => false,
             'print_billing' => true,
             'delete_billing' => false,
             'view_pos_sales' => true,
             'print_pos_sales' => true,
         ],
         'receptionist' => [
-            'view_billing' => true,
+            'view_billing' => false,
             'print_billing' => true,
             'delete_billing' => false,
             'view_pos_sales' => true,
@@ -195,7 +195,7 @@
                                 <td class="px-4 py-2 border">{{ \Carbon\Carbon::parse($billing->bill_date)->format('M d, Y') }}</td>
                                 <td class="px-4 py-2 border text-center">
     <div class="flex justify-center items-center gap-1">
-        <!-- View Button -->
+        <!-- View Button 
         <button onclick="viewBilling(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="view"
             data-bill-id="{{ $billing->bill_id }}"
             data-owner="{{ $billing->appointment?->pet?->owner?->own_name ?? 'N/A' }}"
@@ -213,7 +213,13 @@
             data-branch-address="{{ $billing->appointment?->branch?->branch_address ?? 'Branch Address' }}"
             data-branch-contact="{{ $billing->appointment?->branch?->branch_contactNum ?? 'Contact Number' }}">
             <i class="fas fa-eye"></i>
-        </button>
+        </button>-->
+        
+
+        <button onclick="window.location.href='{{ route('sales.billing.show', $billing->bill_id) }}'" 
+        class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs">
+    <i class="fas fa-eye"></i>
+</button>
 
         @if(hasPermission('print_billing', $can))
             <!-- Direct Print Button -->

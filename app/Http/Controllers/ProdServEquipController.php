@@ -16,13 +16,22 @@ use Carbon\Carbon;
 
 class ProdServEquipController extends Controller
 {
-    // Show all tabs
     public function index()
     {
-        $products = Product::with('branch')->get();
+        $activeBranchId = session('active_branch_id');
+        $user = auth()->user();
+        
+        if ($user->user_role !== 'superadmin') {
+            $activeBranchId = $user->branch_id;
+        }
+
+        $products = Product::with('branch')
+            ->where('branch_id', $activeBranchId)
+            ->get();
+        
+        $services = Service::where('branch_id', $activeBranchId)->get();
+        $equipment = Equipment::where('branch_id', $activeBranchId)->get();
         $branches = Branch::all();
-        $services = Service::all();
-        $equipment = Equipment::all();
 
         return view('prodServEquip', compact('products', 'branches', 'services', 'equipment'));
     }

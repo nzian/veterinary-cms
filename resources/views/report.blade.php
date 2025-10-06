@@ -457,7 +457,7 @@
         left: 0;
         right: 0;
         background-color: #f88e28 !important;
-        padding: 10px;
+        padding: 0.5px;
         margin: 0;
         width: 100%;
         z-index: 1000;

@@ -21,19 +21,57 @@ class DashboardController extends Controller
     public function index()
     {
         $today = Carbon::today();
-        $selectedBranchId = Session::get('selected_branch_id');
+        $user = auth()->user();
+        
+        // Get active branch ID
+        $activeBranchId = session('active_branch_id');
+        
+        // If not super admin, force their branch
+        if ($user->user_role !== 'superadmin') {
+            $activeBranchId = $user->branch_id;
+        }
 
-        $activeBranch = Branch::find($selectedBranchId);
-        $branchName = $activeBranch ? $activeBranch->branch_name : 'Main Branch';
+        // Set user info
+        $userName = $user->name ?? $user->user_name ?? $user->email ?? 'User';
+        $userRole = $user->user_role ?? 'user';
+
+        // Get branch name - FIXED: Only set once
+        $activeBranch = Branch::find($activeBranchId);
+        $branchName = $activeBranch ? $activeBranch->branch_name : 'All Branches';
+
+        // Filter data by branch
+        $totalPets = Pet::whereHas('owner', function($q) use ($activeBranchId) {
+            $q->whereHas('pets.appointments', function($q2) use ($activeBranchId) {
+                $q2->whereHas('user', function($q3) use ($activeBranchId) {
+                    $q3->where('branch_id', $activeBranchId);
+                });
+            });
+        })->count();
+        
+        $totalServices = Service::where('branch_id', $activeBranchId)->count();
+        $totalProducts = Product::where('branch_id', $activeBranchId)->count();
+        
+        // Filter appointments by user's branch
+        $totalAppointments = Appointment::whereHas('user', function($q) use ($activeBranchId) {
+            $q->where('branch_id', $activeBranchId);
+        })->count();
+        
+        $todaysAppointments = Appointment::whereDate('appoint_date', $today)
+            ->whereHas('user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            })->count();
+
+        // Filter orders by branch
+        $dailySales = Order::whereDate('ord_date', $today)
+            ->whereHas('user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            })->sum('ord_total');
+
+        // REMOVED DUPLICATE CODE - The lines below were overwriting your variables
 
         // Metrics
-        $totalPets = Pet::count();
-        $totalServices = Service::count();
-        $totalProducts = Product::count();
         $totalOrders = Order::count();
         $totalBranches = Branch::count();
-        $totalAppointments = Appointment::count();
-        $todaysAppointments = Appointment::whereDate('appoint_date', $today)->count();
         $totalOwners = Owner::count();
 
         // Recent Appointments
@@ -41,9 +79,6 @@ class DashboardController extends Controller
             ->orderBy('appoint_date', 'desc')
             ->limit(5)
             ->get();
-
-        // Daily Sales
-        $dailySales = Order::whereDate('ord_date', $today)->sum('ord_total');
 
         // 7-Day Sales
         $orderDates = [];
@@ -81,7 +116,7 @@ class DashboardController extends Controller
             ->map(function ($group) {
                 return $group->map(function ($item) {
                     return [
-                       'id' => $item->appoint_id, // Changed from $item->id to $item->appoint_id
+                       'id' => $item->appoint_id,
                         'pet_id' => $item->pet_id,
                         'title' => ($item->appoint_type ?? 'Checkup') . ' - ' . ($item->pet->pet_name ?? 'Unknown'),
                         'pet_name' => $item->pet->pet_name ?? 'Unknown Pet',
@@ -103,14 +138,6 @@ class DashboardController extends Controller
             ->latest('ref_date')
             ->take(5)
             ->get();
-        
-        $recentAppointments = Appointment::with([
-            'pet.owner',
-            'user.branch'
-        ])
-        ->latest('appoint_date')
-        ->take(5)
-        ->get();
 
         $branches = Branch::all();
 
@@ -133,7 +160,9 @@ class DashboardController extends Controller
             'totalOwners',
             'appointments',
             'recentReferrals',
-            'recentAppointments'
+            'activeBranchId',
+            'userName',
+            'userRole'
         ));
     }
 }

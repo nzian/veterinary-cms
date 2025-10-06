@@ -205,21 +205,22 @@
 @endif
 
 
-    <!-- Search Section -->
-    <form method="GET" action="{{ route('pets-index') }}" class="flex-1 mx-6 relative">
-      <div class="relative group">
-        <input type="text" name="search" value="{{ request('search') }}"
-          class="w-full h-11 rounded-xl modern-search px-4 pr-12 text-sm text-gray-700 placeholder:text-gray-400 smooth-transition"
-          placeholder="Search pets, owners, appointments..." />
-        <button type="submit"
-          class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#0f7ea0] smooth-transition">
-          <i class="fas fa-search text-lg"></i>
-        </button>
-        <div
-          class="absolute inset-0 rounded-xl bg-gradient-to-r from-[#0f7ea0]/20 to-transparent opacity-0 group-hover:opacity-100 smooth-transition pointer-events-none">
-        </div>
-      </div>
-    </form>
+   <!-- Global Search Section -->
+<form method="GET" action="{{ route('global.search') }}" class="flex-1 mx-6 relative">
+  <div class="relative group">
+    <input type="text" name="search" value="{{ request('search') }}"
+      class="w-full h-11 rounded-xl modern-search px-4 pr-12 text-sm text-gray-700 placeholder:text-gray-400 smooth-transition"
+      placeholder="Search pets, owners, appointments, products, services..." />
+    <button type="submit"
+      class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#0f7ea0] smooth-transition">
+      <i class="fas fa-search text-lg"></i>
+    </button>
+    <div
+      class="absolute inset-0 rounded-xl bg-gradient-to-r from-[#0f7ea0]/20 to-transparent opacity-0 group-hover:opacity-100 smooth-transition pointer-events-none">
+    </div>
+  </div>
+</form>
+
 
    <!-- Notifications -->
 <div class="relative mr-4">
@@ -376,13 +377,13 @@
           ['route' => 'medical.index', 'icon' => 'fa-stethoscope', 'label' => 'Medical Management'],
           ['route' => 'sales.index', 'icon' => 'fa-cash-register', 'label' => 'Sales Management'],
           ['route' => 'report.index', 'icon' => 'fa-chart-bar', 'label' => 'Reports'],
-          ['route' => 'sms-settings.index', 'icon' => 'fa-cog', 'label' => 'Settings'], 
+       
         ],
         'veterinarian' => [
           ['route' => 'dashboard-index', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
           ['route' => 'pet-management.index', 'icon' => 'fa-paw', 'label' => 'Pet Management'],
           ['route' => 'medical.index', 'icon' => 'fa-stethoscope', 'label' => 'Medical Management'],
-          ['route' => 'report.index', 'icon' => 'fa-chart-bar', 'label' => 'Reports'],
+          ['route' => 'branch-reports.index', 'icon' => 'fa-chart-line', 'label' => 'Branch Reports'],
         ],
         'receptionist' => [
           ['route' => 'dashboard-index', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
@@ -390,7 +391,7 @@
           ['route' => 'pet-management.index', 'icon' => 'fa-paw', 'label' => 'Pet Management'],
           ['route' => 'medical.index', 'icon' => 'fa-stethoscope', 'label' => 'Medical Management'],
           ['route' => 'sales.index', 'icon' => 'fa-cash-register', 'label' => 'Sales Management'],
-          ['route' => 'report.index', 'icon' => 'fa-chart-bar', 'label' => 'Reports'],
+          ['route' => 'branch-reports.index', 'icon' => 'fa-chart-line', 'label' => 'Branch Reports'],
         ],
       ];
       
@@ -422,28 +423,6 @@
     @endif
   </ul>
 </nav>
-      
-    <div class="p-3 border-t border-white/10">
-  <a href="{{ route('sms-settings.index') }}"
-     class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group w-full hover:bg-white/10 {{ request()->routeIs('sms-settings.*') ? 'bg-white/10' : '' }}">
-    <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition {{ request()->routeIs('sms-settings.*') ? 'bg-[#0f7ea0]' : '' }}">
-      <i class="fas fa-cog text-lg"></i>
-    </div>
-    <span class="hidden md:inline font-medium">Settings</span>
-  </a>
-</div>
-
-  <!--     Settings 
-      <div class="p-3 border-t border-white/10">
-        <button
-          class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group w-full hover:bg-white/10">
-          <div
-            class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-            <i class="fas fa-cog text-lg"></i>
-          </div>
-          <span class="hidden md:inline font-medium">Settings</span>
-        </button>
-      </div>-->
     </aside>
 
     <!-- MAIN CONTENT -->

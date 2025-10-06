@@ -2,57 +2,43 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\BranchController;
-use App\Http\Controllers\POSController;
-use App\Http\Controllers\AdminController;
-use App\Http\Controllers\LoginController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\ReferralController;
-use App\Http\Controllers\OwnerController;
-use App\Http\Controllers\PetController;
-use App\Http\Controllers\AppointmentController;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\OrderController;
-use App\Http\Controllers\BillingController;
-use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\ReportController;
-use App\Http\Controllers\RegisterController;
 use App\Http\Controllers\UserManagementController;
-use App\Http\Controllers\PrescriptionController;
 use App\Http\Controllers\PetManagementController;
 use App\Http\Controllers\BranchManagementController;
 use App\Http\Controllers\SalesManagementController;
 
 
-// Register
-
-
-
 Route::get('/', function () {
     return redirect('/login');
 });
-
+//Register
+use App\Http\Controllers\RegisterController;
 Route::get('/register', [RegisterController::class, 'showRegistrationForm'])->name('register');
 Route::post('/register', [RegisterController::class, 'register'])->name('register.submit');
 
 // Login 
+use App\Http\Controllers\LoginController;
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 // Reset Pass
+use App\Http\Controllers\PasswordResetController;
 Route::get('/reset-password', [PasswordResetController::class, 'showResetForm'])->name('password.reset');
 Route::post('/reset-password', [PasswordResetController::class, 'update'])->name('password.update');
 
 //Layout
+use App\Http\Controllers\AdminController;
 Route::get('/admin', [AdminController::class, 'AdminBoard']);
 Route::get('/dashboard', [dashboardController::class, 'index'])->name('dashboard-index');
 //Route::get('/select-branch', [BranchController::class, 'select'])->name('select-branch');
-
 Route::get('/user-management', [UserManagementController::class, 'index'])->name('userManagement.index');
 
-
 // POS Routes
+use App\Http\Controllers\POSController;
 Route::get('/pos', [POSController::class, 'index'])->name('pos');
 Route::post('/pos', [POSController::class, 'store'])->name('pos.store'); 
 Route::post('/pos/pay-billing/{billingId}', [POSController::class, 'payBilling'])->name('pos.pay-billing'); // Pay existing bills
@@ -73,8 +59,6 @@ Route::get('/sales/daily', [OrderController::class, 'dailySales'])->name('sales.
 
 
 use App\Http\Controllers\ProdServEquipController;
-
-// Main page showing all 4 tabs
 Route::get('/prodservequip', [ProdServEquipController::class, 'index'])->name('prodservequip.index');
 // Product routes
 Route::get('/product', [ProductController::class, 'index'])->name('product-index');
@@ -82,50 +66,45 @@ Route::post('/products', [ProdServEquipController::class, 'storeProduct'])->name
 Route::put('/products/{id}', [ProdServEquipController::class, 'updateProduct'])->name('products.update');
 Route::delete('/products/{id}', [ProdServEquipController::class, 'deleteProduct'])->name('products.destroy');
 Route::get('/products/search', [ProductController::class, 'searchProducts'])->name('products.search');
+Route::get('/products/{id}/view', [ProdServEquipController::class, 'viewProduct'])->name('products.view');
 // Service routes
 Route::get('/services', [ServiceController::class, 'index'])->name('services-index');
 Route::post('/services', [ProdServEquipController::class, 'storeService'])->name('services.store');
 Route::put('/services/{id}', [ProdServEquipController::class, 'updateService'])->name('services.update');
 Route::delete('/services/{id}', [ProdServEquipController::class, 'deleteService'])->name('services.destroy');
+Route::get('/services/{id}/view', [ProdServEquipController::class, 'viewService']);
+Route::get('/services/{id}/history', [ProdServEquipController::class, 'viewServiceHistory']);
 
 // Equipment routes
 Route::post('/equipment', [ProdServEquipController::class, 'storeEquipment'])->name('equipment.store');
 Route::put('/equipment/{id}', [ProdServEquipController::class, 'updateEquipment'])->name('equipment.update');
 Route::delete('/equipment/{id}', [ProdServEquipController::class, 'deleteEquipment'])->name('equipment.destroy');
+Route::get('/equipment/{id}/view', [ProdServEquipController::class, 'viewEquipment']);
 
 // Inventory route
 Route::put('/inventory/{id}', [ProdServEquipController::class, 'updateInventory'])->name('inventory.update');
-// In your routes/web.php
+Route::get('/inventory/{id}/history', [ProdServEquipController::class, 'viewInventoryHistory'])->name('inventory.history');
 Route::put('/inventory/update-stock/{id}', [ProdServEquipController::class, 'updateStock'])->name('inventory.updateStock');
 Route::put('/inventory/update-damage/{id}', [ProdServEquipController::class, 'updateDamage'])->name('inventory.updateDamage');
-
-Route::get('/products/{id}/view', [ProdServEquipController::class, 'viewProduct'])->name('products.view');
-Route::get('/services/{id}/view', [ProdServEquipController::class, 'viewService'])->name('services.view');
-Route::get('/equipment/{id}/view', [ProdServEquipController::class, 'viewEquipment'])->name('equipment.view');
-Route::get('/inventory/{id}/history', [ProdServEquipController::class, 'viewInventoryHistory'])->name('inventory.history');
-
-Route::get('/services/{id}/view', [ProdServEquipController::class, 'viewService']);
-Route::get('/equipment/{id}/view', [ProdServEquipController::class, 'viewEquipment']);
-Route::get('/services/{id}/history', [ProdServEquipController::class, 'viewServiceHistory']);
 Route::get('/equipment/{id}/history', [ProdServEquipController::class, 'viewEquipmentHistory']);
 
 use App\Http\Controllers\MedicalManagementController;
-
-
-
 Route::prefix('medical-management')->group(function () {
-    // Main unified medical management route
     Route::get('/', [MedicalManagementController::class, 'index'])->name('medical.index');
     
     // Appointment routes
-    Route::post('/appointments', [MedicalManagementController::class, 'storeAppointment'])->name('medical.appointments.store');
-    
+    Route::post('/appointments', [MedicalManagementController::class, 'storeAppointment'])->name('medical.appointments.store'); 
     Route::put('/appointments/{appointment}', [MedicalManagementController::class, 'updateAppointment'])->name('medical.appointments.update');
     Route::delete('/appointments/{id}', [MedicalManagementController::class, 'destroyAppointment'])->name('medical.appointments.destroy');
     Route::get('/appointments/{id}/details', [MedicalManagementController::class, 'getAppointmentDetails'])->name('medical.appointments.details');
     Route::get('/appointments/{id}', [MedicalManagementController::class, 'showAppointment'])->name('medical.appointments.show');
     Route::get('/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])->name('medical.appointments.show');
-    
+    Route::get('/medical-management/appointments/{id}/for-prescription', [MedicalManagementController::class, 'getAppointmentForPrescription'])
+    ->name('medical.appointments.for-prescription');
+     Route::put('/medical-management/appointments/{id}', [YourController::class, 'update'])->name('medical.appointments.update');
+    Route::get('/medical-management/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])
+    ->name('medical.appointments.show');
+
 
     // Prescription routes
     Route::post('/prescriptions', [MedicalManagementController::class, 'storePrescription'])->name('medical.prescriptions.store');
@@ -134,29 +113,16 @@ Route::prefix('medical-management')->group(function () {
     Route::delete('/prescriptions/{id}', [MedicalManagementController::class, 'destroyPrescription'])->name('medical.prescriptions.destroy');
     Route::get('/prescriptions/search-products', [MedicalManagementController::class, 'searchProducts'])->name('medical.prescriptions.search-products');
     Route::get('/prescriptions/{id}/print', [MedicalManagementController::class, 'printPrescription'])->name('medical.prescriptions.print');
+    Route::get('/medical-management/prescriptions/{id}/edit', [MedicalManagementController::class, 'editPrescription'])
+    ->name('medical.prescriptions.edit');
 
-    // Referral routes - ADD THE MISSING GET ROUTE
+    // Referral routes 
     Route::get('/referrals', [MedicalManagementController::class, 'index'])->name('medical.referrals.index'); // ADD THIS LINE
     Route::post('/referrals', [MedicalManagementController::class, 'storeReferral'])->name('medical.referrals.store');
     Route::get('/referrals/{id}/edit', [MedicalManagementController::class, 'editReferral'])->name('medical.referrals.edit');
     Route::put('/referrals/{id}', [MedicalManagementController::class, 'updateReferral'])->name('medical.referrals.update');
     Route::get('/referrals/{id}', [MedicalManagementController::class, 'showReferral'])->name('medical.referrals.show');
     Route::delete('/referrals/{id}', [MedicalManagementController::class, 'destroyReferral'])->name('medical.referrals.destroy');
-
-    // Add these routes with your other medical management routes
-Route::get('/medical-management/prescriptions/{id}/edit', [MedicalManagementController::class, 'editPrescription'])
-    ->name('medical.prescriptions.edit');
-
-Route::get('/medical-management/appointments/{id}/for-prescription', [MedicalManagementController::class, 'getAppointmentForPrescription'])
-    ->name('medical.appointments.for-prescription');
-    Route::put('/medical-management/appointments/{id}', [YourController::class, 'update'])->name('medical.appointments.update');
- 
-    Route::get('/medical-management/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])
-    ->name('medical.appointments.show');
-
-
-
-
 });
 
 
@@ -186,7 +152,7 @@ Route::put('/owners/{id}', [OwnerController::class, 'update'])->name('owners.upd
 Route::delete('/owners/{id}', [OwnerController::class, 'destroy'])->name('owners.destroy');
 
 // Pets
-Route::get('/pets', [PetController::class, 'index'])->name('pets-index');
+Route::get('/pets', [PetManagementController::class, 'index'])->name('pets-index');
 //Route::post('/pets/store', [PetController::class, 'store'])->name('pets.store');
 Route::post('/pets', [PetController::class, 'store'])->name('pets.store');
 
@@ -224,11 +190,28 @@ Route::get('/reports/export', [ReportController::class, 'export'])->name('report
 Route::get('/reports/{reportType}/{recordId}/view', [ReportController::class, 'viewRecord'])->name('reports.viewRecord');
 Route::get('/reports/{reportType}/{recordId}', [ReportController::class, 'viewRecord'])->name('reports.view');
 
+
+use App\Http\Controllers\BranchReportController;
+Route::middleware(['auth'])->group(function() {
+    Route::get('/branch-reports', [BranchReportController::class, 'index'])
+        ->name('branch-reports.index');
+    
+    Route::get('/branch-reports/{type}/{id}', [BranchReportController::class, 'show'])
+        ->name('branch-reports.show');
+    
+    Route::get('/branch-reports/export', [BranchReportController::class, 'export'])
+        ->name('branch-reports.export');
+Route::get('/branch-reports/{reportType}/{id}/pdf', [BranchReportController::class, 'showDetailedPDF'])->name('branch-reports.pdf');
+        });
+    
+
 //billing
 Route::get('/billings', [BillingController::class, 'index'])->name('billing-index');
 Route::put('/billings/{id}', [BillingController::class, 'update'])->name('billings.update');
 Route::delete('/billings/{id}', [BillingController::class, 'destroy'])->name('billings.destroy');
 Route::post('/billing/pay/{bill}', [BillingController::class, 'payBilling'])->name('billing.pay');
+Route::get('/sales/billing/{id}', [SalesManagementController::class, 'showBilling'])->name('sales.billing.show');
+Route::get('/sales/billing/{id}/pdf', [SalesController::class, 'generateBillingPDF'])->name('sales.billing.pdf');
 
 Route::get('/prescriptions', [PrescriptionController::class, 'index'])->name('prescriptions.index');
 Route::post('/prescriptions', [PrescriptionController::class, 'store'])->name('prescriptions.store');
@@ -331,3 +314,7 @@ Route::post('/notifications/mark-all-read', function() {
     App\Services\NotificationService::markAllAsRead(auth()->id());
     return response()->json(['success' => true]);
 })->name('notifications.markAllRead');
+
+Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'index'])->name('global.search');
+Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'redirect'])->name('global.search');
+
