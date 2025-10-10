@@ -1097,7 +1097,7 @@ function openEditProductModal(data){
     fields += `</div>`;
     
     document.getElementById('productModalFields').innerHTML = fields;
-    document.getElementById('productModalForm').action = `{{ route('products.update', '') }}/${data.prod_id}`;
+    document.getElementById('productModalForm').action = `/products/${data.prod_id}`;
     
     // Add PUT method
     if(!document.querySelector('#productModalForm input[name="_method"]')){
@@ -1121,7 +1121,7 @@ function openUpdateStockModal(data){
     document.getElementById('productName').innerText = data.prod_name;
     
     let form = document.getElementById('updateStockForm');
-    form.action = `{{ route('inventory.updateStock', '') }}/${data.prod_id}`;
+    form.action = `/inventory/update-stock/${data.prod_id}`;
     form.querySelector('input[name=product_id]').value = data.prod_id;
     form.querySelector('input[name=reorder_level]').value = data.prod_reorderlevel || '';
 }
@@ -1138,7 +1138,7 @@ function openDamagePulloutModal(data){
     document.getElementById('damageCurrentStock').innerText = data.prod_stocks || 0;
     
     let form = document.getElementById('damagePulloutForm');
-    form.action = `{{ route('inventory.updateDamage', '') }}/${data.prod_id}`;
+    form.action = `/inventory/update-damage/${data.prod_id}`;
     form.querySelector('input[name=product_id]').value = data.prod_id;
     form.querySelector('input[name=damaged_qty]').value = data.prod_damaged || 0;
     form.querySelector('input[name=pullout_qty]').value = data.prod_pullout || 0;
@@ -1485,7 +1485,7 @@ function openEditModal(type, data){
                 <textarea name="serv_description" class="border p-2 w-full rounded" rows="3">${escapeHtml(data.serv_description || '')}</textarea>
             </div>`;
         
-        document.getElementById('generalModalForm').action = `{{ route('services.update', '') }}/${data.serv_id}`;
+        document.getElementById('generalModalForm').action = `/services/${data.serv_id}`;
         
     } else if(type === 'equipment'){
         fields = `
@@ -1526,7 +1526,7 @@ function openEditModal(type, data){
                 <textarea name="equipment_description" class="border p-2 w-full rounded" rows="3">${escapeHtml(data.equipment_description || '')}</textarea>
             </div>`;
         
-        document.getElementById('generalModalForm').action = `{{ route('equipment.update', '') }}/${data.equipment_id}`;
+        document.getElementById('generalModalForm').action = `/equipment/${data.equipment_id}`;
     }
     
     document.getElementById('generalModalFields').innerHTML = fields;
