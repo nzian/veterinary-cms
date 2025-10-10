@@ -453,7 +453,7 @@
 </div>
 
 {{-- Billing View Modal --}}
-<div id="viewBillingModal" class="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50 hidden no-print">
+<div id="viewBillingModal" class="fixed inset-0 flex justify-center items-center z-50 hidden no-print">
     <div class="bg-white w-full max-w-3xl p-0 rounded-lg shadow-lg relative max-h-[100vh] overflow-y-auto">
         <div id="billingContent" class="billing-container bg-white p-10">
             <div class="header flex items-center justify-between border-b-2 border-black pb-6 mb-6">

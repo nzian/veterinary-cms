@@ -477,21 +477,25 @@ function markAllAsRead() {
       const btn = document.getElementById('branchDropdownBtn');
       const menu = document.getElementById('branchDropdownMenu');
 
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        menu.classList.toggle('hidden');
-      });
+      if (btn && menu) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          menu.classList.toggle('hidden');
+        });
+      }
 
       // Close dropdowns when clicking outside
       document.addEventListener('click', function (e) {
-        if (!e.target.closest('#branchDropdownBtn')) {
+        if (menu && !e.target.closest('#branchDropdownBtn')) {
           menu.classList.add('hidden');
         }
         if (!e.target.closest('#notificationDropdown') && !e.target.closest('[onclick="toggleNotificationDropdown()"]')) {
-          document.getElementById('notificationDropdown').classList.add('hidden');
+          const nd = document.getElementById('notificationDropdown');
+          if (nd) nd.classList.add('hidden');
         }
         if (!e.target.closest('#userDropdown') && !e.target.closest('[onclick="toggleUserDropdown()"]')) {
-          document.getElementById('userDropdown').classList.add('hidden');
+          const ud = document.getElementById('userDropdown');
+          if (ud) ud.classList.add('hidden');
         }
       });
 
@@ -508,6 +512,33 @@ function markAllAsRead() {
           }, 500);
         });
       });
+
+      // Global modal protections:
+      // 1) Prevent clicks from reaching background when any modal is open
+      // 2) Lock page scroll while a modal is open
+      function hasOpenModal() {
+        // Treat any full-screen fixed element without the 'hidden' class as an open modal
+        return !!document.querySelector('.fixed:not(.hidden)');
+      }
+
+      // Capture-phase listener to stop background clicks while a modal is open
+      document.addEventListener('click', function (e) {
+        if (hasOpenModal()) {
+          const openModalEl = document.querySelector('.fixed:not(.hidden)');
+          if (openModalEl && !openModalEl.contains(e.target)) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }
+      }, true);
+
+      // Observe DOM changes to toggle body scroll lock when modals open/close
+      const modalObserver = new MutationObserver(() => {
+        document.body.classList.toggle('overflow-hidden', hasOpenModal());
+      });
+      modalObserver.observe(document.body, { attributes: true, childList: true, subtree: true });
+      // Initialize state on load
+      document.body.classList.toggle('overflow-hidden', hasOpenModal());
     });
 
     function toggleNotificationDropdown() {

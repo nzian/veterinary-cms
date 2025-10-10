@@ -16,6 +16,8 @@ class Owner extends Model
         'own_name',
         'own_contactnum', 
         'own_location',
+        'user_id',
+        'branch_id',
     ];
 
     public function pets()

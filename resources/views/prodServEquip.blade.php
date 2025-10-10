@@ -60,15 +60,15 @@
 <div class="min-h-screen">
     <div class="max-w-7xl mx-auto bg-white p-6 rounded-lg shadow">
         <!-- Main Tabs -->
-        <div class="border-b mb-4 flex space-x-4">
+        <div class="border-b border-gray-200 mb-6">
             <button onclick="switchMainTab('productInventoryTab')" id="productInventoryBtn" class="py-2 px-4 text-sm font-semibold border-b-2 border-[#0f7ea0] text-[#0f7ea0]">
-                <h2 class="font-bold text-xl">Products</h2>
+                <h2 class=" text-xl">Products</h2>
             </button>
             <button onclick="switchMainTab('servicesTab')" id="servicesBtn" class="py-2 px-4 text-sm font-semibold border-b-2 border-transparent hover:border-[#0f7ea0] hover:text-[#0f7ea0]">
-                <h2 class="font-bold text-xl">Services</h2>
+                <h2 class="text-xl">Services</h2>
             </button>
             <button onclick="switchMainTab('equipmentTab')" id="equipmentBtn" class="py-2 px-4 text-sm font-semibold border-b-2 border-transparent hover:border-[#0f7ea0] hover:text-[#0f7ea0]">
-                <h2 class="font-bold text-xl">Equipment</h2>
+                <h2 class="text-xl">Equipment</h2>
             </button>
         </div>
 
@@ -82,7 +82,19 @@
         <!-- PRODUCTS & INVENTORY TAB -->
         <div id="productInventoryTab" class="main-tab-content">
             <div class="flex justify-between items-center mb-4">
-    <h3 class="text-lg font-bold text-white">Product Management</h3>
+   <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
+        <input type="hidden" name="tab" value="products">
+        <label for="productsPerPage" class="text-sm text-black">Show</label>
+        <select name="productsPerPage" id="productsPerPage" onchange="this.form.submit()"
+            class="border border-gray-400 rounded px-2 py-1 text-sm">
+            @foreach ([10, 20, 50, 100, 'all'] as $limit)
+                <option value="{{ $limit }}" {{ request('productsPerPage') == $limit ? 'selected' : '' }}>
+                    {{ $limit === 'all' ? 'All' : $limit }}
+                </option>
+            @endforeach
+        </select>
+        <span>entries</span>
+    </form>
     <div class="flex gap-2">
         <button onclick="openInventoryOverview()" class="bg-purple-600 text-white text-sm px-4 py-2 rounded hover:bg-purple-700">
             📊 Inventory Overview
@@ -94,6 +106,7 @@
         @endif
     </div>
 </div>
+
 
             <!-- Products Table -->
             <div class="overflow-x-auto">
@@ -211,16 +224,59 @@
             </div>
         </div>
 
+        <!-- PRODUCTS TAB - Bottom Section with Page Navigation -->
+<div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+    <div>Showing {{ $products->firstItem() ?? 0 }} to {{ $products->lastItem() ?? 0 }} of {{ $products->total() }} entries</div>
+    <div class="inline-flex border border-gray-400 rounded overflow-hidden">
+        @if ($products->onFirstPage())
+            <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+        @else
+            <a href="{{ $products->appends(request()->query())->previousPageUrl() }}" class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+        @endif
+
+        @for ($i = 1; $i <= $products->lastPage(); $i++)
+            @if ($i == $products->currentPage())
+                <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+            @else
+                <a href="{{ $products->appends(request()->query())->url($i) }}" class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+            @endif
+        @endfor
+
+        @if ($products->hasMorePages())
+            <a href="{{ $products->appends(request()->query())->nextPageUrl() }}" class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+        @else
+            <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+        @endif
+    </div>
+</div>
+
         <!-- SERVICES TAB -->
         <div id="servicesTab" class="main-tab-content hidden">
-            <div class="flex justify-between items-center mb-4">
-    <h3 class="text-lg font-bold text-white">Service Management</h3>
+            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+    <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
+        <input type="hidden" name="tab" value="services">
+        <label for="servicesPerPage" class="text-sm text-black">Show</label>
+        <select name="servicesPerPage" id="servicesPerPage" onchange="this.form.submit()"
+            class="border border-gray-400 rounded px-2 py-1 text-sm">
+            @foreach ([10, 20, 50, 100, 'all'] as $limit)
+                <option value="{{ $limit }}" {{ request('servicesPerPage') == $limit ? 'selected' : '' }}>
+                    {{ $limit === 'all' ? 'All' : $limit }}
+                </option>
+            @endforeach
+        </select>
+        <span>entries</span>
+    </form> 
+    <div class="flex gap-2">
     @if(hasPermission('add_service', $can))
         <button onclick="openAddModal('service')" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
             + Add Service
         </button>
     @endif
 </div>
+</div>
+
+<br>
+
             <div class="overflow-x-auto">
                 <table class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
@@ -270,10 +326,25 @@
             </div>
         </div>
 
+
+
         <!-- EQUIPMENT TAB -->
         <div id="equipmentTab" class="main-tab-content hidden">
-            <div class="flex justify-between items-center mb-4">
-    <h3 class="text-lg font-bold text-white">Equipment Management</h3>
+   <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+    <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
+        <input type="hidden" name="tab" value="equipment">
+        <label for="equipmentPerPage" class="text-sm text-black">Show</label>
+        <select name="equipmentPerPage" id="equipmentPerPage" onchange="this.form.submit()"
+            class="border border-gray-400 rounded px-2 py-1 text-sm">
+            @foreach ([10, 20, 50, 100, 'all'] as $limit)
+                <option value="{{ $limit }}" {{ request('equipmentPerPage') == $limit ? 'selected' : '' }}>
+                    {{ $limit === 'all' ? 'All' : $limit }}
+                </option>
+            @endforeach
+        </select>
+        <span>entries</span>
+    </form>
+
     @if(hasPermission('add_equipment', $can))
         <button onclick="openAddModal('equipment')" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
             + Add Equipment
@@ -339,6 +410,9 @@
         </div>
     </div>
 </div>
+
+
+
 
 <!-- INVENTORY OVERVIEW MODAL -->
 <div id="inventoryModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">

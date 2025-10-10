@@ -16,25 +16,53 @@ use Carbon\Carbon;
 
 class ProdServEquipController extends Controller
 {
-    public function index()
-    {
-        $activeBranchId = session('active_branch_id');
-        $user = auth()->user();
-        
-        if ($user->user_role !== 'superadmin') {
-            $activeBranchId = $user->branch_id;
-        }
+   public function index(Request $request)
+{
+    $activeBranchId = session('active_branch_id');
+    $user = auth()->user();
 
-        $products = Product::with('branch')
-            ->where('branch_id', $activeBranchId)
-            ->get();
-        
-        $services = Service::where('branch_id', $activeBranchId)->get();
-        $equipment = Equipment::where('branch_id', $activeBranchId)->get();
-        $branches = Branch::all();
-
-        return view('prodServEquip', compact('products', 'branches', 'services', 'equipment'));
+    // If not superadmin, force their branch
+    if ($user->user_role !== 'superadmin') {
+        $activeBranchId = $user->branch_id;
     }
+
+    // Pagination handling
+    $productsPerPage = $request->get('productsPerPage', 10);
+    $servicesPerPage = $request->get('servicesPerPage', 10);
+    $equipmentPerPage = $request->get('equipmentPerPage', 10);
+
+    $productsPerPage = $productsPerPage === 'all' ? PHP_INT_MAX : (int)$productsPerPage;
+    $servicesPerPage = $servicesPerPage === 'all' ? PHP_INT_MAX : (int)$servicesPerPage;
+    $equipmentPerPage = $equipmentPerPage === 'all' ? PHP_INT_MAX : (int)$equipmentPerPage;
+
+    // Products
+    $products = Product::with('branch')
+        ->when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
+            $query->where('branch_id', $activeBranchId);
+        })
+        ->paginate($productsPerPage, ['*'], 'productsPage')
+        ->appends($request->except('productsPage'));
+
+    // ✅ Services — show all if superadmin
+    $services = Service::when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
+            $query->where('branch_id', $activeBranchId);
+        })
+        ->paginate($servicesPerPage, ['*'], 'servicesPage')
+        ->appends($request->except('servicesPage'));
+
+    // Equipment
+    $equipment = Equipment::when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
+            $query->where('branch_id', $activeBranchId);
+        })
+        ->paginate($equipmentPerPage, ['*'], 'equipmentPage')
+        ->appends($request->except('equipmentPage'));
+
+    $branches = Branch::all();
+
+    return view('prodServEquip', compact('products', 'branches', 'services', 'equipment'));
+}
+
+
 
     // -------------------- PRODUCT VIEW DETAILS --------------------
     public function viewProduct($id)

@@ -10,27 +10,46 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Report Type</label>
                     <select name="report" id="reportSelect" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        @php
-                            $reportOptions = [
-                            'appointments' => 'Appointment Management',
-                            'pets' => 'Pet Registration',
-                            'billing' => 'Financial Billing',
-                            'sales' => 'Product Sales',
-                            'medical' => 'Medical History',
-                            'services' => 'Service Availability',
-                            'staff' => 'Staff Assignment',
-                            'inventory' => 'Inventory Status',
-                            'revenue' => 'Revenue Analysis',
-                            'branch_performance' => 'Branch Performance',
-                            'prescriptions' => 'Prescription Report', 
-                            'referrals' => 'Referral Report', 
-                            'equipment' => 'Equipment Inventory', 
-                        ];
-                        @endphp
-                        @foreach($reportOptions as $key => $label)
-                            <option value="{{ $key }}" {{ $reportType === $key ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
+    @php
+        $reportOptions = [
+            // Main Reports
+            'appointments' => 'Appointment Management',
+            'owner_pets' => 'Pet Owner and Their Pets',
+            'appointment_billing' => 'Appointment with Billing & Payment',
+            'product_purchases' => 'Product Purchase Report',
+            'referrals' => 'Inter-Branch Referrals',
+            
+            // Service & Scheduling Reports
+            'service_appointments' => 'Services in Appointments',
+            'branch_appointments' => 'Branch Appointment Schedule',
+            'multi_service_appointments' => 'Multiple Services Appointments',
+            
+            // Financial Reports
+            'billing_orders' => 'Billing with Orders',
+            'product_sales' => 'Product Sales by User',
+            'payment_collection' => 'Payment Collection Report',
+            'branch_payments' => 'Branch Payment Summary',
+            
+            // Medical Reports
+            'medical_history' => 'Medical History & Follow-Ups',
+            'prescriptions' => 'Prescriptions by Branch',
+            'referral_medical' => 'Referrals with Medical History',
+            
+            // Staff & Branch Reports
+            'branch_users' => 'Users Assigned per Branch',
+            
+            // Inventory & Equipment Reports
+            'branch_equipment' => 'Branch Equipment Summary',
+            'damaged_products' => 'Damaged/Pullout Products',
+            
+            // Utilization Reports
+            'service_utilization' => 'Service Utilization per Branch',
+        ];
+    @endphp
+    @foreach($reportOptions as $key => $label)
+        <option value="{{ $key }}" {{ $reportType === $key ? 'selected' : '' }}>{{ $label }}</option>
+    @endforeach
+</select>
                 </div>
 
                 <div>
@@ -194,10 +213,10 @@
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $record->pet_breed }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $record->branch_name }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                <div>{{ \Carbon\Carbon::parse($record->appointment_date)->format('M d, Y') }}</div>
-                                                <div class="text-gray-500 text-xs">{{ \Carbon\Carbon::parse($record->appointment_time)->format('h:i A') }}</div>
+                                                <div>{{ \Carbon\Carbon::parse($record->appoint_date)->format('M d, Y') }}</div>
+                                                <div class="text-gray-500 text-xs">{{ \Carbon\Carbon::parse($record->appoint_time)->format('h:i A') }}</div>
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $record->veterinarian }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $record->user_name ?? 'N/A' }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 @php
                                                     $statusClass = match(strtolower($record->status)) {
@@ -279,9 +298,9 @@
                                         @elseif($reportType == 'referrals')
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $record->ref_id }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ \Carbon\Carbon::parse($record->ref_date)->format('M d, Y') }}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $record->owner_name }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $record->own_name }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $record->pet_name }}</td>
-                                            <td class="px-6 py-4 text-sm text-gray-900 max-w-xs truncate" title="{{ $record->referral_reason }}">{{ Str::limit($record->referral_reason, 50) }}</td>
+                                            <td class="px-6 py-4 text-sm text-gray-900 max-w-xs truncate" title="{{ $record->ref_description }}">{{ Str::limit($record->ref_description, 50) }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $record->referred_by }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $record->referred_to }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -389,7 +408,7 @@
     </div>
 </div>
 <!-- Universal Record Details Modal (including Referrals) -->
-<div id="recordModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+<div id="recordModal" class="fixed inset-0 hidden z-50">
     <div class="flex items-center justify-center min-h-screen p-4">
         <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <!-- Header Section with Full Width Orange Background Container -->
@@ -728,28 +747,9 @@ function printReport() {
 }
 
 function viewRecordDetails(reportType, recordId) {
-    console.log('Viewing details for:', reportType, recordId);
-    
-    fetch(`/reports/${reportType}/${recordId}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data) {
-                showRecordModal(data, reportType);
-            } else {
-                alert('Record details not found');
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching record details:', error);
-            alert('Error loading record details: ' + error.message);
-        });
+    // Open PDF in new tab
+    window.open(`/reports/${reportType}/${recordId}/pdf`, '_blank');
 }
-
 function showRecordModal(data, reportType) {
     const modal = document.getElementById('recordModal');
     const title = document.getElementById('modalTitle');
@@ -784,7 +784,7 @@ function showRecordModal(data, reportType) {
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <p class="text-xs text-gray-500 uppercase">Owner Name</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.own_name || 'N/A'}</p>
+                            <p class="text-sm font-semibold text-gray-900">${data.owner_name || 'N/A'}</p>
                         </div>
                         <div>
                             <p class="text-xs text-gray-500 uppercase">Contact Number</p>
@@ -873,7 +873,7 @@ function showRecordModal(data, reportType) {
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <p class="text-xs text-gray-500 uppercase">Owner Name</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.own_name || data.owner_name || 'N/A'}</p>
+                            <p class="text-sm font-semibold text-gray-900">${data.owner_name || data.owner_name || 'N/A'}</p>
                         </div>
                         <div>
                             <p class="text-xs text-gray-500 uppercase">Contact Number</p>
@@ -950,7 +950,7 @@ function showRecordModal(data, reportType) {
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <p class="text-xs text-gray-500 uppercase">Customer Name</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.customer_name || data.own_name || 'N/A'}</p>
+                            <p class="text-sm font-semibold text-gray-900">${data.customer_name || data.owner_name || 'N/A'}</p>
                         </div>
                         <div>
                             <p class="text-xs text-gray-500 uppercase">Pet Name</p>
@@ -1138,7 +1138,7 @@ function showRecordModal(data, reportType) {
                         </div>
                         <div>
                             <p class="text-xs text-gray-500 uppercase">Owner Name</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.owner_name || data.own_name || 'N/A'}</p>
+                            <p class="text-sm font-semibold text-gray-900">${data.own_name || data.own_name || 'N/A'}</p>
                         </div>
                         <div>
                             <p class="text-xs text-gray-500 uppercase">Contact Number</p>
@@ -1727,7 +1727,7 @@ function showRecordModal(data, reportType) {
                         </div>
                         <div>
                             <p class="text-xs text-gray-500 uppercase">Owner Name</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.owner_name || data.own_name || 'N/A'}</p>
+                            <p class="text-sm font-semibold text-gray-900">${data.own_name || data.own_name || 'N/A'}</p>
                         </div>
                         <div>
                             <p class="text-xs text-gray-500 uppercase">Contact Number</p>
@@ -2051,7 +2051,7 @@ function showReferralModal(data) {
                     </div>
                     <div>
                         <dt class="text-sm font-medium text-gray-500">Owner Name</dt>
-                        <dd class="mt-1 text-sm text-gray-900">${data.own_name || 'N/A'}</dd>
+                        <dd class="mt-1 text-sm text-gray-900">${data.owner_name || 'N/A'}</dd>
                     </div>
                 </div>
             </div>
@@ -2191,9 +2191,12 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Auto-submit form when report type changes
-document.getElementById('reportSelect').addEventListener('change', function() {
-    this.form.submit();
-});
+const reportSelectEl = document.getElementById('reportSelect');
+if (reportSelectEl) {
+    reportSelectEl.addEventListener('change', function() {
+        if (this.form) this.form.submit();
+    });
+}
 function addModalActions() {
     const modalTitle = document.getElementById('modalTitle');
     if (modalTitle && !document.getElementById('modalActionButtons')) {

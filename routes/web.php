@@ -34,6 +34,7 @@ Route::post('/reset-password', [PasswordResetController::class, 'update'])->name
 use App\Http\Controllers\AdminController;
 Route::get('/admin', [AdminController::class, 'AdminBoard']);
 Route::get('/dashboard', [dashboardController::class, 'index'])->name('dashboard-index');
+
 //Route::get('/select-branch', [BranchController::class, 'select'])->name('select-branch');
 Route::get('/user-management', [UserManagementController::class, 'index'])->name('userManagement.index');
 
@@ -56,6 +57,9 @@ Route::get('/api/top-products', [OrderController::class, 'topProducts'])->name('
 Route::get('/sales/summary', [OrderController::class, 'salesSummary'])->name('sales.summary');
 Route::get('/sales/daily', [OrderController::class, 'dailySales'])->name('sales.daily');
     
+Route::middleware(['auth', 'isSuperAdmin'])->group(function () {
+    Route::get('/superadmin/dashboard', [DashboardController::class, 'superAdminDashboard'])->name('superadmin.dashboard');
+});
 
 
 use App\Http\Controllers\ProdServEquipController;
@@ -189,7 +193,9 @@ Route::get('/reports/export-pdf', [ReportController::class, 'exportPdf'])->name(
 Route::get('/reports/export', [ReportController::class, 'export'])->name('reports.export');
 Route::get('/reports/{reportType}/{recordId}/view', [ReportController::class, 'viewRecord'])->name('reports.viewRecord');
 Route::get('/reports/{reportType}/{recordId}', [ReportController::class, 'viewRecord'])->name('reports.view');
-
+Route::get('/reports/{reportType}/{recordId}/pdf', [ReportController::class, 'viewRecordPDF'])->name('reports.viewPDF');
+Route::get('/reports/{reportType}/{recordId}/pdf', [ReportController::class, 'generatePDF'])
+    ->name('reports.pdf');
 
 use App\Http\Controllers\BranchReportController;
 Route::middleware(['auth'])->group(function() {

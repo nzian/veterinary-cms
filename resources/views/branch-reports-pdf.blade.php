@@ -301,17 +301,35 @@
             <div class="report-subtitle">{{ $branch->branch_name }}</div>
             <div class="report-id">
                 @php
-                    $idField = match($reportType) {
-                        'appointments' => 'appoint_id',
-                        'pets' => 'pet_id',
-                        'referrals' => 'ref_id',
-                        'billing' => 'bill_id',
-                        'sales' => 'ord_id',
-                        'equipment' => 'equipment_id',
-                        'services' => 'service_id',
-                        'inventory' => 'prod_id',
-                        default => 'id'
-                    };
+                    switch ($reportType) {
+                        case 'appointments':
+                            $idField = 'appoint_id';
+                            break;
+                        case 'pets':
+                            $idField = 'pet_id';
+                            break;
+                        case 'referrals':
+                            $idField = 'ref_id';
+                            break;
+                        case 'billing':
+                            $idField = 'bill_id';
+                            break;
+                        case 'sales':
+                            $idField = 'ord_id';
+                            break;
+                        case 'equipment':
+                            $idField = 'equipment_id';
+                            break;
+                        case 'services':
+                            $idField = 'service_id';
+                            break;
+                        case 'inventory':
+                            $idField = 'prod_id';
+                            break;
+                        default:
+                            $idField = 'id';
+                            break;
+                    }
                 @endphp
                 Report ID: {{ strtoupper($reportType) }}-{{ str_pad($data->{$idField} ?? '000', 6, '0', STR_PAD_LEFT) }}
             </div>

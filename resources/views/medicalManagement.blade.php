@@ -543,23 +543,18 @@
             @csrf
             <input type="hidden" name="active_tab" value="appointments">
 
-           <!-- Add Appointment Modal - Pet Owner Dropdown -->
-<div class="mb-3">
-    <label class="block text-sm mb-1">Pet Owner</label>
-    <select id="owner_id" class="w-full border rounded px-3 py-2 text-sm" required onchange="populateOwnerDetails(this)">
-        <option disabled selected>Select Pet Owner</option>
-        @foreach($filteredOwners as $owner)
-            @php
-                $ownerPets = $filteredPets->where('own_id', $owner->own_id);
-            @endphp
-            <option value="{{ $owner->own_id }}" 
-                    data-contact="{{ $owner->own_contactnum }}" 
-                    data-pets='@json($ownerPets->map(fn($p) => ["id"=>$p->pet_id,"name"=>$p->pet_name]))'>
-                {{ $owner->own_name }}
-            </option>
-        @endforeach
-    </select>
-</div>
+            <!-- Row 1: Pet Owner -->
+            <div class="mb-3">
+                <label class="block text-sm mb-1">Pet Owner</label>
+                <select id="owner_id" class="w-full border rounded px-3 py-2 text-sm" required onchange="populateOwnerDetails(this)">
+                    <option disabled selected>Select Pet Owner</option>
+                    @foreach(\App\Models\Owner::with('pets')->get() as $owner)
+                        <option value="{{ $owner->own_id }}" data-contact="{{ $owner->own_contactnum }}" data-pets='@json($owner->pets->map(fn($p) => ["id"=>$p->pet_id,"name"=>$p->pet_name]))'>
+                            {{ $owner->own_name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
 
             <!-- Row 2: Contact Number & Pet -->
             <div class="grid grid-cols-2 gap-4 mb-3">
@@ -650,23 +645,18 @@
 
             <input type="hidden" id="edit_appoint_id" name="appoint_id">
 
-           <!-- Edit Appointment Modal - Pet Owner Dropdown -->
-<div class="mb-3">
-    <label class="block text-sm mb-1">Pet Owner</label>
-    <select id="edit_owner_id" class="w-full border rounded px-3 py-2 text-sm" required onchange="populateOwnerDetailsEdit(this)">
-        <option disabled selected>Select Pet Owner</option>
-        @foreach($filteredOwners as $owner)
-            @php
-                $ownerPets = $filteredPets->where('own_id', $owner->own_id);
-            @endphp
-            <option value="{{ $owner->own_id }}" 
-                    data-contact="{{ $owner->own_contactnum }}" 
-                    data-pets='@json($ownerPets->map(fn($p) => ["id"=>$p->pet_id,"name"=>$p->pet_name]))'>
-                {{ $owner->own_name }}
-            </option>
-        @endforeach
-    </select>
-</div>
+            <!-- Row 1: Pet Owner -->
+            <div class="mb-3">
+                <label class="block text-sm mb-1">Pet Owner</label>
+                <select id="edit_owner_id" class="w-full border rounded px-3 py-2 text-sm" required onchange="populateOwnerDetailsEdit(this)">
+                    <option disabled selected>Select Pet Owner</option>
+                    @foreach(\App\Models\Owner::with('pets')->get() as $owner)
+                        <option value="{{ $owner->own_id }}" data-contact="{{ $owner->own_contactnum }}" data-pets='@json($owner->pets->map(fn($p) => ["id"=>$p->pet_id,"name"=>$p->pet_name]))'>
+                            {{ $owner->own_name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
 
             <!-- Row 2: Contact Number & Pet -->
             <div class="grid grid-cols-2 gap-4 mb-3">
@@ -769,19 +759,17 @@
             <input type="hidden" name="prescription_id" id="prescription_id">
             <input type="hidden" name="active_tab" value="prescriptions">
 
-            <!-- Pet and Date Fields - FIXED GRID -->
             <div class="grid grid-cols-2 gap-4 mb-4">
                 <div>
                     <label class="block text-sm">Pet</label>
                     <select name="pet_id" id="prescription_pet_id" class="w-full border px-2 py-1 rounded" required>
                         <option value="">Select Pet</option>
-                        @foreach ($filteredPets as $pet)
-                            <option value="{{ $pet->pet_id }}">
-                                {{ $pet->pet_name }} ({{ $pet->pet_species }}) - {{ $pet->owner->own_name }}
-                            </option>
+                        @foreach (\App\Models\Pet::with('owner')->get() as $pet)
+                            <option value="{{ $pet->pet_id }}">{{ $pet->pet_name }} ({{ $pet->pet_species }}) - {{ $pet->owner->own_name }}</option>
                         @endforeach
                     </select>
                 </div>
+
                 <div>
                     <label class="block text-sm">Date</label>
                     <input type="date" name="prescription_date" id="prescription_date" class="w-full border px-2 py-1 rounded" required>
@@ -821,14 +809,29 @@
         </form>
     </div>
 </div>
+
 <!-- View Prescription Modal -->
 <div id="viewPrescriptionModal" class="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50 hidden no-print">
     <div class="bg-white w-full max-w-2xl p-0 rounded-lg shadow-lg relative max-h-[100vh] overflow-y-auto">
         <div id="prescriptionContent" class="prescription-container bg-white p-10">
-            <!-- Header with full-width logo -->
-            <div class="header border-b-2 border-black pb-6 mb-6">
-                <div class="w-full">
-                    <img src="{{ asset('images/header4.png') }}" alt="Pets2GO Logo" class="w-full h-auto object-contain">
+            <div class="header flex items-center justify-between border-b-2 border-black pb-6 mb-6">
+                <!-- Left side: Logo -->
+                <div class="flex-shrink-0">
+                    <img src="{{ asset('images/pets2go.png') }}" alt="Pets2GO Logo" class="w-28 h-28 object-contain">
+                </div>
+                
+                <!-- Right side: Clinic Information -->
+                <div class="flex-grow text-center">
+                    <div class="clinic-name text-2xl font-bold text-[#a86520] tracking-wide">
+                        PETS 2GO VETERINARY CLINIC
+                    </div>
+                    <div class="branch-name text-lg font-bold underline text-center mt-1" id="branch_name">
+                    
+                    </div>
+                    <div class="clinic-details text-sm text-gray-700 mt-1 text-center leading-tight">
+                        <div id="branch_address"></div>
+                        <div id="branch_contactNum"></div>
+                    </div>
                 </div>
             </div>
 
@@ -867,23 +870,13 @@
                     <div id="viewNotes" class="text-sm"></div>
                 </div>
 
-                <!-- Footer with doctor info and branch details -->
                 <div class="footer text-right pt-8 border-t-2 border-black">
-                    <div class="doctor-info text-sm">
-                        <div class="doctor-name font-bold mb-1" id="viewVetName">Loading...</div>
-                        <div class="license-info text-gray-600">License No.: <span id="viewVetLicense">Loading...</span></div>
-                        <div class="license-info text-gray-600 mb-3">Attending Veterinarian</div>
-                        
-                        <!-- Branch Information -->
-                        <div class="branch-info mt-3 pt-3 border-t border-gray-300">
-                            <div class="branch-name font-semibold text-gray-700 mb-1" id="branch_name"></div>
-                            <div class="clinic-details text-xs text-gray-600 leading-tight">
-                                <div id="branch_address"></div>
-                                <div id="branch_contactNum"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    <div class="doctor-info text-sm">
+        <div class="doctor-name font-bold mb-1" id="viewVetName">Loading...</div>
+        <div class="license-info text-gray-600">License No.: <span id="viewVetLicense">Loading...</span></div>
+        <div class="license-info text-gray-600">Attending Veterinarian</div>
+    </div>
+</div>
             </div>
         </div>
         <button onclick="document.getElementById('viewPrescriptionModal').classList.add('hidden')" 
@@ -909,21 +902,20 @@
             <input type="hidden" name="ref_id" id="ref_id">
             <input type="hidden" name="active_tab" value="referrals">
 
-           <!-- Referral Modal - Appointment Selection -->
-<div class="mb-4">
-    <label class="block text-sm font-medium text-gray-700 mb-1">Select Appointment</label>
-    <select name="appointment_id" id="appointment_id" class="w-full border px-3 py-2 rounded" required onchange="loadAppointmentDetails(this.value)">
-        <option value="">Select Appointment</option>
-        @foreach($appointments as $appointment)
-            @if($appointment->appoint_status != 'refer')
-                <option value="{{ $appointment->appoint_id }}">
-                    {{ \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y') }} - 
-                    {{ $appointment->pet->pet_name ?? 'N/A' }} ({{ $appointment->pet->owner->own_name ?? 'N/A' }})
-                </option>
-            @endif
-        @endforeach
-    </select>
-</div>
+            <!-- Appointment Selection -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Select Appointment</label>
+                <select name="appointment_id" id="appointment_id" class="w-full border px-3 py-2 rounded" required onchange="loadAppointmentDetails(this.value)">
+                    <option value="">Select Appointment</option>
+                    @foreach(\App\Models\Appointment::with(['pet.owner'])->where('appoint_status', '!=', 'refer')->get() as $appointment)
+                        <option value="{{ $appointment->appoint_id }}">
+                            {{ \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y') }} - 
+                            {{ $appointment->pet->pet_name ?? 'N/A' }} ({{ $appointment->pet->owner->own_name ?? 'N/A' }})
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+
             <!-- Patient Information Section -->
             <div class="bg-gray-50 p-4 rounded mb-4">
                 <h3 class="text-sm font-semibold text-gray-700 mb-3">Patient Information</h3>
@@ -1027,7 +1019,7 @@
 <div id="viewReferralModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white w-full max-w-4xl p-0 rounded-lg shadow-lg max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center p-6 border-b">
-            <h2 class="text-lg font-semibold text-[#ffffff]">Referral Details</h2>
+            <h2 class="text-lg font-semibold text-[#0f7ea0]">Referral Details</h2>
             <button onclick="closeViewReferralModal()" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
         </div>
         
@@ -1428,9 +1420,9 @@
     .print-prescription .prescription-container {
         position: relative !important;
         width: 100% !important;
-        height: 100% !important;
+        height: auto !important;
         background: white !important;
-        border: 1px solid #000 !important;
+        border: 2px solid #000 !important;
         padding: 30px !important;
         margin: 0 !important;
         box-sizing: border-box !important;
@@ -2153,71 +2145,75 @@ function updatePrescriptionContent(targetId, data) {
     const container = document.getElementById(targetId);
     
     container.innerHTML = `
-    <div class="header border-b-2 border-black pb-6 mb-6">
-        <div class="w-full">
-            <img src="{{ asset('images/header4.png') }}" alt="Pets2GO Logo" class="w-full h-auto object-contain">
-        </div>
-    </div>
-
-    <div class="prescription-body">
-        <div class="patient-info mb-6">
-            <div class="grid grid-cols-3 gap-2 text-sm">
-                <div>
-                    <div class="mb-2"><strong>DATE:</strong> ${data.date}</div>
-                    <div class="mb-2"><strong>NAME OF PET:</strong> ${data.pet}</div>
+        <div class="header flex items-center justify-between border-b-2 border-black pb-6 mb-6">
+            <div class="flex-shrink-0">
+                <img src="{{ asset('images/pets2go.png') }}" alt="Pets2GO Logo" class="w-28 h-28 object-contain">
+            </div>
+            <div class="flex-grow text-center">
+                <div class="clinic-name text-2xl font-bold text-[#a86520] tracking-wide">
+                    PETS 2GO VETERINARY CLINIC
                 </div>
-                <div class="text-center">
-                    <div><strong>WEIGHT:</strong> ${data.weight}</div>
-                    <div><strong>TEMP:</strong> ${data.temp}</div>
+                <div class="branch-name text-lg font-bold underline text-center mt-1">
+                    ${data.branchName}
                 </div>
-                <div class="text-right">
-                    <div><strong>AGE:</strong> ${data.age}</div>
-                    <div><strong>GENDER:</strong> ${data.gender}</div>
+                <div class="clinic-details text-sm text-gray-700 mt-1 text-center leading-tight">
+                    <div>${data.branchAddress}</div>
+                    <div>${data.branchContact}</div>
                 </div>
             </div>
         </div>
 
-        <div class="rx-symbol text-left my-8 text-6xl font-bold text-gray-800">℞</div>
-
-        <div class="medication-section mb-8">
-            <div class="section-title text-base font-bold mb-4">MEDICATION</div>
-            <div class="space-y-3">
-                ${data.medications && data.medications.length > 0 ? data.medications.map((med, index) => `
-                    <div class="medication-item">
-                        <div class="text-sm font-medium text-red-600 mb-1">${index+1}. ${med.product_name || med.name || 'Unknown medication'}</div>
-                        <div class="text-sm text-gray-700 ml-4"><strong>SIG.</strong> ${med.instructions || '[Instructions will be added here]'}</div>
+        <div class="prescription-body">
+            <div class="patient-info mb-6">
+                <div class="grid grid-cols-3 gap-2 text-sm">
+                    <div>
+                        <div class="mb-2"><strong>DATE:</strong> ${data.date}</div>
+                        <div class="mb-2"><strong>NAME OF PET:</strong> ${data.pet}</div>
                     </div>
-                `).join('') : '<div class="medication-item text-gray-500">No medications prescribed</div>'}
-            </div>
-        </div>
-
-        <div class="differential-diagnosis mb-6">
-            <h3 class="text-base font-bold mb-2">DIFFERENTIAL DIAGNOSIS:</h3>
-            <div class="text-sm bg-blue-50 p-3 rounded border-l-4 border-blue-500">${data.differentialDiagnosis || 'Not specified'}</div>
-        </div>
-
-        <div class="recommendations mb-8">
-            <h3 class="text-base font-bold mb-4">RECOMMENDATION/REMINDER:</h3>
-            <div class="text-sm">${data.notes}</div>
-        </div>
-
-        <div class="footer text-right pt-8 border-t-2 border-black">
-            <div class="doctor-info text-sm">
-                <div class="doctor-name font-bold mb-1">${data.vetName.toUpperCase()} DVM</div>
-                <div class="license-info text-gray-600">License No.: ${data.vetLicense}</div>
-                <div class="license-info text-gray-600 mb-3">Attending Veterinarian</div>
-                
-                <div class="branch-info mt-3 pt-3 border-t border-gray-300">
-                    <div class="branch-name font-semibold text-gray-700 mb-1">${data.branchName}</div>
-                    <div class="clinic-details text-xs text-gray-600 leading-tight">
-                        <div>${data.branchAddress}</div>
-                        <div>${data.branchContact}</div>
+                    <div class="text-center">
+                        <div><strong>WEIGHT:</strong> ${data.weight}</div>
+                        <div><strong>TEMP:</strong> ${data.temp}</div>
+                    </div>
+                    <div class="text-right">
+                        <div><strong>AGE:</strong> ${data.age}</div>
+                        <div><strong>GENDER:</strong> ${data.gender}</div>
                     </div>
                 </div>
             </div>
+
+            <div class="rx-symbol text-left my-8 text-6xl font-bold text-gray-800">℞</div>
+
+            <div class="medication-section mb-8">
+                <div class="section-title text-base font-bold mb-4">MEDICATION</div>
+                <div class="space-y-3">
+                    ${data.medications && data.medications.length > 0 ? data.medications.map((med, index) => `
+                        <div class="medication-item">
+                            <div class="text-sm font-medium text-red-600 mb-1">${index+1}. ${med.product_name || med.name || 'Unknown medication'}</div>
+                            <div class="text-sm text-gray-700 ml-4"><strong>SIG.</strong> ${med.instructions || '[Instructions will be added here]'}</div>
+                        </div>
+                    `).join('') : '<div class="medication-item text-gray-500">No medications prescribed</div>'}
+                </div>
+            </div>
+
+            <div class="differential-diagnosis mb-6">
+                <h3 class="text-base font-bold mb-2">DIFFERENTIAL DIAGNOSIS:</h3>
+                <div class="text-sm bg-blue-50 p-3 rounded border-l-4 border-blue-500">${data.differentialDiagnosis || 'Not specified'}</div>
+            </div>
+
+            <div class="recommendations mb-8">
+                <h3 class="text-base font-bold mb-4">RECOMMENDATION/REMINDER:</h3>
+                <div class="text-sm">${data.notes}</div>
+            </div>
+
+            <div class="footer text-right pt-8 border-t-2 border-black">
+                <div class="doctor-info text-sm">
+                    <div class="doctor-name font-bold mb-1">${data.vetName.toUpperCase()} DVM</div>
+                    <div class="license-info text-gray-600">License No.: ${data.vetLicense}</div>
+                    <div class="license-info text-gray-600">Attending Veterinarian</div>
+                </div>
+            </div>
         </div>
-    </div>
-`;
+    `;
 }
 
 function viewPrescription(button) {

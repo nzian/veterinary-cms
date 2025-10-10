@@ -316,7 +316,7 @@
 </div>
 
 {{-- Appointment Modal - Mobile Responsive --}}
-<div id="appointmentModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+<div id="appointmentModal" class="fixed inset-0 hidden z-50 flex items-center justify-center p-4">
   <div class="bg-white rounded-xl sm:rounded-2xl shadow-xl max-w-md w-full">
     <div class="p-4 sm:p-6">
       <div class="flex items-center justify-between mb-4">
@@ -345,7 +345,7 @@
 </div>
 
 {{-- Visit Update Modal - Mobile Responsive --}}
-<div id="visitModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+<div id="visitModal" class="fixed inset-0 hidden z-50 flex items-center justify-center p-4">
   <div class="bg-white rounded-xl sm:rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
     <div class="p-4 sm:p-6">
       <div class="flex items-center justify-between mb-4">
