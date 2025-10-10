@@ -33,6 +33,13 @@ class MedicalManagementController extends Controller
         } else {
             $appointments = $appointmentsQuery->paginate((int) $perPage);
         }
+         $prescriptionPerPage = $request->get('prescriptionPerPage', 10);
+         $prescriptionsQuery = Prescription::with(['pet.owner', 'branch', 'user']); // Added 'user'
+           if ($prescriptionPerPage === 'all') {
+          $prescriptions = $prescriptionsQuery->get();
+    } else {
+        $prescriptions = $prescriptionsQuery->paginate((int) $prescriptionPerPage);
+    }
 
         // Get prescriptions with pagination
         $prescriptionPerPage = $request->get('prescriptionPerPage', 10);

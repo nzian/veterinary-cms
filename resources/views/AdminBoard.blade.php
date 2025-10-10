@@ -205,21 +205,22 @@
 @endif
 
 
-    <!-- Search Section -->
-    <form method="GET" action="{{ route('pets-index') }}" class="flex-1 mx-6 relative">
-      <div class="relative group">
-        <input type="text" name="search" value="{{ request('search') }}"
-          class="w-full h-11 rounded-xl modern-search px-4 pr-12 text-sm text-gray-700 placeholder:text-gray-400 smooth-transition"
-          placeholder="Search pets, owners, appointments..." />
-        <button type="submit"
-          class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#0f7ea0] smooth-transition">
-          <i class="fas fa-search text-lg"></i>
-        </button>
-        <div
-          class="absolute inset-0 rounded-xl bg-gradient-to-r from-[#0f7ea0]/20 to-transparent opacity-0 group-hover:opacity-100 smooth-transition pointer-events-none">
-        </div>
-      </div>
-    </form>
+   <!-- Global Search Section -->
+<form method="GET" action="{{ route('global.search') }}" class="flex-1 mx-6 relative">
+  <div class="relative group">
+    <input type="text" name="search" value="{{ request('search') }}"
+      class="w-full h-11 rounded-xl modern-search px-4 pr-12 text-sm text-gray-700 placeholder:text-gray-400 smooth-transition"
+      placeholder="Search pets, owners, appointments, products, services..." />
+    <button type="submit"
+      class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#0f7ea0] smooth-transition">
+      <i class="fas fa-search text-lg"></i>
+    </button>
+    <div
+      class="absolute inset-0 rounded-xl bg-gradient-to-r from-[#0f7ea0]/20 to-transparent opacity-0 group-hover:opacity-100 smooth-transition pointer-events-none">
+    </div>
+  </div>
+</form>
+
 
    <!-- Notifications -->
 <div class="relative mr-4">
@@ -376,13 +377,13 @@
           ['route' => 'medical.index', 'icon' => 'fa-stethoscope', 'label' => 'Medical Management'],
           ['route' => 'sales.index', 'icon' => 'fa-cash-register', 'label' => 'Sales Management'],
           ['route' => 'report.index', 'icon' => 'fa-chart-bar', 'label' => 'Reports'],
-           ['route' => 'sms-settings.index', 'icon' => 'fa-cog', 'label' => 'Settings'], 
+       
         ],
         'veterinarian' => [
           ['route' => 'dashboard-index', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
           ['route' => 'pet-management.index', 'icon' => 'fa-paw', 'label' => 'Pet Management'],
           ['route' => 'medical.index', 'icon' => 'fa-stethoscope', 'label' => 'Medical Management'],
-          ['route' => 'report.index', 'icon' => 'fa-chart-bar', 'label' => 'Reports'],
+          ['route' => 'branch-reports.index', 'icon' => 'fa-chart-line', 'label' => 'Branch Reports'],
         ],
         'receptionist' => [
           ['route' => 'dashboard-index', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
@@ -390,7 +391,7 @@
           ['route' => 'pet-management.index', 'icon' => 'fa-paw', 'label' => 'Pet Management'],
           ['route' => 'medical.index', 'icon' => 'fa-stethoscope', 'label' => 'Medical Management'],
           ['route' => 'sales.index', 'icon' => 'fa-cash-register', 'label' => 'Sales Management'],
-          ['route' => 'report.index', 'icon' => 'fa-chart-bar', 'label' => 'Reports'],
+          ['route' => 'branch-reports.index', 'icon' => 'fa-chart-line', 'label' => 'Branch Reports'],
         ],
       ];
       
@@ -422,28 +423,6 @@
     @endif
   </ul>
 </nav>
-      
-   <!--   <div class="p-3 border-t border-white/10">
-  <a href="{{ route('sms-settings.index') }}"
-     class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group w-full hover:bg-white/10 {{ request()->routeIs('sms-settings.*') ? 'bg-white/10' : '' }}">
-    <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition {{ request()->routeIs('sms-settings.*') ? 'bg-[#0f7ea0]' : '' }}">
-      <i class="fas fa-cog text-lg"></i>
-    </div>
-    <span class="hidden md:inline font-medium">Settings</span>
-  </a>
-</div>
-
-     Settings 
-      <div class="p-3 border-t border-white/10">
-        <button
-          class="flex items-center gap-4 px-4 py-3 text-white hover:text-white smooth-transition rounded-xl group w-full hover:bg-white/10">
-          <div
-            class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-[#0f7ea0] smooth-transition">
-            <i class="fas fa-cog text-lg"></i>
-          </div>
-          <span class="hidden md:inline font-medium">Settings</span>
-        </button>
-      </div>-->
     </aside>
 
     <!-- MAIN CONTENT -->
@@ -498,21 +477,25 @@ function markAllAsRead() {
       const btn = document.getElementById('branchDropdownBtn');
       const menu = document.getElementById('branchDropdownMenu');
 
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        menu.classList.toggle('hidden');
-      });
+      if (btn && menu) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          menu.classList.toggle('hidden');
+        });
+      }
 
       // Close dropdowns when clicking outside
       document.addEventListener('click', function (e) {
-        if (!e.target.closest('#branchDropdownBtn')) {
+        if (menu && !e.target.closest('#branchDropdownBtn')) {
           menu.classList.add('hidden');
         }
         if (!e.target.closest('#notificationDropdown') && !e.target.closest('[onclick="toggleNotificationDropdown()"]')) {
-          document.getElementById('notificationDropdown').classList.add('hidden');
+          const nd = document.getElementById('notificationDropdown');
+          if (nd) nd.classList.add('hidden');
         }
         if (!e.target.closest('#userDropdown') && !e.target.closest('[onclick="toggleUserDropdown()"]')) {
-          document.getElementById('userDropdown').classList.add('hidden');
+          const ud = document.getElementById('userDropdown');
+          if (ud) ud.classList.add('hidden');
         }
       });
 
@@ -529,6 +512,33 @@ function markAllAsRead() {
           }, 500);
         });
       });
+
+      // Global modal protections:
+      // 1) Prevent clicks from reaching background when any modal is open
+      // 2) Lock page scroll while a modal is open
+      function hasOpenModal() {
+        // Treat any full-screen fixed element without the 'hidden' class as an open modal
+        return !!document.querySelector('.fixed:not(.hidden)');
+      }
+
+      // Capture-phase listener to stop background clicks while a modal is open
+      document.addEventListener('click', function (e) {
+        if (hasOpenModal()) {
+          const openModalEl = document.querySelector('.fixed:not(.hidden)');
+          if (openModalEl && !openModalEl.contains(e.target)) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }
+      }, true);
+
+      // Observe DOM changes to toggle body scroll lock when modals open/close
+      const modalObserver = new MutationObserver(() => {
+        document.body.classList.toggle('overflow-hidden', hasOpenModal());
+      });
+      modalObserver.observe(document.body, { attributes: true, childList: true, subtree: true });
+      // Initialize state on load
+      document.body.classList.toggle('overflow-hidden', hasOpenModal());
     });
 
     function toggleNotificationDropdown() {

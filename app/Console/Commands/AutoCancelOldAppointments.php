@@ -15,7 +15,7 @@ class AutoCancelOldAppointments extends Command
 
     private $availableTimeSlots = [
         '09:00:00', '10:00:00', '11:00:00', '13:00:00',
-        '14:00:00', '15:00:00', '16:00:00', '17:00:00',
+        '14:00:00', '15:00:00', '16:00:00'
     ];
 
     public function handle()

@@ -29,7 +29,9 @@ class Pet extends Model
         'pet_gender',
         'pet_registration',
         'pet_temperature',
-        'own_id'
+        'own_id',
+        'user_id',
+        'branch_id',
     ];
 
     public function owner()
@@ -58,5 +60,9 @@ public function medicalHistories()
         return $this->hasMany(MedicalHistory::class, 'pet_id', 'pet_id');
     }
 
+    public function user()
+{
+    return $this->belongsTo(User::class, 'user_id', 'user_id');
+}
 
 }

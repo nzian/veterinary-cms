@@ -11,134 +11,152 @@ use Carbon\Carbon;
 
 class SalesManagementController extends Controller
 {
-  public function index(Request $request)
-{
-    // Get billing data
-    $billings = Billing::with([
-        'appointment.pet.owner', 
-        'appointment.services',
-        'branch'
-    ])
-    ->orderBy('bill_date', 'desc')
-    ->paginate(10);
+    public function index(Request $request)
+    {
+        $activeBranchId = session('active_branch_id');
+        $user = auth()->user();
+        
+        if ($user->user_role !== 'superadmin') {
+            $activeBranchId = $user->branch_id;
+        }
 
-    // Get order data with date filters
-    $startDate = $request->input('start_date');
-    $endDate = $request->input('end_date');
-    
-    // Build query with relationships
-    $query = Order::with(['product', 'user', 'owner', 'payment', 'billing']);
-    
-    // Apply date filters if provided
-    if ($startDate) {
-        $query->where('ord_date', '>=', $startDate);
-    }
-    if ($endDate) {
-        $query->where('ord_date', '<=', $endDate . ' 23:59:59');
-    }
-    
-    // Get all orders
-    $allOrders = $query->orderBy('ord_date', 'desc')->get();
-    
-    // Create transaction grouping with source tracking
-    $transactions = [];
-    
-    // Group by timestamp (within 1 second) and user_id for direct sales
-    // OR by bill_id for billing payments
-    $processedOrderIds = [];
-    
-    foreach ($allOrders as $order) {
-        if (in_array($order->ord_id, $processedOrderIds)) {
-            continue;
+        // Filter billings by branch through appointment -> user relationship
+        $billings = Billing::with([
+            'appointment.pet.owner', 
+            'appointment.services',
+            'appointment.user.branch'
+        ])
+        ->whereHas('appointment.user', function($q) use ($activeBranchId) {
+            $q->where('branch_id', $activeBranchId);
+        })
+        ->orderBy('bill_date', 'desc')
+        ->paginate(10);
+
+        // Get date filters
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        
+        // Build query with relationships and branch filter
+        $query = Order::with(['product', 'user', 'owner', 'payment', 'billing'])
+            ->whereHas('user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            });
+        
+        // Apply date filters if provided
+        if ($startDate) {
+            $query->where('ord_date', '>=', $startDate);
+        }
+        if ($endDate) {
+            $query->where('ord_date', '<=', $endDate . ' 23:59:59');
         }
         
-        $transactionKey = null;
-        $transactionSource = 'Direct Sale'; // Default
+        // Get all orders
+        $allOrders = $query->orderBy('ord_date', 'desc')->get();
         
-        // Check if this order is from a billing payment
-        if ($order->bill_id) {
-            $transactionKey = 'BILL-' . $order->bill_id;
-            $transactionSource = 'Billing Payment';
+        // Create transaction grouping with source tracking
+        $transactions = [];
+        $processedOrderIds = [];
+        
+        foreach ($allOrders as $order) {
+            if (in_array($order->ord_id, $processedOrderIds)) {
+                continue;
+            }
             
-            // Get all orders with the same bill_id
-            $relatedOrders = $allOrders->filter(function($o) use ($order, $processedOrderIds) {
-                return !in_array($o->ord_id, $processedOrderIds) && 
-                       $o->bill_id && 
-                       $o->bill_id === $order->bill_id;
-            });
-        } else {
-            // Direct sale - group by timestamp (within 1 second) and user
-            $transactionKey = 'SALE-' . $order->ord_id;
-            $orderTime = \Carbon\Carbon::parse($order->ord_date);
+            $transactionKey = null;
+            $transactionSource = 'Direct Sale';
             
-            $relatedOrders = $allOrders->filter(function($o) use ($order, $orderTime, $processedOrderIds) {
-                if (in_array($o->ord_id, $processedOrderIds) || $o->bill_id) {
-                    return false;
+            // Check if this order is from a billing payment
+            if ($order->bill_id) {
+                $transactionKey = 'BILL-' . $order->bill_id;
+                $transactionSource = 'Billing Payment';
+                
+                // Get all orders with the same bill_id
+                $relatedOrders = $allOrders->filter(function($o) use ($order, $processedOrderIds) {
+                    return !in_array($o->ord_id, $processedOrderIds) && 
+                           $o->bill_id && 
+                           $o->bill_id === $order->bill_id;
+                });
+            } else {
+                // Direct sale - group by timestamp (within 1 second) and user
+                $transactionKey = 'SALE-' . $order->ord_id;
+                $orderTime = Carbon::parse($order->ord_date);
+                
+                $relatedOrders = $allOrders->filter(function($o) use ($order, $orderTime, $processedOrderIds) {
+                    if (in_array($o->ord_id, $processedOrderIds) || $o->bill_id) {
+                        return false;
+                    }
+                    
+                    $oTime = Carbon::parse($o->ord_date);
+                    $timeDiff = abs($orderTime->diffInSeconds($oTime));
+                    $sameUser = ($o->user_id ?? 0) === ($order->user_id ?? 0);
+                    $sameCustomer = ($o->own_id ?? 0) === ($order->own_id ?? 0);
+                    
+                    return $timeDiff <= 1 && $sameUser && $sameCustomer;
+                });
+            }
+            
+            if ($relatedOrders->isNotEmpty()) {
+                $transactions[$transactionKey] = [
+                    'orders' => $relatedOrders,
+                    'source' => $transactionSource,
+                    'bill_id' => $order->bill_id
+                ];
+                
+                foreach ($relatedOrders as $ro) {
+                    $processedOrderIds[] = $ro->ord_id;
                 }
-                
-                $oTime = \Carbon\Carbon::parse($o->ord_date);
-                $timeDiff = abs($orderTime->diffInSeconds($oTime));
-                $sameUser = ($o->user_id ?? 0) === ($order->user_id ?? 0);
-                $sameCustomer = ($o->own_id ?? 0) === ($order->own_id ?? 0);
-                
-                return $timeDiff <= 1 && $sameUser && $sameCustomer;
-            });
-        }
-        
-        if ($relatedOrders->isNotEmpty()) {
-            $transactions[$transactionKey] = [
-                'orders' => $relatedOrders,
-                'source' => $transactionSource,
-                'bill_id' => $order->bill_id
-            ];
-            
-            foreach ($relatedOrders as $ro) {
-                $processedOrderIds[] = $ro->ord_id;
             }
         }
-    }
-    
-    // Sort transactions by date (newest first)
-    $transactions = collect($transactions)->sortByDesc(function($transaction) {
-        return $transaction['orders']->first()->ord_date;
-    });
-    
-    // Paginate transactions
-    $page = $request->get('page', 1);
-    $perPage = 15;
-    $offset = ($page - 1) * $perPage;
-    
-    $totalTransactions = $transactions->count();
-    $paginatedTransactions = $transactions->slice($offset, $perPage);
-    
-    $paginator = new \Illuminate\Pagination\LengthAwarePaginator(
-        $paginatedTransactions,
-        $totalTransactions,
-        $perPage,
-        $page,
-        [
-            'path' => $request->url(),
-            'pageName' => 'page',
-        ]
-    );
-    
-    // Calculate order totals
-    $totalSales = $allOrders->sum(function($order) {
-        return $order->ord_quantity * ($order->product->prod_price ?? 0);
-    });
-    $totalItemsSold = $allOrders->sum('ord_quantity');
-    $averageSale = $totalTransactions > 0 ? $totalSales / $totalTransactions : 0;
+        
+        // Sort transactions by date (newest first)
+        $transactions = collect($transactions)->sortByDesc(function($transaction) {
+            return $transaction['orders']->first()->ord_date;
+        });
+        
+        // Paginate transactions
+        $page = $request->get('page', 1);
+        $perPage = 15;
+        $offset = ($page - 1) * $perPage;
+        
+        $totalTransactions = $transactions->count();
+        $paginatedTransactions = $transactions->slice($offset, $perPage);
+        
+        $paginator = new \Illuminate\Pagination\LengthAwarePaginator(
+            $paginatedTransactions,
+            $totalTransactions,
+            $perPage,
+            $page,
+            [
+                'path' => $request->url(),
+                'pageName' => 'page',
+            ]
+        );
+        
+        // Calculate order totals
+        $totalSales = $allOrders->sum(function($order) {
+            return $order->ord_quantity * ($order->product->prod_price ?? 0);
+        });
+        $totalItemsSold = $allOrders->sum('ord_quantity');
+        $averageSale = $totalTransactions > 0 ? $totalSales / $totalTransactions : 0;
 
-    return view('orderBilling', compact(
-        'billings',
-        'paginatedTransactions', 
-        'paginator',
-        'totalSales',
-        'totalTransactions', 
-        'totalItemsSold',
-        'averageSale'
-    ));
-}
+        return view('orderBilling', compact(
+            'billings',
+            'paginatedTransactions', 
+            'paginator',
+            'totalSales',
+            'totalTransactions', 
+            'totalItemsSold',
+            'averageSale'
+        ));
+    }
+
+    public function showBilling($id)
+    {
+        $billing = Billing::with(['appointment.pet.owner', 'appointment.services'])
+            ->findOrFail($id);
+        
+        return view('billing-details', compact('billing'));
+    }
 
     public function destroyBilling($id)
     {
@@ -162,77 +180,103 @@ class SalesManagementController extends Controller
     }
 
     public function showTransaction($transactionId)
-{
-    // Check if this is a billing transaction
-    if (str_starts_with($transactionId, 'BILL-')) {
-        $billId = str_replace('BILL-', '', $transactionId);
+    {
+        $activeBranchId = session('active_branch_id');
+        $user = auth()->user();
         
-        // Get all orders with this bill_id
-        $orders = Order::with(['product', 'user', 'owner', 'payment', 'billing'])
-            ->where('bill_id', $billId)
-            ->orderBy('ord_date', 'desc')
-            ->get();
+        if ($user->user_role !== 'superadmin') {
+            $activeBranchId = $user->branch_id;
+        }
+
+        // Check if this is a billing transaction
+        if (str_starts_with($transactionId, 'BILL-')) {
+            $billId = str_replace('BILL-', '', $transactionId);
+            
+            // Get all orders with this bill_id (filtered by branch)
+            $orders = Order::with(['product', 'user', 'owner', 'payment', 'billing'])
+                ->where('bill_id', $billId)
+                ->whereHas('user', function($q) use ($activeBranchId) {
+                    $q->where('branch_id', $activeBranchId);
+                })
+                ->orderBy('ord_date', 'desc')
+                ->get();
+            
+            if ($orders->isEmpty()) {
+                abort(404, 'Transaction not found');
+            }
+            
+            $transactionTotal = $orders->sum(function($order) {
+                return $order->ord_quantity * ($order->product->prod_price ?? 0);
+            });
+            
+            $totalItems = $orders->sum('ord_quantity');
+            
+            return view('order-detail', compact('orders', 'transactionId', 'transactionTotal', 'totalItems'));
+        }
         
-        if ($orders->isEmpty()) {
+        // Handle SALE- transactions (direct sales)
+        $firstOrderId = str_replace(['SALE-', 'T'], '', $transactionId);
+        
+        $firstOrder = Order::with(['product', 'user', 'owner', 'payment'])
+            ->whereHas('user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            })
+            ->find($firstOrderId);
+        
+        if (!$firstOrder) {
             abort(404, 'Transaction not found');
         }
         
+        // Use the EXACT same logic as in index() method
+        $orderTime = Carbon::parse($firstOrder->ord_date);
+        
+        // Get all orders from the database to filter
+        $allOrders = Order::with(['product', 'user', 'owner', 'payment'])
+            ->whereNull('bill_id')
+            ->whereDate('ord_date', $orderTime->toDateString())
+            ->whereHas('user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            })
+            ->get();
+        
+        // Filter orders using the same logic as index()
+        $orders = $allOrders->filter(function($order) use ($firstOrder, $orderTime) {
+            $oTime = Carbon::parse($order->ord_date);
+            $timeDiff = abs($orderTime->diffInSeconds($oTime));
+            $sameUser = ($order->user_id ?? 0) === ($firstOrder->user_id ?? 0);
+            $sameCustomer = ($order->own_id ?? 0) === ($firstOrder->own_id ?? 0);
+            
+            return $timeDiff <= 1 && $sameUser && $sameCustomer;
+        });
+
+        if ($orders->isEmpty()) {
+            $orders = collect([$firstOrder]);
+        }
+
         $transactionTotal = $orders->sum(function($order) {
             return $order->ord_quantity * ($order->product->prod_price ?? 0);
         });
         
         $totalItems = $orders->sum('ord_quantity');
-        
+
         return view('order-detail', compact('orders', 'transactionId', 'transactionTotal', 'totalItems'));
     }
-    
-    // Handle SALE- transactions (direct sales)
-    $firstOrderId = str_replace(['SALE-', 'T'], '', $transactionId);
-    
-    $firstOrder = Order::with(['product', 'user', 'owner', 'payment'])
-        ->find($firstOrderId);
-    
-    if (!$firstOrder) {
-        abort(404, 'Transaction not found');
-    }
-    
-    // Use the EXACT same logic as in index() method
-    $orderTime = Carbon::parse($firstOrder->ord_date);
-    
-    // Get all orders from the database to filter
-    $allOrders = Order::with(['product', 'user', 'owner', 'payment'])
-        ->whereNull('bill_id') // Only direct sales
-        ->whereDate('ord_date', $orderTime->toDateString()) // Same day
-        ->get();
-    
-    // Filter orders using the same logic as index()
-    $orders = $allOrders->filter(function($order) use ($firstOrder, $orderTime) {
-        $oTime = Carbon::parse($order->ord_date);
-        $timeDiff = abs($orderTime->diffInSeconds($oTime));
-        $sameUser = ($order->user_id ?? 0) === ($firstOrder->user_id ?? 0);
-        $sameCustomer = ($order->own_id ?? 0) === ($firstOrder->own_id ?? 0);
-        
-        return $timeDiff <= 1 && $sameUser && $sameCustomer;
-    });
-
-    if ($orders->isEmpty()) {
-        $orders = collect([$firstOrder]);
-    }
-
-    $transactionTotal = $orders->sum(function($order) {
-        return $order->ord_quantity * ($order->product->prod_price ?? 0);
-    });
-    
-    $totalItems = $orders->sum('ord_quantity');
-
-    return view('order-detail', compact('orders', 'transactionId', 'transactionTotal', 'totalItems'));
-}
 
     public function printTransaction($transactionId)
     {
+        $activeBranchId = session('active_branch_id');
+        $user = auth()->user();
+        
+        if ($user->user_role !== 'superadmin') {
+            $activeBranchId = $user->branch_id;
+        }
+
         $firstOrderId = str_replace('T', '', $transactionId);
         
         $firstOrder = Order::with(['product', 'user', 'owner', 'payment'])
+            ->whereHas('user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            })
             ->find($firstOrderId);
         
         if (!$firstOrder) {
@@ -256,6 +300,9 @@ class SalesManagementController extends Controller
                     $query->whereNull('own_id');
                 }
             })
+            ->whereHas('user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            })
             ->orderBy('ord_date', 'desc')
             ->get();
 
@@ -274,11 +321,21 @@ class SalesManagementController extends Controller
 
     public function export(Request $request)
     {
+        $activeBranchId = session('active_branch_id');
+        $user = auth()->user();
+        
+        if ($user->user_role !== 'superadmin') {
+            $activeBranchId = $user->branch_id;
+        }
+
         $startDate = $request->input('start_date', now()->startOfMonth());
         $endDate = $request->input('end_date', now()->endOfMonth());
 
         $orders = Order::with(['product', 'user', 'owner', 'payment'])
             ->whereBetween('ord_date', [$startDate, $endDate])
+            ->whereHas('user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            })
             ->orderBy('ord_date', 'desc')
             ->get();
 
@@ -322,5 +379,3 @@ class SalesManagementController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 }
-
-//Anurag, how are you?

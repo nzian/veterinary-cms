@@ -5,7 +5,7 @@
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Sign In</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  @vite(['resources/css/app.css'])
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet" />
   <style>
     input::placeholder {
@@ -33,7 +33,6 @@
   <!-- Background Image -->
   <div class="absolute inset-0">
     <img src="{{ asset('images/login.jpg') }}" class="w-full h-full object-cover" alt="Background" />
-    <div class="absolute inset-0 bg-black bg-opacity-50"></div> <!-- Dark overlay for readability -->
   </div>
 
   <!-- Centered Login Form -->

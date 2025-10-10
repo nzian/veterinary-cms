@@ -76,4 +76,6 @@ class Kernel extends HttpKernel
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
     ];
+
+// \App\Http\Middleware\SetActiveBranch::class should be added to the existing 'web' group above if needed.
 }

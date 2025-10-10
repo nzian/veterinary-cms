@@ -21,6 +21,19 @@ class BranchManagementController extends Controller
         }
     }
 
+    public function switchBranch($id)
+{
+    $user = auth()->user();
+    
+    // Only super admins can switch branches
+    if ($user->user_role !== 'superadmin') {
+        return redirect()->back()->with('error', 'You do not have permission to switch branches');
+    }
+    
+    session(['active_branch_id' => $id]);
+    return redirect()->route('dashboard-index')->with('success', 'Branch switched successfully');
+}
+
     // Branch Methods
     public function storeBranch(Request $request)
     {
@@ -160,11 +173,7 @@ class BranchManagementController extends Controller
         return redirect()->back()->with('success', 'User deleted successfully.');
     }
 
-    public function switchBranch($id)
-    {
-        session(['active_branch_id' => $id]);
-        return redirect()->route('dashboard-index');
-    }
+    
 
     public function getCompleteData($id)
     {

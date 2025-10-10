@@ -210,7 +210,7 @@
 
 {{-- Branch Modals --}}
 <!-- Add Branch Modal -->
-<div id="branchModal" class="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center hidden z-50">
+<div id="branchModal" class="fixed inset-0 flex justify-center items-center hidden z-50">
     <div class="bg-white w-full max-w-lg p-6 rounded shadow-lg relative">
         <h3 class="text-lg font-semibold text-[#0f7ea0] mb-4">Add New Branch</h3>
         <form action="{{ route('branches.store') }}" method="POST">
@@ -241,7 +241,7 @@
 </div>
 
 <!-- Edit Branch Modal -->
-<div id="editBranchModal" class="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center hidden z-50">
+<div id="editBranchModal" class="fixed inset-0 flex justify-center items-center hidden z-50">
     <div class="bg-white p-6 rounded shadow w-full max-w-md relative">
         <h3 class="text-lg font-semibold text-[#0f7ea0] mb-4">Edit Branch</h3>
         <form id="editBranchForm" method="POST">
@@ -270,7 +270,7 @@
 </div>
 
 <!-- Enhanced View Branch Modal with Users -->
-<div id="viewBranchModal" class="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center hidden z-50">
+<div id="viewBranchModal" class="fixed inset-0 flex justify-center items-center hidden z-50">
     <div class="bg-white p-6 rounded shadow w-full max-w-6xl max-h-[90vh] overflow-y-auto relative">
         <h2 class="text-lg font-semibold text-[#0f7ea0] mb-4">Branch Complete Overview</h2>
         
@@ -404,7 +404,7 @@
 
 {{-- User Modals --}}
 <!-- Add User Modal (From User Tab) -->
-<div id="userModal" class="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center hidden z-50">
+<div id="userModal" class="fixed inset-0 flex justify-center items-center hidden z-50">
     <div class="bg-white w-full max-w-lg p-6 rounded shadow-lg relative">
         <h3 class="text-lg font-semibold text-[#0f7ea0] mb-4">Add New User</h3>
         <form action="{{ route('userManagement.store') }}" method="POST">
@@ -473,7 +473,7 @@
 </div>
 
 <!-- Add User to Branch Modal (From Branch Tab) -->
-<div id="addUserToBranchModal" class="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center hidden z-50">
+<div id="addUserToBranchModal" class="fixed inset-0 flex justify-center items-center hidden z-50">
     <div class="bg-white w-full max-w-lg p-6 rounded shadow-lg relative">
         <h3 class="text-lg font-semibold text-[#0f7ea0] mb-4">Add User to <span id="selected_branch_name"></span></h3>
         <form action="{{ route('userManagement.addToBranch') }}" method="POST">
@@ -531,7 +531,7 @@
 </div>
 
 <!-- Edit User Modal -->
-<div id="editUserModal" class="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center hidden z-50">
+<div id="editUserModal" class="fixed inset-0 flex justify-center items-center hidden z-50">
     <div class="bg-white w-full max-w-lg p-6 rounded shadow-lg relative">
         <h3 class="text-lg font-semibold text-[#0f7ea0] mb-4">Edit User</h3>
         <form id="editUserForm" method="POST">

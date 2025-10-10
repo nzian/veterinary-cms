@@ -77,6 +77,20 @@ class User extends Authenticatable
         return $this->user_password;
     }
 
+     public function pets()
+    {
+        return $this->hasMany(Pet::class, 'user_id', 'user_id');
+    }
+    
+    public function owners()
+    {
+        return $this->hasMany(Owner::class, 'user_id', 'user_id');
+    }
+    
+    public function medicalHistories()
+    {
+        return $this->hasMany(MedicalHistory::class, 'user_id', 'user_id');
+    }
     
 
 }

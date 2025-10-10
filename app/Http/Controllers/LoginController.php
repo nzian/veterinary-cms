@@ -14,12 +14,21 @@ class LoginController extends Controller
         return view('login');
     }
 
-    protected function authenticated(Request $request, $user)
+   protected function authenticated(Request $request, $user)
 {
-    // Update last login timestamp
+    // 🕒 Update last login timestamp
     $user->last_login_at = now();
     $user->save();
+
+    // 🧑‍💼 If the user is Super Admin
+    if ($user->user_role === 'superadmin') {
+        return redirect()->route('superadmin.dashboard');
+    }
+
+    // 🏢 For branch users
+    return redirect()->route('dashboard-index');
 }
+
 
    public function login(Request $request)
 {

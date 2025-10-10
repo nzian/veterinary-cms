@@ -20,7 +20,9 @@ class MedicalHistory extends Model
         'veterinarian_name',
         'follow_up_date',
         'notes',
-        'differential_diagnosis'
+        'differential_diagnosis',
+        'user_id',
+        'branch_id',
     ];
 
     protected $casts = [
@@ -35,4 +37,9 @@ class MedicalHistory extends Model
     {
         return $this->belongsTo(Pet::class, 'pet_id', 'pet_id');
     }
+
+   public function user()
+{
+    return $this->belongsTo(User::class, 'user_id', 'user_id');
+}
 }

@@ -269,7 +269,7 @@
 </div>
 
 <!-- Payment Modal -->
-<div id="paymentModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center hidden z-50">
+<div id="paymentModal" class="fixed inset-0 flex items-center justify-center hidden z-50">
     <div class="glass-card rounded-2xl p-8 w-96 shadow-2xl slide-in">
         <div class="text-center mb-6">
             <div class="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
@@ -307,7 +307,7 @@
 </div>
 
 <!-- Success Modal -->
-<div id="successModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center hidden z-50">
+<div id="successModal" class="fixed inset-0 flex items-center justify-center hidden z-50">
     <div class="glass-card rounded-2xl p-8 w-96 shadow-2xl slide-in">
         <div class="text-center">
             <div class="w-20 h-20 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
