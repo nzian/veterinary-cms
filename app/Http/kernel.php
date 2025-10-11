@@ -75,6 +75,7 @@ class Kernel extends HttpKernel
         'signed' => ValidateSignature::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
+
     ];
 
 // \App\Http\Middleware\SetActiveBranch::class should be added to the existing 'web' group above if needed.

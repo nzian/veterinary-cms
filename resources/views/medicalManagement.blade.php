@@ -325,31 +325,7 @@
                             </td>
                             <td class="border px-2 py-1 flex justify-center gap-1">
                                @if(hasPermission('view_prescriptions', $can))
-                            <button onclick="viewPrescription(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
-    data-id="{{ $prescription->prescription_id }}"
-    data-pet="{{ $prescription->pet->pet_name }}"
-    data-species="{{ $prescription->pet->pet_species }}"
-    data-breed="{{ $prescription->pet->pet_breed }}"
-    data-weight="{{ $prescription->pet->pet_weight }}"
-    data-age="{{ $prescription->pet->pet_age }}"
-    data-temp="{{ $prescription->pet->pet_temperature }}"
-    data-gender="{{ $prescription->pet->pet_gender }}"
-    data-date="{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}"
-    data-medication="{{ $prescription->medication }}"
-    data-differential-diagnosis="{{ $prescription->differential_diagnosis }}"
-    data-notes="{{ $prescription->notes }}"
-    data-branch-name="{{ $prescription->branch->branch_name ?? 'Main Branch' }}"
-    data-branch-address="{{ $prescription->branch->branch_address ?? 'Branch Address' }}"
-    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}"
-    data-vet-name="{{ $prescription->user->user_name ?? 'N/A' }}"
-    data-vet-license="{{ $prescription->user->user_licenseNum ?? 'N/A' }}"
-    title="View Prescription">
-    <i class="fas fa-eye"></i>
-</button>
-                                 @endif
-                                @if(hasPermission('print_prescription', $can))
-                                <!-- Direct Print Button -->
-                               <button onclick="directPrint(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                <button onclick="viewPrescription(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
                                     data-id="{{ $prescription->prescription_id }}"
                                     data-pet="{{ $prescription->pet->pet_name }}"
                                     data-species="{{ $prescription->pet->pet_species }}"
@@ -364,20 +340,38 @@
                                     data-notes="{{ $prescription->notes }}"
                                     data-branch-name="{{ $prescription->branch->branch_name ?? 'Main Branch' }}"
                                     data-branch-address="{{ $prescription->branch->branch_address ?? 'Branch Address' }}"
-                                    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}" 
-                                    data-vet-name="{{ $prescription->user->user_name ?? 'N/A' }}"
-    data-vet-license="{{ $prescription->user->user_licenseNum ?? 'N/A' }}"
-                                    title="print">
+                                    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}"title="View Prescription">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                 @endif
+@if(hasPermission('print_prescription', $can))
+                                <!-- Direct Print Button -->
+                                <button onclick="directPrint(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                    data-id="{{ $prescription->prescription_id }}"
+                                    data-pet="{{ $prescription->pet->pet_name }}"
+                                    data-species="{{ $prescription->pet->pet_species }}"
+                                    data-breed="{{ $prescription->pet->pet_breed }}"
+                                    data-weight="{{ $prescription->pet->pet_weight }}"
+                                    data-age="{{ $prescription->pet->pet_age }}"
+                                    data-temp="{{ $prescription->pet->pet_temperature }}"
+                                    data-gender="{{ $prescription->pet->pet_gender }}"
+                                    data-date="{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}"
+                                    data-medication="{{ $prescription->medication }}"
+                                     data-differential-diagnosis="{{ $prescription->differential_diagnosis }}"
+                                    data-notes="{{ $prescription->notes }}"
+                                    data-branch-name="{{ $prescription->branch->branch_name ?? 'Main Branch' }}"
+                                    data-branch-address="{{ $prescription->branch->branch_address ?? 'Branch Address' }}"
+                                    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}" title="print">
                                     <i class="fas fa-print"></i>
                                 </button> 
                                 @endif
-                                @if(hasPermission('edit_prescription', $can))
+@if(hasPermission('edit_prescription', $can))
                                 <!-- Edit -->
                                 <button onclick="editPrescription({{ $prescription->prescription_id }})" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs" title="edit">
                                     <i class="fas fa-pen"></i>
                                 </button>
-                                @endif
-                                @if(hasPermission('edit_prescription', $can))
+ @endif
+ @if(hasPermission('edit_prescription', $can))
                                 <!-- Delete -->
                                 <form action="{{ route('medical.prescriptions.destroy', $prescription->prescription_id) }}" method="POST"
                                     onsubmit="return confirm('Are you sure you want to delete this prescription?');" class="inline">
@@ -536,8 +530,8 @@
 
 <!-- ==================== APPOINTMENT MODALS ==================== -->
 <!-- Add Appointment Modal -->
-<div id="addModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50">
-    <div class="bg-white p-6 rounded shadow-md w-full max-w-3xl">
+<div id="addModal" class="fixed inset-0 hidden items-center justify-center bg-black bg-opacity-50" style="z-index: 50;">
+    <div class="bg-white p-6 rounded shadow-md w-full max-w-3xl" style="z-index: 51;">
         <h2 class="text-lg font-bold text-[#0f7ea0] mb-4">Add Appointment</h2>
         <form id="addForm" action="{{ route('medical.appointments.store') }}" method="POST">
             @csrf
@@ -612,19 +606,97 @@
                     </select>
                 </div>
             </div>
-
-            <!-- Row 5: Services & Description -->
-            <div class="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                    <label class="block text-sm mb-1">Selected Services</label>
-                    <input type="text" id="selectedServicesDisplay" class="w-full border rounded px-3 py-2 text-sm" readonly placeholder="Click 'Select Services' to choose services" />
-                    <button type="button" onclick="openServiceSelectionModal('add')" class="mt-2 bg-[#0f7ea0] text-white px-3 py-1 rounded hover:bg-[#0c6a86] text-sm">Select Services</button>
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Description</label>
-                    <textarea name="appoint_description" rows="3" class="w-full border rounded px-3 py-2 text-sm" placeholder="Add description..."></textarea>
-                </div>
+<!-- Row 5: Services & Description -->
+<!-- Row 5: Services Button -->
+<div class="mb-3">
+    <div class="flex justify-between items-center mb-2">
+        <label class="block text-sm">Selected Services</label>
+        <button type="button" onclick="toggleServiceSelection('add')" class="bg-[#0f7ea0] text-white px-3 py-1 rounded hover:bg-[#0c6a86] text-sm">
+            <span id="addServiceButtonText">Select Services</span>
+        </button>
+    </div>
+    <input type="text" id="selectedServicesDisplay" class="w-full border rounded px-3 py-2 text-sm" readonly placeholder="Click 'Select Services' to choose services" />
+    
+    <!-- Inline Service Selection - Full Width, Hidden by default -->
+    <div id="addServiceSelection" class="hidden mt-4 border-2 border-[#0f7ea0] rounded-lg p-5 bg-gradient-to-br from-blue-50 to-gray-50">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-base font-bold text-[#0f7ea0]">Choose Services</h3>
+            <span id="addSelectedCount" class="text-sm bg-[#0f7ea0] text-white px-3 py-1 rounded-full font-semibold">
+                0 selected
+            </span>
+        </div>
+        
+        <!-- Search Bar -->
+        <div class="mb-4">
+            <div class="relative">
+                <input type="text" 
+                       id="addServiceSearch" 
+                       placeholder="Search services..." 
+                       class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 pl-10 text-sm focus:border-[#0f7ea0] focus:ring-2 focus:ring-[#0f7ea0] focus:ring-opacity-50 transition-all"
+                       oninput="filterServices('add')"
+                       onkeyup="filterServices('add')">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                <button type="button" 
+                        onclick="clearServiceSearch('add')" 
+                        id="addClearSearch"
+                        class="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 hidden">
+                    <i class="fas fa-times-circle"></i>
+                </button>
             </div>
+            <div id="addSearchStats" class="text-xs text-gray-600 mt-1 hidden">
+                Found <span id="addFoundCount">0</span> service(s)
+            </div>
+        </div>
+        
+        <!-- 4 Column Grid -->
+        <div id="addServiceGrid" class="grid grid-cols-4 gap-3 max-h-64 overflow-y-auto mb-4 p-2">
+            @foreach(\App\Models\Service::all() as $service)
+                <label class="service-item flex items-center gap-2 border-2 p-3 rounded-lg cursor-pointer hover:bg-white hover:border-[#0f7ea0] transition-all bg-white shadow-sm" data-service-name="{{ strtolower($service->serv_name) }}">
+                    <input type="checkbox"
+                           value="{{ $service->serv_id }}"
+                           data-name="{{ $service->serv_name }}"
+                           class="add-service-checkbox w-4 h-4 text-[#0f7ea0] focus:ring-[#0f7ea0]"
+                           onchange="updateServiceCount('add')">
+                    <span class="text-sm font-medium">{{ $service->serv_name }}</span>
+                </label>
+            @endforeach
+        </div>
+        
+        <!-- No Results Message -->
+        <div id="addNoResults" class="hidden text-center py-8 text-gray-500">
+            <i class="fas fa-search text-4xl mb-2 opacity-50"></i>
+            <p class="text-sm font-medium">No services found</p>
+            <p class="text-xs">Try a different search term</p>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="flex justify-between items-center pt-3 border-t-2">
+            <button type="button"
+                    onclick="selectAllServices('add')"
+                    class="bg-green-500 text-white text-xs px-3 py-1.5 rounded hover:bg-green-600 transition-colors">
+                <i class="fas fa-check-double mr-1"></i> Select All
+            </button>
+            <div class="flex gap-3">
+                <button type="button"
+                        onclick="cancelServiceSelection('add')"
+                        class="bg-gray-400 text-white text-sm px-4 py-2 rounded hover:bg-gray-500 transition-colors">
+                    Cancel
+                </button>
+                <button type="button"
+                        onclick="saveSelectedServices('add')"
+                        class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86] transition-colors font-semibold">
+                    Save Selected Services
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 6: Description -->
+<div class="mb-3">
+    <label class="block text-sm mb-1">Description</label>
+    <textarea name="appoint_description" rows="3" class="w-full border rounded px-3 py-2 text-sm" placeholder="Add description..."></textarea>
+</div>
 
             <div class="flex justify-end gap-2 mt-4">
                 <button type="button" onclick="closeAddModal()" class="bg-gray-300 text-sm px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
@@ -708,18 +780,56 @@
                 </div>
             </div>
 
-            <!-- Row 5: Services & Description -->
-            <div class="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                    <label class="block text-sm mb-1">Selected Services</label>
-                    <input type="text" id="edit_selectedServicesDisplay" class="w-full border rounded px-3 py-2 text-sm" readonly placeholder="Click 'Select Services' to choose services" />
-                    <button type="button" onclick="openServiceSelectionModal('edit')" class="mt-2 bg-[#0f7ea0] text-white px-3 py-1 rounded hover:bg-[#0c6a86] text-sm">Select Services</button>
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Description</label>
-                    <textarea id="edit_appoint_description" name="appoint_description" rows="3" class="w-full border rounded px-3 py-2 text-sm"></textarea>
-                </div>
+           <!-- Row 5: Services & Description -->
+<div class="grid grid-cols-2 gap-4 mb-3">
+    <div>
+        <label class="block text-sm mb-1">Selected Services</label>
+        <input type="text" id="edit_selectedServicesDisplay" class="w-full border rounded px-3 py-2 text-sm" readonly placeholder="Click 'Select Services' to choose services" />
+        <button type="button" onclick="toggleServiceSelection('edit')" class="mt-2 bg-[#0f7ea0] text-white px-3 py-1 rounded hover:bg-[#0c6a86] text-sm">
+            <span id="editServiceButtonText">Select Services</span>
+        </button>
+        
+        <!-- Inline Service Selection - Hidden by default -->
+        <div id="editServiceSelection" class="hidden mt-3 border rounded-lg p-4 bg-gray-50">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-sm font-semibold text-gray-700">Choose Services</h3>
+                <span id="editSelectedCount" class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                    0 selected
+                </span>
             </div>
+            
+            <div class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto mb-3">
+                @foreach(\App\Models\Service::all() as $service)
+                    <label class="flex items-center gap-2 border p-2 rounded cursor-pointer hover:bg-white transition-colors bg-gray-50">
+                        <input type="checkbox"
+                               value="{{ $service->serv_id }}"
+                               data-name="{{ $service->serv_name }}"
+                               class="edit-service-checkbox"
+                               onchange="updateServiceCount('edit')">
+                        <span class="text-sm">{{ $service->serv_name }}</span>
+                    </label>
+                @endforeach
+            </div>
+            
+            <div class="flex justify-end gap-2">
+                <button type="button"
+                        onclick="cancelServiceSelection('edit')"
+                        class="bg-gray-300 text-xs px-3 py-1 rounded hover:bg-gray-400">
+                    Cancel
+                </button>
+                <button type="button"
+                        onclick="saveSelectedServices('edit')"
+                        class="bg-[#0f7ea0] text-white text-xs px-3 py-1 rounded hover:bg-[#0c6a86]">
+                    Save Selected
+                </button>
+            </div>
+        </div>
+    </div>
+    <div>
+        <label class="block text-sm mb-1">Description</label>
+        <textarea id="edit_appoint_description" name="appoint_description" rows="3" class="w-full border rounded px-3 py-2 text-sm"></textarea>
+    </div>
+</div>
 
             <div class="flex justify-end gap-2 mt-4">
                 <button type="button" onclick="closeEditModal()" class="bg-gray-300 text-sm px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
@@ -729,25 +839,8 @@
     </div>
 </div>
 
-<!-- Service Selection Modal -->
-<div id="serviceSelectionModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-30">
-    <div class="bg-white w-full max-w-lg p-6 rounded shadow">
-        <h2 class="text-lg font-semibold text-[#0f7ea0] mb-4">Select Services</h2>
-        <div id="serviceOptions" class="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto mb-4">
-            @foreach(\App\Models\Service::all() as $service)
-                <label class="flex items-center gap-2 border p-2 rounded cursor-pointer hover:bg-gray-100">
-                    <input type="checkbox" value="{{ $service->serv_id }}" data-name="{{ $service->serv_name }}" class="service-checkbox">
-                    {{ $service->serv_name }}
-                </label>
-            @endforeach
-        </div>
-        <div class="flex justify-end gap-2">
-            <button type="button" onclick="closeServiceSelectionModal()" class="bg-gray-300 text-sm px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
-            <button type="button" onclick="saveSelectedServices()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">Save</button>
-        </div>
-    </div>
-</div>
 
+        
 <!-- ==================== PRESCRIPTION MODALS ==================== -->
 <!-- Add/Edit Prescription Modal -->
 <div id="prescriptionModal" class="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center hidden z-50">
@@ -871,12 +964,12 @@
                 </div>
 
                 <div class="footer text-right pt-8 border-t-2 border-black">
-    <div class="doctor-info text-sm">
-        <div class="doctor-name font-bold mb-1" id="viewVetName">Loading...</div>
-        <div class="license-info text-gray-600">License No.: <span id="viewVetLicense">Loading...</span></div>
-        <div class="license-info text-gray-600">Attending Veterinarian</div>
-    </div>
-</div>
+                    <div class="doctor-info text-sm">
+                        <div class="doctor-name font-bold mb-1">JAN JERICK M. GO DVM</div>
+                        <div class="license-info text-gray-600">License No.: 0012045</div>
+                        <div class="license-info text-gray-600">Attending Veterinarian</div>
+                    </div>
+                </div>
             </div>
         </div>
         <button onclick="document.getElementById('viewPrescriptionModal').classList.add('hidden')" 
@@ -1596,10 +1689,20 @@ function showTab(tabName) {
 // ==================== APPOINTMENT FUNCTIONS ====================
 
 function openAddModal() {
+    // Reset the form
+    document.getElementById('addForm').reset();
+    
+    // Clear any existing service selections
+    selectedServices = [];
+    document.getElementById('selectedServicesDisplay').value = '';
+    
+    // Remove any existing hidden service inputs
+    const existingInputs = document.querySelectorAll('#addForm input[name="services[]"]');
+    existingInputs.forEach(n => n.remove());
+    
+    // Show the modal
     document.getElementById('addModal').classList.remove('hidden');
     document.getElementById('addModal').classList.add('flex');
-    const ids = getSelectedFromForm('addForm');
-    updateDisplayAndInternal('add', ids);
 }
 
 function closeAddModal() {
@@ -1611,11 +1714,7 @@ function openEditModal(appointment) {
     document.getElementById('editForm').action = `/medical-management/appointments/${appointment.appoint_id}`;
     document.getElementById('edit_appoint_id').value = appointment.appoint_id ?? '';
     document.getElementById('edit_appoint_date').value = appointment.appoint_date ?? '';
-
-     let appointTime = appointment.appoint_time ?? '';
-    if (appointTime && appointTime.length > 5) {
-        appointTime = appointTime.substring(0, 5); // Extract HH:MM from HH:MM:SS
-    }
+    document.getElementById('edit_appoint_time').value = appointment.appoint_time ?? '';
     document.getElementById('edit_appoint_contactNum').value = appointment.appoint_contactNum ?? '';
     document.getElementById('edit_appoint_status').value = appointment.appoint_status ?? '';
     document.getElementById('edit_appoint_type').value = appointment.appoint_type ?? '';
@@ -1627,7 +1726,10 @@ function openEditModal(appointment) {
     const serviceIds = (appointment.services || []).map(s => String(s.serv_id));
     createHiddenServiceInputs('editForm', serviceIds);
     const names = (appointment.services || []).map(s => s.serv_name).join(', ');
-    document.getElementById('edit_selectedServicesDisplay').value = names;
+    document.getElementById('edit_selectedServicesDisplay').value = names || 'No services selected';
+    
+    // Store selected services globally
+    selectedServices = serviceIds;
 
     const m = document.getElementById('editModal'); 
     m.classList.remove('hidden'); 
@@ -1639,10 +1741,14 @@ function closeEditModal() {
     document.getElementById('editModal').classList.add('hidden');
 }
 
+// ==================== SERVICE SELECTION FUNCTIONS ====================
+
+// Helper function to get selected services from form
 function getSelectedFromForm(formId) {
     return Array.from(document.querySelectorAll(`#${formId} input[name="services[]"]`)).map(i => String(i.value));
 }
 
+// Helper function to create hidden service inputs
 function createHiddenServiceInputs(formId, ids) {
     const existingInputs = document.querySelectorAll(`#${formId} input[name="services[]"]`);
     existingInputs.forEach(n => n.remove());
@@ -1659,55 +1765,204 @@ function createHiddenServiceInputs(formId, ids) {
     });
 }
 
-function openServiceSelectionModal(formType) {
-    currentForm = formType;
-    const formId = formType === 'add' ? 'addForm' : 'editForm';
-    selectedServices = getSelectedFromForm(formId);
+// Toggle service selection visibility
+function toggleServiceSelection(formType) {
+    const selectionDiv = document.getElementById(`${formType}ServiceSelection`);
+    const buttonText = document.getElementById(`${formType}ServiceButtonText`);
+    
+    if (selectionDiv.classList.contains('hidden')) {
+        // Show selection
+        selectionDiv.classList.remove('hidden');
+        buttonText.textContent = 'Hide Services';
+        
+        // Reset search
+        const searchInput = document.getElementById(`${formType}ServiceSearch`);
+        if (searchInput) {
+            searchInput.value = '';
+            filterServices(formType);
+        }
+        
+        // Load currently selected services
+        const formId = formType === 'add' ? 'addForm' : 'editForm';
+        const selectedServices = getSelectedFromForm(formId);
+        
+        // Update checkboxes
+        const checkboxes = document.querySelectorAll(`.${formType}-service-checkbox`);
+        checkboxes.forEach(cb => {
+            cb.checked = selectedServices.includes(String(cb.value));
+        });
+        
+        updateServiceCount(formType);
+        
+        // Focus on search input
+        setTimeout(() => {
+            if (searchInput) searchInput.focus();
+        }, 100);
+    } else {
+        // Hide selection
+        selectionDiv.classList.add('hidden');
+        buttonText.textContent = 'Select Services';
+    }
+}
 
-    const checkboxes = document.querySelectorAll('#serviceOptions .service-checkbox');
+// Cancel service selection
+function cancelServiceSelection(formType) {
+    const selectionDiv = document.getElementById(`${formType}ServiceSelection`);
+    const buttonText = document.getElementById(`${formType}ServiceButtonText`);
+    const searchInput = document.getElementById(`${formType}ServiceSearch`);
+    
+    // Reset search
+    if (searchInput) {
+        searchInput.value = '';
+        filterServices(formType);
+    }
+    
+    selectionDiv.classList.add('hidden');
+    buttonText.textContent = 'Select Services';
+    
+    // Restore previous selections
+    const formId = formType === 'add' ? 'addForm' : 'editForm';
+    const selectedServices = getSelectedFromForm(formId);
+    
+    const checkboxes = document.querySelectorAll(`.${formType}-service-checkbox`);
     checkboxes.forEach(cb => {
         cb.checked = selectedServices.includes(String(cb.value));
     });
-
-    const modal = document.getElementById('serviceSelectionModal');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
+    
+    updateServiceCount(formType);
 }
 
-function saveSelectedServices() {
-    const checkedBoxes = Array.from(document.querySelectorAll('#serviceOptions .service-checkbox:checked'));
-    selectedServices = checkedBoxes.map(cb => String(cb.value));
-    const names = checkedBoxes.map(cb => cb.dataset.name);
-
-    const formId = currentForm === 'add' ? 'addForm' : 'editForm';
+// Save selected services
+function saveSelectedServices(formType) {
+    const checkboxes = document.querySelectorAll(`.${formType}-service-checkbox:checked`);
+    const selectedServices = Array.from(checkboxes).map(cb => String(cb.value));
+    const names = Array.from(checkboxes).map(cb => cb.dataset.name);
+    
+    console.log('Saving services:', selectedServices);
+    console.log('Service names:', names);
+    
+    const formId = formType === 'add' ? 'addForm' : 'editForm';
+    
+    // Remove old hidden inputs and create new ones
     createHiddenServiceInputs(formId, selectedServices);
-
-    if (currentForm === 'add') {
-        document.getElementById('selectedServicesDisplay').value = names.join(', ');
-    } else {
-        document.getElementById('edit_selectedServicesDisplay').value = names.join(', ');
+    
+    // Update the display field
+    const displayField = document.getElementById(
+        formType === 'add' ? 'selectedServicesDisplay' : 'edit_selectedServicesDisplay'
+    );
+    
+    if (displayField) {
+        displayField.value = names.length > 0 ? names.join(', ') : 'No services selected';
+        
+        // Add visual feedback
+        displayField.style.backgroundColor = '#d1fae5';
+        displayField.style.transition = 'background-color 0.3s ease';
+        
+        setTimeout(() => {
+            displayField.style.backgroundColor = '';
+        }, 800);
     }
-
-    closeServiceSelectionModal();
+    
+    // Reset search
+    const searchInput = document.getElementById(`${formType}ServiceSearch`);
+    if (searchInput) {
+        searchInput.value = '';
+        filterServices(formType);
+    }
+    
+    // Hide the selection area
+    const selectionDiv = document.getElementById(`${formType}ServiceSelection`);
+    const buttonText = document.getElementById(`${formType}ServiceButtonText`);
+    
+    selectionDiv.classList.add('hidden');
+    buttonText.textContent = 'Select Services';
+    
+    console.log('Services saved. Hidden inputs created:', 
+        document.querySelectorAll(`#${formId} input[name="services[]"]`).length);
 }
 
-function closeServiceSelectionModal() {
-    const modal = document.getElementById('serviceSelectionModal');
-    modal.classList.remove('flex');
-    modal.classList.add('hidden');
+// Update service count
+function updateServiceCount(formType) {
+    const checkedCount = document.querySelectorAll(`.${formType}-service-checkbox:checked`).length;
+    const countElement = document.getElementById(`${formType}SelectedCount`);
+    if (countElement) {
+        countElement.textContent = `${checkedCount} selected`;
+    }
 }
 
-function updateDisplayAndInternal(formType, ids) {
-    const names = [];
-    ids.forEach(id => {
-        const checkbox = document.querySelector(`#serviceOptions .service-checkbox[value="${id}"]`);
-        if (checkbox) names.push(checkbox.dataset.name);
+// Filter services based on search input
+function filterServices(formType) {
+    const searchInput = document.getElementById(`${formType}ServiceSearch`);
+    const searchTerm = searchInput.value.toLowerCase().trim();
+    const serviceItems = document.querySelectorAll(`#${formType}ServiceGrid .service-item`);
+    const noResults = document.getElementById(`${formType}NoResults`);
+    const serviceGrid = document.getElementById(`${formType}ServiceGrid`);
+    const clearButton = document.getElementById(`${formType}ClearSearch`);
+    const searchStats = document.getElementById(`${formType}SearchStats`);
+    const foundCount = document.getElementById(`${formType}FoundCount`);
+    
+    let visibleCount = 0;
+    
+    // Show/hide clear button
+    if (searchTerm.length > 0) {
+        clearButton.classList.remove('hidden');
+    } else {
+        clearButton.classList.add('hidden');
+    }
+    
+    // Filter service items
+    serviceItems.forEach(item => {
+        const serviceName = item.getAttribute('data-service-name');
+        
+        if (serviceName.includes(searchTerm)) {
+            item.classList.remove('hidden');
+            visibleCount++;
+        } else {
+            item.classList.add('hidden');
+        }
     });
-    if (formType === 'add') {
-        document.getElementById('selectedServicesDisplay').value = names.join(', ');
+    
+    // Show/hide no results message
+    if (visibleCount === 0 && searchTerm.length > 0) {
+        noResults.classList.remove('hidden');
+        serviceGrid.classList.add('hidden');
+        searchStats.classList.add('hidden');
     } else {
-        document.getElementById('edit_selectedServicesDisplay').value = names.join(', ');
+        noResults.classList.add('hidden');
+        serviceGrid.classList.remove('hidden');
+        
+        // Show search statistics
+        if (searchTerm.length > 0) {
+            searchStats.classList.remove('hidden');
+            foundCount.textContent = visibleCount;
+        } else {
+            searchStats.classList.add('hidden');
+        }
     }
+}
+
+// Clear service search
+function clearServiceSearch(formType) {
+    const searchInput = document.getElementById(`${formType}ServiceSearch`);
+    searchInput.value = '';
+    filterServices(formType);
+    searchInput.focus();
+}
+
+// Select all visible services
+function selectAllServices(formType) {
+    const checkboxes = document.querySelectorAll(`.${formType}-service-checkbox`);
+    const serviceItems = document.querySelectorAll(`#${formType}ServiceGrid .service-item`);
+    
+    checkboxes.forEach((checkbox, index) => {
+        const serviceItem = serviceItems[index];
+        // Only check visible items
+        if (!serviceItem.classList.contains('hidden')) {
+            checkbox.checked = true;
+        }
+    });
+    
+    updateServiceCount(formType);
 }
 
 function populateOwnerDetails(select) {
@@ -1736,7 +1991,6 @@ function populateOwnerDetailsEdit(select, petId = null) {
     });
     document.getElementById('edit_appoint_contactNum').value = select.selectedOptions[0].dataset.contact || '';
 }
-
 // ==================== PRESCRIPTION FUNCTIONS ====================
 
 function openPrescriptionModal() {
@@ -1974,29 +2228,6 @@ function setupProductSearch(fieldId) {
         }
     });
 }
-function directPrint(button) {
-    const data = populatePrescriptionData(button);
-    updatePrescriptionContent('printContent', data);
-    
-    // Remove all print classes first
-    document.getElementById('printContainer').classList.remove('print-prescription', 'print-referral');
-    document.getElementById('printReferralContainer').classList.remove('print-prescription', 'print-referral');
-    
-    // Hide referral container
-    document.getElementById('printReferralContainer').style.display = 'none';
-    
-    // Show prescription container with print class
-    const printContainer = document.getElementById('printContainer');
-    printContainer.style.display = 'block';
-    printContainer.classList.add('print-prescription');
-    
-    setTimeout(() => {
-        window.print();
-        printContainer.style.display = 'none';
-        printContainer.classList.remove('print-prescription');
-    }, 200);
-}
-
 
 // Form submission handler for prescriptions
 document.getElementById('prescriptionForm').addEventListener('submit', function(e) {
@@ -2130,14 +2361,13 @@ function populatePrescriptionData(button) {
         gender: button.dataset.gender || 'N/A',
         date: button.dataset.date,
         medications: medications,
-        differentialDiagnosis: button.dataset.differentialDiagnosis || 'Not specified',
+        differentialDiagnosis: button.dataset.differentialDiagnosis || 'Not specified', // Fixed
         notes: button.dataset.notes || 'No specific recommendations',
         branchName: button.dataset.branchName.toUpperCase(),
         branchAddress: 'Address: ' + button.dataset.branchAddress,
-        branchContact: "Contact No: " + button.dataset.branchContact,
-        vetName: button.dataset.vetName || 'N/A',
-        vetLicense: button.dataset.vetLicense || 'N/A'
+        branchContact: "Contact No: " + button.dataset.branchContact
     };
+    
     return prescriptionData;
 }
 
@@ -2207,20 +2437,23 @@ function updatePrescriptionContent(targetId, data) {
 
             <div class="footer text-right pt-8 border-t-2 border-black">
                 <div class="doctor-info text-sm">
-                    <div class="doctor-name font-bold mb-1">${data.vetName.toUpperCase()} DVM</div>
-                    <div class="license-info text-gray-600">License No.: ${data.vetLicense}</div>
+                    <div class="doctor-name font-bold mb-1">JAN JERICK M. GO DVM</div>
+                    <div class="license-info text-gray-600">License No.: 0012045</div>
                     <div class="license-info text-gray-600">Attending Veterinarian</div>
                 </div>
             </div>
         </div>
     `;
 }
-
 function viewPrescription(button) {
+    console.log('All button data:', button.dataset); // Debug: see all data attributes
+    
     currentPrescriptionId = button.dataset.id;
     
-    // Get differential diagnosis
+    // Get differential diagnosis - HTML data attributes with hyphens become camelCase in dataset
     let diffDiagnosis = button.dataset.differentialDiagnosis || 'Not specified';
+    
+    console.log('Differential Diagnosis:', diffDiagnosis); // Debug log
     
     // Set all the basic fields
     document.getElementById('viewPet').innerText = button.dataset.pet || 'N/A';
@@ -2230,17 +2463,9 @@ function viewPrescription(button) {
     document.getElementById('viewGender').innerText = button.dataset.gender || 'N/A';
     document.getElementById('viewDate').innerText = button.dataset.date || 'N/A';
     
-    // Set branch information
     document.getElementById('branch_name').innerText = (button.dataset.branchName || 'Main Branch').toUpperCase();
-    document.getElementById('branch_address').innerText = button.dataset.branchAddress || 'Branch Address';
-    document.getElementById('branch_contactNum').innerText = button.dataset.branchContact || 'Contact Number';
-    
-    // Set veterinarian information
-    const vetName = button.dataset.vetName || 'N/A';
-    const vetLicense = button.dataset.vetLicense || 'N/A';
-    
-    document.getElementById('viewVetName').innerText = vetName.toUpperCase() + ' DVM';
-    document.getElementById('viewVetLicense').innerText = vetLicense;
+    document.getElementById('branch_address').innerText = 'Address: ' + (button.dataset.branchAddress || 'Branch Address');
+    document.getElementById('branch_contactNum').innerText = 'Contact No: ' + (button.dataset.branchContact || 'Contact Number');
     
     // Set differential diagnosis
     document.getElementById('viewDifferentialDiagnosis').innerText = diffDiagnosis;
@@ -2279,57 +2504,28 @@ function viewPrescription(button) {
     document.getElementById('viewPrescriptionModal').classList.remove('hidden');
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-
-    const printButton = document.getElementById('btnPrint');
-
-    if (printButton) {
-        printButton.addEventListener('click', function() {
-
-            const b = this.dataset;
-
-            // Safely parse medications JSON
-            let medications = [];
-            try {
-                medications = JSON.parse(b.medication || '[]');
-            } catch(e) {
-                console.error('Error parsing medications JSON', e);
-            }
-
-            // Build content for print
-            let content = `
-                <h2 style="text-align:center;">Prescription</h2>
-                <p><strong>Date:</strong> ${b.date}</p>
-                <p><strong>Pet:</strong> ${b.pet} (${b.species} - ${b.breed})</p>
-                <p><strong>Gender:</strong> ${b.gender} | <strong>Age:</strong> ${b.age} | <strong>Weight:</strong> ${b.weight}kg | <strong>Temp:</strong> ${b.temp}°C</p>
-                <p><strong>Differential Diagnosis:</strong> ${b.differentialDiagnosis || 'N/A'}</p>
-                <p><strong>Medications:</strong></p>
-                <ul>
-            `;
-            medications.forEach(m => {
-                content += `<li>${m.product_name || ''} - ${m.dosage || ''}</li>`;
-            });
-            content += `</ul>
-                <p><strong>Notes:</strong> ${b.notes || ''}</p>
-                <hr>
-                <p><strong>Vet:</strong> ${b.vetName} (${b.vetLicense})</p>
-                <p><strong>Branch:</strong> ${b.branchName}, ${b.branchAddress} (${b.branchContact})</p>
-            `;
-
-            // Open print window
-            const printWindow = window.open('', '', 'height=600,width=800');
-            printWindow.document.write('<html><head><title>Prescription</title></head><body>');
-            printWindow.document.write(content);
-            printWindow.document.write('</body></html>');
-            printWindow.document.close();
-            printWindow.focus();
-            printWindow.print();
-            printWindow.close();
-
-        });
-    }
-
-});
+function directPrint(button) {
+    const data = populatePrescriptionData(button);
+    updatePrescriptionContent('printContent', data);
+    
+    // Remove all print classes first
+    document.getElementById('printContainer').classList.remove('print-prescription', 'print-referral');
+    document.getElementById('printReferralContainer').classList.remove('print-prescription', 'print-referral');
+    
+    // Hide referral container
+    document.getElementById('printReferralContainer').style.display = 'none';
+    
+    // Show prescription container with print class
+    const printContainer = document.getElementById('printContainer');
+    printContainer.style.display = 'block';
+    printContainer.classList.add('print-prescription');
+    
+    setTimeout(() => {
+        window.print();
+        printContainer.style.display = 'none';
+        printContainer.classList.remove('print-prescription');
+    }, 200);
+}
 
 // ==================== REFERRAL FUNCTIONS ====================
 

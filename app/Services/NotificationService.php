@@ -2,192 +2,388 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Session;
+use App\Models\User;
+use App\Models\Product;
+use App\Models\Equipment;
+use App\Models\Appointment;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class NotificationService
 {
     /**
-     * Add a notification to session
+     * Get all notifications for the current user
      */
-    private function addNotification($userId, $notification)
+    public function getNotifications($user)
     {
-        $key = "notifications_user_{$userId}";
-        $notifications = Session::get($key, []);
-        
-        $notification['id'] = uniqid();
-        $notification['created_at'] = now()->toISOString();
-        $notification['is_read'] = false;
-        
-        array_unshift($notifications, $notification);
-        
-        // Keep only last 50 notifications
-        $notifications = array_slice($notifications, 0, 50);
-        
-        Session::put($key, $notifications);
-    }
+        $notifications = [];
+        $role = strtolower(trim($user->user_role));
 
-    /**
-     * Notify veterinarians when appointment status changes to 'arrived'
-     */
-    public function notifyAppointmentArrived($appointment)
-    {
-        try {
-            $veterinarians = \App\Models\User::where('branch_id', auth()->user()->branch_id ?? $appointment->user->branch_id)
-                ->where('user_role', 'Veterinarian')
-                ->where('user_id', '!=', auth()->id())
-                ->get();
+        switch ($role) {
+            case 'superadmin':
+                $notifications = array_merge(
+                    $this->getLoginAlerts($user),
+                    $this->getStockLevelAlerts($user),
+                    $this->getProductExpirationAlerts($user),
+                    $this->getEquipmentStatusAlerts($user)
+                );
+                break;
 
-            $petName = $appointment->pet->pet_name ?? 'Unknown Pet';
-            $ownerName = $appointment->pet->owner->own_name ?? 'Unknown Owner';
-            $appointmentTime = \Carbon\Carbon::parse($appointment->appoint_time)->format('g:i A');
+            case 'veterinarian':
+                $notifications = array_merge(
+                    $this->getRescheduledAppointments($user),
+                    $this->getArrivedAppointments($user)
+                );
+                break;
 
-            foreach ($veterinarians as $vet) {
-                $this->addNotification($vet->user_id, [
-                    'type' => 'appointment_arrived',
-                    'title' => 'Patient Arrived',
-                    'message' => "{$petName} (Owner: {$ownerName}) has arrived for their {$appointmentTime} appointment.",
-                    'data' => [
-                        'appointment_id' => $appointment->appoint_id,
-                        'pet_name' => $petName,
-                        'owner_name' => $ownerName,
-                        'appointment_time' => $appointmentTime,
-                        'icon' => 'fa-user-check'
-                    ]
-                ]);
-            }
-
-            Log::info("Arrival notification sent for appointment {$appointment->appoint_id}");
-        } catch (\Exception $e) {
-            Log::error("Failed to send arrival notification: " . $e->getMessage());
+            case 'receptionist':
+                $notifications = array_merge(
+                    $this->getStockLevelAlerts($user),
+                    $this->getProductExpirationAlerts($user)
+                );
+                break;
         }
-    }
 
-    /**
-     * Notify superadmin when a user logs in
-     */
-    public function notifyUserLogin($user)
-    {
-        try {
-            $superAdmins = \App\Models\User::where('user_role', 'SuperAdmin')->get();
-            $branchName = $user->branch->branch_name ?? 'Unknown Branch';
-
-            foreach ($superAdmins as $admin) {
-                $this->addNotification($admin->user_id, [
-                    'type' => 'user_login',
-                    'title' => 'User Login',
-                    'message' => "{$user->user_name} ({$user->user_role}) logged in from {$branchName}.",
-                    'data' => [
-                        'user_name' => $user->user_name,
-                        'user_role' => $user->user_role,
-                        'branch_name' => $branchName,
-                        'login_time' => now()->format('g:i A'),
-                        'icon' => 'fa-sign-in-alt'
-                    ]
-                ]);
-            }
-
-            Log::info("Login notification sent for user {$user->user_id}");
-        } catch (\Exception $e) {
-            Log::error("Failed to send login notification: " . $e->getMessage());
-        }
-    }
-
-    /**
-     * Notify veterinarians in target branch when referral is received
-     */
-    public function notifyReferralReceived($referral)
-    {
-        try {
-            $veterinarians = \App\Models\User::where('branch_id', $referral->ref_to)
-                ->where('user_role', 'Veterinarian')
-                ->get();
-
-            $appointment = $referral->appointment;
-            $petName = $appointment->pet->pet_name ?? 'Unknown Pet';
-            $ownerName = $appointment->pet->owner->own_name ?? 'Unknown Owner';
-            $fromBranch = $referral->refByBranch->branch_name ?? 'Unknown Branch';
-            $toBranch = $referral->refToBranch->branch_name ?? 'Your Branch';
-
-            foreach ($veterinarians as $vet) {
-                $this->addNotification($vet->user_id, [
-                    'type' => 'referral_received',
-                    'title' => 'New Referral Received',
-                    'message' => "{$petName} (Owner: {$ownerName}) has been referred from {$fromBranch} to {$toBranch}.",
-                    'data' => [
-                        'referral_id' => $referral->ref_id,
-                        'appointment_id' => $referral->appoint_id,
-                        'pet_name' => $petName,
-                        'owner_name' => $ownerName,
-                        'from_branch' => $fromBranch,
-                        'reason' => $referral->ref_description,
-                        'icon' => 'fa-exchange-alt'
-                    ]
-                ]);
-            }
-
-            Log::info("Referral notification sent for referral {$referral->ref_id}");
-        } catch (\Exception $e) {
-            Log::error("Failed to send referral notification: " . $e->getMessage());
-        }
-    }
-
-    /**
-     * Get all notifications for current user
-     */
-    public static function getUserNotifications($userId)
-    {
-        $key = "notifications_user_{$userId}";
-        $notifications = Session::get($key, []);
-        
-        // Convert to collection-like array
-        return collect($notifications)->map(function($notification) {
-            $notification['created_at'] = \Carbon\Carbon::parse($notification['created_at']);
-            return (object) $notification;
+        // Sort by timestamp (newest first)
+        usort($notifications, function ($a, $b) {
+            return strtotime($b['timestamp']) - strtotime($a['timestamp']);
         });
+
+        return $notifications;
     }
 
     /**
-     * Get unread count
+     * Get login alerts (last 24 hours)
      */
-    public static function getUnreadCount($userId)
+    private function getLoginAlerts($user)
     {
-        $notifications = self::getUserNotifications($userId);
-        return $notifications->where('is_read', false)->count();
+        $alerts = [];
+        
+        try {
+            // Get users who logged in within the last 24 hours
+            $recentLogins = User::where('last_login_at', '>=', Carbon::now()->subDay())
+                ->where('user_id', '!=', $user->user_id)
+                ->where('branch_id', $user->branch_id)
+                ->orderBy('last_login_at', 'desc')
+                ->get();
+
+            foreach ($recentLogins as $login) {
+                $alerts[] = [
+                    'id' => 'login_' . $login->user_id . '_' . strtotime($login->last_login_at),
+                    'type' => 'login_alert',
+                    'icon' => 'fa-user-circle',
+                    'color' => 'blue',
+                    'title' => 'User Login',
+                    'message' => ucfirst($login->user_role) . ' "' . ($login->name ?? 'User') . '" logged in',
+                    'timestamp' => $login->last_login_at,
+                    'route' => route('dashboard-index'), // Your actual route
+                    'is_read' => $this->isNotificationRead('login_' . $login->user_id . '_' . strtotime($login->last_login_at))
+                ];
+            }
+        } catch (\Exception $e) {
+            // Handle error silently
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * Get stock level alerts (products below minimum stock)
+     */
+    private function getStockLevelAlerts($user)
+    {
+        $alerts = [];
+        
+        try {
+            $lowStockProducts = Product::where('branch_id', $user->branch_id)
+                ->whereRaw('prod_stocks <= prod_min_stock')
+                ->where('prod_stocks', '>', 0)
+                ->get();
+
+            foreach ($lowStockProducts as $product) {
+                $alerts[] = [
+                    'id' => 'stock_' . $product->prod_id,
+                    'type' => 'stock_alert',
+                    'icon' => 'fa-box',
+                    'color' => 'orange',
+                    'title' => 'Low Stock Alert',
+                    'message' => $product->prod_name . ' has only ' . $product->prod_stocks . ' items left (Min: ' . $product->prod_min_stock . ')',
+                    'timestamp' => $product->updated_at,
+                    'route' => route('prodservequip.index') . '?tab=products', // Your actual route
+                    'is_read' => $this->isNotificationRead('stock_' . $product->prod_id)
+                ];
+            }
+
+            // Out of stock products
+            $outOfStockProducts = Product::where('branch_id', $user->branch_id)
+                ->where('prod_stocks', 0)
+                ->get();
+
+            foreach ($outOfStockProducts as $product) {
+                $alerts[] = [
+                    'id' => 'outofstock_' . $product->prod_id,
+                    'type' => 'stock_alert',
+                    'icon' => 'fa-exclamation-triangle',
+                    'color' => 'red',
+                    'title' => 'Out of Stock',
+                    'message' => $product->prod_name . ' is out of stock!',
+                    'timestamp' => $product->updated_at,
+                    'route' => route('prodservequip.index') . '?tab=products', // Your actual route
+                    'is_read' => $this->isNotificationRead('outofstock_' . $product->prod_id)
+                ];
+            }
+        } catch (\Exception $e) {
+            // Handle error silently
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * Get product expiration alerts (expiring within 30 days)
+     */
+    private function getProductExpirationAlerts($user)
+    {
+        $alerts = [];
+        
+        try {
+            $thirtyDaysFromNow = Carbon::now()->addDays(30);
+            
+            $expiringProducts = Product::where('branch_id', $user->branch_id)
+                ->whereNotNull('prod_expiration')
+                ->where('prod_expiration', '<=', $thirtyDaysFromNow)
+                ->where('prod_expiration', '>=', Carbon::now())
+                ->orderBy('prod_expiration', 'asc')
+                ->get();
+
+            foreach ($expiringProducts as $product) {
+                $daysUntilExpiry = Carbon::now()->diffInDays($product->prod_expiration);
+                $isUrgent = $daysUntilExpiry <= 7;
+
+                $alerts[] = [
+                    'id' => 'expiry_' . $product->prod_id,
+                    'type' => 'expiration_alert',
+                    'icon' => 'fa-calendar-times',
+                    'color' => $isUrgent ? 'red' : 'yellow',
+                    'title' => $isUrgent ? 'Urgent: Product Expiring Soon' : 'Product Expiration Warning',
+                    'message' => $product->prod_name . ' expires in ' . $daysUntilExpiry . ' days (' . Carbon::parse($product->prod_expiration)->format('M d, Y') . ')',
+                    'timestamp' => $product->updated_at,
+                    'route' => route('prodservequip.index') . '?tab=products', // Your actual route
+                    'is_read' => $this->isNotificationRead('expiry_' . $product->prod_id)
+                ];
+            }
+
+            // Expired products
+            $expiredProducts = Product::where('branch_id', $user->branch_id)
+                ->whereNotNull('prod_expiration')
+                ->where('prod_expiration', '<', Carbon::now())
+                ->get();
+
+            foreach ($expiredProducts as $product) {
+                $alerts[] = [
+                    'id' => 'expired_' . $product->prod_id,
+                    'type' => 'expiration_alert',
+                    'icon' => 'fa-ban',
+                    'color' => 'red',
+                    'title' => 'Product Expired',
+                    'message' => $product->prod_name . ' has expired! Remove from inventory immediately.',
+                    'timestamp' => $product->prod_expiration,
+                    'route' => route('prodservequip.index') . '?tab=products', // Your actual route
+                    'is_read' => $this->isNotificationRead('expired_' . $product->prod_id)
+                ];
+            }
+        } catch (\Exception $e) {
+            // Handle error silently
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * Get equipment status alerts
+     */
+    private function getEquipmentStatusAlerts($user)
+    {
+        $alerts = [];
+        
+        try {
+            // Equipment needing attention (not operational)
+            $equipmentNeedingAttention = Equipment::where('branch_id', $user->branch_id)
+                ->where('equip_status', '!=', 'Operational')
+                ->get();
+
+            foreach ($equipmentNeedingAttention as $equipment) {
+                $alerts[] = [
+                    'id' => 'equipment_' . $equipment->equip_id,
+                    'type' => 'equipment_alert',
+                    'icon' => 'fa-tools',
+                    'color' => 'purple',
+                    'title' => 'Equipment Status Alert',
+                    'message' => $equipment->equip_name . ' status: ' . $equipment->equip_status,
+                    'timestamp' => $equipment->updated_at,
+                    'route' => route('prodservequip.index') . '?tab=equipment', // Your actual route
+                    'is_read' => $this->isNotificationRead('equipment_' . $equipment->equip_id)
+                ];
+            }
+        } catch (\Exception $e) {
+            // Handle error silently
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * Get rescheduled appointments
+     */
+    private function getRescheduledAppointments($user)
+    {
+        $alerts = [];
+        
+        try {
+            $rescheduledAppointments = Appointment::where('branch_id', $user->branch_id)
+                ->where('appt_status', 'Rescheduled')
+                ->where('updated_at', '>=', Carbon::now()->subDays(7))
+                ->orderBy('appt_date', 'asc')
+                ->get();
+
+            foreach ($rescheduledAppointments as $appointment) {
+                $alerts[] = [
+                    'id' => 'reschedule_' . $appointment->appt_id,
+                    'type' => 'reschedule_alert',
+                    'icon' => 'fa-calendar-alt',
+                    'color' => 'blue',
+                    'title' => 'Appointment Rescheduled',
+                    'message' => 'Appointment #' . $appointment->appt_id . ' rescheduled to ' . Carbon::parse($appointment->appt_date)->format('M d, Y g:i A'),
+                    'timestamp' => $appointment->updated_at,
+                    'route' => route('medical.index') . '?active_tab=appointments', // Your actual route
+                    'is_read' => $this->isNotificationRead('reschedule_' . $appointment->appt_id)
+                ];
+            }
+        } catch (\Exception $e) {
+            // Handle error silently
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * Get arrived appointments (today)
+     */
+    private function getArrivedAppointments($user)
+    {
+        $alerts = [];
+        
+        try {
+            $arrivedAppointments = Appointment::where('branch_id', $user->branch_id)
+                ->where('appt_status', 'Arrived')
+                ->whereDate('appt_date', Carbon::today())
+                ->orderBy('updated_at', 'desc')
+                ->get();
+
+            foreach ($arrivedAppointments as $appointment) {
+                $alerts[] = [
+                    'id' => 'arrived_' . $appointment->appt_id,
+                    'type' => 'arrived_alert',
+                    'icon' => 'fa-check-circle',
+                    'color' => 'green',
+                    'title' => 'Patient Arrived',
+                    'message' => 'Appointment #' . $appointment->appt_id . ' - Patient has arrived',
+                    'timestamp' => $appointment->updated_at,
+                    'route' => route('medical.index') . '?active_tab=appointments', // Your actual route
+                    'is_read' => $this->isNotificationRead('arrived_' . $appointment->appt_id)
+                ];
+            }
+        } catch (\Exception $e) {
+            // Handle error silently
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * Check if notification is read (stored in session)
+     */
+    private function isNotificationRead($notificationId)
+    {
+        $readNotifications = session('read_notifications', []);
+        return in_array($notificationId, $readNotifications);
     }
 
     /**
      * Mark notification as read
      */
-    public static function markAsRead($userId, $notificationId)
+    public function markAsRead($notificationId)
     {
-        $key = "notifications_user_{$userId}";
-        $notifications = Session::get($key, []);
-        
-        foreach ($notifications as &$notification) {
-            if ($notification['id'] === $notificationId) {
-                $notification['is_read'] = true;
-                $notification['read_at'] = now()->toISOString();
-                break;
-            }
+        $readNotifications = session('read_notifications', []);
+        if (!in_array($notificationId, $readNotifications)) {
+            $readNotifications[] = $notificationId;
+            session(['read_notifications' => $readNotifications]);
         }
-        
-        Session::put($key, $notifications);
     }
 
     /**
-     * Mark all as read
+     * Mark all notifications as read
      */
-    public static function markAllAsRead($userId)
+    public function markAllAsRead($user)
     {
-        $key = "notifications_user_{$userId}";
-        $notifications = Session::get($key, []);
-        
-        foreach ($notifications as &$notification) {
-            $notification['is_read'] = true;
-            $notification['read_at'] = now()->toISOString();
-        }
-        
-        Session::put($key, $notifications);
+        $allNotifications = $this->getNotifications($user);
+        $notificationIds = array_column($allNotifications, 'id');
+        session(['read_notifications' => $notificationIds]);
     }
+
+    /**
+     * Get unread notification count
+     */
+    public function getUnreadCount($user)
+    {
+        $allNotifications = $this->getNotifications($user);
+        $unreadNotifications = array_filter($allNotifications, function ($notification) {
+            return !$notification['is_read'];
+        });
+        return count($unreadNotifications);
+    }
+
+    public function notifyAppointmentArrived(Appointment $appointment)
+    {
+        $alerts = [];
+
+        try {
+            // Notify all vets and receptionists in the branch
+            $usersToNotify = User::where('branch_id', $appointment->branch_id)
+                ->whereIn('user_role', ['Veterinarian', 'Receptionist'])
+                ->get();
+
+            foreach ($usersToNotify as $user) {
+                $alerts[] = [
+                    'id' => 'arrived_' . $appointment->appt_id,
+                    'type' => 'arrived_alert',
+                    'icon' => 'fa-check-circle',
+                    'color' => 'green',
+                    'title' => 'Patient Arrived',
+                    'message' => 'Appointment #' . $appointment->appt_id . ' - Patient has arrived',
+                    'timestamp' => now(),
+                    'route' => route('medical.index') . '?active_tab=appointments',
+                    'is_read' => false
+                ];
+            }
+
+            // Optionally: store these in session or database for later retrieval
+            // Here we append to session-based notifications
+            $readNotifications = session('read_notifications', []);
+            foreach ($alerts as $alert) {
+                if (!in_array($alert['id'], $readNotifications)) {
+                    $notifications = session('notifications', []);
+                    $notifications[] = $alert;
+                    session(['notifications' => $notifications]);
+                }
+            }
+
+        } catch (\Exception $e) {
+            \Log::error('Error notifying appointment arrival: ' . $e->getMessage());
+        }
+
+        return $alerts;
+    }
+
+    
 }

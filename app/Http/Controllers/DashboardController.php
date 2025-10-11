@@ -20,8 +20,14 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        $today = Carbon::today();
         $user = auth()->user();
+        
+        // Redirect super admin to their own dashboard
+        if ($user->user_role === 'superadmin') {
+            return redirect()->route('superadmin.dashboard');
+        }
+
+        $today = Carbon::today();
         
         // Get active branch ID
         $activeBranchId = session('active_branch_id');
@@ -35,7 +41,7 @@ class DashboardController extends Controller
         $userName = $user->name ?? $user->user_name ?? $user->email ?? 'User';
         $userRole = $user->user_role ?? 'user';
 
-        // Get branch name - FIXED: Only set once
+        // Get branch name
         $activeBranch = Branch::find($activeBranchId);
         $branchName = $activeBranch ? $activeBranch->branch_name : 'All Branches';
 
@@ -61,13 +67,10 @@ class DashboardController extends Controller
                 $q->where('branch_id', $activeBranchId);
             })->count();
 
-        // Filter orders by branch
         $dailySales = Order::whereDate('ord_date', $today)
             ->whereHas('user', function($q) use ($activeBranchId) {
                 $q->where('branch_id', $activeBranchId);
             })->sum('ord_total');
-
-        // REMOVED DUPLICATE CODE - The lines below were overwriting your variables
 
         // Metrics
         $totalOrders = Order::count();
