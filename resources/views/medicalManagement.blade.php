@@ -325,31 +325,7 @@
                             </td>
                             <td class="border px-2 py-1 flex justify-center gap-1">
                                @if(hasPermission('view_prescriptions', $can))
-                            <button onclick="viewPrescription(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
-    data-id="{{ $prescription->prescription_id }}"
-    data-pet="{{ $prescription->pet->pet_name }}"
-    data-species="{{ $prescription->pet->pet_species }}"
-    data-breed="{{ $prescription->pet->pet_breed }}"
-    data-weight="{{ $prescription->pet->pet_weight }}"
-    data-age="{{ $prescription->pet->pet_age }}"
-    data-temp="{{ $prescription->pet->pet_temperature }}"
-    data-gender="{{ $prescription->pet->pet_gender }}"
-    data-date="{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}"
-    data-medication="{{ $prescription->medication }}"
-    data-differential-diagnosis="{{ $prescription->differential_diagnosis }}"
-    data-notes="{{ $prescription->notes }}"
-    data-branch-name="{{ $prescription->branch->branch_name ?? 'Main Branch' }}"
-    data-branch-address="{{ $prescription->branch->branch_address ?? 'Branch Address' }}"
-    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}"
-    data-vet-name="{{ $prescription->user->user_name ?? 'N/A' }}"
-    data-vet-license="{{ $prescription->user->user_licenseNum ?? 'N/A' }}"
-    title="View Prescription">
-    <i class="fas fa-eye"></i>
-</button>
-                                 @endif
-                                @if(hasPermission('print_prescription', $can))
-                                <!-- Direct Print Button -->
-                               <button onclick="directPrint(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                <button onclick="viewPrescription(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
                                     data-id="{{ $prescription->prescription_id }}"
                                     data-pet="{{ $prescription->pet->pet_name }}"
                                     data-species="{{ $prescription->pet->pet_species }}"
@@ -364,20 +340,38 @@
                                     data-notes="{{ $prescription->notes }}"
                                     data-branch-name="{{ $prescription->branch->branch_name ?? 'Main Branch' }}"
                                     data-branch-address="{{ $prescription->branch->branch_address ?? 'Branch Address' }}"
-                                    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}" 
-                                    data-vet-name="{{ $prescription->user->user_name ?? 'N/A' }}"
-    data-vet-license="{{ $prescription->user->user_licenseNum ?? 'N/A' }}"
-                                    title="print">
+                                    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}"title="View Prescription">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                 @endif
+@if(hasPermission('print_prescription', $can))
+                                <!-- Direct Print Button -->
+                                <button onclick="directPrint(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                    data-id="{{ $prescription->prescription_id }}"
+                                    data-pet="{{ $prescription->pet->pet_name }}"
+                                    data-species="{{ $prescription->pet->pet_species }}"
+                                    data-breed="{{ $prescription->pet->pet_breed }}"
+                                    data-weight="{{ $prescription->pet->pet_weight }}"
+                                    data-age="{{ $prescription->pet->pet_age }}"
+                                    data-temp="{{ $prescription->pet->pet_temperature }}"
+                                    data-gender="{{ $prescription->pet->pet_gender }}"
+                                    data-date="{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}"
+                                    data-medication="{{ $prescription->medication }}"
+                                     data-differential-diagnosis="{{ $prescription->differential_diagnosis }}"
+                                    data-notes="{{ $prescription->notes }}"
+                                    data-branch-name="{{ $prescription->branch->branch_name ?? 'Main Branch' }}"
+                                    data-branch-address="{{ $prescription->branch->branch_address ?? 'Branch Address' }}"
+                                    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}" title="print">
                                     <i class="fas fa-print"></i>
                                 </button> 
                                 @endif
-                                @if(hasPermission('edit_prescription', $can))
+@if(hasPermission('edit_prescription', $can))
                                 <!-- Edit -->
                                 <button onclick="editPrescription({{ $prescription->prescription_id }})" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs" title="edit">
                                     <i class="fas fa-pen"></i>
                                 </button>
-                                @endif
-                                @if(hasPermission('edit_prescription', $can))
+ @endif
+ @if(hasPermission('edit_prescription', $can))
                                 <!-- Delete -->
                                 <form action="{{ route('medical.prescriptions.destroy', $prescription->prescription_id) }}" method="POST"
                                     onsubmit="return confirm('Are you sure you want to delete this prescription?');" class="inline">
@@ -871,12 +865,12 @@
                 </div>
 
                 <div class="footer text-right pt-8 border-t-2 border-black">
-    <div class="doctor-info text-sm">
-        <div class="doctor-name font-bold mb-1" id="viewVetName">Loading...</div>
-        <div class="license-info text-gray-600">License No.: <span id="viewVetLicense">Loading...</span></div>
-        <div class="license-info text-gray-600">Attending Veterinarian</div>
-    </div>
-</div>
+                    <div class="doctor-info text-sm">
+                        <div class="doctor-name font-bold mb-1">JAN JERICK M. GO DVM</div>
+                        <div class="license-info text-gray-600">License No.: 0012045</div>
+                        <div class="license-info text-gray-600">Attending Veterinarian</div>
+                    </div>
+                </div>
             </div>
         </div>
         <button onclick="document.getElementById('viewPrescriptionModal').classList.add('hidden')" 
@@ -1611,11 +1605,7 @@ function openEditModal(appointment) {
     document.getElementById('editForm').action = `/medical-management/appointments/${appointment.appoint_id}`;
     document.getElementById('edit_appoint_id').value = appointment.appoint_id ?? '';
     document.getElementById('edit_appoint_date').value = appointment.appoint_date ?? '';
-
-     let appointTime = appointment.appoint_time ?? '';
-    if (appointTime && appointTime.length > 5) {
-        appointTime = appointTime.substring(0, 5); // Extract HH:MM from HH:MM:SS
-    }
+    document.getElementById('edit_appoint_time').value = appointment.appoint_time ?? '';
     document.getElementById('edit_appoint_contactNum').value = appointment.appoint_contactNum ?? '';
     document.getElementById('edit_appoint_status').value = appointment.appoint_status ?? '';
     document.getElementById('edit_appoint_type').value = appointment.appoint_type ?? '';
@@ -1974,29 +1964,6 @@ function setupProductSearch(fieldId) {
         }
     });
 }
-function directPrint(button) {
-    const data = populatePrescriptionData(button);
-    updatePrescriptionContent('printContent', data);
-    
-    // Remove all print classes first
-    document.getElementById('printContainer').classList.remove('print-prescription', 'print-referral');
-    document.getElementById('printReferralContainer').classList.remove('print-prescription', 'print-referral');
-    
-    // Hide referral container
-    document.getElementById('printReferralContainer').style.display = 'none';
-    
-    // Show prescription container with print class
-    const printContainer = document.getElementById('printContainer');
-    printContainer.style.display = 'block';
-    printContainer.classList.add('print-prescription');
-    
-    setTimeout(() => {
-        window.print();
-        printContainer.style.display = 'none';
-        printContainer.classList.remove('print-prescription');
-    }, 200);
-}
-
 
 // Form submission handler for prescriptions
 document.getElementById('prescriptionForm').addEventListener('submit', function(e) {
@@ -2130,14 +2097,13 @@ function populatePrescriptionData(button) {
         gender: button.dataset.gender || 'N/A',
         date: button.dataset.date,
         medications: medications,
-        differentialDiagnosis: button.dataset.differentialDiagnosis || 'Not specified',
+        differentialDiagnosis: button.dataset.differentialDiagnosis || 'Not specified', // Fixed
         notes: button.dataset.notes || 'No specific recommendations',
         branchName: button.dataset.branchName.toUpperCase(),
         branchAddress: 'Address: ' + button.dataset.branchAddress,
-        branchContact: "Contact No: " + button.dataset.branchContact,
-        vetName: button.dataset.vetName || 'N/A',
-        vetLicense: button.dataset.vetLicense || 'N/A'
+        branchContact: "Contact No: " + button.dataset.branchContact
     };
+    
     return prescriptionData;
 }
 
@@ -2207,20 +2173,23 @@ function updatePrescriptionContent(targetId, data) {
 
             <div class="footer text-right pt-8 border-t-2 border-black">
                 <div class="doctor-info text-sm">
-                    <div class="doctor-name font-bold mb-1">${data.vetName.toUpperCase()} DVM</div>
-                    <div class="license-info text-gray-600">License No.: ${data.vetLicense}</div>
+                    <div class="doctor-name font-bold mb-1">JAN JERICK M. GO DVM</div>
+                    <div class="license-info text-gray-600">License No.: 0012045</div>
                     <div class="license-info text-gray-600">Attending Veterinarian</div>
                 </div>
             </div>
         </div>
     `;
 }
-
 function viewPrescription(button) {
+    console.log('All button data:', button.dataset); // Debug: see all data attributes
+    
     currentPrescriptionId = button.dataset.id;
     
-    // Get differential diagnosis
+    // Get differential diagnosis - HTML data attributes with hyphens become camelCase in dataset
     let diffDiagnosis = button.dataset.differentialDiagnosis || 'Not specified';
+    
+    console.log('Differential Diagnosis:', diffDiagnosis); // Debug log
     
     // Set all the basic fields
     document.getElementById('viewPet').innerText = button.dataset.pet || 'N/A';
@@ -2230,17 +2199,9 @@ function viewPrescription(button) {
     document.getElementById('viewGender').innerText = button.dataset.gender || 'N/A';
     document.getElementById('viewDate').innerText = button.dataset.date || 'N/A';
     
-    // Set branch information
     document.getElementById('branch_name').innerText = (button.dataset.branchName || 'Main Branch').toUpperCase();
-    document.getElementById('branch_address').innerText = button.dataset.branchAddress || 'Branch Address';
-    document.getElementById('branch_contactNum').innerText = button.dataset.branchContact || 'Contact Number';
-    
-    // Set veterinarian information
-    const vetName = button.dataset.vetName || 'N/A';
-    const vetLicense = button.dataset.vetLicense || 'N/A';
-    
-    document.getElementById('viewVetName').innerText = vetName.toUpperCase() + ' DVM';
-    document.getElementById('viewVetLicense').innerText = vetLicense;
+    document.getElementById('branch_address').innerText = 'Address: ' + (button.dataset.branchAddress || 'Branch Address');
+    document.getElementById('branch_contactNum').innerText = 'Contact No: ' + (button.dataset.branchContact || 'Contact Number');
     
     // Set differential diagnosis
     document.getElementById('viewDifferentialDiagnosis').innerText = diffDiagnosis;
@@ -2279,57 +2240,28 @@ function viewPrescription(button) {
     document.getElementById('viewPrescriptionModal').classList.remove('hidden');
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-
-    const printButton = document.getElementById('btnPrint');
-
-    if (printButton) {
-        printButton.addEventListener('click', function() {
-
-            const b = this.dataset;
-
-            // Safely parse medications JSON
-            let medications = [];
-            try {
-                medications = JSON.parse(b.medication || '[]');
-            } catch(e) {
-                console.error('Error parsing medications JSON', e);
-            }
-
-            // Build content for print
-            let content = `
-                <h2 style="text-align:center;">Prescription</h2>
-                <p><strong>Date:</strong> ${b.date}</p>
-                <p><strong>Pet:</strong> ${b.pet} (${b.species} - ${b.breed})</p>
-                <p><strong>Gender:</strong> ${b.gender} | <strong>Age:</strong> ${b.age} | <strong>Weight:</strong> ${b.weight}kg | <strong>Temp:</strong> ${b.temp}°C</p>
-                <p><strong>Differential Diagnosis:</strong> ${b.differentialDiagnosis || 'N/A'}</p>
-                <p><strong>Medications:</strong></p>
-                <ul>
-            `;
-            medications.forEach(m => {
-                content += `<li>${m.product_name || ''} - ${m.dosage || ''}</li>`;
-            });
-            content += `</ul>
-                <p><strong>Notes:</strong> ${b.notes || ''}</p>
-                <hr>
-                <p><strong>Vet:</strong> ${b.vetName} (${b.vetLicense})</p>
-                <p><strong>Branch:</strong> ${b.branchName}, ${b.branchAddress} (${b.branchContact})</p>
-            `;
-
-            // Open print window
-            const printWindow = window.open('', '', 'height=600,width=800');
-            printWindow.document.write('<html><head><title>Prescription</title></head><body>');
-            printWindow.document.write(content);
-            printWindow.document.write('</body></html>');
-            printWindow.document.close();
-            printWindow.focus();
-            printWindow.print();
-            printWindow.close();
-
-        });
-    }
-
-});
+function directPrint(button) {
+    const data = populatePrescriptionData(button);
+    updatePrescriptionContent('printContent', data);
+    
+    // Remove all print classes first
+    document.getElementById('printContainer').classList.remove('print-prescription', 'print-referral');
+    document.getElementById('printReferralContainer').classList.remove('print-prescription', 'print-referral');
+    
+    // Hide referral container
+    document.getElementById('printReferralContainer').style.display = 'none';
+    
+    // Show prescription container with print class
+    const printContainer = document.getElementById('printContainer');
+    printContainer.style.display = 'block';
+    printContainer.classList.add('print-prescription');
+    
+    setTimeout(() => {
+        window.print();
+        printContainer.style.display = 'none';
+        printContainer.classList.remove('print-prescription');
+    }, 200);
+}
 
 // ==================== REFERRAL FUNCTIONS ====================
 

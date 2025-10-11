@@ -22,54 +22,75 @@ class MedicalManagementController extends Controller
      * Display the unified medical management interface
      */
     public function index(Request $request)
-    {
-        $perPage = $request->get('perPage', 10);
-        $activeTab = $request->get('active_tab', 'appointments');
+{
+    $perPage = $request->get('perPage', 10);
+    $activeTab = $request->get('active_tab', 'appointments');
+    $activeBranchId = session('active_branch_id');
+    $user = auth()->user();
+    
+    // Non-super admins can only see their branch
+    if ($user->user_role !== 'superadmin') {
+        $activeBranchId = $user->branch_id;
+    }
 
-        // Get appointments with pagination
-        $appointmentsQuery = Appointment::with(['pet.owner', 'services', 'user']);
-        if ($perPage === 'all') {
-            $appointments = $appointmentsQuery->get();
-        } else {
-            $appointments = $appointmentsQuery->paginate((int) $perPage);
-        }
-         $prescriptionPerPage = $request->get('prescriptionPerPage', 10);
-         $prescriptionsQuery = Prescription::with(['pet.owner', 'branch', 'user']); // Added 'user'
-           if ($prescriptionPerPage === 'all') {
-          $prescriptions = $prescriptionsQuery->get();
+    // Get all user IDs from the same branch
+    $branchUserIds = \App\Models\User::where('branch_id', $activeBranchId)
+        ->pluck('user_id')
+        ->toArray();
+
+    // Filter appointments by branch through user relationship
+    $appointmentsQuery = Appointment::with(['pet.owner', 'services', 'user'])
+        ->whereHas('user', function($q) use ($activeBranchId) {
+            $q->where('branch_id', $activeBranchId);
+        });
+    
+    if ($perPage === 'all') {
+        $appointments = $appointmentsQuery->get();
+    } else {
+        $appointments = $appointmentsQuery->paginate((int) $perPage);
+    }
+
+    // Filter prescriptions by branch
+    $prescriptionPerPage = $request->get('prescriptionPerPage', 10);
+    $prescriptionsQuery = Prescription::with(['pet.owner', 'branch', 'user'])
+        ->where('branch_id', $activeBranchId);
+    
+    if ($prescriptionPerPage === 'all') {
+        $prescriptions = $prescriptionsQuery->get();
     } else {
         $prescriptions = $prescriptionsQuery->paginate((int) $prescriptionPerPage);
     }
 
-        // Get prescriptions with pagination
-        $prescriptionPerPage = $request->get('prescriptionPerPage', 10);
-        $prescriptionsQuery = Prescription::with(['pet.owner', 'branch', 'user']);
-        if ($prescriptionPerPage === 'all') {
-            $prescriptions = $prescriptionsQuery->get();
-        } else {
-            $prescriptions = $prescriptionsQuery->paginate((int) $prescriptionPerPage);
-        }
-
-        // Get referrals with pagination
-        $referralPerPage = $request->get('referralPerPage', 10);
-        $referralsQuery = Referral::with([
-            'appointment.pet.owner',
-            'refToBranch',
-            'refByBranch'
-        ]);
-        if ($referralPerPage === 'all') {
-            $referrals = $referralsQuery->get();
-        } else {
-            $referrals = $referralsQuery->paginate((int) $referralPerPage);
-        }
-
-        return view('medicalManagement', compact(
-            'appointments', 
-            'prescriptions', 
-            'referrals',
-            'activeTab'
-        ));
+    // Filter referrals - show referrals TO or FROM this branch
+    $referralPerPage = $request->get('referralPerPage', 10);
+    $referralsQuery = Referral::with([
+        'appointment.pet.owner',
+        'refToBranch',
+        'refByBranch'
+    ])->where(function($q) use ($activeBranchId) {
+        $q->where('ref_to', $activeBranchId)
+          ->orWhere('ref_by', $activeBranchId);
+    });
+    
+    if ($referralPerPage === 'all') {
+        $referrals = $referralsQuery->get();
+    } else {
+        $referrals = $referralsQuery->paginate((int) $referralPerPage);
     }
+
+    // **NEW: Get filtered owners and pets for dropdowns**
+    $filteredOwners = Owner::whereIn('user_id', $branchUserIds)->get();
+    $filteredPets = Pet::whereIn('user_id', $branchUserIds)->get();
+
+    return view('medicalManagement', compact(
+        'appointments', 
+        'prescriptions', 
+        'referrals',
+        'activeTab',
+        'filteredOwners',  // Add this
+        'filteredPets'     // Add this
+    ));
+}
 
     // ==================== APPOINTMENT METHODS ====================
 
@@ -267,6 +288,13 @@ class MedicalManagementController extends Controller
         // Track what changed
         $statusChanged = $oldStatus !== $validated['appoint_status'];
         $newStatus = $validated['appoint_status'];
+
+        if ($statusChanged && in_array($newStatus, ['arrived', 'completed'])) {
+        // Only generate billing if status just changed to arrived/completed
+        if (!in_array($oldStatus, ['arrived', 'completed'])) {
+            $this->generateBillingForAppointment($appointment);
+        }
+    }
 
         // ===== SMS NOTIFICATIONS (WORKS FOR BOTH DASHBOARD AND MEDICAL MANAGEMENT) =====
         $successMessage = 'Appointment updated successfully';
@@ -596,7 +624,8 @@ class MedicalManagementController extends Controller
             Log::error('Product search error: ' . $e->getMessage());
             return response()->json([]);
         }
-    }public function storeReferral(Request $request)
+    }
+    public function storeReferral(Request $request)
 {
     $validated = $request->validate([
         'appointment_id' => 'required|exists:tbl_appoint,appoint_id',
