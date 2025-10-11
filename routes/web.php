@@ -5,7 +5,6 @@ use App\Http\Controllers\BranchController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ReportController;
-use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\PetManagementController;
 use App\Http\Controllers\BranchManagementController;
 use App\Http\Controllers\SalesManagementController;
@@ -25,6 +24,23 @@ Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
+
+Route::middleware(['auth', 'role:superadmin'])->group(function () {
+    Route::get('/superadmin/dashboard', [SuperAdminController::class, 'index'])->name('superadmin.dashboard');
+});
+
+Route::middleware(['auth', 'isSuperAdmin'])->group(function () {
+    Route::get('/superadmin/logins', [DashboardController::class, 'loginAlerts'])->name('superadmin.logins');
+    Route::get('/superadmin/stock', [DashboardController::class, 'stockAlerts'])->name('superadmin.stock');
+    Route::get('/superadmin/expiration', [DashboardController::class, 'expirationAlerts'])->name('superadmin.expiration');
+    Route::get('/superadmin/equipment', [DashboardController::class, 'equipmentStatus'])->name('superadmin.equipment');
+});
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/vet/appointments', [MedicalManagementController::class, 'vetAppointments'])->name('vet.appointments');
+});
+
+
 // Reset Pass
 use App\Http\Controllers\PasswordResetController;
 Route::get('/reset-password', [PasswordResetController::class, 'showResetForm'])->name('password.reset');
@@ -36,7 +52,7 @@ Route::get('/admin', [AdminController::class, 'AdminBoard']);
 Route::get('/dashboard', [dashboardController::class, 'index'])->name('dashboard-index');
 
 //Route::get('/select-branch', [BranchController::class, 'select'])->name('select-branch');
-Route::get('/user-management', [UserManagementController::class, 'index'])->name('userManagement.index');
+//Route::get('/user-management', [UserManagementController::class, 'index'])->name('userManagement.index');
 
 // POS Routes
 use App\Http\Controllers\POSController;
@@ -65,14 +81,14 @@ Route::middleware(['auth', 'isSuperAdmin'])->group(function () {
 use App\Http\Controllers\ProdServEquipController;
 Route::get('/prodservequip', [ProdServEquipController::class, 'index'])->name('prodservequip.index');
 // Product routes
-Route::get('/product', [ProductController::class, 'index'])->name('product-index');
+Route::get('/product', [ProdServEquipController::class, 'index'])->name('product-index');
 Route::post('/products', [ProdServEquipController::class, 'storeProduct'])->name('products.store');
 Route::put('/products/{id}', [ProdServEquipController::class, 'updateProduct'])->name('products.update');
 Route::delete('/products/{id}', [ProdServEquipController::class, 'deleteProduct'])->name('products.destroy');
-Route::get('/products/search', [ProductController::class, 'searchProducts'])->name('products.search');
+Route::get('/products/search', [ProdServEquipController::class, 'searchProducts'])->name('products.search');
 Route::get('/products/{id}/view', [ProdServEquipController::class, 'viewProduct'])->name('products.view');
 // Service routes
-Route::get('/services', [ServiceController::class, 'index'])->name('services-index');
+Route::get('/services', [ProdServEquipController::class, 'index'])->name('services-index');
 Route::post('/services', [ProdServEquipController::class, 'storeService'])->name('services.store');
 Route::put('/services/{id}', [ProdServEquipController::class, 'updateService'])->name('services.update');
 Route::delete('/services/{id}', [ProdServEquipController::class, 'deleteService'])->name('services.destroy');
@@ -219,12 +235,12 @@ Route::post('/billing/pay/{bill}', [BillingController::class, 'payBilling'])->na
 Route::get('/sales/billing/{id}', [SalesManagementController::class, 'showBilling'])->name('sales.billing.show');
 Route::get('/sales/billing/{id}/pdf', [SalesController::class, 'generateBillingPDF'])->name('sales.billing.pdf');
 
-Route::get('/prescriptions', [PrescriptionController::class, 'index'])->name('prescriptions.index');
-Route::post('/prescriptions', [PrescriptionController::class, 'store'])->name('prescriptions.store');
-Route::get('/prescriptions/{id}/edit', [PrescriptionController::class, 'edit'])->name('prescriptions.edit');
-Route::put('/prescriptions/{id}', [PrescriptionController::class, 'update'])->name('prescriptions.update');
-Route::delete('/prescriptions/{id}', [PrescriptionController::class, 'destroy'])->name('prescriptions.destroy');
-Route::get('/products/search', [PrescriptionController::class, 'searchProducts'])->name('prescriptions.search-products');
+///Route::get('/prescriptions', [PrescriptionController::class, 'index'])->name('prescriptions.index');
+//Route::post('/prescriptions', [PrescriptionController::class, 'store'])->name('prescriptions.store');
+//Route::get('/prescriptions/{id}/edit', [PrescriptionController::class, 'edit'])->name('prescriptions.edit');
+//Route::put('/prescriptions/{id}', [PrescriptionController::class, 'update'])->name('prescriptions.update');
+//Route::delete('/prescriptions/{id}', [PrescriptionController::class, 'destroy'])->name('prescriptions.destroy');
+//Route::get('/products/search', [PrescriptionController::class, 'searchProducts'])->name('prescriptions.search-products');
 
 
 
@@ -311,16 +327,21 @@ Route::get('/sms-settings', [SMSSettingsController::class, 'index'])->name('sms-
 Route::put('/sms-settings', [SMSSettingsController::class, 'update'])->name('sms-settings.update');
 Route::post('/sms-settings/test', [SMSSettingsController::class, 'testSMS'])->name('sms-settings.test');
 
-Route::post('/notifications/{id}/read', function($id) {
-    App\Services\NotificationService::markAsRead(auth()->id(), $id);
-    return response()->json(['success' => true]);
-})->name('notifications.read');
 
-Route::post('/notifications/mark-all-read', function() {
-    App\Services\NotificationService::markAllAsRead(auth()->id());
-    return response()->json(['success' => true]);
-})->name('notifications.markAllRead');
+use App\Http\Controllers\NotificationController;
+Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllRead');
 
 Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'index'])->name('global.search');
 Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'redirect'])->name('global.search');
 
+use App\Http\Controllers\SuperAdminDashboardController;
+
+// Super Admin Routes
+Route::middleware(['auth'])->group(function () {
+    Route::get('/superadmin/dashboard', [SuperAdminDashboardController::class, 'index'])
+        ->name('superadmin.dashboard');
+    
+    Route::get('/superadmin/branch/{branchId}', [SuperAdminDashboardController::class, 'showBranch'])
+        ->name('superadmin.branch.show');
+});

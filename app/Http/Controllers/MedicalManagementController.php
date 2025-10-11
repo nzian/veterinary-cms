@@ -39,44 +39,51 @@ class MedicalManagementController extends Controller
         ->toArray();
 
     // Filter appointments by branch through user relationship
-    $appointmentsQuery = Appointment::with(['pet.owner', 'services', 'user'])
-        ->whereHas('user', function($q) use ($activeBranchId) {
-            $q->where('branch_id', $activeBranchId);
-        });
-    
-    if ($perPage === 'all') {
-        $appointments = $appointmentsQuery->get();
-    } else {
-        $appointments = $appointmentsQuery->paginate((int) $perPage);
-    }
+    // Filter appointments by branch through user relationship
+$appointmentsQuery = Appointment::with(['pet.owner', 'services', 'user'])
+    ->whereHas('user', function($q) use ($activeBranchId) {
+        $q->where('branch_id', $activeBranchId);
+    })
+    ->orderBy('appoint_date', 'desc')
+    ->orderBy('appoint_time', 'desc');
 
-    // Filter prescriptions by branch
-    $prescriptionPerPage = $request->get('prescriptionPerPage', 10);
-    $prescriptionsQuery = Prescription::with(['pet.owner', 'branch', 'user'])
-        ->where('branch_id', $activeBranchId);
-    
-    if ($prescriptionPerPage === 'all') {
-        $prescriptions = $prescriptionsQuery->get();
-    } else {
-        $prescriptions = $prescriptionsQuery->paginate((int) $prescriptionPerPage);
-    }
+if ($perPage === 'all') {
+    $appointments = $appointmentsQuery->get();
+} else {
+    $appointments = $appointmentsQuery->paginate((int) $perPage);
+}
 
-    // Filter referrals - show referrals TO or FROM this branch
-    $referralPerPage = $request->get('referralPerPage', 10);
-    $referralsQuery = Referral::with([
-        'appointment.pet.owner',
-        'refToBranch',
-        'refByBranch'
-    ])->where(function($q) use ($activeBranchId) {
-        $q->where('ref_to', $activeBranchId)
-          ->orWhere('ref_by', $activeBranchId);
-    });
-    
-    if ($referralPerPage === 'all') {
-        $referrals = $referralsQuery->get();
-    } else {
-        $referrals = $referralsQuery->paginate((int) $referralPerPage);
-    }
+// Filter prescriptions by branch
+$prescriptionPerPage = $request->get('prescriptionPerPage', 10);
+$prescriptionsQuery = Prescription::with(['pet.owner', 'branch', 'user'])
+    ->where('branch_id', $activeBranchId)
+    ->orderBy('prescription_date', 'desc')
+    ->orderBy('prescription_id', 'desc');
+
+if ($prescriptionPerPage === 'all') {
+    $prescriptions = $prescriptionsQuery->get();
+} else {
+    $prescriptions = $prescriptionsQuery->paginate((int) $prescriptionPerPage);
+}
+
+// Filter referrals - show referrals TO or FROM this branch
+$referralPerPage = $request->get('referralPerPage', 10);
+$referralsQuery = Referral::with([
+    'appointment.pet.owner',
+    'refToBranch',
+    'refByBranch'
+])->where(function($q) use ($activeBranchId) {
+    $q->where('ref_to', $activeBranchId)
+      ->orWhere('ref_by', $activeBranchId);
+})
+->orderBy('ref_date', 'desc')
+->orderBy('ref_id', 'desc');
+
+if ($referralPerPage === 'all') {
+    $referrals = $referralsQuery->get();
+} else {
+    $referrals = $referralsQuery->paginate((int) $referralPerPage);
+}
 
     // **NEW: Get filtered owners and pets for dropdowns**
     $filteredOwners = Owner::whereIn('user_id', $branchUserIds)->get();
@@ -137,10 +144,14 @@ class MedicalManagementController extends Controller
         
         Log::info("History initialized for new appointment {$appointment->appoint_id}");
 
-        if (!empty($services)) {
-            $appointment->services()->sync($services);
-            $this->generateBillingForAppointment($appointment);
-        }
+       if (!empty($services)) {
+    $appointment->services()->sync($services);
+    
+    // Only generate billing if appointment is created with 'completed' status
+    if (strtolower($appointment->appoint_status) === 'completed') {
+        $this->generateBillingForAppointment($appointment);
+    }
+}
         
         // Send SMS for new appointments
         try {
@@ -286,16 +297,16 @@ class MedicalManagementController extends Controller
         $appointment->refresh();
         
         // Track what changed
-        $statusChanged = $oldStatus !== $validated['appoint_status'];
-        $newStatus = $validated['appoint_status'];
+       // Track what changed
+$statusChanged = $oldStatus !== $validated['appoint_status'];
+$newStatus = $validated['appoint_status'];
 
-        if ($statusChanged && in_array($newStatus, ['arrived', 'completed'])) {
-        // Only generate billing if status just changed to arrived/completed
-        if (!in_array($oldStatus, ['arrived', 'completed'])) {
-            $this->generateBillingForAppointment($appointment);
-        }
+if ($statusChanged && in_array($newStatus, ['arrived', 'completed'])) {
+    // Only generate billing if status just changed to arrived/completed
+    if (!in_array($oldStatus, ['arrived', 'completed'])) {
+        $this->generateBillingForAppointment($appointment);
     }
-
+}
         // ===== SMS NOTIFICATIONS (WORKS FOR BOTH DASHBOARD AND MEDICAL MANAGEMENT) =====
         $successMessage = 'Appointment updated successfully';
         

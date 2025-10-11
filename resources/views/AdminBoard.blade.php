@@ -9,7 +9,11 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  
   <style>
+
+
+    
     body {
       font-family: 'Inter', sans-serif;
       margin: 0;
@@ -163,6 +167,30 @@
       outline: none;
       box-shadow: 0 0 0 3px rgba(15, 126, 160, 0.1);
     }
+
+    /* Line clamp utility for multi-line text truncation */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Smooth notification badge animation */
+@keyframes bellShake {
+  0%, 100% { transform: rotate(0deg); }
+  10%, 30%, 50%, 70%, 90% { transform: rotate(-10deg); }
+  20%, 40%, 60%, 80% { transform: rotate(10deg); }
+}
+
+.fa-bell:hover {
+  animation: bellShake 0.5s ease-in-out;
+}
+
+/* Notification item hover effect */
+#notificationDropdown a:hover {
+  transform: translateX(2px);
+}
   </style>
 </head>
 
@@ -222,104 +250,99 @@
 </form>
 
 
-   <!-- Notifications -->
 <div class="relative mr-4">
   <button
     class="flex items-center justify-center w-11 h-11 rounded-xl bg-white/10 backdrop-blur-sm hover:bg-white/20 smooth-transition hover-lift modern-btn relative"
     onclick="toggleNotificationDropdown()">
     <i class="fas fa-bell text-lg"></i>
     @php
-      $totalNotifications = ($unreadNotificationCount ?? 0) + count($lowStockItems ?? []);
+      $notificationService = app(\App\Services\NotificationService::class);
+      $unreadCount = $notificationService->getUnreadCount(auth()->user());
     @endphp
-    @if($totalNotifications > 0)
-      <span class="notification-badge">{{ $totalNotifications }}</span>
+    @if($unreadCount > 0)
+      <span class="notification-badge">{{ $unreadCount }}</span>
     @endif
   </button>
 
   <div id="notificationDropdown"
-    class="hidden absolute right-0 mt-3 w-96 modern-dropdown rounded-xl z-50 overflow-hidden">
-    <div class="px-4 py-3 bg-gradient-to-r from-[#ff8c42] to-[#875e0cff] text-white">
-      <h3 class="font-semibold text-sm">Notifications</h3>
-      <p class="text-xs opacity-90">
-        {{ $totalNotifications }} unread
-      </p>
+    class="hidden absolute right-0 mt-3 w-96 modern-dropdown rounded-xl z-50 overflow-hidden shadow-2xl">
+    
+    <!-- Header -->
+    <div class="px-4 py-3 bg-gradient-to-r from-[#ff8c42] to-[#875e0cff] text-white flex items-center justify-between">
+      <div>
+        <h3 class="font-semibold text-sm">Notifications</h3>
+        <p class="text-xs opacity-90">{{ $unreadCount }} unread</p>
+      </div>
+      @if($unreadCount > 0)
+        <button onclick="markAllAsRead()" 
+                class="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg transition-all">
+          Mark all read
+        </button>
+      @endif
     </div>
     
+    <!-- Notifications List -->
     <div class="max-h-96 overflow-y-auto">
-      {{-- System Notifications --}}
-      @forelse($notifications ?? [] as $notification)
-        <div class="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 smooth-transition cursor-pointer {{ !$notification->is_read ? 'bg-blue-50' : '' }}"
-             onclick="markAsRead('{{ $notification->id }}', '{{ $notification->type }}')">
+      @php
+        $notifications = $notificationService->getNotifications(auth()->user());
+      @endphp
+      
+      @forelse($notifications as $notification)
+        <div onclick="markAsReadAndRedirect('{{ $notification['id'] }}', '{{ $notification['route'] }}')"
+           class="block px-4 py-3 border-b border-gray-100 hover:bg-gray-50 smooth-transition cursor-pointer {{ !$notification['is_read'] ? 'bg-blue-50' : '' }}">
           <div class="flex items-start gap-3">
-            <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0
-                        {{ $notification->type === 'appointment_arrived' ? 'bg-green-100' : '' }}
-                        {{ $notification->type === 'user_login' ? 'bg-blue-100' : '' }}
-                        {{ $notification->type === 'referral_received' ? 'bg-purple-100' : '' }}">
-              <i class="fas {{ $notification->data['icon'] ?? 'fa-bell' }}
-                        {{ $notification->type === 'appointment_arrived' ? 'text-green-500' : '' }}
-                        {{ $notification->type === 'user_login' ? 'text-blue-500' : '' }}
-                        {{ $notification->type === 'referral_received' ? 'text-purple-500' : '' }} text-sm"></i>
+            <!-- Icon -->
+            <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
+                        {{ $notification['color'] === 'blue' ? 'bg-blue-100' : '' }}
+                        {{ $notification['color'] === 'green' ? 'bg-green-100' : '' }}
+                        {{ $notification['color'] === 'red' ? 'bg-red-100' : '' }}
+                        {{ $notification['color'] === 'orange' ? 'bg-orange-100' : '' }}
+                        {{ $notification['color'] === 'yellow' ? 'bg-yellow-100' : '' }}
+                        {{ $notification['color'] === 'purple' ? 'bg-purple-100' : '' }}">
+              <i class="fas {{ $notification['icon'] }}
+                        {{ $notification['color'] === 'blue' ? 'text-blue-500' : '' }}
+                        {{ $notification['color'] === 'green' ? 'text-green-500' : '' }}
+                        {{ $notification['color'] === 'red' ? 'text-red-500' : '' }}
+                        {{ $notification['color'] === 'orange' ? 'text-orange-500' : '' }}
+                        {{ $notification['color'] === 'yellow' ? 'text-yellow-600' : '' }}
+                        {{ $notification['color'] === 'purple' ? 'text-purple-500' : '' }}"></i>
             </div>
+            
+            <!-- Content -->
             <div class="flex-1 min-w-0">
-              <p class="font-medium text-sm text-gray-900">{{ $notification->title }}</p>
-              <p class="text-xs text-gray-600 mt-1">{{ $notification->message }}</p>
-              <p class="text-xs text-gray-400 mt-1">{{ $notification->created_at->diffForHumans() }}</p>
+              <p class="font-semibold text-sm text-gray-900">{{ $notification['title'] }}</p>
+              <p class="text-xs text-gray-600 mt-1 line-clamp-2">{{ $notification['message'] }}</p>
+              <p class="text-xs text-gray-400 mt-1">
+                {{ \Carbon\Carbon::parse($notification['timestamp'])->diffForHumans() }}
+              </p>
             </div>
-            @if(!$notification->is_read)
+            
+            <!-- Unread Indicator -->
+            @if(!$notification['is_read'])
               <div class="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2"></div>
             @endif
           </div>
         </div>
       @empty
-      @endforelse
-      
-      {{-- Low Stock Alerts --}}
-      @forelse($lowStockItems ?? [] as $item)
-        <div class="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 smooth-transition">
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
-              <i class="fas fa-exclamation-triangle text-red-500 text-sm"></i>
-            </div>
-            <div class="flex-1">
-              <p class="font-medium text-sm text-gray-900">{{ $item->prod_name }}</p>
-              <p class="text-xs text-gray-500">Only {{ $item->prod_stocks }} items left</p>
-            </div>
-          </div>
+        <div class="px-4 py-12 text-center text-gray-500">
+          <i class="fas fa-bell-slash text-3xl mb-3 opacity-50"></i>
+          <p class="text-sm font-medium">No notifications</p>
+          <p class="text-xs text-gray-400 mt-1">You're all caught up!</p>
         </div>
-      @empty
       @endforelse
-      
-      @if(count($notifications ?? []) === 0 && count($lowStockItems ?? []) === 0)
-        <div class="px-4 py-8 text-center text-gray-500">
-          <i class="fas fa-check-circle text-2xl mb-2"></i>
-          <p class="text-sm">No notifications</p>
-        </div>
-      @endif
     </div>
     
-    @if(count($notifications ?? []) > 0)
-      <div class="px-4 py-2 bg-gray-50 border-t border-gray-100">
-        <button onclick="markAllAsRead()" class="text-xs text-blue-600 hover:text-blue-700 font-medium">
-          Mark all as read
+    <!-- Footer (only show if there are notifications) -->
+    @if(count($notifications) > 0)
+      <div class="px-4 py-3 bg-gray-50 border-t border-gray-100 text-center">
+        <button onclick="refreshNotifications()" 
+                class="text-xs text-blue-600 hover:text-blue-700 font-medium">
+          <i class="fas fa-sync-alt mr-1"></i> Refresh
         </button>
       </div>
     @endif
   </div>
 </div>
-    <!-- POS Button (only visible to receptionist) -->
-@auth
-  @if(strtolower(trim(auth()->user()->user_role)) === 'receptionist')
-    <a href="{{ route('pos') }}" class="mr-4">
-      <button
-        class="bg-gradient-to-r from-[#8bc34a] to-[#7cb342] text-white font-semibold px-6 py-2.5 rounded-xl hover-lift modern-btn shadow-lg hover:shadow-xl smooth-transition">
-        <i class="fas fa-cash-register mr-2"></i>
-        <span class="hidden sm:inline">POS</span>
-      </button>
-    </a>
-  @endif
-@endauth
-
-
     <!-- User Dropdown -->
     <div class="relative mr-4">
       <button
@@ -444,110 +467,92 @@
 
 
 
+
+
   <script>
-    function markAsRead(notificationId, type) {
-  fetch(`/notifications/${notificationId}/read`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+        window.notifications = @json($notifications ?? []);
+
+    // Function to mark a notification as read and redirect
+    function markAsReadAndRedirect(index, link) {
+        if(window.notifications[index]) {
+            window.notifications[index].is_read = true;
+            updateNotificationBadge();
+
+            // Optional: send AJAX to mark as read in backend
+            fetch('{{ route("notifications.markAllRead") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({ id: window.notifications[index].id })
+            });
+
+            // Redirect to the link
+            window.location.href = link;
+        }
     }
-  }).then(() => {
-    if (type === 'appointment_arrived') {
-      window.location.href = `/medical-management?active_tab=appointments`;
-    } else if (type === 'referral_received') {
-      window.location.href = `/medical-management?active_tab=referrals`;
-    } else {
-      location.reload();
+
+    // Update the notification badge
+    function updateNotificationBadge() {
+        const count = window.notifications.filter(n => !n.is_read).length;
+        const badge = document.querySelector('.notification-badge');
+        if(badge) badge.textContent = count > 0 ? count : '';
     }
-  });
-}
 
-function markAllAsRead() {
-  fetch('/notifications/mark-all-read', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-    }
-  }).then(() => location.reload());
-}
-    document.addEventListener('DOMContentLoaded', function () {
-      // Branch dropdown functionality
-      const btn = document.getElementById('branchDropdownBtn');
-      const menu = document.getElementById('branchDropdownMenu');
-
-      if (btn && menu) {
-        btn.addEventListener('click', function (e) {
-          e.stopPropagation();
-          menu.classList.toggle('hidden');
-        });
-      }
-
-      // Close dropdowns when clicking outside
-      document.addEventListener('click', function (e) {
-        if (menu && !e.target.closest('#branchDropdownBtn')) {
-          menu.classList.add('hidden');
-        }
-        if (!e.target.closest('#notificationDropdown') && !e.target.closest('[onclick="toggleNotificationDropdown()"]')) {
-          const nd = document.getElementById('notificationDropdown');
-          if (nd) nd.classList.add('hidden');
-        }
-        if (!e.target.closest('#userDropdown') && !e.target.closest('[onclick="toggleUserDropdown()"]')) {
-          const ud = document.getElementById('userDropdown');
-          if (ud) ud.classList.add('hidden');
-        }
-      });
-
-      // Add loading states for navigation items
-      const navLinks = document.querySelectorAll('nav a');
-      navLinks.forEach(link => {
-        link.addEventListener('click', function () {
-          const icon = this.querySelector('i');
-          const originalClass = icon.className;
-          icon.className = 'fas fa-spinner fa-spin text-lg';
-
-          setTimeout(() => {
-            icon.className = originalClass;
-          }, 500);
-        });
-      });
-
-      // Global modal protections:
-      // 1) Prevent clicks from reaching background when any modal is open
-      // 2) Lock page scroll while a modal is open
-      function hasOpenModal() {
-        // Treat any full-screen fixed element without the 'hidden' class as an open modal
-        return !!document.querySelector('.fixed:not(.hidden)');
-      }
-
-      // Capture-phase listener to stop background clicks while a modal is open
-      document.addEventListener('click', function (e) {
-        if (hasOpenModal()) {
-          const openModalEl = document.querySelector('.fixed:not(.hidden)');
-          if (openModalEl && !openModalEl.contains(e.target)) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        }
-      }, true);
-
-      // Observe DOM changes to toggle body scroll lock when modals open/close
-      const modalObserver = new MutationObserver(() => {
-        document.body.classList.toggle('overflow-hidden', hasOpenModal());
-      });
-      modalObserver.observe(document.body, { attributes: true, childList: true, subtree: true });
-      // Initialize state on load
-      document.body.classList.toggle('overflow-hidden', hasOpenModal());
+    document.addEventListener('DOMContentLoaded', () => {
+        updateNotificationBadge();
     });
 
+    // Toggle notification dropdown
     function toggleNotificationDropdown() {
-      document.getElementById('notificationDropdown').classList.toggle('hidden');
+        const dropdown = document.getElementById('notificationDropdown');
+        dropdown.classList.toggle('hidden');
     }
+
+    // Mark all as read
+    function markAllAsRead() {
+        fetch('{{ route("notifications.markAllRead") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            }
+        }).then(() => {
+            location.reload();
+        });
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        const dropdown = document.getElementById('notificationDropdown');
+        const button = e.target.closest('[onclick="toggleNotificationDropdown()"]');
+
+        if (!button && !dropdown.contains(e.target)) {
+            dropdown.classList.add('hidden');
+        }
+    });
+
+
+    // Smooth scroll
+    document.documentElement.style.scrollBehavior = 'smooth';
 
     function toggleUserDropdown() {
       document.getElementById('userDropdown').classList.toggle('hidden');
     }
+
+    function refreshNotifications() {
+    // Example: reload the page or fetch latest notifications via AJAX
+    console.log('Refreshing notifications...');
+    const dropdown = document.getElementById('notificationDropdown');
+    if(dropdown) {
+        // Option 1: simple reload
+        location.reload();
+        
+        // Option 2: fetch updated notifications via AJAX and update dropdown dynamically
+        // fetch('/notifications/refresh').then(...);
+    }
+}
 
     // Add smooth scroll behavior
     document.documentElement.style.scrollBehavior = 'smooth';
