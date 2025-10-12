@@ -10,87 +10,100 @@ use App\Models\Appointment;
 use App\Models\Order;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
+use App\Traits\BranchFilterable;
 
 class PetManagementController extends Controller
 {
-  public function index(Request $request)
-{
-    try {
-        // Get current user's branch_id
-        $userBranchId = auth()->user()->branch_id;
-        
-        // Get pagination parameters
-        $perPage = $request->get('perPage', 10);
-        $ownersPerPage = $request->get('ownersPerPage', 10);
-        $medicalPerPage = $request->get('medicalPerPage', 10);
-        
-        // Get all user IDs from the same branch
-        $branchUserIds = \App\Models\User::where('branch_id', $userBranchId)
-            ->pluck('user_id')
-            ->toArray();
-        
-        // Filter pets by branch users
-        $petsQuery = Pet::with('owner')
-            ->whereIn('user_id', $branchUserIds);
-        
-        if ($perPage === 'all') {
-            $pets = $petsQuery->get();
-            $pets = new \Illuminate\Pagination\LengthAwarePaginator(
-                $pets,
-                $pets->count(),
-                $pets->count(),
-                1,
-                ['path' => $request->url(), 'query' => $request->query()]
-            );
-        } else {
-            $pets = $petsQuery->paginate((int)$perPage);
+    use BranchFilterable;
+
+    public function index(Request $request)
+    {
+        try {
+            // Get pagination parameters
+            $perPage = $request->get('perPage', 10);
+            $ownersPerPage = $request->get('ownersPerPage', 10);
+            $medicalPerPage = $request->get('medicalPerPage', 10);
+            
+            // Get active branch ID using trait
+            $activeBranchId = $this->getActiveBranchId();
+            
+            // Get all user IDs from the active branch
+            $branchUserIds = \App\Models\User::where('branch_id', $activeBranchId)
+                ->pluck('user_id')
+                ->toArray();
+            
+            // Filter pets by branch users
+            $petsQuery = Pet::with('owner')
+                ->whereIn('user_id', $branchUserIds);
+            
+            if ($perPage === 'all') {
+                $pets = $petsQuery->get();
+                $pets = new \Illuminate\Pagination\LengthAwarePaginator(
+                    $pets,
+                    $pets->count(),
+                    $pets->count(),
+                    1,
+                    ['path' => $request->url(), 'query' => $request->query()]
+                );
+            } else {
+                $pets = $petsQuery->paginate((int)$perPage);
+            }
+
+            // Filter owners by branch users
+            $ownersQuery = Owner::whereIn('user_id', $branchUserIds)
+                ->orderBy('own_name', 'asc');
+            
+            if ($ownersPerPage === 'all') {
+                $owners = $ownersQuery->get();
+                $owners = new \Illuminate\Pagination\LengthAwarePaginator(
+                    $owners,
+                    $owners->count(),
+                    $owners->count(),
+                    1,
+                    ['path' => $request->url(), 'query' => $request->query()]
+                );
+            } else {
+                $owners = $ownersQuery->paginate((int)$ownersPerPage);
+            }
+
+            // Filter medical histories by branch users
+            $medicalQuery = MedicalHistory::with('pet')
+                ->whereIn('user_id', $branchUserIds);
+            
+            if ($medicalPerPage === 'all') {
+                $medicalHistories = $medicalQuery->get();
+                $medicalHistories = new \Illuminate\Pagination\LengthAwarePaginator(
+                    $medicalHistories,
+                    $medicalHistories->count(),
+                    $medicalHistories->count(),
+                    1,
+                    ['path' => $request->url(), 'query' => $request->query()]
+                );
+            } else {
+                $medicalHistories = $medicalQuery->paginate((int)$medicalPerPage);
+            }
+
+            // Get all owners and pets from same branch for dropdowns
+            $allOwners = Owner::whereIn('user_id', $branchUserIds)->get();
+            $allPets = Pet::whereIn('user_id', $branchUserIds)->get();
+            
+            // Get active branch name
+            $activeBranchName = $this->getActiveBranchName();
+
+            return view('petManagement', compact(
+                'pets', 
+                'owners', 
+                'medicalHistories', 
+                'allOwners', 
+                'allPets',
+                'activeBranchName'
+            ));
+            
+        } catch (\Exception $e) {
+            \Log::error('Pet Management Index Error: ' . $e->getMessage());
+            return back()->with('error', 'Failed to load data: ' . $e->getMessage());
         }
-
-        // Filter owners by branch users
-        $ownersQuery = Owner::whereIn('user_id', $branchUserIds)
-            ->orderBy('own_name', 'asc');
-        
-        if ($ownersPerPage === 'all') {
-            $owners = $ownersQuery->get();
-            $owners = new \Illuminate\Pagination\LengthAwarePaginator(
-                $owners,
-                $owners->count(),
-                $owners->count(),
-                1,
-                ['path' => $request->url(), 'query' => $request->query()]
-            );
-        } else {
-            $owners = $ownersQuery->paginate((int)$ownersPerPage);
-        }
-
-        // Filter medical histories by branch users
-        $medicalQuery = MedicalHistory::with('pet')
-            ->whereIn('user_id', $branchUserIds);
-        
-        if ($medicalPerPage === 'all') {
-            $medicalHistories = $medicalQuery->get();
-            $medicalHistories = new \Illuminate\Pagination\LengthAwarePaginator(
-                $medicalHistories,
-                $medicalHistories->count(),
-                $medicalHistories->count(),
-                1,
-                ['path' => $request->url(), 'query' => $request->query()]
-            );
-        } else {
-            $medicalHistories = $medicalQuery->paginate((int)$medicalPerPage);
-        }
-
-        // Get all owners and pets from same branch for dropdowns
-        $allOwners = Owner::whereIn('user_id', $branchUserIds)->get();
-        $allPets = Pet::whereIn('user_id', $branchUserIds)->get();
-
-        return view('petManagement', compact('pets', 'owners', 'medicalHistories', 'allOwners', 'allPets'));
-        
-    } catch (\Exception $e) {
-        \Log::error('Pet Management Index Error: ' . $e->getMessage());
-        return back()->with('error', 'Failed to load data: ' . $e->getMessage());
     }
-}
 
 public function getOwnerDetails($id)
 {

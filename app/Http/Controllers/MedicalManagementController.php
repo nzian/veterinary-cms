@@ -402,6 +402,8 @@ if ($statusChanged && in_array($newStatus, ['arrived', 'completed'])) {
                        ->with('success', 'Appointment deleted successfully');
     }
 
+    
+
     /**
      * Get appointment details for referral
      */

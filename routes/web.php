@@ -302,7 +302,49 @@ Route::prefix('branch-user-management')->name('branch-user-management.')->group(
 
 });
 
-Route::post('/user-management/add-to-branch', [BranchManagementController::class, 'addUserToBranch'])->name('userManagement.addToBranch');
+
+
+Route::middleware(['auth'])->group(function () {
+    
+    // Main Dashboard Route (handles routing based on role and branch mode)
+    Route::get('/dashboard', [DashboardController::class, 'index'])
+        ->name('dashboard-index');
+    
+    // Super Admin Dashboard (Global View - All Branches)
+    Route::get('/superadmin/dashboard', [SuperAdminDashboardController::class, 'index'])
+        ->name('superadmin.dashboard');
+    
+    // Super Admin Branch Detail View
+    Route::get('/superadmin/branch/{branchId}', [SuperAdminDashboardController::class, 'showBranch'])
+        ->name('superadmin.branch.show');
+    
+    // Branch Management Routes
+    Route::get('/branch-management', [BranchManagementController::class, 'index'])
+        ->name('branch-management.index');
+    
+    // Branch Switching Routes
+    Route::get('/branch/switch/{id}', [BranchManagementController::class, 'switchBranch'])
+        ->name('branch.switch');
+    
+    Route::get('/branch/clear', [BranchManagementController::class, 'clearBranch'])
+        ->name('branch.clear');
+    
+    // Your other routes...
+});
+
+Route::middleware(['auth'])->group(function () {
+    // Branch Management
+    Route::get('/branch-management', [BranchManagementController::class, 'index'])
+        ->name('branch-management.index');
+    
+    // Branch switching routes
+    Route::get('/branch/switch/{id}', [BranchManagementController::class, 'switchBranch'])
+        ->name('branch.switch');
+    
+    Route::get('/branch/clear', [BranchManagementController::class, 'clearBranch'])
+        ->name('branch.clear');
+    
+    Route::post('/user-management/add-to-branch', [BranchManagementController::class, 'addUserToBranch'])->name('userManagement.addToBranch');
 Route::get('/branches/{id}/complete-data', [BranchManagementController::class, 'getCompleteData']);
 
 Route::get('/branch-management', [BranchManagementController::class, 'index'])->name('branch-management.index');
@@ -313,6 +355,9 @@ Route::get('/branches/{id}/complete-data', [BranchManagementController::class, '
 Route::post('/user-management', [BranchManagementController::class, 'storeUser'])->name('userManagement.store');
 Route::put('/user-management/{id}', [BranchManagementController::class, 'updateUser'])->name('userManagement.update');
 Route::delete('/user-management/{id}', [BranchManagementController::class, 'destroyUser'])->name('userManagement.destroy');
+
+});
+
 
 // Sales Management Routes
 Route::get('/sales-management', [SalesManagementController::class, 'index'])->name('sales.index');
@@ -331,6 +376,13 @@ Route::post('/sms-settings/test', [SMSSettingsController::class, 'testSMS'])->na
 use App\Http\Controllers\NotificationController;
 Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
 Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllRead');
+
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'getNotifications'])->name('notifications.get');
+    Route::post('/notifications/mark-all-as-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAll');
+    Route::post('/notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead'])->name('notifications.mark');
+});
 
 Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'index'])->name('global.search');
 Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'redirect'])->name('global.search');

@@ -11,7 +11,7 @@ class Appointment extends Model
      protected $primaryKey = 'appoint_id'; 
     public $incrementing = true; 
     protected $keyType = 'int';
-    public $timestamps = false;
+    public $timestamps = true;
 
 protected $casts = [
     'change_history' => 'array',
