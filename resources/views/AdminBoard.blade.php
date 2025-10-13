@@ -233,11 +233,8 @@
 
       <!-- Active Branch Indicator -->
       @if(session('branch_mode') === 'active')
-        <div class="ml-3">
-          <span class="branch-badge">
-            <i class="fas fa-circle text-xs animate-pulse"></i>
-            Active: {{ session('active_branch_name') }}
-          </span>
+        <div class="ml-3 flex items-center">
+          <i class="fas fa-circle text-green-400 text-xs animate-pulse-glow"></i>
         </div>
       @endif
     @endif

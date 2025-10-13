@@ -613,152 +613,386 @@
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-    // Mini Calendar with Notes
-    let currentDate = new Date();
-    let selectedDateStr = null;
-    let notes = JSON.parse(localStorage.getItem('calendarNotes') || '{}');
-
-    function renderCalendar() {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
+// CALENDAR WITH TAILWIND - FIXED VERSION
+var CalendarApp = {
+    currentMonth: new Date().getMonth(),
+    currentYear: new Date().getFullYear(),
+    selectedDate: null,
+    notes: {},
+    
+    init: function() {
+        console.log('Calendar initializing...');
         
-        document.getElementById('currentMonth').textContent = 
-            currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+        // Load notes from localStorage
+        var stored = localStorage.getItem('calendarNotes');
+        if (stored) {
+            try {
+                this.notes = JSON.parse(stored);
+                console.log('Loaded notes:', this.notes);
+            } catch(e) {
+                console.error('Error loading notes:', e);
+                this.notes = {};
+            }
+        }
         
-        const firstDay = new Date(year, month, 1).getDay();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const today = new Date();
+        // Check if elements exist
+        if (!document.getElementById('calendarDays')) {
+            console.error('calendarDays element not found!');
+            return;
+        }
         
-        let html = '';
-        let day = 1;
+        // Bind events
+        this.bindEvents();
         
-        // Generate calendar grid
-        for (let i = 0; i < 6; i++) {
-            for (let j = 0; j < 7; j++) {
+        // Render calendar
+        this.renderCalendar();
+        
+        console.log('Calendar initialized successfully');
+    },
+    
+    bindEvents: function() {
+        var self = this;
+        
+        var prevBtn = document.getElementById('prevMonth');
+        var nextBtn = document.getElementById('nextMonth');
+        var addBtn = document.getElementById('addNoteBtn');
+        var saveBtn = document.getElementById('saveNote');
+        var cancelBtn = document.getElementById('cancelNote');
+        
+        if (prevBtn) {
+            prevBtn.onclick = function(e) {
+                e.preventDefault();
+                self.previousMonth();
+            };
+        }
+        
+        if (nextBtn) {
+            nextBtn.onclick = function(e) {
+                e.preventDefault();
+                self.nextMonth();
+            };
+        }
+        
+        if (addBtn) {
+            addBtn.onclick = function(e) {
+                e.preventDefault();
+                if (!self.selectedDate) {
+                    alert('Please select a date first');
+                    return;
+                }
+                self.showNoteForm();
+            };
+        }
+        
+        if (saveBtn) {
+            saveBtn.onclick = function(e) {
+                e.preventDefault();
+                self.saveNote();
+            };
+        }
+        
+        if (cancelBtn) {
+            cancelBtn.onclick = function(e) {
+                e.preventDefault();
+                self.hideNoteForm();
+            };
+        }
+        
+        console.log('Events bound successfully');
+    },
+    
+    showNoteForm: function() {
+        var addNoteSection = document.getElementById('addNoteSection');
+        var addNoteBtn = document.getElementById('addNoteBtn');
+        var noteInput = document.getElementById('noteInput');
+        
+        if (addNoteSection) {
+            addNoteSection.classList.remove('hidden');
+        }
+        if (addNoteBtn) {
+            addNoteBtn.classList.add('hidden');
+        }
+        if (noteInput) {
+            noteInput.focus();
+        }
+    },
+    
+    hideNoteForm: function() {
+        var addNoteSection = document.getElementById('addNoteSection');
+        var addNoteBtn = document.getElementById('addNoteBtn');
+        var noteInput = document.getElementById('noteInput');
+        
+        if (noteInput) {
+            noteInput.value = '';
+        }
+        if (addNoteSection) {
+            addNoteSection.classList.add('hidden');
+        }
+        if (addNoteBtn) {
+            addNoteBtn.classList.remove('hidden');
+        }
+    },
+    
+    previousMonth: function() {
+        this.currentMonth--;
+        if (this.currentMonth < 0) {
+            this.currentMonth = 11;
+            this.currentYear--;
+        }
+        console.log('Previous month:', this.currentMonth, this.currentYear);
+        this.renderCalendar();
+    },
+    
+    nextMonth: function() {
+        this.currentMonth++;
+        if (this.currentMonth > 11) {
+            this.currentMonth = 0;
+            this.currentYear++;
+        }
+        console.log('Next month:', this.currentMonth, this.currentYear);
+        this.renderCalendar();
+    },
+    
+    renderCalendar: function() {
+        var monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                         'July', 'August', 'September', 'October', 'November', 'December'];
+        
+        console.log('Rendering calendar for:', monthNames[this.currentMonth], this.currentYear);
+        
+        // Update month/year display
+        var currentMonthEl = document.getElementById('currentMonth');
+        if (currentMonthEl) {
+            currentMonthEl.textContent = monthNames[this.currentMonth] + ' ' + this.currentYear;
+        }
+        
+        // Get first day of month and number of days
+        var firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
+        var daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
+        
+        // Get today's date
+        var today = new Date();
+        var isCurrentMonth = (today.getMonth() === this.currentMonth && today.getFullYear() === this.currentYear);
+        var todayDate = today.getDate();
+        
+        // Build calendar HTML
+        var html = '';
+        var day = 1;
+        
+        // Create 6 rows for calendar
+        for (var i = 0; i < 6; i++) {
+            for (var j = 0; j < 7; j++) {
                 if (i === 0 && j < firstDay) {
+                    // Empty cell before month starts
                     html += '<div class="aspect-square p-1"></div>';
                 } else if (day > daysInMonth) {
+                    // Empty cell after month ends
                     html += '<div class="aspect-square p-1"></div>';
                 } else {
-                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-                    const hasNotes = notes[dateStr] && notes[dateStr].length > 0;
+                    // Create date string
+                    var dateStr = this.currentYear + '-' + 
+                                 this.pad(this.currentMonth + 1) + '-' + 
+                                 this.pad(day);
                     
-                    html += `
-                        <div class="aspect-square p-1">
-                            <button 
-                                onclick="selectDate('${dateStr}')" 
-                                class="w-full h-full rounded-lg text-base font-medium transition-all hover:bg-gray-100
-                                ${isToday ? 'bg-[#f88e28] text-white hover:bg-[#e67e22]' : 'text-gray-700'}
-                                ${hasNotes ? 'ring-2 ring-[#f88e28] ring-opacity-50' : ''}
-                                ${selectedDateStr === dateStr ? 'ring-2 ring-[#f88e28]' : ''}">
-                                ${day}
-                                ${hasNotes ? '<div class="w-1.5 h-1.5 bg-[#f88e28] rounded-full mx-auto mt-1"></div>' : ''}
-                            </button>
-                        </div>
-                    `;
+                    // Check if today
+                    var isToday = (isCurrentMonth && day === todayDate);
+                    var todayClass = isToday ? 'bg-[#f88e28] text-white hover:bg-[#e67e22]' : 'text-gray-700 hover:bg-gray-100';
+                    
+                    // Check if has notes
+                    var hasNotes = this.notes[dateStr] && this.notes[dateStr].length > 0;
+                    var noteRing = hasNotes && !isToday ? 'ring-2 ring-[#f88e28] ring-opacity-50' : '';
+                    
+                    // Check if selected
+                    var isSelected = (this.selectedDate === dateStr);
+                    var selectedRing = isSelected ? 'ring-2 ring-blue-500' : '';
+                    
+                    // Note indicator
+                    var noteDot = '';
+                    if (hasNotes) {
+                        var dotColor = isToday ? 'bg-white' : 'bg-[#f88e28]';
+                        noteDot = '<div class="w-1.5 h-1.5 ' + dotColor + ' rounded-full mx-auto mt-1"></div>';
+                    }
+                    
+                    html += '<div class="aspect-square p-1">' +
+                           '<button type="button" onclick="CalendarApp.selectDate(\'' + dateStr + '\')" ' +
+                           'class="w-full h-full rounded-lg text-sm font-medium transition-all ' + 
+                           todayClass + ' ' + noteRing + ' ' + selectedRing + '">' +
+                           '<div class="flex flex-col items-center justify-center h-full">' +
+                           '<span>' + day + '</span>' + noteDot +
+                           '</div></button></div>';
+                    
                     day++;
                 }
             }
-            if (day > daysInMonth) break;
+            
+            // Stop if we've shown all days
+            if (day > daysInMonth) {
+                break;
+            }
         }
         
-        document.getElementById('calendarDays').innerHTML = html;
-    }
-
-    function selectDate(dateStr) {
-        selectedDateStr = dateStr;
-        const date = new Date(dateStr + 'T00:00:00');
-        document.getElementById('selectedDate').textContent = 
-            date.toLocaleDateString('default', { month: 'short', day: 'numeric', year: 'numeric' });
+        // Update calendar
+        var calendarDaysEl = document.getElementById('calendarDays');
+        if (calendarDaysEl) {
+            calendarDaysEl.innerHTML = html;
+            console.log('Calendar rendered with', day - 1, 'days');
+        } else {
+            console.error('calendarDays element not found!');
+        }
+    },
+    
+    selectDate: function(dateStr) {
+        console.log('Date selected:', dateStr);
+        this.selectedDate = dateStr;
         
-        renderNotes(dateStr);
-        renderCalendar();
-    }
-
-    function renderNotes(dateStr) {
-        const notesList = document.getElementById('notesList');
-        const dateNotes = notes[dateStr] || [];
+        // Format date for display
+        var parts = dateStr.split('-');
+        var date = new Date(parts[0], parts[1] - 1, parts[2]);
+        var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        var formatted = monthNames[date.getMonth()] + ' ' + date.getDate() + ', ' + date.getFullYear();
+        
+        var selectedDateEl = document.getElementById('selectedDate');
+        if (selectedDateEl) {
+            selectedDateEl.textContent = formatted;
+        }
+        
+        // Show add note button, hide form
+        this.hideNoteForm();
+        
+        // Render notes
+        this.renderNotes(dateStr);
+        
+        // Re-render calendar to show selection
+        this.renderCalendar();
+    },
+    
+    renderNotes: function(dateStr) {
+        console.log('Rendering notes for:', dateStr);
+        var notesListEl = document.getElementById('notesList');
+        if (!notesListEl) {
+            console.error('notesList element not found!');
+            return;
+        }
+        
+        var dateNotes = this.notes[dateStr] || [];
         
         if (dateNotes.length === 0) {
-            notesList.innerHTML = '<p class="text-sm text-gray-500">No notes for this date</p>';
+            notesListEl.innerHTML = '<p class="text-sm text-gray-500">No notes for this date</p>';
         } else {
-            notesList.innerHTML = dateNotes.map((note, index) => `
-                <div class="p-3 bg-gray-50 rounded-lg group relative hover:bg-gray-100 transition-colors">
-                    <p class="text-sm text-gray-700 pr-8">${note}</p>
-                    <button 
-                        onclick="deleteNote('${dateStr}', ${index})" 
-                        class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
-                </div>
-            `).join('');
-        }
-    }
-
-    function deleteNote(dateStr, index) {
-        if (confirm('Delete this note?')) {
-            notes[dateStr].splice(index, 1);
-            if (notes[dateStr].length === 0) {
-                delete notes[dateStr];
+            var html = '';
+            for (var i = 0; i < dateNotes.length; i++) {
+                html += '<div class="p-3 bg-gray-50 rounded-lg group relative hover:bg-gray-100 transition-colors mb-2">' +
+                       '<p class="text-sm text-gray-700 pr-8 break-words">' + this.escapeHtml(dateNotes[i]) + '</p>' +
+                       '<button type="button" onclick="CalendarApp.deleteNote(\'' + dateStr + '\', ' + i + ')" ' +
+                       'class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity">' +
+                       '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+                       '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>' +
+                       '</svg></button></div>';
             }
-            localStorage.setItem('calendarNotes', JSON.stringify(notes));
-            renderNotes(dateStr);
-            renderCalendar();
+            notesListEl.innerHTML = html;
+            console.log('Rendered', dateNotes.length, 'notes');
         }
-    }
-
-    // Calendar controls
-    document.getElementById('prevMonth').addEventListener('click', () => {
-        currentDate.setMonth(currentDate.getMonth() - 1);
-        renderCalendar();
-    });
-
-    document.getElementById('nextMonth').addEventListener('click', () => {
-        currentDate.setMonth(currentDate.getMonth() + 1);
-        renderCalendar();
-    });
-
-    document.getElementById('addNoteBtn').addEventListener('click', () => {
-        if (!selectedDateStr) {
+    },
+    
+    saveNote: function() {
+        var noteInput = document.getElementById('noteInput');
+        if (!noteInput) {
+            console.error('noteInput element not found!');
+            return;
+        }
+        
+        var noteText = noteInput.value.trim();
+        
+        if (!noteText) {
+            alert('Please enter a note');
+            return;
+        }
+        
+        if (!this.selectedDate) {
             alert('Please select a date first');
             return;
         }
-        document.getElementById('addNoteSection').classList.remove('hidden');
-        document.getElementById('addNoteBtn').classList.add('hidden');
-        document.getElementById('noteInput').focus();
-    });
-
-    document.getElementById('saveNote').addEventListener('click', () => {
-        const noteText = document.getElementById('noteInput').value.trim();
-        if (noteText) {
-            if (!notes[selectedDateStr]) {
-                notes[selectedDateStr] = [];
-            }
-            notes[selectedDateStr].push(noteText);
-            localStorage.setItem('calendarNotes', JSON.stringify(notes));
-            document.getElementById('noteInput').value = '';
-            renderNotes(selectedDateStr);
-            renderCalendar();
-            document.getElementById('addNoteSection').classList.add('hidden');
-            document.getElementById('addNoteBtn').classList.remove('hidden');
+        
+        console.log('Saving note for', this.selectedDate, ':', noteText);
+        
+        // Initialize array if needed
+        if (!this.notes[this.selectedDate]) {
+            this.notes[this.selectedDate] = [];
         }
-    });
+        
+        // Add note
+        this.notes[this.selectedDate].push(noteText);
+        
+        // Save to localStorage
+        try {
+            localStorage.setItem('calendarNotes', JSON.stringify(this.notes));
+            console.log('Note saved successfully');
+        } catch(e) {
+            console.error('Error saving note:', e);
+            alert('Failed to save note');
+        }
+        
+        // Update UI
+        this.renderNotes(this.selectedDate);
+        this.renderCalendar();
+        this.hideNoteForm();
+    },
+    
+    deleteNote: function(dateStr, index) {
+        if (!confirm('Delete this note?')) {
+            return;
+        }
+        
+        console.log('Deleting note:', dateStr, index);
+        
+        if (this.notes[dateStr]) {
+            this.notes[dateStr].splice(index, 1);
+            
+            // Remove date if no notes left
+            if (this.notes[dateStr].length === 0) {
+                delete this.notes[dateStr];
+            }
+            
+            // Save to localStorage
+            try {
+                localStorage.setItem('calendarNotes', JSON.stringify(this.notes));
+                console.log('Note deleted successfully');
+            } catch(e) {
+                console.error('Error deleting note:', e);
+            }
+            
+            // Update UI
+            this.renderNotes(dateStr);
+            this.renderCalendar();
+        }
+    },
+    
+    escapeHtml: function(text) {
+        var map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    },
+    
+    pad: function(num) {
+        return (num < 10) ? '0' + num : num.toString();
+    }
+};
 
-    document.getElementById('cancelNote').addEventListener('click', () => {
-        document.getElementById('noteInput').value = '';
-        document.getElementById('addNoteSection').classList.add('hidden');
-        document.getElementById('addNoteBtn').classList.remove('hidden');
-    });
-
-    // Make functions available globally
-    window.selectDate = selectDate;
-    window.deleteNote = deleteNote;
-
-    // Initialize calendar
-    renderCalendar();
+// Initialize calendar
+(function() {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            CalendarApp.init();
+        });
+    } else {
+        CalendarApp.init();
+    }
+})();
 
     // Chart Options
     const chartOptions = {

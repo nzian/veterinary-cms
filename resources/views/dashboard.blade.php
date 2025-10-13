@@ -158,6 +158,131 @@
     @endforeach
   </div>
 
+  {{-- Vaccination Overview Section - NEW --}}
+  <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 mb-6 sm:mb-8">
+    <div class="p-4 sm:p-6">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-3 sm:gap-0">
+        <div>
+          <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Pet Vaccination Overview</h2>
+          <p class="text-xs sm:text-sm text-gray-500 mt-1">Track vaccination status across all registered pets</p>
+        </div>
+        <a href="{{ route('medical.index') }}?tab=vaccinations" class="px-3 sm:px-4 py-2 bg-blue-500 text-white text-xs sm:text-sm rounded-lg hover:bg-blue-600 transition-colors">
+          Manage Vaccinations
+        </a>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        {{-- Vaccination Status Chart --}}
+        <div>
+          <h3 class="text-sm sm:text-base font-medium text-gray-700 mb-3 sm:mb-4">Vaccination Status</h3>
+          <div class="h-48 sm:h-64 flex items-center justify-center">
+            <canvas id="vaccinationStatusChart"></canvas>
+          </div>
+        </div>
+
+        {{-- Vaccination Types Distribution --}}
+        <div>
+          <h3 class="text-sm sm:text-base font-medium text-gray-700 mb-3 sm:mb-4">Common Vaccinations</h3>
+          <div class="h-48 sm:h-64 flex items-center justify-center">
+            <canvas id="vaccinationTypesChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      {{-- Vaccination Statistics Grid --}}
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-6">
+        <div class="bg-green-50 rounded-lg p-3 sm:p-4 border border-green-200">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-lg sm:text-xl">✅</span>
+            <span class="text-xs sm:text-sm font-medium text-gray-600">Up to Date</span>
+          </div>
+          <p class="text-xl sm:text-2xl font-bold text-green-600">{{ $vaccinationStats['upToDate'] ?? 0 }}</p>
+          <p class="text-xs text-gray-500 mt-1">{{ round(($vaccinationStats['upToDate'] ?? 0) / max(($vaccinationStats['total'] ?? 1), 1) * 100) }}% of pets</p>
+        </div>
+
+        <div class="bg-yellow-50 rounded-lg p-3 sm:p-4 border border-yellow-200">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-lg sm:text-xl">⏰</span>
+            <span class="text-xs sm:text-sm font-medium text-gray-600">Due Soon</span>
+          </div>
+          <p class="text-xl sm:text-2xl font-bold text-yellow-600">{{ $vaccinationStats['dueSoon'] ?? 0 }}</p>
+          <p class="text-xs text-gray-500 mt-1">Within 30 days</p>
+        </div>
+
+        <div class="bg-red-50 rounded-lg p-3 sm:p-4 border border-red-200">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-lg sm:text-xl">⚠️</span>
+            <span class="text-xs sm:text-sm font-medium text-gray-600">Overdue</span>
+          </div>
+          <p class="text-xl sm:text-2xl font-bold text-red-600">{{ $vaccinationStats['overdue'] ?? 0 }}</p>
+          <p class="text-xs text-gray-500 mt-1">Needs attention</p>
+        </div>
+
+        <div class="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-lg sm:text-xl">📊</span>
+            <span class="text-xs sm:text-sm font-medium text-gray-600">Total Records</span>
+          </div>
+          <p class="text-xl sm:text-2xl font-bold text-gray-900">{{ $vaccinationStats['total'] ?? 0 }}</p>
+          <p class="text-xs text-gray-500 mt-1">All vaccinations</p>
+        </div>
+      </div>
+
+      {{-- Upcoming Vaccinations Table --}}
+      <div class="mt-4 sm:mt-6">
+        <h3 class="text-sm sm:text-base font-medium text-gray-700 mb-3">Upcoming Vaccinations</h3>
+        <div class="overflow-x-auto rounded-lg border border-gray-200">
+          <table class="w-full min-w-[600px]">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Pet Name</th>
+                <th class="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Vaccine</th>
+                <th class="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                <th class="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 bg-white">
+              @forelse($upcomingVaccinations ?? [] as $vaccination)
+              <tr class="hover:bg-gray-50">
+                <td class="px-3 sm:px-4 py-3 text-xs sm:text-sm font-medium text-gray-900">{{ $vaccination->pet_name ?? 'N/A' }}</td>
+                <td class="px-3 sm:px-4 py-3 text-xs sm:text-sm text-gray-600">{{ $vaccination->vaccine_name ?? 'N/A' }}</td>
+                <td class="px-3 sm:px-4 py-3 text-xs sm:text-sm text-gray-600">{{ $vaccination->due_date ?? 'N/A' }}</td>
+                <td class="px-3 sm:px-4 py-3">
+                  @php
+                    $daysUntilDue = \Carbon\Carbon::parse($vaccination->due_date)->diffInDays(now(), false);
+                    if ($daysUntilDue < 0) {
+                      $statusClass = 'bg-red-100 text-red-800';
+                      $statusText = 'Overdue';
+                    } elseif ($daysUntilDue <= 7) {
+                      $statusClass = 'bg-orange-100 text-orange-800';
+                      $statusText = 'This Week';
+                    } elseif ($daysUntilDue <= 30) {
+                      $statusClass = 'bg-yellow-100 text-yellow-800';
+                      $statusText = 'This Month';
+                    } else {
+                      $statusClass = 'bg-blue-100 text-blue-800';
+                      $statusText = 'Upcoming';
+                    }
+                  @endphp
+                  <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full {{ $statusClass }}">
+                    {{ $statusText }}
+                  </span>
+                </td>
+              </tr>
+              @empty
+              <tr>
+                <td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">
+                  No upcoming vaccinations scheduled
+                </td>
+              </tr>
+              @endforelse
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
   {{-- Calendar Section - Mobile Responsive --}}
   <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 mb-6 sm:mb-8">
     <div class="p-4 sm:p-6">
@@ -315,7 +440,7 @@
 
 </div>
 
-{{-- Appointment Modal - Mobile Responsive --}}
+{{-- Modals (Appointment and Visit) - keeping original code --}}
 <div id="appointmentModal" class="fixed inset-0 hidden z-50 flex items-center justify-center p-4">
   <div class="bg-white rounded-xl sm:rounded-2xl shadow-xl max-w-md w-full">
     <div class="p-4 sm:p-6">
@@ -329,7 +454,6 @@
       </div>
       
       <div id="appointmentDetails" class="space-y-3 mb-4 sm:mb-6 text-sm sm:text-base">
-        <!-- Appointment details will be populated here -->
       </div>
       
       <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
@@ -344,7 +468,6 @@
   </div>
 </div>
 
-{{-- Visit Update Modal - Mobile Responsive --}}
 <div id="visitModal" class="fixed inset-0 hidden z-50 flex items-center justify-center p-4">
   <div class="bg-white rounded-xl sm:rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
     <div class="p-4 sm:p-6">
@@ -358,7 +481,6 @@
       </div>
       
       <div id="petProfile" class="space-y-3 sm:space-y-4 mb-4 sm:mb-6 text-sm">
-        <!-- Pet profile details will be populated here -->
       </div>
       
       <div class="space-y-3 sm:space-y-4">
@@ -414,7 +536,6 @@
       'completed': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
       'pending': 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-200',
       'approved': 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-200',
-
       'rescheduled': 'bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-orange-200'
     };
     return colors[(status || 'pending').toLowerCase()] || 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-200';
@@ -555,7 +676,6 @@
     }
   }
 
-  // Event Listeners
   document.getElementById('monthlyBtn').onclick = () => renderCalendar('monthly');
   document.getElementById('weeklyBtn').onclick = () => renderCalendar('weekly');
   document.getElementById('todayBtn').onclick = () => renderCalendar('today');
@@ -574,10 +694,8 @@
     renderCalendar(currentView);
   };
 
-  // Initialize calendar
   renderCalendar('monthly');
 
-  // Modal Functions
   function openAppointmentModal(appointment) {
     currentAppointment = appointment;
     const modal = document.getElementById('appointmentModal');
@@ -703,19 +821,14 @@
       })
     })
     .then(response => {
-      console.log('Response status:', response.status);
-      
       if (!response.ok) {
         return response.text().then(text => {
-          console.error('Error response:', text);
           throw new Error(`HTTP ${response.status}: ${text}`);
         });
       }
       return response.json();
     })
     .then(data => {
-      console.log('Success response:', data);
-      
       currentAppointment.status = newStatus;
       currentAppointment.notes = newNotes;
       
@@ -740,7 +853,6 @@
       updateBtn.textContent = 'Update Visit';
     })
     .catch(error => {
-      console.error('Error updating appointment:', error);
       showNotification(`Error: ${error.message}`, 'error');
       
       updateBtn.disabled = false;
@@ -772,7 +884,6 @@
     }, 5000);
   }
 
-  // Modal Event Listeners
   document.getElementById('closeModal').onclick = () => appointmentModal.classList.add('hidden');
   document.getElementById('closeModalBtn').onclick = () => appointmentModal.classList.add('hidden');
   document.getElementById('viewProfileBtn').onclick = openVisitModal;
@@ -781,7 +892,6 @@
   document.getElementById('closeVisitModalBtn').onclick = () => visitModal.classList.add('hidden');
   document.getElementById('updateVisitBtn').onclick = updateVisit;
 
-  // Close modals when clicking outside
   appointmentModal.onclick = (e) => {
     if (e.target === appointmentModal) {
       appointmentModal.classList.add('hidden');
@@ -796,7 +906,6 @@
 
   window.openAppointmentModal = openAppointmentModal;
 
-  // Chart Options - Mobile Responsive
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -841,7 +950,6 @@
     }
   };
 
-  // Daily Orders Chart
   new Chart(document.getElementById('dailyOrdersChart'), {
     type: 'bar',
     data: {
@@ -857,7 +965,6 @@
     options: chartOptions
   });
 
-  // Monthly Orders Chart
   new Chart(document.getElementById('monthlyOrdersChart'), {
     type: 'line',
     data: {
@@ -889,7 +996,115 @@
     }
   });
 
-  // Handle window resize for responsive charts
+  // Vaccination Charts
+  new Chart(document.getElementById('vaccinationStatusChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Up to Date', 'Due Soon', 'Overdue'],
+      datasets: [{
+        data: [
+          {{ $vaccinationStats['upToDate'] ?? 0 }},
+          {{ $vaccinationStats['dueSoon'] ?? 0 }},
+          {{ $vaccinationStats['overdue'] ?? 0 }}
+        ],
+        backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
+        borderWidth: 2,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            padding: 15,
+            font: {
+              size: window.innerWidth < 640 ? 10 : 12
+            }
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          padding: window.innerWidth < 640 ? 8 : 12,
+          titleFont: {
+            size: window.innerWidth < 640 ? 11 : 13
+          },
+          bodyFont: {
+            size: window.innerWidth < 640 ? 10 : 12
+          },
+          callbacks: {
+            label: function(context) {
+              const label = context.label || '';
+              const value = context.parsed || 0;
+              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+              return `${label}: ${value} (${percentage}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  new Chart(document.getElementById('vaccinationTypesChart'), {
+    type: 'bar',
+    data: {
+      labels: {!! json_encode($vaccinationTypes['labels'] ?? ['Rabies', 'Distemper', 'Parvovirus', 'Hepatitis', 'Leptospirosis']) !!},
+      datasets: [{
+        label: 'Vaccinations',
+        data: {!! json_encode($vaccinationTypes['data'] ?? [45, 38, 32, 28, 25]) !!},
+        backgroundColor: '#8B5CF6',
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { 
+          display: false 
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          titleFont: {
+            size: window.innerWidth < 640 ? 11 : 12
+          },
+          bodyFont: {
+            size: window.innerWidth < 640 ? 10 : 11
+          },
+          padding: window.innerWidth < 640 ? 6 : 10
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { 
+            color: '#6B7280',
+            font: {
+              size: window.innerWidth < 640 ? 9 : 11
+            }
+          }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: '#F3F4F6' },
+          ticks: { 
+            color: '#6B7280',
+            font: {
+              size: window.innerWidth < 640 ? 9 : 11
+            },
+            stepSize: 10
+          }
+        }
+      }
+    }
+  });
+
   window.addEventListener('resize', () => {
     const charts = Chart.instances;
     Object.values(charts).forEach(chart => {
@@ -897,8 +1112,11 @@
         chart.options.plugins.tooltip.titleFont.size = window.innerWidth < 640 ? 11 : 12;
         chart.options.plugins.tooltip.bodyFont.size = window.innerWidth < 640 ? 10 : 11;
         chart.options.plugins.tooltip.padding = window.innerWidth < 640 ? 6 : 10;
-        chart.options.scales.x.ticks.font.size = window.innerWidth < 640 ? 9 : 11;
-        chart.options.scales.y.ticks.font.size = window.innerWidth < 640 ? 9 : 11;
+        
+        if (chart.options.scales) {
+          chart.options.scales.x.ticks.font.size = window.innerWidth < 640 ? 9 : 11;
+          chart.options.scales.y.ticks.font.size = window.innerWidth < 640 ? 9 : 11;
+        }
         
         if (chart.config.type === 'line') {
           chart.data.datasets[0].borderWidth = window.innerWidth < 640 ? 2 : 3;

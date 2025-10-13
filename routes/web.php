@@ -384,8 +384,14 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead'])->name('notifications.mark');
 });
 
-Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'index'])->name('global.search');
-Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'redirect'])->name('global.search');
+
+use App\Http\Controllers\GlobalSearchController;
+// Replace your existing global search route with this:
+Route::get('/global-search', [GlobalSearchController::class, 'search'])
+    ->name('global.search')
+    ->middleware('auth');
+//Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'index'])->name('global.search');
+//Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'redirect'])->name('global.search');
 
 use App\Http\Controllers\SuperAdminDashboardController;
 

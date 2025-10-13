@@ -64,6 +64,118 @@ class DashboardController extends Controller
             ->pluck('user_id')
             ->toArray();
 
+             $today = now();
+    $thirtyDaysFromNow = now()->addDays(30);
+    
+    // Get vaccination service IDs (serv_type = 'Preventive Care' for vaccinations)
+    $vaccinationServiceIds = Service::where(function($query) {
+        $query->where('serv_name', 'LIKE', '%Vaccination%')
+              ->orWhere('serv_name', 'LIKE', '%Vaccine%')
+              ->orWhere('serv_name', 'LIKE', '%Immunization%')
+              ->orWhere(function($q) {
+                  $q->where('serv_type', 'Preventive Care')
+                    ->where('serv_name', 'Vaccination');
+              });
+    })->pluck('serv_id')->toArray();
+    
+    // Get all vaccination appointments from your branch
+    $vaccinationAppointments = Appointment::with(['pet.owner', 'services', 'user'])
+        ->whereHas('user', function($q) use ($activeBranchId) {
+            $q->where('branch_id', $activeBranchId);
+        })
+        ->whereHas('services', function($q) use ($vaccinationServiceIds) {
+            $q->whereIn('tbl_serv.serv_id', $vaccinationServiceIds);
+        })
+        ->where('appoint_status', '!=', 'cancelled')
+        ->orderBy('appoint_date', 'desc')
+        ->get();
+    
+    // Group by pet to get latest vaccination per pet
+    $latestVaccinationsPerPet = $vaccinationAppointments->groupBy('pet_id')->map(function($petVaccinations) {
+        $latest = $petVaccinations->sortByDesc('appoint_date')->first();
+        
+        // Calculate next due date (12 months after last vaccination)
+        $lastVaccinationDate = Carbon::parse($latest->appoint_date);
+        $nextDueDate = $lastVaccinationDate->copy()->addMonths(12);
+        
+        return [
+            'pet_id' => $latest->pet_id,
+            'pet_name' => $latest->pet->pet_name ?? 'Unknown',
+            'pet_breed' => $latest->pet->pet_breed ?? 'N/A',
+            'owner_name' => $latest->pet->owner->own_name ?? 'Unknown',
+            'last_vaccination' => $latest->appoint_date,
+            'next_due_date' => $nextDueDate,
+            'vaccine_name' => $latest->services->first()->serv_name ?? 'General Vaccination',
+            'days_until_due' => now()->diffInDays($nextDueDate, false),
+        ];
+    })->values();
+    
+    // Calculate vaccination statistics
+    $vaccinationStats = [
+        'upToDate' => $latestVaccinationsPerPet->filter(function($vac) use ($thirtyDaysFromNow) {
+            return Carbon::parse($vac['next_due_date'])->gt($thirtyDaysFromNow);
+        })->count(),
+        
+        'dueSoon' => $latestVaccinationsPerPet->filter(function($vac) use ($today, $thirtyDaysFromNow) {
+            $dueDate = Carbon::parse($vac['next_due_date']);
+            return $dueDate->between($today, $thirtyDaysFromNow);
+        })->count(),
+        
+        'overdue' => $latestVaccinationsPerPet->filter(function($vac) use ($today) {
+            return Carbon::parse($vac['next_due_date'])->lt($today);
+        })->count(),
+        
+        'total' => $latestVaccinationsPerPet->count()
+    ];
+    
+    // Get upcoming vaccinations (next 60 days) with proper structure
+    $upcomingVaccinations = $latestVaccinationsPerPet
+        ->filter(function($vac) use ($today) {
+            $dueDate = Carbon::parse($vac['next_due_date']);
+            return $dueDate->lte(now()->addDays(60));
+        })
+        ->sortBy('next_due_date')
+        ->take(10)
+        ->map(function($vac) {
+            return (object)[
+                'pet_name' => $vac['pet_name'],
+                'vaccine_name' => $vac['vaccine_name'],
+                'due_date' => $vac['next_due_date']->format('Y-m-d'),
+                'owner_name' => $vac['owner_name'],
+            ];
+        })
+        ->values();
+    
+    // Get vaccination types distribution (from completed appointments with vaccination services)
+    $vaccinationTypesData = DB::table('tbl_appoint')
+        ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
+        ->join('tbl_serv', 'tbl_appoint_serv.serv_id', '=', 'tbl_serv.serv_id')
+        ->join('tbl_user', 'tbl_appoint.user_id', '=', 'tbl_user.user_id')
+        ->where('tbl_user.branch_id', $activeBranchId)
+        ->whereIn('tbl_appoint_serv.serv_id', $vaccinationServiceIds)
+        ->whereIn('tbl_appoint.appoint_status', ['completed', 'arrived'])
+        ->select(
+            'tbl_serv.serv_name as vaccine_name',
+            DB::raw('COUNT(*) as count')
+        )
+        ->groupBy('tbl_serv.serv_name')
+        ->orderBy('count', 'desc')
+        ->limit(5)
+        ->get();
+    
+    $vaccinationTypes = [
+        'labels' => $vaccinationTypesData->pluck('vaccine_name')->toArray(),
+        'data' => $vaccinationTypesData->pluck('count')->toArray()
+    ];
+    
+    // Default labels if no vaccination data exists
+    if (empty($vaccinationTypes['labels'])) {
+        $vaccinationTypes = [
+            'labels' => ['Rabies', 'Distemper', '5-in-1', 'Anti-Rabies', 'Deworming'],
+            'data' => [0, 0, 0, 0, 0]
+        ];
+    }
+
         // Filter data by branch users
         $totalPets = Pet::whereIn('user_id', $branchUserIds)->count();
         
@@ -199,7 +311,21 @@ class DashboardController extends Controller
             'recentReferrals',
             'activeBranchId',
             'userName',
-            'userRole'
+            'userRole',
+            'vaccinationStats',
+        'upcomingVaccinations',
+        'vaccinationTypes'
         ));
     }
+
+    public function getVaccinationServices()
+{
+    $services = Service::where(function($query) {
+        $query->where('serv_name', 'LIKE', '%vaccin%')
+              ->orWhere('serv_name', 'LIKE', '%immun%')
+              ->orWhere('serv_description', 'LIKE', '%vaccin%');
+    })->get(['serv_id', 'serv_name', 'serv_category']);
+    
+    return response()->json($services);
+}
 }
