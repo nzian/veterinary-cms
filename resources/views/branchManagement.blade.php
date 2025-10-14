@@ -1022,6 +1022,59 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 });
+document.addEventListener('DOMContentLoaded', function () {
+    // ... existing DOMContentLoaded code (Edit branch/user buttons) ...
+
+    // --- PERSISTENT TAB LOGIC ---
+    
+    // 1. Check for active_tab session data from PHP (used after redirect)
+    const activeTabFromSession = "{{ session('active_tab') }}";
+    
+    // 2. Check URL query parameter (optional, if you want direct links to work)
+    const urlParams = new URLSearchParams(window.location.search);
+    const activeTabFromQuery = urlParams.get('tab');
+    
+    // Default to 'branch' if no state is found
+    let defaultTab = 'branch';
+
+    if (activeTabFromSession && activeTabFromSession !== '') {
+        defaultTab = activeTabFromSession;
+    } else if (activeTabFromQuery) {
+        defaultTab = activeTabFromQuery;
+    }
+    
+    // Switch to the determined tab
+    switchTab(defaultTab);
+});
+
+// The rest of your existing JS functions must be outside the DOMContentLoaded listener 
+// (which they currently are, but the whole block is now wrapped in the init/onload logic).
+// Ensure your original switchTab function remains accessible globally.
+//
+// NOTE: I am assuming your existing global switchTab(tabName) function is correct.
+
+// ... existing switchTab function should look like this:
+function switchTab(tabName) {
+    // Hide all tab contents
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+    });
+    
+    // Remove active class from all tab buttons
+    document.querySelectorAll('.tab-button').forEach(button => {
+        // NOTE: Changed color classes to match your design: #ff8c42
+        button.classList.remove('active', 'border-[#ff8c42]', 'text-[#ff8c42]');
+        button.classList.add('border-transparent', 'text-gray-500');
+    });
+    
+    // Show selected tab content
+    document.getElementById(tabName + 'Content').classList.remove('hidden');
+    
+    // Add active class to selected tab button
+    const activeTab = document.getElementById(tabName + 'Tab');
+    activeTab.classList.add('active', 'border-[#ff8c42]', 'text-[#ff8c42]');
+    activeTab.classList.remove('border-transparent', 'text-gray-500');
+}
 </script>
 
 <style>

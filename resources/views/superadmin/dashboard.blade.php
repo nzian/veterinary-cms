@@ -53,135 +53,154 @@
         </div>
     </div>
 
-    <!-- Key Metrics - Mobile Responsive Grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
-        @php
-            $keyMetrics = [
-                [
-                    'label' => 'Total Branches',
-                    'value' => $totalBranches,
-                    'icon' => '🏢',
-                    'color' => 'from-blue-500 to-blue-600',
-                    'subtext' => $activeBranches . ' Active',
-                    'change' => '+' . $activeBranches
-                ],
-                [
-                    'label' => 'Total Revenue',
-                    'value' => '₱' . number_format($totalRevenue / 1000, 1) . 'k',
-                    'icon' => '💰',
-                    'color' => 'from-emerald-500 to-emerald-600',
-                    'subtext' => 'Today: ₱' . number_format($todayRevenue, 0),
-                    'change' => '+15%'
-                ],
-                [
-                    'label' => 'Total Staff',
-                    'value' => $totalStaff,
-                    'icon' => '👥',
-                    'color' => 'from-purple-500 to-purple-600',
-                    'subtext' => 'All branches',
-                    'change' => '+' . $totalStaff
-                ],
-                [
-                    'label' => 'Appointments',
-                    'value' => $branchStats['total_appointments'],
-                    'icon' => '📅',
-                    'color' => 'from-amber-500 to-amber-600',
-                    'subtext' => 'Today: ' . $branchStats['today_appointments'],
-                    'change' => '+12%'
-                ],
-            ];
-        @endphp
+   <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
+    @php
+        $keyMetrics = [
+            [
+                'label' => 'Total Branches',
+                'value' => $totalBranches,
+                'icon' => '🏢',
+                'color' => 'from-blue-500 to-blue-600',
+                'subtext' => $activeBranches . ' Active',
+                'change' => '+' . $activeBranches,
+                'route' => route('branch-management.index')
+            ],
+            [
+                'label' => 'Total Revenue',
+                'value' => '₱' . number_format($totalRevenue / 1000, 1) . 'k',
+                'icon' => '💰',
+                'color' => 'from-emerald-500 to-emerald-600',
+                'subtext' => 'Today: ₱' . number_format($todayRevenue, 0),
+                'change' => '+15%',
+                'route' => route('reports.index') // Mapped to /reports
+            ],
+            [
+                'label' => 'Total Staff',
+                'value' => $totalStaff,
+                'icon' => '👥',
+                'color' => 'from-purple-500 to-purple-600',
+                'subtext' => 'All branches',
+                'change' => '+' . $totalStaff,
+                'route' => route('branch-user-management.index')
+            ],
+            [
+                'label' => 'Appointments',
+                'value' => $branchStats['total_appointments'],
+                'icon' => '📅',
+                'color' => 'from-amber-500 to-amber-600',
+                'subtext' => 'Today: ' . $branchStats['today_appointments'],
+                'change' => '+12%',
+                'route' => route('medical.index')
+            ],
+        ];
+    @endphp
 
-        @foreach ($keyMetrics as $metric)
-        <div class="block transform transition-all duration-300 hover:scale-105">
-            <div class="relative overflow-hidden bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 hover:shadow-xl transition-all duration-300 group cursor-pointer">
-                <div class="absolute inset-0 bg-gradient-to-br {{ $metric['color'] }} opacity-0 group-hover:opacity-10 transition-opacity"></div>
-                <div class="p-4 sm:p-6">
-                    <div class="flex items-center justify-between mb-3 sm:mb-4">
-                        <div class="text-xl sm:text-2xl group-hover:scale-110 transition-transform">{{ $metric['icon'] }}</div>
-                        <span class="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                            {{ $metric['change'] }}
-                        </span>
-                    </div>
-                    <div class="space-y-1">
-                        <p class="text-xs sm:text-sm font-medium text-gray-600 group-hover:text-gray-800 transition-colors">{{ $metric['label'] }}</p>
-                        <p class="text-xl sm:text-2xl font-bold text-gray-900 group-hover:text-[#f88e28] transition-colors">{{ $metric['value'] }}</p>
-                    </div>
-                    <div class="mt-2 sm:mt-3 text-xs text-gray-500">
-                        {{ $metric['subtext'] }}
-                    </div>
+    @foreach ($keyMetrics as $metric)
+    <a href="{{ $metric['route'] ?? '#' }}" 
+       class="block transform transition-all duration-300 hover:scale-105 cursor-pointer">
+        <div class="relative overflow-hidden bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 hover:shadow-xl transition-all duration-300 group">
+            <div class="absolute inset-0 bg-gradient-to-br {{ $metric['color'] }} opacity-0 group-hover:opacity-10 transition-opacity"></div>
+            <div class="p-4 sm:p-6">
+                <div class="flex items-center justify-between mb-3 sm:mb-4">
+                    <div class="text-xl sm:text-2xl group-hover:scale-110 transition-transform">{{ $metric['icon'] }}</div>
+                    <span class="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                        {{ $metric['change'] }}
+                    </span>
+                </div>
+                <div class="space-y-1">
+                    <p class="text-xs sm:text-sm font-medium text-gray-600 group-hover:text-gray-800 transition-colors">{{ $metric['label'] }}</p>
+                    <p class="text-xl sm:text-2xl font-bold text-gray-900 group-hover:text-[#f88e28] transition-colors">{{ $metric['value'] }}</p>
+                </div>
+                <div class="mt-2 sm:mt-3 text-xs text-gray-500">
+                    {{ $metric['subtext'] }}
                 </div>
             </div>
         </div>
-        @endforeach
+    </a>
+    @endforeach
+</div>
+   <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6 sm:mb-8">
+    
+    <div class="flex items-center justify-between mb-4">
+        
+        <div class="flex items-center gap-3">
+            <h3 class="text-base sm:text-lg font-semibold text-gray-900">Calendar & Notes</h3>
+            
+            {{-- Week Range Display: Aligned next to the title (updated by JS) --}}
+            <span id="currentWeekRange" class="text-sm font-semibold text-[#f88e28]"></span>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button id="prevWeek" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+            </button>
+            <button id="nextWeek" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                </svg>
+            </button>
+        </div>
     </div>
     
-    <!-- Mini Calendar with Notes - FULL WIDTH -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6 sm:mb-8">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-base sm:text-lg font-semibold text-gray-900">Calendar & Notes</h3>
-            <div class="flex items-center gap-2">
-                <button id="prevMonth" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-                    </svg>
-                </button>
-                <span id="currentMonth" class="text-sm font-semibold text-gray-700 min-w-[120px] text-center"></span>
-                <button id="nextMonth" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                    </svg>
-                </button>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6"> 
+        
+        {{-- REMOVED max-w-xs from this column to let it use the full 50% fluid width --}}
+        <div class="lg:col-span-1 lg:pr-6 lg:border-r border-gray-200">
+            
+            {{-- REMOVED: The max-w-xs mx-auto inner div for full fluidity --}}
+
+            <div class="grid grid-cols-7 gap-2 mb-3"> 
+                {{-- REVERTED TO ABBREVIATIONS for proper spacing in a 50% column --}}
+                <div class="text-center text-sm font-semibold text-gray-600 py-2">Sun</div>
+                <div class="text-center text-sm font-semibold text-gray-600 py-2">Mon</div>
+                <div class="text-center text-sm font-semibold text-gray-600 py-2">Tue</div>
+                <div class="text-center text-sm font-semibold text-gray-600 py-2">Wed</div>
+                <div class="text-center text-sm font-semibold text-gray-600 py-2">Thu</div>
+                <div class="text-center text-sm font-semibold text-gray-600 py-2">Fri</div>
+                <div class="text-center text-sm font-semibold text-gray-600 py-2">Sat</div>
             </div>
+            
+            <div id="calendarDays" class="grid grid-cols-7 gap-2">
+                </div>
+
         </div>
         
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Calendar -->
-            <div class="lg:col-span-2">
-                <div class="grid grid-cols-7 gap-2 mb-3">
-                    <div class="text-center text-sm font-semibold text-gray-600 py-2">Sun</div>
-                    <div class="text-center text-sm font-semibold text-gray-600 py-2">Mon</div>
-                    <div class="text-center text-sm font-semibold text-gray-600 py-2">Tue</div>
-                    <div class="text-center text-sm font-semibold text-gray-600 py-2">Wed</div>
-                    <div class="text-center text-sm font-semibold text-gray-600 py-2">Thu</div>
-                    <div class="text-center text-sm font-semibold text-gray-600 py-2">Fri</div>
-                    <div class="text-center text-sm font-semibold text-gray-600 py-2">Sat</div>
-                </div>
-                <div id="calendarDays" class="grid grid-cols-7 gap-2">
-                    <!-- Calendar days will be generated here -->
+        <div class="lg:col-span-1 lg:pl-6">
+            <h4 class="text-base font-semibold text-gray-900 mb-3">
+                Notes for <span id="selectedDate" class="text-[#f88e28]"></span>
+            </h4>
+            
+            <div id="notesList" class="space-y-2 mb-4 max-h-64 overflow-y-auto">
+                <p class="text-sm text-gray-500">Select a date to view notes</p>
+            </div>
+            
+            <div id="addNoteSection" class="hidden">
+                <textarea 
+                    id="noteInput" 
+                    rows="4" 
+                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f88e28] focus:border-transparent" 
+                    placeholder="Add a note..."></textarea>
+                <div class="flex gap-2 mt-3">
+                    <button id="saveNote" class="flex-1 px-4 py-2 bg-[#f88e28] text-white text-sm font-medium rounded-lg hover:bg-[#e67e22] transition-colors">
+                        Save Note
+                    </button>
+                    <button id="cancelNote" class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">
+                        Cancel
+                    </button>
                 </div>
             </div>
             
-            <!-- Notes Section -->
-            <div class="border-l border-gray-200 pl-6">
-                <h4 class="text-base font-semibold text-gray-900 mb-3">Notes for <span id="selectedDate" class="text-[#f88e28]"></span></h4>
-                <div id="notesList" class="space-y-2 mb-4 max-h-64 overflow-y-auto">
-                    <p class="text-sm text-gray-500">Select a date to view notes</p>
-                </div>
-                <div id="addNoteSection" class="hidden">
-                    <textarea 
-                        id="noteInput" 
-                        rows="4" 
-                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f88e28] focus:border-transparent" 
-                        placeholder="Add a note..."></textarea>
-                    <div class="flex gap-2 mt-3">
-                        <button id="saveNote" class="flex-1 px-4 py-2 bg-[#f88e28] text-white text-sm font-medium rounded-lg hover:bg-[#e67e22] transition-colors">
-                            Save Note
-                        </button>
-                        <button id="cancelNote" class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-                <button id="addNoteBtn" class="w-full px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                    </svg>
-                    Add Note
-                </button>
-            </div>
+            <button id="addNoteBtn" class="w-full h-12 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                Add Note
+            </button>
         </div>
     </div>
+</div>
 
     <!-- Charts Section -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
@@ -610,68 +629,146 @@
 
 </div>
 
-@push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-// CALENDAR WITH TAILWIND - FIXED VERSION
+// ====================================================================
+// CALENDAR APPLICATION LOGIC (Self-Contained)
+// ====================================================================
+// ====================================================================
 var CalendarApp = {
-    currentMonth: new Date().getMonth(),
-    currentYear: new Date().getFullYear(),
+    currentDate: new Date(),
+    currentWeekStart: null, // Tracks the start date (Sunday) of the current week
     selectedDate: null,
     notes: {},
     
     init: function() {
-        console.log('Calendar initializing...');
-        
-        // Load notes from localStorage
+        // 1. Load notes from localStorage (kept)
         var stored = localStorage.getItem('calendarNotes');
         if (stored) {
             try {
                 this.notes = JSON.parse(stored);
-                console.log('Loaded notes:', this.notes);
             } catch(e) {
-                console.error('Error loading notes:', e);
                 this.notes = {};
             }
         }
         
-        // Check if elements exist
-        if (!document.getElementById('calendarDays')) {
-            console.error('calendarDays element not found!');
-            return;
-        }
+        if (!document.getElementById('calendarDays')) return;
+
+        // 2. Initialize to the start of the current week (Sunday)
+        this.calculateCurrentWeekStart(this.currentDate);
         
-        // Bind events
+        // 3. Set default selected date to today
+        this.selectedDate = this.formatDate(this.currentDate);
+        
+        // 4. Bind events (using the new Week IDs)
         this.bindEvents();
         
-        // Render calendar
+        // 5. Render initial state
         this.renderCalendar();
-        
-        console.log('Calendar initialized successfully');
+        this.updateSelectedDateDisplay(this.selectedDate);
+        this.renderNotes(this.selectedDate); 
+    },
+
+    // Calculates the Sunday of the week containing the given date
+    calculateCurrentWeekStart: function(date) {
+        var day = date.getDay(); // 0 for Sunday, 6 for Saturday
+        var diff = date.getDate() - day;
+        this.currentWeekStart = new Date(date.setDate(diff));
+        this.currentWeekStart.setHours(0, 0, 0, 0); // Reset time for clean calculations
+    },
+
+    // --- NAVIGATION FUNCTIONS (UPDATED FOR WEEK) ---
+    previousWeek: function() {
+        this.currentWeekStart.setDate(this.currentWeekStart.getDate() - 7);
+        this.renderCalendar();
     },
     
+    nextWeek: function() {
+        this.currentWeekStart.setDate(this.currentWeekStart.getDate() + 7);
+        this.renderCalendar();
+    },
+
+    // --- RENDERING FUNCTIONS (UPDATED TO SHOW ONLY ONE ROW) ---
+    renderCalendar: function() {
+        var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        var current = new Date(this.currentWeekStart);
+        var html = '';
+        var todayFormatted = this.formatDate(new Date());
+
+        // Calculate and update week range display
+        var start = new Date(this.currentWeekStart);
+        var end = new Date(this.currentWeekStart);
+        end.setDate(end.getDate() + 6);
+        
+        var currentWeekEl = document.getElementById('currentWeekRange');
+        if (currentWeekEl) {
+            // Display the week range (e.g., "Oct 12 - Oct 18, 2025")
+            currentWeekEl.textContent = 
+                monthNames[start.getMonth()] + ' ' + start.getDate() + ' - ' + 
+                monthNames[end.getMonth()] + ' ' + end.getDate() + ', ' + end.getFullYear();
+        }
+
+        // Loop through exactly 7 days
+        for (var i = 0; i < 7; i++) {
+            var dateStr = this.formatDate(current);
+            
+            // Coloring logic (re-using your original logic)
+            var isToday = (dateStr === todayFormatted);
+            var isSelected = (this.selectedDate === dateStr);
+            var hasNotes = this.notes[dateStr] && this.notes[dateStr].length > 0;
+            
+            var baseClass = 'text-gray-700 hover:bg-gray-100';
+            var ringClass = '';
+            
+            if (isSelected) {
+                baseClass = 'bg-blue-500 text-white shadow-lg shadow-blue-500/50 hover:bg-blue-600 transition-all';
+                ringClass = 'ring-2 ring-offset-2 ring-blue-500'; 
+            } else if (isToday) {
+                baseClass = 'bg-[#f88e28] text-white hover:bg-[#e67e22]';
+            }
+            
+            if (hasNotes && !isSelected) { 
+                 ringClass = 'ring-2 ring-[#f88e28] ring-opacity-50';
+            }
+
+            // Note indicator dot
+            var noteDot = '';
+            if (hasNotes) {
+                var dotColor = isSelected || isToday ? 'bg-white' : 'bg-[#f88e28]';
+                noteDot = '<div class="w-1.5 h-1.5 ' + dotColor + ' rounded-full mx-auto mt-1"></div>';
+            }
+            
+            html += '<div class="aspect-square p-1">' +
+                    '<button type="button" onclick="CalendarApp.selectDate(\'' + dateStr + '\')" ' +
+                    'class="w-full h-full rounded-lg text-sm font-medium transition-all ' + 
+                    baseClass + ' ' + ringClass + '">' +
+                    '<div class="flex flex-col items-center justify-center h-full">' +
+                    '<span>' + current.getDate() + '</span>' + noteDot +
+                    '</div></button></div>';
+
+            // Move to the next day
+            current.setDate(current.getDate() + 1);
+        }
+        
+        var calendarDaysEl = document.getElementById('calendarDays');
+        if (calendarDaysEl) {
+            calendarDaysEl.innerHTML = html;
+        }
+    },
+    
+    // --- BINDING FUNCTIONS (UPDATED TO USE WEEK IDs) ---
     bindEvents: function() {
         var self = this;
-        
-        var prevBtn = document.getElementById('prevMonth');
-        var nextBtn = document.getElementById('nextMonth');
+        // NOTE: Changed IDs from prev/nextMonth to prev/nextWeek
+        var prevBtn = document.getElementById('prevWeek');
+        var nextBtn = document.getElementById('nextWeek');
         var addBtn = document.getElementById('addNoteBtn');
         var saveBtn = document.getElementById('saveNote');
         var cancelBtn = document.getElementById('cancelNote');
         
-        if (prevBtn) {
-            prevBtn.onclick = function(e) {
-                e.preventDefault();
-                self.previousMonth();
-            };
-        }
-        
-        if (nextBtn) {
-            nextBtn.onclick = function(e) {
-                e.preventDefault();
-                self.nextMonth();
-            };
-        }
+        if (prevBtn) { prevBtn.onclick = function(e) { e.preventDefault(); self.previousWeek(); }; }
+        if (nextBtn) { nextBtn.onclick = function(e) { e.preventDefault(); self.nextWeek(); }; }
         
         if (addBtn) {
             addBtn.onclick = function(e) {
@@ -684,195 +781,57 @@ var CalendarApp = {
             };
         }
         
-        if (saveBtn) {
-            saveBtn.onclick = function(e) {
-                e.preventDefault();
-                self.saveNote();
-            };
-        }
-        
-        if (cancelBtn) {
-            cancelBtn.onclick = function(e) {
-                e.preventDefault();
-                self.hideNoteForm();
-            };
-        }
-        
-        console.log('Events bound successfully');
+        if (saveBtn) { saveBtn.onclick = function(e) { e.preventDefault(); self.saveNote(); }; }
+        if (cancelBtn) { cancelBtn.onclick = function(e) { e.preventDefault(); self.hideNoteForm(); }; }
     },
     
-    showNoteForm: function() {
-        var addNoteSection = document.getElementById('addNoteSection');
-        var addNoteBtn = document.getElementById('addNoteBtn');
-        var noteInput = document.getElementById('noteInput');
-        
-        if (addNoteSection) {
-            addNoteSection.classList.remove('hidden');
-        }
-        if (addNoteBtn) {
-            addNoteBtn.classList.add('hidden');
-        }
-        if (noteInput) {
-            noteInput.focus();
-        }
+    // --- UTILITY/NOTE FUNCTIONS (Kept or simplified) ---
+    formatDate: function(date) {
+        var y = date.getFullYear();
+        var m = this.pad(date.getMonth() + 1);
+        var d = this.pad(date.getDate());
+        return y + '-' + m + '-' + d;
     },
     
-    hideNoteForm: function() {
-        var addNoteSection = document.getElementById('addNoteSection');
-        var addNoteBtn = document.getElementById('addNoteBtn');
-        var noteInput = document.getElementById('noteInput');
-        
-        if (noteInput) {
-            noteInput.value = '';
-        }
-        if (addNoteSection) {
-            addNoteSection.classList.add('hidden');
-        }
-        if (addNoteBtn) {
-            addNoteBtn.classList.remove('hidden');
-        }
-    },
-    
-    previousMonth: function() {
-        this.currentMonth--;
-        if (this.currentMonth < 0) {
-            this.currentMonth = 11;
-            this.currentYear--;
-        }
-        console.log('Previous month:', this.currentMonth, this.currentYear);
-        this.renderCalendar();
-    },
-    
-    nextMonth: function() {
-        this.currentMonth++;
-        if (this.currentMonth > 11) {
-            this.currentMonth = 0;
-            this.currentYear++;
-        }
-        console.log('Next month:', this.currentMonth, this.currentYear);
-        this.renderCalendar();
-    },
-    
-    renderCalendar: function() {
-        var monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                         'July', 'August', 'September', 'October', 'November', 'December'];
-        
-        console.log('Rendering calendar for:', monthNames[this.currentMonth], this.currentYear);
-        
-        // Update month/year display
-        var currentMonthEl = document.getElementById('currentMonth');
-        if (currentMonthEl) {
-            currentMonthEl.textContent = monthNames[this.currentMonth] + ' ' + this.currentYear;
-        }
-        
-        // Get first day of month and number of days
-        var firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
-        var daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
-        
-        // Get today's date
-        var today = new Date();
-        var isCurrentMonth = (today.getMonth() === this.currentMonth && today.getFullYear() === this.currentYear);
-        var todayDate = today.getDate();
-        
-        // Build calendar HTML
-        var html = '';
-        var day = 1;
-        
-        // Create 6 rows for calendar
-        for (var i = 0; i < 6; i++) {
-            for (var j = 0; j < 7; j++) {
-                if (i === 0 && j < firstDay) {
-                    // Empty cell before month starts
-                    html += '<div class="aspect-square p-1"></div>';
-                } else if (day > daysInMonth) {
-                    // Empty cell after month ends
-                    html += '<div class="aspect-square p-1"></div>';
-                } else {
-                    // Create date string
-                    var dateStr = this.currentYear + '-' + 
-                                 this.pad(this.currentMonth + 1) + '-' + 
-                                 this.pad(day);
-                    
-                    // Check if today
-                    var isToday = (isCurrentMonth && day === todayDate);
-                    var todayClass = isToday ? 'bg-[#f88e28] text-white hover:bg-[#e67e22]' : 'text-gray-700 hover:bg-gray-100';
-                    
-                    // Check if has notes
-                    var hasNotes = this.notes[dateStr] && this.notes[dateStr].length > 0;
-                    var noteRing = hasNotes && !isToday ? 'ring-2 ring-[#f88e28] ring-opacity-50' : '';
-                    
-                    // Check if selected
-                    var isSelected = (this.selectedDate === dateStr);
-                    var selectedRing = isSelected ? 'ring-2 ring-blue-500' : '';
-                    
-                    // Note indicator
-                    var noteDot = '';
-                    if (hasNotes) {
-                        var dotColor = isToday ? 'bg-white' : 'bg-[#f88e28]';
-                        noteDot = '<div class="w-1.5 h-1.5 ' + dotColor + ' rounded-full mx-auto mt-1"></div>';
-                    }
-                    
-                    html += '<div class="aspect-square p-1">' +
-                           '<button type="button" onclick="CalendarApp.selectDate(\'' + dateStr + '\')" ' +
-                           'class="w-full h-full rounded-lg text-sm font-medium transition-all ' + 
-                           todayClass + ' ' + noteRing + ' ' + selectedRing + '">' +
-                           '<div class="flex flex-col items-center justify-center h-full">' +
-                           '<span>' + day + '</span>' + noteDot +
-                           '</div></button></div>';
-                    
-                    day++;
-                }
-            }
-            
-            // Stop if we've shown all days
-            if (day > daysInMonth) {
-                break;
-            }
-        }
-        
-        // Update calendar
-        var calendarDaysEl = document.getElementById('calendarDays');
-        if (calendarDaysEl) {
-            calendarDaysEl.innerHTML = html;
-            console.log('Calendar rendered with', day - 1, 'days');
-        } else {
-            console.error('calendarDays element not found!');
-        }
-    },
-    
-    selectDate: function(dateStr) {
-        console.log('Date selected:', dateStr);
-        this.selectedDate = dateStr;
-        
-        // Format date for display
+    updateSelectedDateDisplay: function(dateStr) {
         var parts = dateStr.split('-');
-        var date = new Date(parts[0], parts[1] - 1, parts[2]);
-        var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        // Note: Month is 0-indexed in JS, so subtract 1
+        var date = new Date(parts[0], parts[1] - 1, parts[2]); 
+        var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         var formatted = monthNames[date.getMonth()] + ' ' + date.getDate() + ', ' + date.getFullYear();
         
         var selectedDateEl = document.getElementById('selectedDate');
         if (selectedDateEl) {
             selectedDateEl.textContent = formatted;
         }
-        
-        // Show add note button, hide form
-        this.hideNoteForm();
-        
-        // Render notes
-        this.renderNotes(dateStr);
-        
-        // Re-render calendar to show selection
-        this.renderCalendar();
     },
     
+    // ... (rest of the note functions: showNoteForm, hideNoteForm, selectDate, 
+    // renderNotes, saveNote, deleteNote, escapeHtml, pad are the same as before) ...
+
+    showNoteForm: function() {
+        document.getElementById('addNoteSection').classList.remove('hidden');
+        document.getElementById('addNoteBtn').classList.add('hidden');
+        document.getElementById('noteInput').focus();
+    },
+    
+    hideNoteForm: function() {
+        document.getElementById('noteInput').value = '';
+        document.getElementById('addNoteSection').classList.add('hidden');
+        document.getElementById('addNoteBtn').classList.remove('hidden');
+    },
+
+    selectDate: function(dateStr) {
+        this.selectedDate = dateStr;
+        this.updateSelectedDateDisplay(dateStr);
+        this.hideNoteForm();
+        this.renderNotes(dateStr);
+        this.renderCalendar();
+    },
+
     renderNotes: function(dateStr) {
-        console.log('Rendering notes for:', dateStr);
         var notesListEl = document.getElementById('notesList');
-        if (!notesListEl) {
-            console.error('notesList element not found!');
-            return;
-        }
+        if (!notesListEl) return;
         
         var dateNotes = this.notes[dateStr] || [];
         
@@ -882,99 +841,61 @@ var CalendarApp = {
             var html = '';
             for (var i = 0; i < dateNotes.length; i++) {
                 html += '<div class="p-3 bg-gray-50 rounded-lg group relative hover:bg-gray-100 transition-colors mb-2">' +
-                       '<p class="text-sm text-gray-700 pr-8 break-words">' + this.escapeHtml(dateNotes[i]) + '</p>' +
-                       '<button type="button" onclick="CalendarApp.deleteNote(\'' + dateStr + '\', ' + i + ')" ' +
-                       'class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity">' +
-                       '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
-                       '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>' +
-                       '</svg></button></div>';
+                         '<p class="text-sm text-gray-700 pr-8 break-words">' + this.escapeHtml(dateNotes[i]) + '</p>' +
+                         '<button type="button" onclick="CalendarApp.deleteNote(\'' + dateStr + '\', ' + i + ')" ' +
+                         'class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity">' +
+                         '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+                         '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>' +
+                         '</svg></button></div>';
             }
             notesListEl.innerHTML = html;
-            console.log('Rendered', dateNotes.length, 'notes');
         }
     },
-    
+
     saveNote: function() {
         var noteInput = document.getElementById('noteInput');
-        if (!noteInput) {
-            console.error('noteInput element not found!');
-            return;
+        if (!noteInput || !this.selectedDate) {
+             alert('Please select a date and enter a note.');
+             return;
         }
         
         var noteText = noteInput.value.trim();
-        
         if (!noteText) {
             alert('Please enter a note');
             return;
         }
         
-        if (!this.selectedDate) {
-            alert('Please select a date first');
-            return;
-        }
-        
-        console.log('Saving note for', this.selectedDate, ':', noteText);
-        
-        // Initialize array if needed
         if (!this.notes[this.selectedDate]) {
             this.notes[this.selectedDate] = [];
         }
         
-        // Add note
         this.notes[this.selectedDate].push(noteText);
         
-        // Save to localStorage
-        try {
-            localStorage.setItem('calendarNotes', JSON.stringify(this.notes));
-            console.log('Note saved successfully');
-        } catch(e) {
-            console.error('Error saving note:', e);
-            alert('Failed to save note');
-        }
+        localStorage.setItem('calendarNotes', JSON.stringify(this.notes));
         
-        // Update UI
         this.renderNotes(this.selectedDate);
         this.renderCalendar();
         this.hideNoteForm();
     },
-    
+
     deleteNote: function(dateStr, index) {
-        if (!confirm('Delete this note?')) {
-            return;
-        }
-        
-        console.log('Deleting note:', dateStr, index);
+        if (!confirm('Delete this note?')) { return; }
         
         if (this.notes[dateStr]) {
             this.notes[dateStr].splice(index, 1);
             
-            // Remove date if no notes left
             if (this.notes[dateStr].length === 0) {
                 delete this.notes[dateStr];
             }
             
-            // Save to localStorage
-            try {
-                localStorage.setItem('calendarNotes', JSON.stringify(this.notes));
-                console.log('Note deleted successfully');
-            } catch(e) {
-                console.error('Error deleting note:', e);
-            }
-            
-            // Update UI
+            localStorage.setItem('calendarNotes', JSON.stringify(this.notes));
             this.renderNotes(dateStr);
             this.renderCalendar();
         }
     },
-    
+
     escapeHtml: function(text) {
-        var map = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#039;'
-        };
+        var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
         return text.replace(/[&<>"']/g, function(m) { return map[m]; });
     },
     
@@ -982,19 +903,18 @@ var CalendarApp = {
         return (num < 10) ? '0' + num : num.toString();
     }
 };
-
-// Initialize calendar
-(function() {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() {
-            CalendarApp.init();
-        });
-    } else {
+// ====================================================================
+// INITIALIZATION AND CHART.JS CODE
+// Wrap everything in DOMContentLoaded to ensure elements exist.
+// ====================================================================
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // 1. Initialize Calendar
+    if (typeof CalendarApp !== 'undefined') {
         CalendarApp.init();
     }
-})();
 
-    // Chart Options
+    // 2. Chart Options
     const chartOptions = {
         responsive: true,
         maintainAspectRatio: false,
@@ -1030,7 +950,7 @@ var CalendarApp = {
         }
     };
 
-    // Revenue Chart
+    // 3. Revenue Chart
     new Chart(document.getElementById('revenueChart'), {
         type: 'line',
         data: {
@@ -1063,7 +983,7 @@ var CalendarApp = {
         }
     });
 
-    // Weekly Chart
+    // 4. Weekly Chart
     new Chart(document.getElementById('weeklyChart'), {
         type: 'bar',
         data: {
@@ -1088,6 +1008,6 @@ var CalendarApp = {
             }
         }
     });
+});
 </script>
-@endpush
 @endsection

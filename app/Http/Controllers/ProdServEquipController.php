@@ -9,9 +9,9 @@ use App\Models\Equipment;
 use App\Models\Order;
 use App\Models\Appointment;
 use App\Models\Bill;
-use App\Models\ServiceProduct;  // ✅ ADD THIS
-use App\Models\InventoryTransaction;  // ✅ ADD THIS
-use App\Services\InventoryService;  // ✅ ADD THIS - This is the fix!
+use App\Models\ServiceProduct; 
+use App\Models\InventoryTransaction; 
+use App\Services\InventoryService; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +26,15 @@ class ProdServEquipController extends Controller
     {
         $this->inventoryService = $inventoryService;
     }
-   public function index(Request $request)
+
+    // Helper to get redirect tab value
+    protected function getRedirectTab(Request $request, $default = 'products')
+    {
+        // Check for 'tab' hidden field submitted via POST or 'tab' query param
+        return $request->input('tab', $default); 
+    }
+    
+    public function index(Request $request)
 {
     $activeBranchId = session('active_branch_id');
     $user = auth()->user();
@@ -53,7 +61,7 @@ class ProdServEquipController extends Controller
         ->paginate($productsPerPage, ['*'], 'productsPage')
         ->appends($request->except('productsPage'));
 
-    // ✅ Services — show all if superadmin
+    // Services
     $services = Service::when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
             $query->where('branch_id', $activeBranchId);
         })
@@ -76,7 +84,7 @@ class ProdServEquipController extends Controller
     return view('prodServEquip', compact('products', 'branches', 'services', 'equipment','allProducts'));
 }
 
- public function getServiceProducts($serviceId)
+    public function getServiceProducts($serviceId)
     {
         try {
             $serviceProducts = ServiceProduct::where('serv_id', $serviceId)
@@ -105,7 +113,7 @@ class ProdServEquipController extends Controller
         }
     }
 
-     public function updateServiceProducts(Request $request, $serviceId)
+    public function updateServiceProducts(Request $request, $serviceId)
     {
         try {
             $validated = $request->validate([
@@ -145,7 +153,6 @@ class ProdServEquipController extends Controller
         }
     }
     
-
 
     // -------------------- PRODUCT VIEW DETAILS --------------------
     public function viewProduct($id)
@@ -232,7 +239,7 @@ class ProdServEquipController extends Controller
 }
 
     // -------------------- SERVICE VIEW DETAILS --------------------
-   public function viewService($id)
+    public function viewService($id)
 {
     try {
         $service = Service::with('branch')->findOrFail($id);
@@ -346,12 +353,22 @@ class ProdServEquipController extends Controller
             // Equipment usage tracking
             $usageData = [
                 'total_quantity' => $equipment->equipment_quantity,
+                // The available quantity should logically exclude items marked 'In Use', 'Under Maintenance', or 'Out of Service'
                 'available_quantity' => $equipment->equipment_quantity, 
                 'in_use_quantity' => 0, 
-                'maintenance_quantity' => 0
+                'maintenance_quantity' => 0,
+                'branch' => $equipment->branch->branch_name ?? 'N/A' // Use the branch relationship
             ];
 
-            // Usage history - mock data since usage tracking might not be implemented
+            // Availability status determination based on DB value
+            $availabilityStatus = strtolower($equipment->equipment_status ?? 'Available');
+            if ($equipment->equipment_quantity == 0) {
+                $availabilityStatus = 'none';
+            } elseif (in_array($availabilityStatus, ['under maintenance', 'out of service'])) {
+                 $availabilityStatus = 'unavailable';
+            }
+
+            // Mock data for other details
             $usageHistory = collect([
                 [
                     'date' => Carbon::now()->subDays(1)->toISOString(),
@@ -367,29 +384,15 @@ class ProdServEquipController extends Controller
                     'user' => 'Technician',
                     'purpose' => 'Regular checkup'
                 ],
-                [
-                    'date' => Carbon::now()->subDays(7)->toISOString(),
-                    'action' => 'Returned',
-                    'quantity' => 2,
-                    'user' => 'Dr. Johnson',
-                    'purpose' => 'After surgery'
-                ]
             ]);
 
-            // Availability status
-            $availabilityStatus = 'available';
-            if ($equipment->equipment_quantity == 0) {
-                $availabilityStatus = 'none';
-            } elseif ($usageData['available_quantity'] < $equipment->equipment_quantity) {
-                $availabilityStatus = 'partial';
-            }
-
-            // Equipment condition tracking
+            // Equipment condition tracking (mocked based on total quantity)
             $conditionData = [
                 'excellent' => intval($equipment->equipment_quantity * 0.8),
                 'good' => intval($equipment->equipment_quantity * 0.15),
                 'fair' => intval($equipment->equipment_quantity * 0.05),
-                'poor' => 0
+                'poor' => 0,
+                'last_updated' => $equipment->updated_at ?? now()
             ];
 
             return response()->json([
@@ -518,8 +521,7 @@ class ProdServEquipController extends Controller
 }
 
 
-
-    // -------------------- EXISTING METHODS --------------------
+    // -------------------- PRODUCT METHODS --------------------
     public function storeProduct(Request $request)
 {
     $validated = $request->validate([
@@ -531,6 +533,7 @@ class ProdServEquipController extends Controller
         'prod_reorderlevel' => 'nullable|integer|min:0',
         'branch_id' => 'nullable|exists:tbl_branch,branch_id',
         'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        'tab' => 'nullable|string|in:products,services,equipment'
     ]);
 
     if ($request->hasFile('prod_image')) {
@@ -539,7 +542,8 @@ class ProdServEquipController extends Controller
 
     Product::create($validated);
 
-    return redirect()->route('prodServEquip.index', ['tab' => 'products'])->with('success', 'Product added successfully!');
+    $redirectTab = $this->getRedirectTab($request, 'products');
+    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Product added successfully!');
 }
 
     public function updateProduct(Request $request, $id)
@@ -553,6 +557,7 @@ class ProdServEquipController extends Controller
         'prod_reorderlevel' => 'nullable|integer|min:0',
         'branch_id' => 'nullable|exists:tbl_branch,branch_id',
         'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        'tab' => 'nullable|string|in:products,services,equipment'
     ]);
 
     $product = Product::findOrFail($id);
@@ -566,10 +571,11 @@ class ProdServEquipController extends Controller
 
     $product->update($validated);
 
-    return redirect()->route('prodServEquip.index', ['tab' => 'products'])->with('success', 'Product updated successfully!');
+    $redirectTab = $this->getRedirectTab($request, 'products');
+    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Product updated successfully!');
 }
 
-    public function deleteProduct($id)
+    public function deleteProduct($id, Request $request) // Inject Request for tab persistence
 {
     $product = Product::findOrFail($id);
     
@@ -579,7 +585,8 @@ class ProdServEquipController extends Controller
     
     $product->delete();
 
-    return redirect()->route('prodServEquip.index', ['tab' => 'products'])->with('success', 'Product deleted successfully!');
+    $redirectTab = $this->getRedirectTab($request, 'products');
+    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Product deleted successfully!');
 }
 
 
@@ -591,14 +598,17 @@ class ProdServEquipController extends Controller
             'prod_damaged' => 'nullable|integer|min:0',
             'prod_pullout' => 'nullable|integer|min:0',
             'prod_expiry' => 'nullable|date',
+            'tab' => 'nullable|string|in:products,services,equipment' // Added tab for redirect
         ]);
 
         $product = Product::findOrFail($id);
         $product->update($validated);
 
-        return redirect()->back()->with('success', 'Inventory updated successfully!');
+        $redirectTab = $this->getRedirectTab($request, 'products');
+        return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Inventory updated successfully!');
     }
 
+    // -------------------- SERVICE METHODS --------------------
     public function storeService(Request $request)
 {
     $validated = $request->validate([
@@ -607,11 +617,13 @@ class ProdServEquipController extends Controller
         'serv_description' => 'nullable|string|max:1000',
         'serv_price' => 'required|numeric|min:0',
         'branch_id' => 'nullable|exists:tbl_branch,branch_id',
+        'tab' => 'nullable|string|in:products,services,equipment' // Added tab for redirect
     ]);
 
     Service::create($validated);
 
-    return redirect()->route('prodServEquip.index', ['tab' => 'services'])->with('success', 'Service added successfully!');
+    $redirectTab = $this->getRedirectTab($request, 'services');
+    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Service added successfully!');
 }
 
 
@@ -623,22 +635,25 @@ class ProdServEquipController extends Controller
         'serv_description' => 'nullable|string|max:1000',
         'serv_price' => 'required|numeric|min:0',
         'branch_id' => 'nullable|exists:tbl_branch,branch_id',
+        'tab' => 'nullable|string|in:products,services,equipment' // Added tab for redirect
     ]);
 
     $service = Service::findOrFail($id);
     $service->update($validated);
 
-    return redirect()->route('prodServEquip.index', ['tab' => 'services'])->with('success', 'Service updated successfully!');
+    $redirectTab = $this->getRedirectTab($request, 'services');
+    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Service updated successfully!');
 }
-    public function deleteService($id)
+    public function deleteService($id, Request $request) // Inject Request for tab persistence
 {
     $service = Service::findOrFail($id);
     $service->delete();
 
-    return redirect()->route('prodServEquip.index', ['tab' => 'services'])->with('success', 'Service deleted successfully!');
+    $redirectTab = $this->getRedirectTab($request, 'services');
+    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Service deleted successfully!');
 }
 
-
+    // -------------------- EQUIPMENT METHODS --------------------
     public function storeEquipment(Request $request)
 {
     $validated = $request->validate([
@@ -648,7 +663,8 @@ class ProdServEquipController extends Controller
         'equipment_category' => 'required|string|max:255',
         'equipment_status' => 'nullable|string|max:50',
         'equipment_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        'branch_id' => 'nullable|exists:tbl_branch,branch_id',
+        'branch_id' => 'required|exists:tbl_branch,branch_id', 
+        'tab' => 'nullable|string|in:products,services,equipment' 
     ]);
 
     if ($request->hasFile('equipment_image')) {
@@ -657,10 +673,11 @@ class ProdServEquipController extends Controller
 
     Equipment::create($validated);
 
-    return redirect()->route('prodServEquip.index', ['tab' => 'equipment'])->with('success', 'Equipment added successfully!');
+    $redirectTab = $this->getRedirectTab($request, 'equipment');
+    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Equipment added successfully!');
 }
 
-   public function updateEquipment(Request $request, $id)
+    public function updateEquipment(Request $request, $id)
 {
     $validated = $request->validate([
         'equipment_name' => 'required|string|max:255',
@@ -669,7 +686,8 @@ class ProdServEquipController extends Controller
         'equipment_category' => 'nullable|string|max:255',
         'equipment_status' => 'nullable|string|max:50',
         'equipment_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        'branch_id' => 'nullable|exists:tbl_branch,branch_id',
+        'branch_id' => 'required|exists:tbl_branch,branch_id', 
+        'tab' => 'nullable|string|in:products,services,equipment' 
     ]);
 
     $equipment = Equipment::findOrFail($id);
@@ -683,10 +701,11 @@ class ProdServEquipController extends Controller
 
     $equipment->update($validated);
 
-    return redirect()->route('prodServEquip.index', ['tab' => 'equipment'])->with('success', 'Equipment updated successfully!');
+    $redirectTab = $this->getRedirectTab($request, 'equipment');
+    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Equipment updated successfully!');
 }
 
-    public function deleteEquipment($id)
+    public function deleteEquipment($id, Request $request) // Inject Request for tab persistence
 {
     $equipment = Equipment::findOrFail($id);
     
@@ -696,18 +715,40 @@ class ProdServEquipController extends Controller
     
     $equipment->delete();
 
-    return redirect()->route('prodServEquip.index', ['tab' => 'equipment'])->with('success', 'Equipment deleted successfully!');
+    $redirectTab = $this->getRedirectTab($request, 'equipment');
+    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Equipment deleted successfully!');
 }
 
-    // In ProdServEquipController.php
+    /**
+     * ✅ UPDATED METHOD: Updates the status of a specific equipment item.
+     * @param \Illuminate\Http\Request $request
+     * @param int $id The equipment ID
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function updateEquipmentStatus(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'equipment_status' => 'required|string|in:Available,In Use,Under Maintenance,Out of Service',
+            'tab' => 'nullable|string|in:products,services,equipment'
+        ]);
 
+        $equipment = Equipment::findOrFail($id);
+        $equipment->equipment_status = $validated['equipment_status'];
+        $equipment->save();
+
+        $redirectTab = $this->getRedirectTab($request, 'equipment');
+        return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Equipment status updated successfully!');
+    }
+
+    // -------------------- INVENTORY UPDATE METHODS --------------------
 public function updateStock(Request $request, $id)
 {
     $validated = $request->validate([
         'add_stock' => 'required|integer|min:1',
         'new_expiry' => 'required|date',
         'reorder_level' => 'nullable|integer|min:0',
-        'notes' => 'nullable|string'
+        'notes' => 'nullable|string',
+        'tab' => 'nullable|string|in:products,services,equipment' // Added tab for redirect
     ]);
 
     $product = Product::findOrFail($id);
@@ -721,7 +762,8 @@ public function updateStock(Request $request, $id)
     
     $product->save();
     
-    return redirect()->route('prodServEquip.index', ['tab' => 'products'])->with('success', 'Stock updated successfully!');
+    $redirectTab = $this->getRedirectTab($request, 'products');
+    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Stock updated successfully!');
 }
 
 public function updateDamage(Request $request, $id)
@@ -729,7 +771,8 @@ public function updateDamage(Request $request, $id)
     $validated = $request->validate([
         'damaged_qty' => 'nullable|integer|min:0',
         'pullout_qty' => 'nullable|integer|min:0',
-        'reason' => 'nullable|string'
+        'reason' => 'nullable|string',
+        'tab' => 'nullable|string|in:products,services,equipment' // Added tab for redirect
     ]);
 
     $product = Product::findOrFail($id);
@@ -744,8 +787,10 @@ public function updateDamage(Request $request, $id)
     
     $product->save();
     
-    return redirect()->route('prodServEquip.index', ['tab' => 'products'])->with('success', 'Damage/Pull-out updated successfully!');
+    $redirectTab = $this->getRedirectTab($request, 'products');
+    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Damage/Pull-out updated successfully!');
 }
+
 public function getProductServiceUsage($productId)
 {
     try {
@@ -803,6 +848,7 @@ public function getProductServiceUsage($productId)
         ], 500);
     }
 }
+
 public function getServiceInventoryOverview()
 {
     try {

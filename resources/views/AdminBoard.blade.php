@@ -347,6 +347,20 @@
       </div>
     </div>
 
+     <!-- POS Button (only visible to receptionist) -->
+@auth
+  @if(strtolower(trim(auth()->user()->user_role)) === 'receptionist')
+    <a href="{{ route('pos') }}" class="mr-4">
+      <button
+        class="bg-gradient-to-r from-[#8bc34a] to-[#7cb342] text-white font-semibold px-6 py-2.5 rounded-xl hover-lift modern-btn shadow-lg hover:shadow-xl smooth-transition">
+        <i class="fas fa-cash-register mr-2"></i>
+        <span class="hidden sm:inline">POS</span>
+      </button>
+    </a>
+  @endif
+@endauth
+
+
     <!-- User Dropdown -->
     <div class="relative mr-4">
       <button

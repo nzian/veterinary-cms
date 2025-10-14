@@ -1,7 +1,6 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\BranchController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ReportController;
@@ -51,9 +50,6 @@ use App\Http\Controllers\AdminController;
 Route::get('/admin', [AdminController::class, 'AdminBoard']);
 Route::get('/dashboard', [dashboardController::class, 'index'])->name('dashboard-index');
 
-//Route::get('/select-branch', [BranchController::class, 'select'])->name('select-branch');
-//Route::get('/user-management', [UserManagementController::class, 'index'])->name('userManagement.index');
-
 // POS Routes
 use App\Http\Controllers\POSController;
 Route::get('/pos', [POSController::class, 'index'])->name('pos');
@@ -92,34 +88,44 @@ Route::get('/products/{product}/service-usage', [ProdServEquipController::class,
 // Service-Product Management Routes
 Route::get('/services/{service}/products', [ProdServEquipController::class, 'getServiceProducts'])->name('services.products.get');
 Route::post('/services/{service}/products', [ProdServEquipController::class, 'updateServiceProducts'])->name('services.products.update');
+Route::get('/prodservequip', [ProdServEquipController::class, 'index'])->name('prodServEquip.index');
 Route::get('/prodservequip', [ProdServEquipController::class, 'index'])->name('prodservequip.index');
-// Product routes
-Route::get('/product', [ProdServEquipController::class, 'index'])->name('product-index');
-Route::post('/products', [ProdServEquipController::class, 'storeProduct'])->name('products.store');
-Route::put('/products/{id}', [ProdServEquipController::class, 'updateProduct'])->name('products.update');
-Route::delete('/products/{id}', [ProdServEquipController::class, 'deleteProduct'])->name('products.destroy');
-Route::get('/products/search', [ProdServEquipController::class, 'searchProducts'])->name('products.search');
-Route::get('/products/{id}/view', [ProdServEquipController::class, 'viewProduct'])->name('products.view');
-// Service routes
-Route::get('/services', [ProdServEquipController::class, 'index'])->name('services-index');
-Route::post('/services', [ProdServEquipController::class, 'storeService'])->name('services.store');
-Route::put('/services/{id}', [ProdServEquipController::class, 'updateService'])->name('services.update');
-Route::delete('/services/{id}', [ProdServEquipController::class, 'deleteService'])->name('services.destroy');
-Route::get('/services/{id}/view', [ProdServEquipController::class, 'viewService']);
-Route::get('/services/{id}/history', [ProdServEquipController::class, 'viewServiceHistory']);
+// routes/web.php
 
-// Equipment routes
-Route::post('/equipment', [ProdServEquipController::class, 'storeEquipment'])->name('equipment.store');
-Route::put('/equipment/{id}', [ProdServEquipController::class, 'updateEquipment'])->name('equipment.update');
-Route::delete('/equipment/{id}', [ProdServEquipController::class, 'deleteEquipment'])->name('equipment.destroy');
-Route::get('/equipment/{id}/view', [ProdServEquipController::class, 'viewEquipment']);
+// This single route definition will handle the 'prodServEquip.index' route
+Route::resource('prod-serv-equip', App\Http\Controllers\ProdServEquipController::class)->names([
+    'index' => 'prodServEquip.index',
+    'store' => 'products.store', // Assuming you use this for products store
+    // ... add other necessary route names if needed
+]);
 
-// Inventory route
-Route::put('/inventory/{id}', [ProdServEquipController::class, 'updateInventory'])->name('inventory.update');
-Route::get('/inventory/{id}/history', [ProdServEquipController::class, 'viewInventoryHistory'])->name('inventory.history');
-Route::put('/inventory/update-stock/{id}', [ProdServEquipController::class, 'updateStock'])->name('inventory.updateStock');
-Route::put('/inventory/update-damage/{id}', [ProdServEquipController::class, 'updateDamage'])->name('inventory.updateDamage');
-Route::get('/equipment/{id}/history', [ProdServEquipController::class, 'viewEquipmentHistory']);
+// Other routes (make sure to define these too!)
+Route::post('/services/{serviceId}/products', [App\Http\Controllers\ProdServEquipController::class, 'updateServiceProducts']);
+Route::get('/services/{serviceId}/products', [App\Http\Controllers\ProdServEquipController::class, 'getServiceProducts']);
+Route::get('/services/inventory-overview', [App\Http\Controllers\ProdServEquipController::class, 'getServiceInventoryOverview']);
+Route::get('/products/{id}/service-usage', [App\Http\Controllers\ProdServEquipController::class, 'getProductServiceUsage']);
+Route::get('/products/{id}/view', [App\Http\Controllers\ProdServEquipController::class, 'viewProduct']);
+Route::get('/services/{id}/view', [App\Http\Controllers\ProdServEquipController::class, 'viewService']);
+Route::get('/equipment/{id}/view', [App\Http\Controllers\ProdServEquipController::class, 'viewEquipment']);
+Route::get('/inventory/{id}/history', [App\Http\Controllers\ProdServEquipController::class, 'viewInventoryHistory']);
+
+// Explicitly name the store/update/delete routes for clarity, or update the Route::resource above:
+Route::post('products', [App\Http\Controllers\ProdServEquipController::class, 'storeProduct'])->name('products.store');
+Route::put('products/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateProduct'])->name('products.update');
+Route::delete('products/{id}', [App\Http\Controllers\ProdServEquipController::class, 'deleteProduct'])->name('products.destroy');
+
+Route::post('services', [App\Http\Controllers\ProdServEquipController::class, 'storeService'])->name('services.store');
+Route::put('services/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateService'])->name('services.update');
+Route::delete('services/{id}', [App\Http\Controllers\ProdServEquipController::class, 'deleteService'])->name('services.destroy');
+
+Route::post('equipment', [App\Http\Controllers\ProdServEquipController::class, 'storeEquipment'])->name('equipment.store');
+Route::put('equipment/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateEquipment'])->name('equipment.update');
+Route::delete('equipment/{id}', [App\Http\Controllers\ProdServEquipController::class, 'deleteEquipment'])->name('equipment.destroy');
+
+Route::put('inventory/update-stock/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateStock'])->name('inventory.updateStock');
+Route::put('inventory/update-damage/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateDamage'])->name('inventory.updateDamage');
+
+Route::put('/equipment/{id}/update-status', [App\Http\Controllers\ProdServEquipController::class, 'updateEquipmentStatus'])->name('equipment.updateStatus');
 
 use App\Http\Controllers\MedicalManagementController;
 Route::prefix('medical-management')->group(function () {
@@ -162,15 +168,15 @@ Route::prefix('medical-management')->group(function () {
 
 // Branch
 
-Route::get('/branch', [BranchController::class, 'index'])->name('branch-index');
-Route::get('/branches', [BranchController::class, 'index'])->name('branches-index');
-Route::post('/branches', [BranchController::class, 'store'])->name('branches.store');
-Route::put('/branches/{id}', [BranchController::class, 'update'])->name('branch-update');
-Route::get('/branches/{id}', [BranchController::class, 'show'])->name('branches.show');
-Route::delete('/branches/{id}', [BranchController::class, 'destroy'])->name('branches-destroy');
+Route::get('/branch', [BranchManagementController::class, 'index'])->name('branch-index');
+Route::get('/branches', [BranchManagementController::class, 'index'])->name('branches-index');
+Route::post('/branches', [BranchManagementController::class, 'storeBranch'])->name('branches.store');
+Route::put('/branches/{id}', [BranchManagementController::class, 'updateBranch'])->name('branch-update');
+Route::get('/branches/{id}', [BranchManagementController::class, 'show'])->name('branches.show');
+Route::delete('/branches/{id}', [BranchManagementController::class, 'destroyBranch'])->name('branches-destroy');
 
 
-Route::get('/branch/switch/{id}', [BranchController::class, 'switch'])->name('branch.switch');
+Route::get('/branch/switch/{id}', [BranchManagementController::class, 'switch'])->name('branch.switch');
 Route::get('/switch-branch/{id}', function ($id) {
     Session::put('selected_branch_id', $id);
     return redirect()->back();

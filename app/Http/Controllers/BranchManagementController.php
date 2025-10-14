@@ -83,7 +83,7 @@ class BranchManagementController extends Controller
                 ]);
             }
 
-            return redirect()->back()->with('success', 'Branch added successfully.');
+            return redirect()->back()->with('success', 'Branch added successfully.')->with('active_tab', 'branch');
             
         } catch (\Illuminate\Validation\ValidationException $e) {
             if ($request->ajax() || $request->wantsJson()) {
@@ -125,13 +125,13 @@ class BranchManagementController extends Controller
             'branch_contactNum' => $request->contact,
         ]);
 
-        return redirect()->back()->with('success', 'Branch updated successfully.');
+       return redirect()->back()->with('success', 'Branch updated successfully.')->with('active_tab', 'branch');
     }
 
     public function destroyBranch($id)
     {
         Branch::destroy($id);
-        return redirect()->back()->with('success', 'Branch deleted successfully!');
+       return redirect()->back()->with('success', 'Branch deleted successfully!')->with('active_tab', 'branch');
     }
 
     // User Methods
@@ -189,14 +189,14 @@ class BranchManagementController extends Controller
 
         $user->update($updateData);
 
-        return redirect()->back()->with('success', 'User updated successfully.');
+        return redirect()->back()->with('success', 'User updated successfully.')->with('active_tab', 'user');
     }
 
     public function destroyUser($id)
     {
         User::destroy($id);
-        return redirect()->back()->with('success', 'User deleted successfully.');
-    }
+       return redirect()->back()->with('success', 'User deleted successfully.')->with('active_tab', 'user');
+}
 
     public function getCompleteData($id)
     {
@@ -253,6 +253,6 @@ class BranchManagementController extends Controller
             ]);
         }
 
-        return redirect()->back()->with('success', 'User added to branch successfully.');
+        return redirect()->back()->with('success', 'User added to branch successfully.')->with('active_tab', 'user');
     }
 }
