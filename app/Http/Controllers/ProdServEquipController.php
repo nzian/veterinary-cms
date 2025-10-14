@@ -9,6 +9,9 @@ use App\Models\Equipment;
 use App\Models\Order;
 use App\Models\Appointment;
 use App\Models\Bill;
+use App\Models\ServiceProduct;  // ✅ ADD THIS
+use App\Models\InventoryTransaction;  // ✅ ADD THIS
+use App\Services\InventoryService;  // ✅ ADD THIS - This is the fix!
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +19,13 @@ use Carbon\Carbon;
 
 class ProdServEquipController extends Controller
 {
+
+    protected $inventoryService;
+
+    public function __construct(InventoryService $inventoryService)
+    {
+        $this->inventoryService = $inventoryService;
+    }
    public function index(Request $request)
 {
     $activeBranchId = session('active_branch_id');
@@ -59,9 +69,82 @@ class ProdServEquipController extends Controller
 
     $branches = Branch::all();
 
-    return view('prodServEquip', compact('products', 'branches', 'services', 'equipment'));
+    $allProducts = Product::select('prod_id', 'prod_name', 'prod_stocks', 'prod_category')
+            ->orderBy('prod_name')
+            ->get();
+
+    return view('prodServEquip', compact('products', 'branches', 'services', 'equipment','allProducts'));
 }
 
+ public function getServiceProducts($serviceId)
+    {
+        try {
+            $serviceProducts = ServiceProduct::where('serv_id', $serviceId)
+                ->with('product')
+                ->get()
+                ->map(function($sp) {
+                    return [
+                        'id' => $sp->id,
+                        'prod_id' => $sp->prod_id,
+                        'product_name' => $sp->product->prod_name ?? 'Unknown',
+                        'quantity_used' => $sp->quantity_used,
+                        'is_billable' => $sp->is_billable,
+                        'current_stock' => $sp->product->prod_stocks ?? 0
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'products' => $serviceProducts
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+     public function updateServiceProducts(Request $request, $serviceId)
+    {
+        try {
+            $validated = $request->validate([
+                'products' => 'required|array',
+                'products.*.prod_id' => 'required|exists:tbl_prod,prod_id',
+                'products.*.quantity_used' => 'required|numeric|min:0.01',
+                'products.*.is_billable' => 'boolean'
+            ]);
+
+            DB::beginTransaction();
+
+            // Delete existing service products
+            ServiceProduct::where('serv_id', $serviceId)->delete();
+
+            // Create new service products
+            foreach ($validated['products'] as $productData) {
+                ServiceProduct::create([
+                    'serv_id' => $serviceId,
+                    'prod_id' => $productData['prod_id'],
+                    'quantity_used' => $productData['quantity_used'],
+                    'is_billable' => $productData['is_billable'] ?? false
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Service products updated successfully'
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    
 
 
     // -------------------- PRODUCT VIEW DETAILS --------------------
@@ -438,66 +521,67 @@ class ProdServEquipController extends Controller
 
     // -------------------- EXISTING METHODS --------------------
     public function storeProduct(Request $request)
-    {
-        $validated = $request->validate([
-            'prod_name' => 'required|string|max:255',
-            'prod_category' => 'nullable|string|max:255',
-            'prod_description' => 'required|string|max:1000',
-            'prod_price' => 'required|numeric|min:0',
-            'prod_stocks' => 'nullable|integer|min:0',
-            'prod_reorderlevel' => 'nullable|integer|min:0',
-            'branch_id' => 'nullable|exists:tbl_branch,branch_id',
-            'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        ]);
+{
+    $validated = $request->validate([
+        'prod_name' => 'required|string|max:255',
+        'prod_category' => 'nullable|string|max:255',
+        'prod_description' => 'required|string|max:1000',
+        'prod_price' => 'required|numeric|min:0',
+        'prod_stocks' => 'nullable|integer|min:0',
+        'prod_reorderlevel' => 'nullable|integer|min:0',
+        'branch_id' => 'nullable|exists:tbl_branch,branch_id',
+        'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+    ]);
 
-        if ($request->hasFile('prod_image')) {
-            $validated['prod_image'] = $request->file('prod_image')->store('products', 'public');
-        }
-
-        Product::create($validated);
-
-        return redirect()->back()->with('success', 'Product added successfully!');
+    if ($request->hasFile('prod_image')) {
+        $validated['prod_image'] = $request->file('prod_image')->store('products', 'public');
     }
+
+    Product::create($validated);
+
+    return redirect()->route('prodServEquip.index', ['tab' => 'products'])->with('success', 'Product added successfully!');
+}
 
     public function updateProduct(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'prod_name' => 'required|string|max:255',
-            'prod_category' => 'nullable|string|max:255',
-            'prod_description' => 'required|string|max:1000',
-            'prod_price' => 'required|numeric|min:0',
-            'prod_stocks' => 'nullable|integer|min:0',
-            'prod_reorderlevel' => 'nullable|integer|min:0',
-            'branch_id' => 'nullable|exists:tbl_branch,branch_id',
-            'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        ]);
+{
+    $validated = $request->validate([
+        'prod_name' => 'required|string|max:255',
+        'prod_category' => 'nullable|string|max:255',
+        'prod_description' => 'required|string|max:1000',
+        'prod_price' => 'required|numeric|min:0',
+        'prod_stocks' => 'nullable|integer|min:0',
+        'prod_reorderlevel' => 'nullable|integer|min:0',
+        'branch_id' => 'nullable|exists:tbl_branch,branch_id',
+        'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+    ]);
 
-        $product = Product::findOrFail($id);
+    $product = Product::findOrFail($id);
 
-        if ($request->hasFile('prod_image')) {
-            if ($product->prod_image) {
-                Storage::disk('public')->delete($product->prod_image);
-            }
-            $validated['prod_image'] = $request->file('prod_image')->store('products', 'public');
-        }
-
-        $product->update($validated);
-
-        return redirect()->back()->with('success', 'Product updated successfully!');
-    }
-
-    public function deleteProduct($id)
-    {
-        $product = Product::findOrFail($id);
-        
+    if ($request->hasFile('prod_image')) {
         if ($product->prod_image) {
             Storage::disk('public')->delete($product->prod_image);
         }
-        
-        $product->delete();
-
-        return redirect()->back()->with('success', 'Product deleted successfully!');
+        $validated['prod_image'] = $request->file('prod_image')->store('products', 'public');
     }
+
+    $product->update($validated);
+
+    return redirect()->route('prodServEquip.index', ['tab' => 'products'])->with('success', 'Product updated successfully!');
+}
+
+    public function deleteProduct($id)
+{
+    $product = Product::findOrFail($id);
+    
+    if ($product->prod_image) {
+        Storage::disk('public')->delete($product->prod_image);
+    }
+    
+    $product->delete();
+
+    return redirect()->route('prodServEquip.index', ['tab' => 'products'])->with('success', 'Product deleted successfully!');
+}
+
 
     public function updateInventory(Request $request, $id)
     {
@@ -516,101 +600,104 @@ class ProdServEquipController extends Controller
     }
 
     public function storeService(Request $request)
-    {
-        $validated = $request->validate([
-            'serv_name' => 'required|string|max:255',
-            'serv_type' => 'nullable|string|max:255',
-            'serv_description' => 'nullable|string|max:1000',
-            'serv_price' => 'required|numeric|min:0',
-            'branch_id' => 'nullable|exists:tbl_branch,branch_id',
-        ]);
+{
+    $validated = $request->validate([
+        'serv_name' => 'required|string|max:255',
+        'serv_type' => 'nullable|string|max:255',
+        'serv_description' => 'nullable|string|max:1000',
+        'serv_price' => 'required|numeric|min:0',
+        'branch_id' => 'nullable|exists:tbl_branch,branch_id',
+    ]);
 
-        Service::create($validated);
+    Service::create($validated);
 
-        return redirect()->back()->with('success', 'Service added successfully!');
-    }
+    return redirect()->route('prodServEquip.index', ['tab' => 'services'])->with('success', 'Service added successfully!');
+}
+
 
     public function updateService(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'serv_name' => 'required|string|max:255',
-            'serv_type' => 'nullable|string|max:255',
-            'serv_description' => 'nullable|string|max:1000',
-            'serv_price' => 'required|numeric|min:0',
-            'branch_id' => 'nullable|exists:tbl_branch,branch_id',
-        ]);
+{
+    $validated = $request->validate([
+        'serv_name' => 'required|string|max:255',
+        'serv_type' => 'nullable|string|max:255',
+        'serv_description' => 'nullable|string|max:1000',
+        'serv_price' => 'required|numeric|min:0',
+        'branch_id' => 'nullable|exists:tbl_branch,branch_id',
+    ]);
 
-        $service = Service::findOrFail($id);
-        $service->update($validated);
+    $service = Service::findOrFail($id);
+    $service->update($validated);
 
-        return redirect()->back()->with('success', 'Service updated successfully!');
-    }
-
+    return redirect()->route('prodServEquip.index', ['tab' => 'services'])->with('success', 'Service updated successfully!');
+}
     public function deleteService($id)
-    {
-        $service = Service::findOrFail($id);
-        $service->delete();
+{
+    $service = Service::findOrFail($id);
+    $service->delete();
 
-        return redirect()->back()->with('success', 'Service deleted successfully!');
-    }
+    return redirect()->route('prodServEquip.index', ['tab' => 'services'])->with('success', 'Service deleted successfully!');
+}
+
 
     public function storeEquipment(Request $request)
-    {
-        $validated = $request->validate([
-            'equipment_name' => 'required|string|max:255',
-            'equipment_quantity' => 'required|integer|min:0',
-            'equipment_description' => 'nullable|string|max:1000',
-            'equipment_category' => 'required|string|max:255',
-            'equipment_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'branch_id' => 'nullable|exists:tbl_branch,branch_id',
-        ]);
+{
+    $validated = $request->validate([
+        'equipment_name' => 'required|string|max:255',
+        'equipment_quantity' => 'required|integer|min:0',
+        'equipment_description' => 'nullable|string|max:1000',
+        'equipment_category' => 'required|string|max:255',
+        'equipment_status' => 'nullable|string|max:50',
+        'equipment_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        'branch_id' => 'nullable|exists:tbl_branch,branch_id',
+    ]);
 
-        if ($request->hasFile('equipment_image')) {
-            $validated['equipment_image'] = $request->file('equipment_image')->store('equipment', 'public');
-        }
-
-        Equipment::create($validated);
-
-        return redirect()->back()->with('success', 'Equipment added successfully!');
+    if ($request->hasFile('equipment_image')) {
+        $validated['equipment_image'] = $request->file('equipment_image')->store('equipment', 'public');
     }
 
-    public function updateEquipment(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'equipment_name' => 'required|string|max:255',
-            'equipment_quantity' => 'required|integer|min:0',
-            'equipment_description' => 'nullable|string|max:1000',
-            'equipment_category' => 'nullable|string|max:255',
-            'equipment_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'branch_id' => 'nullable|exists:tbl_branch,branch_id',
-        ]);
+    Equipment::create($validated);
 
-        $equipment = Equipment::findOrFail($id);
+    return redirect()->route('prodServEquip.index', ['tab' => 'equipment'])->with('success', 'Equipment added successfully!');
+}
 
-        if ($request->hasFile('equipment_image')) {
-            if ($equipment->equipment_image) {
-                Storage::disk('public')->delete($equipment->equipment_image);
-            }
-            $validated['equipment_image'] = $request->file('equipment_image')->store('equipment', 'public');
-        }
+   public function updateEquipment(Request $request, $id)
+{
+    $validated = $request->validate([
+        'equipment_name' => 'required|string|max:255',
+        'equipment_quantity' => 'required|integer|min:0',
+        'equipment_description' => 'nullable|string|max:1000',
+        'equipment_category' => 'nullable|string|max:255',
+        'equipment_status' => 'nullable|string|max:50',
+        'equipment_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        'branch_id' => 'nullable|exists:tbl_branch,branch_id',
+    ]);
 
-        $equipment->update($validated);
+    $equipment = Equipment::findOrFail($id);
 
-        return redirect()->back()->with('success', 'Equipment updated successfully!');
-    }
-
-    public function deleteEquipment($id)
-    {
-        $equipment = Equipment::findOrFail($id);
-        
+    if ($request->hasFile('equipment_image')) {
         if ($equipment->equipment_image) {
             Storage::disk('public')->delete($equipment->equipment_image);
         }
-        
-        $equipment->delete();
-
-        return redirect()->back()->with('success', 'Equipment deleted successfully!');
+        $validated['equipment_image'] = $request->file('equipment_image')->store('equipment', 'public');
     }
+
+    $equipment->update($validated);
+
+    return redirect()->route('prodServEquip.index', ['tab' => 'equipment'])->with('success', 'Equipment updated successfully!');
+}
+
+    public function deleteEquipment($id)
+{
+    $equipment = Equipment::findOrFail($id);
+    
+    if ($equipment->equipment_image) {
+        Storage::disk('public')->delete($equipment->equipment_image);
+    }
+    
+    $equipment->delete();
+
+    return redirect()->route('prodServEquip.index', ['tab' => 'equipment'])->with('success', 'Equipment deleted successfully!');
+}
 
     // In ProdServEquipController.php
 
@@ -625,23 +712,16 @@ public function updateStock(Request $request, $id)
 
     $product = Product::findOrFail($id);
     
-    // Add to existing stock
     $product->prod_stocks = ($product->prod_stocks ?? 0) + $validated['add_stock'];
-    
-    // Update expiry date for the new stock
     $product->prod_expiry = $validated['new_expiry'];
     
-    // Update reorder level if provided
     if (isset($validated['reorder_level'])) {
         $product->prod_reorderlevel = $validated['reorder_level'];
     }
     
     $product->save();
     
-    // Optional: Log the stock update
-    // Create stock_movements table to track history
-    
-    return redirect()->back()->with('success', 'Stock updated successfully!');
+    return redirect()->route('prodServEquip.index', ['tab' => 'products'])->with('success', 'Stock updated successfully!');
 }
 
 public function updateDamage(Request $request, $id)
@@ -664,10 +744,150 @@ public function updateDamage(Request $request, $id)
     
     $product->save();
     
-    // Optional: Log the damage/pullout update
-    
-    return redirect()->back()->with('success', 'Damage/Pull-out updated successfully!');
+    return redirect()->route('prodServEquip.index', ['tab' => 'products'])->with('success', 'Damage/Pull-out updated successfully!');
 }
-
-
+public function getProductServiceUsage($productId)
+{
+    try {
+        $product = Product::findOrFail($productId);
+        
+        // Get all services that use this product
+        $servicesUsing = ServiceProduct::where('prod_id', $productId)
+            ->with('service')
+            ->get()
+            ->map(function($sp) {
+                return [
+                    'service_id' => $sp->serv_id,
+                    'service_name' => $sp->service->serv_name ?? 'Unknown',
+                    'service_type' => $sp->service->serv_type ?? 'N/A',
+                    'quantity_used' => $sp->quantity_used,
+                    'is_billable' => $sp->is_billable
+                ];
+            });
+        
+        // Get service usage transactions from inventory
+        $serviceUsageTransactions = InventoryTransaction::where('prod_id', $productId)
+            ->where('transaction_type', 'service_usage')
+            ->with(['service', 'appointment.pet.owner'])
+            ->orderBy('created_at', 'desc')
+            ->limit(20)
+            ->get()
+            ->map(function($trans) {
+                return [
+                    'date' => $trans->created_at->format('M d, Y H:i'),
+                    'service_name' => $trans->service->serv_name ?? 'N/A',
+                    'appointment_id' => $trans->appoint_id,
+                    'pet_name' => $trans->appointment->pet->pet_name ?? 'N/A',
+                    'owner_name' => $trans->appointment->pet->owner->own_name ?? 'N/A',
+                    'quantity_used' => abs($trans->quantity_change),
+                    'reference' => $trans->reference,
+                ];
+            });
+        
+        // Calculate total used in services
+        $totalUsedInServices = InventoryTransaction::where('prod_id', $productId)
+            ->where('transaction_type', 'service_usage')
+            ->sum(DB::raw('ABS(quantity_change)'));
+        
+        return response()->json([
+            'success' => true,
+            'product' => $product,
+            'services_using_product' => $servicesUsing,
+            'recent_service_usage' => $serviceUsageTransactions,
+            'total_used_in_services' => $totalUsedInServices
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+public function getServiceInventoryOverview()
+{
+    try {
+        // Get all products used in services with their service information
+        $serviceProducts = ServiceProduct::with(['product', 'service'])
+            ->get()
+            ->groupBy('prod_id')
+            ->map(function($items, $prodId) {
+                $product = $items->first()->product;
+                $services = $items->map(function($item) {
+                    return [
+                        'service_id' => $item->serv_id,
+                        'service_name' => $item->service->serv_name ?? 'Unknown',
+                        'service_type' => $item->service->serv_type ?? 'N/A',
+                        'quantity_used' => $item->quantity_used,
+                    ];
+                });
+                
+                // Calculate total usage from all services
+                $totalUsedInServices = $items->sum('quantity_used');
+                
+                // Get actual usage from transactions
+                $actualUsage = InventoryTransaction::where('prod_id', $prodId)
+                    ->where('transaction_type', 'service_usage')
+                    ->sum(DB::raw('ABS(quantity_change)'));
+                
+                // Calculate how many services can be performed with current stock
+                $servicesRemaining = [];
+                foreach ($items as $item) {
+                    if ($item->quantity_used > 0) {
+                        $remaining = floor(($product->prod_stocks ?? 0) / $item->quantity_used);
+                        $servicesRemaining[] = [
+                            'service_name' => $item->service->serv_name ?? 'Unknown',
+                            'remaining_count' => $remaining
+                        ];
+                    }
+                }
+                
+                // Determine stock status
+                $stockStatus = 'good';
+                $statusClass = 'bg-green-100 text-green-800';
+                
+                if (($product->prod_stocks ?? 0) <= ($product->prod_reorderlevel ?? 10)) {
+                    $stockStatus = 'low';
+                    $statusClass = 'bg-red-100 text-red-800';
+                } elseif (($product->prod_stocks ?? 0) <= (($product->prod_reorderlevel ?? 10) * 2)) {
+                    $stockStatus = 'warning';
+                    $statusClass = 'bg-yellow-100 text-yellow-800';
+                }
+                
+                return [
+                    'product_id' => $prodId,
+                    'product_name' => $product->prod_name ?? 'Unknown',
+                    'product_category' => $product->prod_category ?? 'N/A',
+                    'current_stock' => $product->prod_stocks ?? 0,
+                    'reorder_level' => $product->prod_reorderlevel ?? 0,
+                    'services_using' => $services,
+                    'total_used_per_service_cycle' => $totalUsedInServices,
+                    'actual_usage_count' => $actualUsage,
+                    'services_remaining' => $servicesRemaining,
+                    'stock_status' => $stockStatus,
+                    'status_class' => $statusClass,
+                    'expiry_date' => $product->prod_expiry ? \Carbon\Carbon::parse($product->prod_expiry)->format('M d, Y') : 'N/A',
+                ];
+            })
+            ->values();
+        
+        // Calculate summary statistics
+        $summary = [
+            'total_products_in_services' => $serviceProducts->count(),
+            'low_stock_count' => $serviceProducts->where('stock_status', 'low')->count(),
+            'warning_stock_count' => $serviceProducts->where('stock_status', 'warning')->count(),
+            'good_stock_count' => $serviceProducts->where('stock_status', 'good')->count(),
+        ];
+        
+        return response()->json([
+            'success' => true,
+            'products' => $serviceProducts,
+            'summary' => $summary
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
 }

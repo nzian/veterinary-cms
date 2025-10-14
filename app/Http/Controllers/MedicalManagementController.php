@@ -15,89 +15,96 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Services\NotificationService;
+use App\Services\InventoryService;
 
 class MedicalManagementController extends Controller
 {
+    protected $inventoryService;
+
+    public function __construct(InventoryService $inventoryService)
+    {
+        $this->inventoryService = $inventoryService;
+    }
+
     /**
      * Display the unified medical management interface
      */
     public function index(Request $request)
-{
-    $perPage = $request->get('perPage', 10);
-    $activeTab = $request->get('active_tab', 'appointments');
-    $activeBranchId = session('active_branch_id');
-    $user = auth()->user();
-    
-    // Non-super admins can only see their branch
-    if ($user->user_role !== 'superadmin') {
-        $activeBranchId = $user->branch_id;
+    {
+        $perPage = $request->get('perPage', 10);
+        $activeTab = $request->get('active_tab', 'appointments');
+        $activeBranchId = session('active_branch_id');
+        $user = auth()->user();
+        
+        // Non-super admins can only see their branch
+        if ($user->user_role !== 'superadmin') {
+            $activeBranchId = $user->branch_id;
+        }
+
+        // Get all user IDs from the same branch
+        $branchUserIds = \App\Models\User::where('branch_id', $activeBranchId)
+            ->pluck('user_id')
+            ->toArray();
+
+        // Filter appointments by branch through user relationship
+        $appointmentsQuery = Appointment::with(['pet.owner', 'services', 'user'])
+            ->whereHas('user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            })
+            ->orderBy('appoint_date', 'desc')
+            ->orderBy('appoint_time', 'desc');
+
+        if ($perPage === 'all') {
+            $appointments = $appointmentsQuery->get();
+        } else {
+            $appointments = $appointmentsQuery->paginate((int) $perPage);
+        }
+
+        // Filter prescriptions by branch
+        $prescriptionPerPage = $request->get('prescriptionPerPage', 10);
+        $prescriptionsQuery = Prescription::with(['pet.owner', 'branch', 'user'])
+            ->where('branch_id', $activeBranchId)
+            ->orderBy('prescription_date', 'desc')
+            ->orderBy('prescription_id', 'desc');
+
+        if ($prescriptionPerPage === 'all') {
+            $prescriptions = $prescriptionsQuery->get();
+        } else {
+            $prescriptions = $prescriptionsQuery->paginate((int) $prescriptionPerPage);
+        }
+
+        // Filter referrals - show referrals TO or FROM this branch
+        $referralPerPage = $request->get('referralPerPage', 10);
+        $referralsQuery = Referral::with([
+            'appointment.pet.owner',
+            'refToBranch',
+            'refByBranch'
+        ])->where(function($q) use ($activeBranchId) {
+            $q->where('ref_to', $activeBranchId)
+              ->orWhere('ref_by', $activeBranchId);
+        })
+        ->orderBy('ref_date', 'desc')
+        ->orderBy('ref_id', 'desc');
+
+        if ($referralPerPage === 'all') {
+            $referrals = $referralsQuery->get();
+        } else {
+            $referrals = $referralsQuery->paginate((int) $referralPerPage);
+        }
+
+        // Get filtered owners and pets for dropdowns
+        $filteredOwners = Owner::whereIn('user_id', $branchUserIds)->get();
+        $filteredPets = Pet::whereIn('user_id', $branchUserIds)->get();
+
+        return view('medicalManagement', compact(
+            'appointments', 
+            'prescriptions', 
+            'referrals',
+            'activeTab',
+            'filteredOwners',
+            'filteredPets'
+        ));
     }
-
-    // Get all user IDs from the same branch
-    $branchUserIds = \App\Models\User::where('branch_id', $activeBranchId)
-        ->pluck('user_id')
-        ->toArray();
-
-    // Filter appointments by branch through user relationship
-    // Filter appointments by branch through user relationship
-$appointmentsQuery = Appointment::with(['pet.owner', 'services', 'user'])
-    ->whereHas('user', function($q) use ($activeBranchId) {
-        $q->where('branch_id', $activeBranchId);
-    })
-    ->orderBy('appoint_date', 'desc')
-    ->orderBy('appoint_time', 'desc');
-
-if ($perPage === 'all') {
-    $appointments = $appointmentsQuery->get();
-} else {
-    $appointments = $appointmentsQuery->paginate((int) $perPage);
-}
-
-// Filter prescriptions by branch
-$prescriptionPerPage = $request->get('prescriptionPerPage', 10);
-$prescriptionsQuery = Prescription::with(['pet.owner', 'branch', 'user'])
-    ->where('branch_id', $activeBranchId)
-    ->orderBy('prescription_date', 'desc')
-    ->orderBy('prescription_id', 'desc');
-
-if ($prescriptionPerPage === 'all') {
-    $prescriptions = $prescriptionsQuery->get();
-} else {
-    $prescriptions = $prescriptionsQuery->paginate((int) $prescriptionPerPage);
-}
-
-// Filter referrals - show referrals TO or FROM this branch
-$referralPerPage = $request->get('referralPerPage', 10);
-$referralsQuery = Referral::with([
-    'appointment.pet.owner',
-    'refToBranch',
-    'refByBranch'
-])->where(function($q) use ($activeBranchId) {
-    $q->where('ref_to', $activeBranchId)
-      ->orWhere('ref_by', $activeBranchId);
-})
-->orderBy('ref_date', 'desc')
-->orderBy('ref_id', 'desc');
-
-if ($referralPerPage === 'all') {
-    $referrals = $referralsQuery->get();
-} else {
-    $referrals = $referralsQuery->paginate((int) $referralPerPage);
-}
-
-    // **NEW: Get filtered owners and pets for dropdowns**
-    $filteredOwners = Owner::whereIn('user_id', $branchUserIds)->get();
-    $filteredPets = Pet::whereIn('user_id', $branchUserIds)->get();
-
-    return view('medicalManagement', compact(
-        'appointments', 
-        'prescriptions', 
-        'referrals',
-        'activeTab',
-        'filteredOwners',  // Add this
-        'filteredPets'     // Add this
-    ));
-}
 
     // ==================== APPOINTMENT METHODS ====================
 
@@ -144,14 +151,51 @@ if ($referralPerPage === 'all') {
         
         Log::info("History initialized for new appointment {$appointment->appoint_id}");
 
-       if (!empty($services)) {
-    $appointment->services()->sync($services);
-    
-    // Only generate billing if appointment is created with 'completed' status
-    if (strtolower($appointment->appoint_status) === 'completed') {
-        $this->generateBillingForAppointment($appointment);
-    }
-}
+        // Sync services
+        if (!empty($services)) {
+            $appointment->services()->sync($services);
+            
+            // Refresh to get services relationship
+            $appointment->refresh();
+            
+            // If appointment is created with 'completed' or 'arrived' status, deduct inventory immediately
+            if (in_array(strtolower($appointment->appoint_status), ['completed', 'arrived'])) {
+                try {
+                    Log::info("🆕 New appointment {$appointment->appoint_id} created with status '{$appointment->appoint_status}' - deducting inventory");
+                    
+                    // Check product availability
+                    $serviceIds = $appointment->services->pluck('serv_id')->toArray();
+                    
+                    if (!empty($serviceIds)) {
+                        $unavailable = $this->inventoryService->checkServiceProductAvailability($serviceIds);
+                        
+                        if (!empty($unavailable)) {
+                            $warnings = [];
+                            foreach ($unavailable as $item) {
+                                $warnings[] = "{$item['product']} for {$item['service']}: Need {$item['required']}, Available {$item['available']}";
+                            }
+                            Log::warning("⚠️ Low stock for new appointment {$appointment->appoint_id}: " . implode('; ', $warnings));
+                        }
+                        
+                        // Deduct products from inventory
+                        $deductionResult = $this->inventoryService->deductServiceProducts($appointment);
+                        
+                        if ($deductionResult) {
+                            Log::info("✅ Inventory deducted successfully for new appointment {$appointment->appoint_id}");
+                        } else {
+                            Log::error("❌ Inventory deduction failed for new appointment {$appointment->appoint_id}");
+                        }
+                    }
+                    
+                    // Generate billing
+                    $this->generateBillingForAppointment($appointment);
+                    
+                } catch (\Exception $e) {
+                    Log::error("❌ Error processing new appointment {$appointment->appoint_id}: " . $e->getMessage());
+                    Log::error("Stack trace: " . $e->getTraceAsString());
+                }
+            }
+        }
         
         // Send SMS for new appointments
         try {
@@ -209,6 +253,8 @@ if ($referralPerPage === 'all') {
      */
     public function updateAppointment(Request $request, Appointment $appointment)
     {
+        Log::info("🔄 DEBUG: updateAppointment called for appointment {$appointment->appoint_id}");
+        
         $validated = $request->validate([
             'appoint_date' => 'required|date',
             'appoint_time' => 'required',
@@ -227,6 +273,8 @@ if ($referralPerPage === 'all') {
         
         // Store OLD status BEFORE any updates
         $oldStatus = $appointment->appoint_status;
+        
+        Log::info("🔍 DEBUG: Old status: {$oldStatus}, New status: {$validated['appoint_status']}");
         
         if ($appointment->appoint_date !== $validated['appoint_date']) {
             $changeType = 'rescheduled';
@@ -293,21 +341,68 @@ if ($referralPerPage === 'all') {
             $appointment->services()->sync([]);
         }
 
-        // Refresh appointment data
+        // Refresh appointment data to get services relationship
         $appointment->refresh();
         
         // Track what changed
-       // Track what changed
-$statusChanged = $oldStatus !== $validated['appoint_status'];
-$newStatus = $validated['appoint_status'];
+        $statusChanged = $oldStatus !== $validated['appoint_status'];
+        $newStatus = $validated['appoint_status'];
 
-if ($statusChanged && in_array($newStatus, ['arrived', 'completed'])) {
-    // Only generate billing if status just changed to arrived/completed
-    if (!in_array($oldStatus, ['arrived', 'completed'])) {
-        $this->generateBillingForAppointment($appointment);
-    }
-}
-        // ===== SMS NOTIFICATIONS (WORKS FOR BOTH DASHBOARD AND MEDICAL MANAGEMENT) =====
+        Log::info("📊 Status tracking - Changed: " . ($statusChanged ? 'YES' : 'NO') . ", Old: {$oldStatus}, New: {$newStatus}");
+
+        // ⭐ INVENTORY DEDUCTION: When appointment status changes to completed or arrived
+        if ($statusChanged && in_array($newStatus, ['arrived', 'completed'])) {
+            // Only deduct if status JUST changed (wasn't already arrived/completed)
+            if (!in_array($oldStatus, ['arrived', 'completed'])) {
+                try {
+                    Log::info("🔄 Starting inventory deduction process for appointment {$appointment->appoint_id}");
+                    
+                    // Get service IDs
+                    $serviceIds = $appointment->services->pluck('serv_id')->toArray();
+                    
+                    Log::info("📋 Services in appointment: " . json_encode($serviceIds));
+                    
+                    if (!empty($serviceIds)) {
+                        // Check product availability first
+                        $unavailable = $this->inventoryService->checkServiceProductAvailability($serviceIds);
+                        
+                        if (!empty($unavailable)) {
+                            $warnings = [];
+                            foreach ($unavailable as $item) {
+                                $warnings[] = "{$item['product']} for {$item['service']}: Need {$item['required']}, Available {$item['available']}";
+                            }
+                            Log::warning("⚠️ Low stock for appointment {$appointment->appoint_id}: " . implode('; ', $warnings));
+                        }
+                        
+                        // ✅ DEDUCT PRODUCTS FROM INVENTORY
+                        Log::info("🔧 Calling deductServiceProducts...");
+                        $deductionResult = $this->inventoryService->deductServiceProducts($appointment);
+                        
+                        if ($deductionResult) {
+                            Log::info("✅ Inventory deducted successfully for appointment {$appointment->appoint_id}");
+                        } else {
+                            Log::error("❌ Inventory deduction returned false for appointment {$appointment->appoint_id}");
+                        }
+                    } else {
+                        Log::info("ℹ️ No services with products for appointment {$appointment->appoint_id}");
+                    }
+                    
+                    // Generate billing
+                    $this->generateBillingForAppointment($appointment);
+                    
+                } catch (\Exception $e) {
+                    Log::error("❌ Inventory deduction failed for appointment {$appointment->appoint_id}: " . $e->getMessage());
+                    Log::error("Stack trace: " . $e->getTraceAsString());
+                    // Continue with appointment update even if inventory fails
+                }
+            } else {
+                Log::info("ℹ️ Skipping inventory deduction - appointment {$appointment->appoint_id} was already {$oldStatus}");
+            }
+        } else {
+            Log::info("ℹ️ No inventory deduction needed. Status changed: " . ($statusChanged ? 'YES' : 'NO') . ", New status: {$newStatus}");
+        }
+
+        // ===== SMS NOTIFICATIONS =====
         $successMessage = 'Appointment updated successfully';
         
         try {
@@ -402,8 +497,6 @@ if ($statusChanged && in_array($newStatus, ['arrived', 'completed'])) {
                        ->with('success', 'Appointment deleted successfully');
     }
 
-    
-
     /**
      * Get appointment details for referral
      */
@@ -488,6 +581,8 @@ if ($statusChanged && in_array($newStatus, ['arrived', 'completed'])) {
             'appoint_id' => $appointment->appoint_id,
             'bill_status' => 'Pending',
         ]);
+        
+        Log::info("💰 Billing generated for appointment {$appointment->appoint_id}");
     }
 
     // ==================== PRESCRIPTION METHODS ====================
@@ -638,56 +733,58 @@ if ($statusChanged && in_array($newStatus, ['arrived', 'completed'])) {
             return response()->json([]);
         }
     }
+
+    // ==================== REFERRAL METHODS ====================
+
     public function storeReferral(Request $request)
-{
-    $validated = $request->validate([
-        'appointment_id' => 'required|exists:tbl_appoint,appoint_id',
-        'ref_date' => 'required|date',
-        'ref_to' => 'required|exists:tbl_branch,branch_id',
-        'ref_description' => 'required|string',
-    ]);
-
-    try {
-        $appointment = Appointment::with(['pet.owner'])->findOrFail($validated['appointment_id']);
-        
-        // Create referral in tbl_ref
-        $referral = Referral::create([
-            'appoint_id' => $validated['appointment_id'],
-            'ref_date' => $validated['ref_date'],
-            'ref_to' => $validated['ref_to'],
-            'ref_description' => $validated['ref_description'],
-            'ref_by' => auth()->id(),
+    {
+        $validated = $request->validate([
+            'appointment_id' => 'required|exists:tbl_appoint,appoint_id',
+            'ref_date' => 'required|date',
+            'ref_to' => 'required|exists:tbl_branch,branch_id',
+            'ref_description' => 'required|string',
         ]);
-        
-        // Load the referral relationships for SMS
-        $referral->load(['refToBranch', 'refByBranch']);
-        
-        // Update appointment status
-        $appointment->appoint_status = 'refer';
-        $appointment->save();
-        
-        // Send SMS using DynamicSMSService
-        $smsService = new \App\Services\DynamicSMSService();
-        $smsSent = $smsService->sendReferralSMS($appointment, $referral);
-        
-        $activeTab = $request->input('active_tab', 'referrals');
-        
-        if ($smsSent) {
-            return redirect()->route('medical.index', ['active_tab' => $activeTab])
-                ->with('success', 'Referral created successfully and SMS notification sent');
-        } else {
-            return redirect()->route('medical.index', ['active_tab' => $activeTab])
-                ->with('success', 'Referral created successfully (SMS notification failed)');
-        }
-            
-    } catch (\Exception $e) {
-        \Log::error('Referral creation failed: ' . $e->getMessage());
-        return redirect()->back()
-            ->with('error', 'Failed to create referral')
-            ->withInput();
-    }
-}
 
+        try {
+            $appointment = Appointment::with(['pet.owner'])->findOrFail($validated['appointment_id']);
+            
+            // Create referral in tbl_ref
+            $referral = Referral::create([
+                'appoint_id' => $validated['appointment_id'],
+                'ref_date' => $validated['ref_date'],
+                'ref_to' => $validated['ref_to'],
+                'ref_description' => $validated['ref_description'],
+                'ref_by' => auth()->id(),
+            ]);
+            
+            // Load the referral relationships for SMS
+            $referral->load(['refToBranch', 'refByBranch']);
+            
+            // Update appointment status
+            $appointment->appoint_status = 'refer';
+            $appointment->save();
+            
+            // Send SMS using DynamicSMSService
+            $smsService = new \App\Services\DynamicSMSService();
+            $smsSent = $smsService->sendReferralSMS($appointment, $referral);
+            
+            $activeTab = $request->input('active_tab', 'referrals');
+            
+            if ($smsSent) {
+                return redirect()->route('medical.index', ['active_tab' => $activeTab])
+                    ->with('success', 'Referral created successfully and SMS notification sent');
+            } else {
+                return redirect()->route('medical.index', ['active_tab' => $activeTab])
+                    ->with('success', 'Referral created successfully (SMS notification failed)');
+            }
+                
+        } catch (\Exception $e) {
+            Log::error('Referral creation failed: ' . $e->getMessage());
+            return redirect()->back()
+                ->with('error', 'Failed to create referral')
+                ->withInput();
+        }
+    }
 
     public function editReferral($id)
     {

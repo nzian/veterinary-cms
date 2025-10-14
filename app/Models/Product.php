@@ -24,6 +24,23 @@ class Product extends Model
         'branch_id',
     ];
 
+    public function services()
+    {
+        return $this->belongsToMany(
+            Service::class,
+            'tbl_service_products',
+            'prod_id',
+            'serv_id'
+        )->withPivot('quantity_used', 'is_billable')
+         ->withTimestamps();
+    }
+
+    public function serviceProducts()
+    {
+        return $this->hasMany(ServiceProduct::class, 'prod_id', 'prod_id');
+    }
+
+
     public function orders()
     {
         return $this->belongsToMany(Order::class, 'tbl_ord_has_tbl_prod', 'tbl_prod_prod_id', 'tbl_ord_ord_id');

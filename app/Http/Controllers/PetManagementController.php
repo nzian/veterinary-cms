@@ -8,6 +8,7 @@ use App\Models\Owner;
 use App\Models\MedicalHistory;
 use App\Models\Appointment;
 use App\Models\Order;
+use App\Models\Branch;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 use App\Traits\BranchFilterable;
@@ -19,10 +20,14 @@ class PetManagementController extends Controller
     public function index(Request $request)
     {
         try {
-            // Get pagination parameters
-            $perPage = $request->get('perPage', 10);
+            // Get pagination parameters for all tabs
             $ownersPerPage = $request->get('ownersPerPage', 10);
             $medicalPerPage = $request->get('medicalPerPage', 10);
+            
+            // Determine pet pagination limit based on active tab
+            $activeTab = $request->get('tab', 'owners');
+            $petPageParam = ($activeTab == 'health-card') ? 'healthCardPerPage' : 'perPage';
+            $perPage = $request->get($petPageParam, 10);
             
             // Get active branch ID using trait
             $activeBranchId = $this->getActiveBranchId();
@@ -32,7 +37,7 @@ class PetManagementController extends Controller
                 ->pluck('user_id')
                 ->toArray();
             
-            // Filter pets by branch users
+            // --- Pets Pagination (Used by 'Pets' and 'Health Card' tabs) ---
             $petsQuery = Pet::with('owner')
                 ->whereIn('user_id', $branchUserIds);
             
@@ -48,6 +53,10 @@ class PetManagementController extends Controller
             } else {
                 $pets = $petsQuery->paginate((int)$perPage);
             }
+            // ----------------------------------------------------------------
+            
+            // Filter owners by branch users
+// ... (The rest of your existing index method logic for owners, medical, allOwners, allPets remains the same)
 
             // Filter owners by branch users
             $ownersQuery = Owner::whereIn('user_id', $branchUserIds)
@@ -507,4 +516,44 @@ public function getMedicalDetails($id)
             return back()->with('error', 'Delete unsuccessful.');
         }
     }
+
+     public function healthCard($id)
+{
+    try {
+        // Fetch pet details with owner
+        $pet = Pet::with('owner')->findOrFail($id);
+        
+        // Fetch medical history for Vaccination and Deworming/Heartworm
+        $medicalRecords = MedicalHistory::where('pet_id', $id)
+                                      ->orderBy('visit_date', 'asc')
+                                      ->get();
+
+        $vaccinations = $medicalRecords->filter(function ($record) {
+            return str_contains(strtolower($record->treatment), 'vaccin') || str_contains(strtolower($record->diagnosis), 'vaccin');
+        })->take(20);
+
+        $deworming = $medicalRecords->filter(function ($record) {
+            return str_contains(strtolower($record->treatment), 'deworm') || str_contains(strtolower($record->diagnosis), 'deworm') || str_contains(strtolower($record->treatment), 'heartworm');
+        })->take(14);
+        
+        // --- NEW: Fetch dynamic branch information ---
+        $branches = Branch::all(); 
+        // ---------------------------------------------
+        
+        // Clinic info placeholder (can be simplified now)
+        $clinicInfo = [
+            'name' => 'Your Veterinary Clinic',
+            'contact' => '0912-345-6789 / (088) 123-4567', // Central/main contact if applicable
+             'logo_url' => asset('images/pets2go.png'), 
+        ];
+
+
+        // Return the view for printing the card, passing the branches
+        return view('petHealthCard', compact('pet', 'vaccinations', 'deworming', 'clinicInfo', 'branches'));
+
+    } catch (\Exception $e) {
+        \Log::error('Health Card Generation Error: ' . $e->getMessage());
+        return back()->with('error', 'Failed to generate health card: ' . $e->getMessage());
+    }
+}
 }

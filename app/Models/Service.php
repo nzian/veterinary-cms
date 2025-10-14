@@ -21,7 +21,21 @@ class Service extends Model
         'branch_id',
     ];
 
-   
+     public function products()
+    {
+        return $this->belongsToMany(
+            Product::class,
+            'tbl_service_products',
+            'serv_id',
+            'prod_id'
+        )->withPivot('quantity_used', 'is_billable')
+         ->withTimestamps();
+    }
+
+    public function serviceProducts()
+    {
+        return $this->hasMany(ServiceProduct::class, 'serv_id', 'serv_id');
+    }
 
     // Service.php
 public function appointments()

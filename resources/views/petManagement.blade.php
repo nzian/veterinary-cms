@@ -76,6 +76,10 @@
                     class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'medical' ? 'active' : '' }}">
                 <h2 class="font-bold text-xl">Medical History</h2>
                 </button>
+                 <button onclick="switchTab('health-card')" id="health-card-tab" 
+            class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'health-card' ? 'active' : '' }}">
+            <h2 class="font-bold text-xl">Pet Health Card</h2>
+        </button>
             </nav>
         </div>
 
@@ -484,7 +488,99 @@
                 </div>
             </div>
         </div>
-    </div>
+
+     {{-- **CORRECTED LOCATION: Pet Health Card Tab Content** --}}
+        <div id="health-card-content" class="tab-content {{ request('tab') != 'health-card' ? 'hidden' : '' }}">
+            
+            {{-- 1. START: Add Pagination Controls and Table structure --}}
+            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+                <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
+                    <input type="hidden" name="tab" value="health-card">
+                    <label for="healthCardPerPage" class="text-sm text-black">Show</label>
+                    <select name="healthCardPerPage" id="healthCardPerPage" onchange="this.form.submit()"
+                        class="border border-gray-400 rounded px-2 py-1 text-sm">
+                        @foreach ([10, 20, 50, 100, 'all'] as $limit)
+                            <option value="{{ $limit }}" {{ request('healthCardPerPage', 10) == $limit ? 'selected' : '' }}>
+                                {{ $limit === 'all' ? 'All' : $limit }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <span>entries</span>
+                </form>
+            </div>
+            <br>
+            <div class="overflow-x-auto">
+                <table class="w-full table-auto text-sm border text-center">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            {{-- ADDED: # column header --}}
+                            <th class="border px-2 py-2">#</th> 
+                            <th class="border px-2 py-2">Pet Name</th>
+                            <th class="border px-2 py-2">Owner</th>
+                            <th class="border px-2 py-2">Species</th>
+                            <th class="border px-2 py-2">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{-- FIXED: Use standard Laravel pagination loop --}}
+                        @forelse ($pets as $index => $pet)
+                            <tr>
+                                {{-- FIXED: Row numbering using pagination offset --}}
+                                <td class="border px-2 py-2">{{ $pets->firstItem() + $index }}</td>
+                                <td class="border px-2 py-2">{{ $pet->pet_name }}</td>
+                                <td class="border px-2 py-2">{{ $pet->owner ? $pet->owner->own_name : 'N/A' }}</td>
+                                <td class="border px-2 py-2">{{ $pet->pet_species }}</td>
+                                <td class="border px-2 py-1">
+                                    <a href="{{ route('pet-management.healthCard', ['id' => $pet->pet_id]) }}" target="_blank"
+                                        class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs">
+                                        <i class="fas fa-print"></i> 
+                                    </a>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="5" class="text-center text-gray-500 py-4">No pets available to print health cards.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            {{-- Pagination Links for the Health Card tab --}}
+            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+                <div>Showing {{ $pets->firstItem() }} to {{ $pets->lastItem() }} of {{ $pets->total() }} entries</div>
+                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
+                    {{-- Previous Button --}}
+                    @if ($pets->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $pets->appends(array_merge(request()->query(), ['tab' => 'health-card']))->previousPageUrl() }}" class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    {{-- Page Numbers --}}
+                    @for ($i = 1; $i <= $pets->lastPage(); $i++)
+                        @if ($i == $pets->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $pets->appends(array_merge(request()->query(), ['tab' => 'health-card']))->url($i) }}" class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    {{-- Next Button --}}
+                    @if ($pets->hasMorePages())
+                        <a href="{{ $pets->appends(array_merge(request()->query(), ['tab' => 'health-card']))->nextPageUrl() }}" class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
+                </div>
+            </div>
+        </div>
+        {{-- END CORRECTED TAB CONTENT --}}
+    </div> 
+    
+    
+
+    
 
     {{-- Pet Modal --}}
     <div id="petModal" class="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center hidden z-50">

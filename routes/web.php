@@ -77,8 +77,21 @@ Route::middleware(['auth', 'isSuperAdmin'])->group(function () {
     Route::get('/superadmin/dashboard', [DashboardController::class, 'superAdminDashboard'])->name('superadmin.dashboard');
 });
 
-
+// Route for the new health card print function
+Route::get('/pet-management/pet/{id}/health-card', [PetManagementController::class, 'healthCard'])->name('pet-management.healthCard');
 use App\Http\Controllers\ProdServEquipController;
+Route::get('/services/inventory-overview', [ProdServEquipController::class, 'getServiceInventoryOverview'])
+    ->name('services.inventory-overview');
+// Service-Product Management Routes
+Route::get('/services/{service}/products', [ProdServEquipController::class, 'getServiceProducts'])
+    ->name('services.products.get');
+Route::post('/services/{service}/products', [ProdServEquipController::class, 'updateServiceProducts'])
+    ->name('services.products.update');
+Route::get('/products/{product}/service-usage', [ProdServEquipController::class, 'getProductServiceUsage'])
+    ->name('products.service-usage');
+// Service-Product Management Routes
+Route::get('/services/{service}/products', [ProdServEquipController::class, 'getServiceProducts'])->name('services.products.get');
+Route::post('/services/{service}/products', [ProdServEquipController::class, 'updateServiceProducts'])->name('services.products.update');
 Route::get('/prodservequip', [ProdServEquipController::class, 'index'])->name('prodservequip.index');
 // Product routes
 Route::get('/product', [ProdServEquipController::class, 'index'])->name('product-index');

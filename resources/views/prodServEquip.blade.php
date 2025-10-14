@@ -267,6 +267,10 @@
         <span>entries</span>
     </form> 
     <div class="flex gap-2">
+         <!-- ✅ NEW BUTTON -->
+            <button onclick="openServiceInventoryOverview()" class="bg-purple-600 text-white text-sm px-4 py-2 rounded hover:bg-purple-700">
+                <i class="fas fa-pills mr-1"></i> Service Inventory Overview
+            </button>
     @if(hasPermission('add_service', $can))
         <button onclick="openAddModal('service')" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
             + Add Service
@@ -301,6 +305,12 @@
                 class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" 
                 title="View Details">
             <i class="fas fa-eye"></i>
+        </button>
+          <!-- ✅ ADD THIS NEW BUTTON -->
+        <button onclick="openManageProductsModal({{ $service->serv_id }}, '{{ addslashes($service->serv_name) }}')" 
+                class="bg-indigo-500 text-white px-2 py-1 rounded hover:bg-indigo-600 text-xs" 
+                title="Manage Products">
+            <i class="fas fa-pills"></i>
         </button>
         @if(hasPermission('edit_service', $can))
             <button onclick="openEditModal('service', {{ json_encode($service) }})" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs">
@@ -360,6 +370,7 @@
                             <th class="p-2 border">Category</th>
                             <th class="p-2 border">Description</th>
                             <th class="p-2 border">Quantity</th>
+                            <th class="p-2 border">Status</th>
                             <th class="p-2 border">Actions</th>
                         </tr>
                     </thead>
@@ -377,6 +388,20 @@
                             <td class="p-2 border">{{ $equip->equipment_category ?? 'N/A'}}</td>
                             <td class="p-2 border">{{ Str::limit($equip->equipment_description ?? 'N/A', 50) }}</td>
                             <td class="p-2 border">{{ $equip->equipment_quantity }}</td>
+                            <td class="p-2 border">
+                            @php
+                                $statusClass = match($equip->equipment_status ?? 'Available') {
+                                    'Available' => 'bg-green-100 text-green-800',
+                                    'In Use' => 'bg-blue-100 text-blue-800',
+                                    'Under Maintenance' => 'bg-yellow-100 text-yellow-800',
+                                    'Out of Service' => 'bg-red-100 text-red-800',
+                                    default => 'bg-gray-100 text-gray-800'
+                                };
+                            @endphp
+                            <span class="px-2 py-1 rounded-full text-xs font-medium {{ $statusClass }}">
+                                {{ $equip->equipment_status ?? 'Available' }}
+                            </span>
+                        </td>
                             <td class="p-2 border">
     <div class="flex justify-center gap-2">
           <!-- Add View Button -->
@@ -540,6 +565,66 @@
     </div>
 </div>
 
+<!-- MANAGE SERVICE PRODUCTS MODAL -->
+<div id="manageProductsModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <h3 class="text-lg font-bold">Manage Products for Service</h3>
+                <p class="text-sm text-gray-600" id="serviceNameDisplay"></p>
+            </div>
+            <button onclick="closeManageProductsModal()" class="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
+        </div>
+        
+        <input type="hidden" id="currentServiceId">
+        
+        <!-- Add Product Section -->
+        <div class="bg-gray-50 p-4 rounded-lg mb-4">
+            <h4 class="font-semibold mb-3">Add Product to Service</h4>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Select Product</label>
+                    <select id="productSelect" class="border p-2 w-full rounded">
+                        <option value="">-- Select Product --</option>
+                        @foreach($allProducts as $product)
+                            <option value="{{ $product->prod_id }}" 
+                                    data-name="{{ $product->prod_name }}" 
+                                    data-stock="{{ $product->prod_stocks }}" 
+                                    data-category="{{ $product->prod_category }}">
+                                {{ $product->prod_name }} (Stock: {{ $product->prod_stocks }})
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Quantity Used</label>
+                    <input type="number" id="quantityUsed" step="0.01" min="0.01" value="1.00" class="border p-2 w-full rounded" placeholder="1.00">
+                </div>
+                <div class="flex items-end">
+                    <button onclick="addProductToService()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full">
+                        <i class="fas fa-plus mr-1"></i> Add
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Current Products List -->
+        <div>
+            <h4 class="font-semibold mb-3">Products Linked to This Service</h4>
+            <div id="serviceProductsList" class="space-y-2">
+                <!-- Products will be loaded here -->
+            </div>
+        </div>
+        
+        <div class="flex justify-end gap-2 mt-6">
+            <button onclick="closeManageProductsModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Close</button>
+            <button onclick="saveServiceProducts()" class="px-4 py-2 bg-[#0f7ea0] text-white rounded hover:bg-[#0c6a86]">
+                <i class="fas fa-save mr-1"></i> Save Changes
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- PRODUCT DETAILS MODAL -->
 <div id="productDetailsModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
     <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto">
@@ -681,7 +766,197 @@
     </div>
 </div>
 
+<!-- SERVICE INVENTORY OVERVIEW MODAL -->
+<div id="serviceInventoryModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-7xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold">Service Inventory Overview</h3>
+            <button onclick="closeServiceInventoryModal()" class="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
+        </div>
+        
+        <div id="serviceInventoryContent">
+            <!-- Content will be loaded here -->
+        </div>
+    </div>
+</div>
+
 <script>
+
+    // MANAGE SERVICE PRODUCTS
+let serviceProducts = [];
+
+function openManageProductsModal(serviceId, serviceName) {
+    document.getElementById('manageProductsModal').classList.remove('hidden');
+    document.getElementById('currentServiceId').value = serviceId;
+    document.getElementById('serviceNameDisplay').textContent = serviceName;
+    
+    // Load existing products for this service
+    loadServiceProducts(serviceId);
+}
+
+function closeManageProductsModal() {
+    document.getElementById('manageProductsModal').classList.add('hidden');
+    serviceProducts = [];
+    document.getElementById('serviceProductsList').innerHTML = '';
+    document.getElementById('productSelect').value = '';
+    document.getElementById('quantityUsed').value = '1.00';
+}
+
+function loadServiceProducts(serviceId) {
+    document.getElementById('serviceProductsList').innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading products...</div>';
+    
+    fetch(`/services/${serviceId}/products`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                serviceProducts = data.products;
+                renderServiceProducts();
+            } else {
+                document.getElementById('serviceProductsList').innerHTML = '<div class="text-red-500">Error loading products</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('serviceProductsList').innerHTML = '<div class="text-red-500">Error loading products</div>';
+        });
+}
+
+function renderServiceProducts() {
+    const container = document.getElementById('serviceProductsList');
+    
+    if (serviceProducts.length === 0) {
+        container.innerHTML = '<div class="text-center text-gray-500 py-4">No products linked to this service yet.</div>';
+        return;
+    }
+    
+    let html = '<div class="space-y-2">';
+    serviceProducts.forEach((item, index) => {
+        const stockWarning = item.current_stock < item.quantity_used ? 'border-red-300 bg-red-50' : 'border-gray-200';
+        html += `
+            <div class="flex items-center justify-between p-3 border ${stockWarning} rounded">
+                <div class="flex-1">
+                    <div class="font-medium">${item.product_name}</div>
+                    <div class="text-sm text-gray-600">
+                        Quantity Used: <span class="font-semibold">${item.quantity_used}</span> | 
+                        Current Stock: <span class="${item.current_stock < item.quantity_used ? 'text-red-600 font-bold' : 'text-green-600'}">${item.current_stock}</span>
+                        ${item.current_stock < item.quantity_used ? '<span class="text-red-600 ml-2"><i class="fas fa-exclamation-triangle"></i> Low Stock!</span>' : ''}
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="number" step="0.01" min="0.01" value="${item.quantity_used}" 
+                           onchange="updateProductQuantity(${index}, this.value)"
+                           class="border p-1 w-20 rounded text-sm">
+                    <button onclick="removeProductFromService(${index})" 
+                            class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-sm">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>`;
+    });
+    html += '</div>';
+    
+    container.innerHTML = html;
+}
+
+function addProductToService() {
+    const select = document.getElementById('productSelect');
+    const prodId = select.value;
+    const quantityUsed = parseFloat(document.getElementById('quantityUsed').value);
+    
+    if (!prodId) {
+        alert('Please select a product');
+        return;
+    }
+    
+    if (!quantityUsed || quantityUsed <= 0) {
+        alert('Please enter a valid quantity');
+        return;
+    }
+    
+    // Check if product already exists
+    if (serviceProducts.find(p => p.prod_id == prodId)) {
+        alert('This product is already linked to this service');
+        return;
+    }
+    
+    const selectedOption = select.options[select.selectedIndex];
+    
+    serviceProducts.push({
+        prod_id: prodId,
+        product_name: selectedOption.dataset.name,
+        quantity_used: quantityUsed,
+        current_stock: selectedOption.dataset.stock,
+        is_billable: false
+    });
+    
+    // Reset form
+    select.value = '';
+    document.getElementById('quantityUsed').value = '1.00';
+    
+    renderServiceProducts();
+}
+
+function updateProductQuantity(index, newQuantity) {
+    serviceProducts[index].quantity_used = parseFloat(newQuantity);
+}
+
+function removeProductFromService(index) {
+    if (confirm('Remove this product from the service?')) {
+        serviceProducts.splice(index, 1);
+        renderServiceProducts();
+    }
+}
+
+function saveServiceProducts() {
+    const serviceId = document.getElementById('currentServiceId').value;
+    
+    if (serviceProducts.length === 0) {
+        if (!confirm('No products are linked to this service. Continue?')) {
+            return;
+        }
+    }
+    
+    // Prepare data
+    const productsData = serviceProducts.map(p => ({
+        prod_id: p.prod_id,
+        quantity_used: p.quantity_used,
+        is_billable: p.is_billable || false
+    }));
+    
+    // Show loading
+    const saveBtn = event.target;
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Saving...';
+    saveBtn.disabled = true;
+    
+    fetch(`/services/${serviceId}/products`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({
+            products: productsData
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ Products saved successfully!');
+            closeManageProductsModal();
+        } else {
+            alert('❌ Error: ' + (data.error || 'Failed to save products'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('❌ Error saving products. Please try again.');
+    })
+    .finally(() => {
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+    });
+}
 // MAIN TAB SWITCHING
 function switchMainTab(tabId){
     document.querySelectorAll('.main-tab-content').forEach(t=>t.classList.add('hidden'));
@@ -703,6 +978,151 @@ function switchMainTab(tabId){
         document.getElementById('equipmentBtn').classList.remove('border-transparent');
         document.getElementById('equipmentBtn').classList.add('border-[#0f7ea0]','text-[#0f7ea0]');
     }
+}
+
+function openServiceInventoryOverview() {
+    document.getElementById('serviceInventoryModal').classList.remove('hidden');
+    document.getElementById('serviceInventoryContent').innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-3xl text-blue-600"></i><p class="mt-2">Loading service inventory overview...</p></div>';
+    
+    fetch('/services/inventory-overview')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                document.getElementById('serviceInventoryContent').innerHTML = '<div class="text-red-500">Error loading data</div>';
+                return;
+            }
+            
+            const products = data.products;
+            const summary = data.summary;
+            
+            let content = `
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                        <h4 class="font-semibold text-blue-800">Products in Services</h4>
+                        <p class="text-2xl font-bold text-blue-600">${summary.total_products_in_services}</p>
+                    </div>
+                    <div class="bg-red-50 p-4 rounded-lg border-l-4 border-red-500">
+                        <h4 class="font-semibold text-red-800">Low Stock Items</h4>
+                        <p class="text-2xl font-bold text-red-600">${summary.low_stock_count}</p>
+                    </div>
+                    <div class="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-500">
+                        <h4 class="font-semibold text-yellow-800">Warning Stock</h4>
+                        <p class="text-2xl font-bold text-yellow-600">${summary.warning_stock_count}</p>
+                    </div>
+                    <div class="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+                        <h4 class="font-semibold text-green-800">Good Stock</h4>
+                        <p class="text-2xl font-bold text-green-600">${summary.good_stock_count}</p>
+                    </div>
+                </div>
+                
+                <!-- Products Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm border">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="p-2 border">Product Name</th>
+                                <th class="p-2 border">Category</th>
+                                <th class="p-2 border">Current Stock</th>
+                                <th class="p-2 border">Reorder Level</th>
+                                <th class="p-2 border">Services Using</th>
+                                <th class="p-2 border">Times Used</th>
+                                <th class="p-2 border">Services Remaining</th>
+                                <th class="p-2 border">Expiry Date</th>
+                                <th class="p-2 border">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+            
+            if (products.length === 0) {
+                content += `
+                    <tr>
+                        <td colspan="9" class="p-8 text-center text-gray-500">
+                            <i class="fas fa-info-circle text-3xl mb-2"></i>
+                            <p>No products are currently linked to any services.</p>
+                            <p class="text-sm mt-2">Use the "Manage Products" button (purple pill icon) next to each service to add products.</p>
+                        </td>
+                    </tr>`;
+            } else {
+                products.forEach(product => {
+                    const stockColorClass = product.current_stock <= product.reorder_level ? 'text-red-600 font-bold' : 'text-green-600';
+                    
+                    // Build services list
+                    let servicesList = '<div class="space-y-1">';
+                    product.services_using.forEach(service => {
+                        servicesList += `
+                            <div class="flex items-center justify-between text-xs bg-purple-50 p-1 rounded">
+                                <span class="font-medium">${service.service_name}</span>
+                                <span class="text-purple-700 font-bold">${service.quantity_used} units</span>
+                            </div>`;
+                    });
+                    servicesList += '</div>';
+                    
+                    // Build services remaining
+                    let remainingList = '<div class="space-y-1">';
+                    product.services_remaining.forEach(remaining => {
+                        const colorClass = remaining.remaining_count < 5 ? 'text-red-600' : remaining.remaining_count < 20 ? 'text-yellow-600' : 'text-green-600';
+                        remainingList += `
+                            <div class="text-xs">
+                                <span class="text-gray-600">${remaining.service_name}:</span>
+                                <span class="${colorClass} font-bold">${remaining.remaining_count}x</span>
+                            </div>`;
+                    });
+                    remainingList += '</div>';
+                    
+                    content += `
+                        <tr class="hover:bg-gray-50">
+                            <td class="p-2 border font-medium">${product.product_name}</td>
+                            <td class="p-2 border text-xs">${product.product_category}</td>
+                            <td class="p-2 border">
+                                <span class="${stockColorClass} text-lg font-bold">${product.current_stock}</span>
+                            </td>
+                            <td class="p-2 border">${product.reorder_level}</td>
+                            <td class="p-2 border">
+                                ${servicesList}
+                            </td>
+                            <td class="p-2 border text-center">
+                                <span class="text-purple-700 font-bold text-lg">${product.actual_usage_count}</span>
+                                <div class="text-xs text-gray-500">total times</div>
+                            </td>
+                            <td class="p-2 border">
+                                ${remainingList}
+                            </td>
+                            <td class="p-2 border text-xs">${product.expiry_date}</td>
+                            <td class="p-2 border">
+                                <span class="px-2 py-1 rounded-full text-xs font-medium ${product.status_class}">
+                                    ${product.stock_status.charAt(0).toUpperCase() + product.stock_status.slice(1)}
+                                </span>
+                            </td>
+                        </tr>`;
+                });
+            }
+            
+            content += `
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Legend -->
+                <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <h4 class="font-bold mb-2">Legend:</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                        <div><span class="font-medium">Services Using:</span> Shows which services use this product and how much per service</div>
+                        <div><span class="font-medium">Times Used:</span> Total number of times this product was actually used in appointments</div>
+                        <div><span class="font-medium">Services Remaining:</span> How many more services can be performed with current stock</div>
+                    </div>
+                </div>`;
+            
+            document.getElementById('serviceInventoryContent').innerHTML = content;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('serviceInventoryContent').innerHTML = '<div class="text-red-500">Error loading service inventory overview</div>';
+        });
+}
+
+function closeServiceInventoryModal() {
+    document.getElementById('serviceInventoryModal').classList.add('hidden');
 }
 
 // INVENTORY OVERVIEW MODAL
@@ -838,119 +1258,200 @@ function viewInventoryHistory(productId){
     document.getElementById('inventoryHistoryModal').classList.remove('hidden');
     document.getElementById('inventoryHistoryContent').innerHTML = '<div class="text-center py-8"><div class="spinner-border animate-spin inline-block w-8 h-8 border-4 rounded-full" role="status"></div><p>Loading inventory history...</p></div>';
     
-    fetch(`/inventory/${productId}/history`)
-        .then(response => response.json())
-        .then(data => {
-            if(data.error) {
-                document.getElementById('inventoryHistoryContent').innerHTML = `<div class="text-red-500">${data.error}</div>`;
-                return;
-            }
-            
-            const product = data.product;
-            const stockHistory = data.stock_history;
-            const damageAnalysis = data.damage_analysis;
-            const expiryData = data.expiry_data;
-            const stockAnalytics = data.stock_analytics;
-            
-            let content = `
+    // Fetch both inventory history AND service usage
+    Promise.all([
+        fetch(`/inventory/${productId}/history`),
+        fetch(`/products/${productId}/service-usage`)
+    ])
+    .then(responses => Promise.all(responses.map(r => r.json())))
+    .then(([historyData, serviceData]) => {
+        if(historyData.error || serviceData.error) {
+            document.getElementById('inventoryHistoryContent').innerHTML = `<div class="text-red-500">Error loading data</div>`;
+            return;
+        }
+        
+        const product = historyData.product;
+        const stockHistory = historyData.stock_history;
+        const damageAnalysis = historyData.damage_analysis;
+        const expiryData = historyData.expiry_data;
+        const stockAnalytics = historyData.stock_analytics;
+        
+        const servicesUsing = serviceData.services_using_product;
+        const recentServiceUsage = serviceData.recent_service_usage;
+        const totalUsedInServices = serviceData.total_used_in_services;
+        
+        let content = `
+            <div class="mb-6">
+                <h4 class="font-bold text-lg mb-3">Product: ${product.prod_name}</h4>
+                
+                <!-- Current Status Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                    <div class="bg-blue-50 p-4 rounded-lg">
+                        <div class="text-sm text-blue-600">Current Stock</div>
+                        <div class="text-2xl font-bold text-blue-800">${stockAnalytics.current_stock}</div>
+                    </div>
+                    <div class="bg-yellow-50 p-4 rounded-lg">
+                        <div class="text-sm text-yellow-600">Reorder Level</div>
+                        <div class="text-2xl font-bold text-yellow-800">${stockAnalytics.reorder_level || 'N/A'}</div>
+                    </div>
+                    <div class="bg-red-50 p-4 rounded-lg">
+                        <div class="text-sm text-red-600">Damaged Items</div>
+                        <div class="text-2xl font-bold text-red-800">${damageAnalysis.total_damaged}</div>
+                    </div>
+                    <div class="bg-purple-50 p-4 rounded-lg">
+                        <div class="text-sm text-purple-600">Used in Services</div>
+                        <div class="text-2xl font-bold text-purple-800">${totalUsedInServices}</div>
+                    </div>
+                    <div class="bg-green-50 p-4 rounded-lg">
+                        <div class="text-sm text-green-600">Days Until Reorder</div>
+                        <div class="text-2xl font-bold text-green-800">${stockAnalytics.days_until_reorder}</div>
+                    </div>
+                </div>
+                
+                <!-- Services Using This Product -->
                 <div class="mb-6">
-                    <h4 class="font-bold text-lg mb-3">Product: ${product.prod_name}</h4>
-                    
-                    <!-- Current Status Cards -->
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                        <div class="bg-blue-50 p-4 rounded-lg">
-                            <div class="text-sm text-blue-600">Current Stock</div>
-                            <div class="text-2xl font-bold text-blue-800">${stockAnalytics.current_stock}</div>
+                    <h5 class="font-bold mb-3 text-purple-700">
+                        <i class="fas fa-pills mr-2"></i>Services Using This Product
+                    </h5>
+                    ${servicesUsing.length > 0 ? `
+                        <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                ${servicesUsing.map(service => `
+                                    <div class="flex items-center justify-between p-3 bg-white rounded border border-purple-100">
+                                        <div>
+                                            <div class="font-semibold text-purple-900">${service.service_name}</div>
+                                            <div class="text-sm text-gray-600">${service.service_type}</div>
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="text-lg font-bold text-purple-700">${service.quantity_used}</div>
+                                            <div class="text-xs text-gray-500">per service</div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
                         </div>
-                        <div class="bg-yellow-50 p-4 rounded-lg">
-                            <div class="text-sm text-yellow-600">Reorder Level</div>
-                            <div class="text-2xl font-bold text-yellow-800">${stockAnalytics.reorder_level || 'N/A'}</div>
+                    ` : `
+                        <div class="bg-gray-50 p-4 rounded-lg text-center text-gray-500">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            This product is not currently used in any services
                         </div>
-                        <div class="bg-red-50 p-4 rounded-lg">
-                            <div class="text-sm text-red-600">Damaged Items</div>
-                            <div class="text-2xl font-bold text-red-800">${damageAnalysis.total_damaged}</div>
-                        </div>
-                        <div class="bg-green-50 p-4 rounded-lg">
-                            <div class="text-sm text-green-600">Days Until Reorder</div>
-                            <div class="text-2xl font-bold text-green-800">${stockAnalytics.days_until_reorder}</div>
+                    `}
+                </div>
+                
+                <!-- Recent Service Usage -->
+                ${recentServiceUsage.length > 0 ? `
+                    <div class="mb-6">
+                        <h5 class="font-bold mb-3">
+                            <i class="fas fa-history mr-2"></i>Recent Service Usage
+                        </h5>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm border">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="p-2 border">Date</th>
+                                        <th class="p-2 border">Service</th>
+                                        <th class="p-2 border">Pet</th>
+                                        <th class="p-2 border">Owner</th>
+                                        <th class="p-2 border">Quantity Used</th>
+                                        <th class="p-2 border">Appointment</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${recentServiceUsage.map(usage => `
+                                        <tr>
+                                            <td class="p-2 border">${usage.date}</td>
+                                            <td class="p-2 border font-medium">${usage.service_name}</td>
+                                            <td class="p-2 border">${usage.pet_name}</td>
+                                            <td class="p-2 border">${usage.owner_name}</td>
+                                            <td class="p-2 border text-red-600 font-semibold">-${usage.quantity_used}</td>
+                                            <td class="p-2 border">
+                                                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                                    #${usage.appointment_id}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-                    
-                    <!-- Stock Movement History -->
-                    <h5 class="font-bold mb-3">Stock Movement History</h5>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm border">
-                            <thead class="bg-gray-100">
-                                <tr>
-                                    <th class="p-2 border">Date</th>
-                                    <th class="p-2 border">Type</th>
-                                    <th class="p-2 border">Quantity</th>
-                                    <th class="p-2 border">Reference</th>
-                                    <th class="p-2 border">User</th>
-                                    <th class="p-2 border">Notes</th>
-                                </tr>
-                            </thead>
-                            <tbody>`;
+                ` : ''}
+                
+                <!-- Stock Movement History -->
+                <h5 class="font-bold mb-3">Complete Stock Movement History</h5>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm border">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="p-2 border">Date</th>
+                                <th class="p-2 border">Type</th>
+                                <th class="p-2 border">Quantity</th>
+                                <th class="p-2 border">Reference</th>
+                                <th class="p-2 border">User</th>
+                                <th class="p-2 border">Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+        
+        stockHistory.forEach(movement => {
+            const typeClass = movement.type === 'restock' ? 'text-green-600' : 
+                            movement.type === 'sale' ? 'text-blue-600' : 
+                            movement.type === 'service_usage' ? 'text-purple-600' :
+                            movement.type === 'damage' ? 'text-red-600' : 
+                            movement.type === 'pullout' ? 'text-orange-600' : 'text-gray-600';
             
-            stockHistory.forEach(movement => {
-                const typeClass = movement.type === 'restock' ? 'text-green-600' : 
-                                movement.type === 'sale' ? 'text-blue-600' : 
-                                movement.type === 'damage' ? 'text-red-600' : 
-                                movement.type === 'pullout' ? 'text-orange-600' : 'text-gray-600';
-                
-                const movementDate = movement.date ? new Date(movement.date) : new Date();
-                const displayQuantity = movement.quantity || 0;
-                
-                content += `
-                    <tr>
-                        <td class="p-2 border">${movementDate.toLocaleDateString()}</td>
-                        <td class="p-2 border"><span class="${typeClass} capitalize">${movement.type || 'adjustment'}</span></td>
-                        <td class="p-2 border ${displayQuantity > 0 ? 'text-green-600' : 'text-red-600'}">${displayQuantity > 0 ? '+' : ''}${displayQuantity}</td>
-                        <td class="p-2 border">${movement.reference || 'N/A'}</td>
-                        <td class="p-2 border">${movement.user || 'System'}</td>
-                        <td class="p-2 border">${movement.notes || 'No notes'}</td>
-                    </tr>`;
-            });
+            const movementDate = movement.date ? new Date(movement.date) : new Date();
+            const displayQuantity = movement.quantity || 0;
             
             content += `
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <!-- Expiry Information -->
-                    <div class="mt-6">
-                        <h5 class="font-bold mb-3">Expiry Information</h5>
-                        <div class="bg-gray-50 p-4 rounded-lg">
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <span class="font-medium">Expiry Date:</span> 
-                                    ${expiryData.expiry_date ? new Date(expiryData.expiry_date).toLocaleDateString() : 'N/A'}
-                                </div>
-                                <div>
-                                    <span class="font-medium">Days Until Expiry:</span> 
-                                    <span class="${expiryData.expiry_status === 'expired' ? 'text-red-600' : expiryData.expiry_status === 'warning' ? 'text-yellow-600' : 'text-green-600'}">
-                                        ${expiryData.days_until_expiry !== null ? Math.abs(expiryData.days_until_expiry) + (expiryData.days_until_expiry < 0 ? ' (Expired)' : ' days') : 'N/A'}
-                                    </span>
-                                </div>
-                                <div>
-                                    <span class="font-medium">Status:</span> 
-                                    <span class="capitalize ${expiryData.expiry_status === 'expired' ? 'text-red-600' : expiryData.expiry_status === 'warning' ? 'text-yellow-600' : 'text-green-600'}">
-                                        ${expiryData.expiry_status}
-                                    </span>
-                                </div>
+                <tr>
+                    <td class="p-2 border">${movementDate.toLocaleDateString()}</td>
+                    <td class="p-2 border"><span class="${typeClass} capitalize font-semibold">${movement.type.replace('_', ' ') || 'adjustment'}</span></td>
+                    <td class="p-2 border ${displayQuantity > 0 ? 'text-green-600' : 'text-red-600'} font-bold">${displayQuantity > 0 ? '+' : ''}${displayQuantity}</td>
+                    <td class="p-2 border">${movement.reference || 'N/A'}</td>
+                    <td class="p-2 border">${movement.user || 'System'}</td>
+                    <td class="p-2 border">${movement.notes || 'No notes'}</td>
+                </tr>`;
+        });
+        
+        content += `
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Expiry Information -->
+                <div class="mt-6">
+                    <h5 class="font-bold mb-3">Expiry Information</h5>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <span class="font-medium">Expiry Date:</span> 
+                                ${expiryData.expiry_date ? new Date(expiryData.expiry_date).toLocaleDateString() : 'N/A'}
+                            </div>
+                            <div>
+                                <span class="font-medium">Days Until Expiry:</span> 
+                                <span class="${expiryData.expiry_status === 'expired' ? 'text-red-600' : expiryData.expiry_status === 'warning' ? 'text-yellow-600' : 'text-green-600'}">
+                                    ${expiryData.days_until_expiry !== null ? Math.abs(expiryData.days_until_expiry) + (expiryData.days_until_expiry < 0 ? ' (Expired)' : ' days') : 'N/A'}
+                                </span>
+                            </div>
+                            <div>
+                                <span class="font-medium">Status:</span> 
+                                <span class="capitalize ${expiryData.expiry_status === 'expired' ? 'text-red-600' : expiryData.expiry_status === 'warning' ? 'text-yellow-600' : 'text-green-600'}">
+                                    ${expiryData.expiry_status}
+                                </span>
                             </div>
                         </div>
                     </div>
-                </div>`;
-            
-            document.getElementById('inventoryHistoryContent').innerHTML = content;
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            document.getElementById('inventoryHistoryContent').innerHTML = '<div class="text-red-500">Error loading inventory history</div>';
-        });
+                </div>
+            </div>`;
+        
+        document.getElementById('inventoryHistoryContent').innerHTML = content;
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('inventoryHistoryContent').innerHTML = '<div class="text-red-500">Error loading inventory history</div>';
+    });
 }
-
 function closeInventoryHistoryModal(){
     document.getElementById('inventoryHistoryModal').classList.add('hidden');
 }
