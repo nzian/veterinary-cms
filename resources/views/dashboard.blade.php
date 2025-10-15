@@ -246,36 +246,59 @@
                                 <td class="px-3 sm:px-4 py-3 text-xs sm:text-sm font-medium text-gray-900">{{ $vaccination->pet_name ?? 'N/A' }}</td>
                                 <td class="px-3 sm:px-4 py-3 text-xs sm:text-sm text-gray-600">
                                     @if (strtolower($vaccination->pet_species ?? 'n/a') === 'dog')
-                                        🐶 Dog
+                                    Dog
                                     @elseif (strtolower($vaccination->pet_species ?? 'n/a') === 'cat')
-                                        🐈 Cat
+                                    Cat
                                     @else
                                         {{ $vaccination->pet_species ?? 'N/A' }}
                                     @endif
                                 </td>
                                 <td class="px-3 sm:px-4 py-3 text-xs sm:text-sm text-gray-600">{{ $vaccination->vaccine_name ?? 'N/A' }}</td>
                                 <td class="px-3 sm:px-4 py-3 text-xs sm:text-sm text-gray-600">{{ $vaccination->due_date ?? 'N/A' }}</td>
-                                <td class="px-3 sm:px-4 py-3">
-                                    @php
-                                        $daysUntilDue = \Carbon\Carbon::parse($vaccination->due_date)->diffInDays(now(), false);
-                                        if ($daysUntilDue < 0) {
-                                            $statusClass = 'bg-red-100 text-red-800';
-                                            $statusText = 'Overdue';
-                                        } elseif ($daysUntilDue <= 7) {
-                                            $statusClass = 'bg-orange-100 text-orange-800';
-                                            $statusText = 'This Week';
-                                        } elseif ($daysUntilDue <= 30) {
-                                            $statusClass = 'bg-yellow-100 text-yellow-800';
-                                            $statusText = 'This Month';
-                                        } else {
-                                            $statusClass = 'bg-blue-100 text-blue-800';
-                                            $statusText = 'Upcoming';
-                                        }
-                                    @endphp
-                                    <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full {{ $statusClass }}">
-                                        {{ $statusText }}
-                                    </span>
-                                </td>
+                               <td class="px-3 sm:px-4 py-3">
+    @php
+        $dueDate = \Carbon\Carbon::parse($vaccination->due_date);
+        $today = \Carbon\Carbon::today();
+
+        // Days until due (negative if past, 0 if today, positive if future)
+        $daysUntilDue = $dueDate->diffInDays($today, false);
+        
+        // --- Define Time Windows ---
+        // 1. Critical Overdue starts 7 days AFTER the due date has passed (i.e., today is > due date + 7 days)
+        $criticalOverdueStart = $dueDate->copy()->addDays(7);
+        
+        // 2. Due Soon starts 14 days BEFORE the due date.
+        $dueSoonStart = $dueDate->copy()->subDays(14); 
+
+        // 1. CRITICALLY OVERDUE (Past 7-day Overdue window)
+        if ($criticalOverdueStart->lt($today)) {
+            $statusClass = 'bg-red-100 text-red-800';
+            $daysLate = $today->diffInDays($criticalOverdueStart);
+            $statusText = 'OVERDUE (Missed by ' . $daysLate . ' days)';
+        }
+        // 2. OVERDUE GRACE PERIOD (Past due date, but within 7 days)
+        elseif ($dueDate->lt($today)) {
+            $statusClass = 'bg-orange-100 text-orange-800';
+            $daysPast = $today->diffInDays($dueDate);
+            $daysRemaining = 7 - $daysPast;
+            $statusText = 'Overdue Grace (' . $daysRemaining . ' days left)';
+        }
+        // 3. DUE SOON (Within the 14-day window: $dueSoonStart to $dueDate)
+        elseif ($dueSoonStart->lte($today)) {
+            $statusClass = 'bg-yellow-100 text-yellow-800';
+            $daysUntil = $today->diffInDays($dueDate);
+            $statusText = 'Due Soon (' . ($daysUntil === 0 ? 'Today' : 'in ' . $daysUntil . ' days') . ')';
+        }
+        // 4. UPCOMING (More than 14 days out)
+        else {
+            $statusClass = 'bg-blue-100 text-blue-800';
+            $statusText = 'Upcoming';
+        }
+    @endphp
+    <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full {{ $statusClass }}">
+        {{ $statusText }}
+    </span>
+</td>
                             </tr>
                             @empty
                             <tr>

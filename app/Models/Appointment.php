@@ -33,22 +33,29 @@ protected $casts = [
     ];
 
 
-     public function services()
-    {
-        return $this->belongsToMany(
-            Service::class, 
-            'tbl_appoint_serv', 
-            'appoint_id', 
-            'serv_id'
-        )
-            ->using(\App\Models\AppointServ::class) // Tell Eloquent to use the custom pivot model
-            ->withPivot([
-                'prod_id',
-                'vacc_next_dose',
-                'vacc_batch_no',
-                'vacc_notes'
-            ]);
-    }
+    // Inside Appointment Model
+
+public function services()
+{
+    return $this->belongsToMany(
+        \App\Models\Service::class, 
+        'tbl_appoint_serv', 
+        'appoint_id', 
+        'serv_id'
+    )
+        ->using(\App\Models\AppointServ::class)
+        // KEEP ONLY THE PIVOT FIELDS HERE
+        ->withPivot([
+            'prod_id',
+            'vet_user_id',
+            'vacc_next_dose',
+            'vacc_batch_no',
+            'vacc_notes'
+        ]); 
+        // !!! REMOVE ->with('product') here !!!
+}
+
+    
     public function pet()
 {
     return $this->belongsTo(Pet::class, 'pet_id', 'pet_id'); // ✅ correct reference

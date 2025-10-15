@@ -19,6 +19,7 @@ class AppointServ extends Pivot
         'serv_id', 
         // These fields MUST exist in your database's tbl_appoint_serv table (as per migration earlier)
         'prod_id', 
+         'vet_user_id',
         'vacc_next_dose', 
         'vacc_batch_no', 
         'vacc_notes' 
@@ -31,4 +32,10 @@ class AppointServ extends Pivot
     {
         return $this->belongsTo(Product::class, 'prod_id', 'prod_id');
     }
+
+    public function veterinarian()
+    {
+        return $this->belongsTo(User::class, 'vet_user_id', 'user_id');
+    }
+    
 }

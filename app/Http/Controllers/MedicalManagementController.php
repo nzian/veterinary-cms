@@ -160,6 +160,7 @@ public function recordVaccineDetails(Request $request, $appointmentId)
     $request->merge([
         'appoint_id' => $appointmentId,
         'appointment_date_reference' => $appointment->appoint_date,
+         'vet_user_id' => auth()->id(),
     ]);
 
     // 2. Validation
@@ -167,6 +168,7 @@ public function recordVaccineDetails(Request $request, $appointmentId)
         // Required for security and model lookup
         'appoint_id' => 'required|exists:tbl_appoint,appoint_id', 
         'active_tab' => 'required|string', 
+         'vet_user_id' => 'required|exists:tbl_user,user_id', 
 
         // Pivot Data fields
         'service_id' => 'required|exists:tbl_serv,serv_id',
@@ -228,7 +230,7 @@ public function recordVaccineDetails(Request $request, $appointmentId)
         // 4. Successful Redirection
         // ⭐ CRITICAL FIX: Redirect to the Inventory page to force data refresh/display update ⭐
         return redirect()->route('prodServEquip.index', ['tab' => 'products'])
-                         ->with('success', 'Vaccination details recorded, inventory deducted, and status updated.');
+                         ->with('success', 'Vaccination details recorded successfully.');
 
     } catch (\Exception $e) {
         DB::rollBack();

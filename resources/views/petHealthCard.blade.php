@@ -286,68 +286,74 @@
             </div>
 
             {{-- PANEL 5 & 6 (Combined): Vaccination Record (2/3 width) --}}
-            <div class="col-span-2 p-6 flex flex-col bg-blue-light">
-                <div class="mb-4">
-                    <h3 class="color-orange-main font-bold text-xl mb-3 border-b border-orange-300 pb-2 text-center">
-                        <i class="fas fa-syringe mr-2"></i> VACCINATION RECORD
-                    </h3>
-                </div>
-
-                <div class="record-panel">
-                    <table class="w-full border-collapse text-xs table-full-height">
-                        <thead>
-                            <tr class="table-header-blue">
-                                <th class="border border-gray-400 p-1 text-center" style="width: 15%">DATE GIVEN</th>
-                                <th class="border border-gray-400 p-1 text-center" style="width: 25%">AGAINST</th>
-                                
-                                <th class="border border-gray-400 p-1 text-center" style="width: 30%">MANUFACTURER</th>
-                                
-                                <th class="border border-gray-400 p-1 text-center" style="width: 15%">DATE DUE</th>
-                                <th class="border border-gray-400 p-1 text-center" style="width: 20%">VETERINARIAN</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @php
-                                // We MUST ensure exactly 10 rows are generated.
-                                $maxRows = 10;
-                                $dataCount = count($vaccinations);
-                            @endphp
-                            
-                            {{-- 1. Display actual records --}}
-                            @foreach($vaccinations as $record)
-                                <tr>
-                                    {{-- Rely on .table-full-height td for padding/height --}}
-                                    <td class="border border-gray-400 px-1">{{ \Carbon\Carbon::parse($record->visit_date)->format('M d, Y') }}</td>
-                                    <td class="border border-gray-400 px-1">{{ Str::limit($record->diagnosis, 30) }}</td>
-                                    
-                                    {{-- Empty space for the sticker --}}
-                                    <td class="border border-gray-400 px-1"></td> 
-                                    
-                                    <td class="border border-gray-400 px-1 font-bold color-orange-main">
-                                        {{ $record->follow_up_date ? \Carbon\Carbon::parse($record->follow_up_date)->format('M d, Y') : 'N/A' }}
-                                    </td>
-                                    <td class="border border-gray-400 px-1">{{ Str::limit($record->veterinarian_name, 10) }}</td>
-                                </tr>
-                            @endforeach
-
-                            {{-- 2. Fill remaining rows up to 10 --}}
-                            @for($i = $dataCount; $i < $maxRows; $i++)
-                                <tr>
-                                    {{-- Rely on .table-full-height td to provide height and padding --}}
-                                    <td class="border border-gray-400"></td> 
-                                    <td class="border border-gray-400"></td>
-                                    <td class="border border-gray-400"></td>
-                                    <td class="border border-gray-400"></td>
-                                    <td class="border border-gray-400"></td>
-                                </tr>
-                            @endfor
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+           {{-- PANEL 5 & 6 (Combined): Vaccination Record (2/3 width) --}}
+<div class="col-span-2 p-6 flex flex-col bg-blue-light">
+    <div class="mb-4">
+        <h3 class="color-orange-main font-bold text-xl mb-3 border-b border-orange-300 pb-2 text-center">
+            <i class="fas fa-syringe mr-2"></i> VACCINATION RECORD
+        </h3>
     </div>
 
+    <div class="record-panel">
+        <table class="w-full border-collapse text-xs table-full-height">
+            <thead>
+                <tr class="table-header-blue">
+                    <th class="border border-gray-400 p-1 text-center" style="width: 15%">DATE GIVEN</th>
+                    
+                    {{-- Updated Headers based on requirements --}}
+                    <th class="border border-gray-400 p-1 text-center" style="width: 25%">PRODUCT DESCRIPTION</th>
+                    <th class="border border-gray-400 p-1 text-center" style="width: 30%">VACCINE NAME & BATCH #</th>
+                    
+                    <th class="border border-gray-400 p-1 text-center" style="width: 15%">DATE DUE</th>
+                    <th class="border border-gray-400 p-1 text-center" style="width: 15%">VET / LICENSE NO.</th>
+                </tr>
+            </thead>
+            <tbody>
+                @php
+                    $maxRows = 10;
+                    $dataCount = count($vaccinations);
+                @endphp
+                
+                {{-- 1. Display actual records --}}
+                @foreach($vaccinations as $record)
+                    <tr>
+                        <td class="border border-gray-400 px-1">{{ \Carbon\Carbon::parse($record->visit_date)->format('M d, Y') }}</td>
+                        
+                        {{-- Mapped to Product Description (from Diagnosis/product_description field) --}}
+                        <td class="border border-gray-400 px-1">{{ Str::limit($record->product_description, 30) }}</td>
+                        
+                        {{-- Mapped to Vaccine Name + Batch Number --}}
+                        <td class="border border-gray-400 px-1 text-xs">
+                            <p class="font-semibold leading-tight">{{ $record->vaccine_name ?? 'N/A' }}</p>
+                            <p class="text-gray-600 leading-tight">Batch: {{ $record->batch_number ?? '--' }}</p>
+                        </td>
+                        
+                        <td class="border border-gray-400 px-1 font-bold color-orange-main">
+                            {{ $record->follow_up_date ? \Carbon\Carbon::parse($record->follow_up_date)->format('M d, Y') : 'N/A' }}
+                        </td>
+                        
+                        {{-- Mapped to Veterinarian Name + License --}}
+                        <td class="border border-gray-400 px-1 text-xs">
+                            <p class="font-semibold leading-tight">{{ Str::limit($record->name, 10) }}</p>
+                            <p class="text-gray-600 leading-tight">Lic: {{ $record->user_licenseNum ?? '--' }}</p>
+                        </td>
+                    </tr>
+                @endforeach
+
+                {{-- 2. Fill remaining rows up to 10 --}}
+                @for($i = $dataCount; $i < $maxRows; $i++)
+                    <tr>
+                        <td class="border border-gray-400"></td> 
+                        <td class="border border-gray-400"></td>
+                        <td class="border border-gray-400"></td>
+                        <td class="border border-gray-400"></td>
+                        <td class="border border-gray-400"></td>
+                    </tr>
+                @endfor
+            </tbody>
+        </table>
+    </div>
+</div>
     <script>
         // Apply the necessary height settings for the print layout to work
         document.addEventListener('DOMContentLoaded', function() {

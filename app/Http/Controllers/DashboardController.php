@@ -64,17 +64,23 @@ class DashboardController extends Controller
             ->pluck('user_id')
             ->toArray();
 
-        $thirtyDaysFromNow = now()->addDays(30);
+        // --- NEW THRESHOLDS ---
+        // 1. Critical Due Soon: 14 days from now.
+        $dueSoonThreshold = $today->copy()->addDays(14);
+        // 2. Overdue: 7 days ago. If the due date is before this, it's considered critically overdue.
+        $overdueThreshold = $today->copy()->subDays(7); 
+        // 3. Up To Date threshold (General Tracking): 30 days from now.
+        $thirtyDaysFromNow = now()->addDays(30); 
         
         // 1. Get Vaccination Service ID(s) based on name keywords
         $vaccinationServiceIds = Service::where(function($query) {
             $query->where('serv_name', 'LIKE', '%Vaccination%')
-                  ->orWhere('serv_name', 'LIKE', '%Vaccine%')
-                  ->orWhere('serv_name', 'LIKE', '%Immunization%')
-                  ->orWhere(function($q) {
-                      $q->where('serv_type', 'Preventive Care')
+                ->orWhere('serv_name', 'LIKE', '%Vaccine%')
+                ->orWhere('serv_name', 'LIKE', '%Immunization%')
+                ->orWhere(function($q) {
+                    $q->where('serv_type', 'Preventive Care')
                         ->where('serv_name', 'Vaccination');
-                  });
+                });
         })->pluck('serv_id')->toArray();
         
         // 2. Fetch all appointments related to Vaccination service in this branch
@@ -103,8 +109,8 @@ class DashboardController extends Controller
             // --- Determine Next Due Date and Specific Vaccine Name ---
             // A. Next Due Date: Use pivot data if available, otherwise default to 12 months from appointment date.
             $nextDueDate = $vaccService->pivot->vacc_next_dose 
-                           ? Carbon::parse($vaccService->pivot->vacc_next_dose) 
-                           : Carbon::parse($latest->appoint_date)->copy()->addMonths(12);
+                             ? Carbon::parse($vaccService->pivot->vacc_next_dose) 
+                             : Carbon::parse($latest->appoint_date)->copy()->addMonths(12);
 
             // B. Vaccine Name: Use the prod_id on the pivot to fetch the Product Name.
             $vaccineProdName = 'General Vaccine';
@@ -125,19 +131,30 @@ class DashboardController extends Controller
             ];
         })->values();
         
-        // 4. Calculate vaccination statistics
+        // 4. Calculate vaccination statistics - FIXED LOGIC (14-day Due Soon, 7-day Overdue Grace)
         $vaccinationStats = [
-            'upToDate' => $latestVaccinationsPerPet->filter(function($vac) use ($thirtyDaysFromNow) {
-                return $vac['next_due_date']->gt($thirtyDaysFromNow);
+            // Overdue: Due date is 7 days or more in the past.
+            'overdue' => $latestVaccinationsPerPet->filter(function($vac) use ($overdueThreshold) {
+                return $vac['next_due_date']->lt($overdueThreshold);
             })->count(),
             
-            'dueSoon' => $latestVaccinationsPerPet->filter(function($vac) use ($today, $thirtyDaysFromNow) {
+            // Due Soon: Due date is AFTER the Overdue Threshold AND before the 14-day mark.
+            // This includes the grace period (0 to 7 days past due) AND the upcoming 1-14 days.
+            'dueSoon' => $latestVaccinationsPerPet->filter(function($vac) use ($overdueThreshold, $dueSoonThreshold) {
                 $dueDate = $vac['next_due_date'];
-                return $dueDate->between($today, $thirtyDaysFromNow);
+                
+                // Due date is before the 14-day future cutoff (i.e., today or in the past 7 days)
+                $isInDueSoonWindow = $dueDate->lte($dueSoonThreshold);
+
+                // Is NOT critically overdue (i.e., due date is after the 7-day past mark)
+                $isNotCriticallyOverdue = $dueDate->gt($overdueThreshold);
+                
+                return $isInDueSoonWindow && $isNotCriticallyOverdue;
             })->count(),
             
-            'overdue' => $latestVaccinationsPerPet->filter(function($vac) use ($today) {
-                return $vac['next_due_date']->lt($today);
+            // Up to Date: More than 14 days from now (or more than 30 days if using that range).
+            'upToDate' => $latestVaccinationsPerPet->filter(function($vac) use ($dueSoonThreshold) {
+                return $vac['next_due_date']->gt($dueSoonThreshold);
             })->count(),
             
             'total' => $latestVaccinationsPerPet->count()
@@ -146,7 +163,7 @@ class DashboardController extends Controller
         // 5. Get upcoming vaccinations (Overdue + next 60 days), ordered by due date
         $upcomingVaccinations = $latestVaccinationsPerPet
             ->filter(function($vac) {
-                // Include overdue and anything due in the next 60 days
+                // Include critically overdue and anything due in the next 60 days for the table
                 return $vac['next_due_date']->lte(now()->addDays(60));
             })
             ->sortBy('next_due_date')
@@ -164,6 +181,8 @@ class DashboardController extends Controller
             ->values();
         
         // 6. Get vaccination types distribution
+        // ... (This section remains unchanged)
+
         $vaccinationTypesData = DB::table('tbl_appoint_serv as tas')
             ->whereIn('tas.serv_id', $vaccinationServiceIds) // Only check vaccination services
             ->whereNotNull('tas.prod_id') // Must have a recorded product
@@ -295,10 +314,10 @@ class DashboardController extends Controller
             });
 
         // Recent Referrals - filtered by branch
-        $recentReferrals = Referral::with(['appointment.pet.owner', 'appointment.service'])
+       $recentReferrals = Referral::with(['appointment.pet.owner', 'appointment.services'])
             ->where(function($q) use ($activeBranchId) {
                 $q->where('ref_to', $activeBranchId)
-                  ->orWhere('ref_by', $activeBranchId);
+                    ->orWhere('ref_by', $activeBranchId);
             })
             ->latest('ref_date')
             ->take(5)
@@ -339,8 +358,8 @@ class DashboardController extends Controller
     {
         $services = Service::where(function($query) {
             $query->where('serv_name', 'LIKE', '%vaccin%')
-                  ->orWhere('serv_name', 'LIKE', '%immun%')
-                  ->orWhere('serv_description', 'LIKE', '%vaccin%');
+                ->orWhere('serv_name', 'LIKE', '%immun%')
+                ->orWhere('serv_description', 'LIKE', '%vaccin%');
         })->get(['serv_id', 'serv_name', 'serv_category']);
         
         return response()->json($services);

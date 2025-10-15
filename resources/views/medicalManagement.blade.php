@@ -49,6 +49,9 @@
             'edit_referral' => true,
             'delete_referral' => true,
             'print_referral' => true,
+
+            'view_vaccinations' => true,
+            'edit_vaccinations' => true,
         ],
         'receptionist' => [
             // Appointments
@@ -96,10 +99,12 @@
             class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab', 'appointments') == 'appointments' ? 'active' : '' }}">
             <h2 class="font-bold text-xl">Appointments</h2>
         </button>
+       @if(hasPermission('view_vaccinations', $can))
         <button onclick="showTab('vaccinations')" id="vaccinations-tab" 
             class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'vaccinations' ? 'active' : '' }}">
             <h2 class="font-bold text-xl">Vaccinations</h2>
         </button>
+        @endif
         <button onclick="showTab('prescriptions')" id="prescriptions-tab" 
             class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'prescriptions' ? 'active' : '' }}">
             <h2 class="font-bold text-xl">Prescriptions</h2>
@@ -675,7 +680,7 @@
 
 <div id="vaccineDetailsModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center hidden z-50">
     <div class="bg-white w-full max-w-lg p-6 rounded shadow-lg max-h-[90vh] overflow-y-auto">
-        <h2 class="text-lg font-semibold text-purple-600 mb-4" id="vaccineDetailsModalTitle">Record Vaccine Details</h2>
+        <h2 class="text-lg font-semibold text-[#0f7ea0] mb-4" id="vaccineDetailsModalTitle">Record Vaccine Details</h2>
         <form id="vaccineDetailsForm" method="POST">
             @csrf
             @method('PUT') 
@@ -714,7 +719,7 @@
             
             <div class="flex justify-end space-x-2 mt-6">
                 <button type="button" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400" onclick="closeVaccineDetailsModal()">Cancel</button>
-                <button type="submit" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">Save Vaccine Record</button>
+                <button type="submit" class="px-4 py-2 bg-[#0f7ea0] text-white rounded hover:bg-purple-700">Save</button>
             </div>
         </form>
     </div>
