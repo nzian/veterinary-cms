@@ -26,6 +26,8 @@ class MedicalManagementController extends Controller
         $this->inventoryService = $inventoryService;
     }
 
+    const VACCINATION_SERVICE_NAME = 'Vaccination';
+
     /**
      * Display the unified medical management interface
      */
@@ -96,15 +98,173 @@ class MedicalManagementController extends Controller
         $filteredOwners = Owner::whereIn('user_id', $branchUserIds)->get();
         $filteredPets = Pet::whereIn('user_id', $branchUserIds)->get();
 
+        // ===== NEW: VACCINATION APPOINTMENTS QUERY =====
+    $vaccinationPerPage = $request->get('vaccinationPerPage', 10);
+    
+    // 1. Get the Service ID for 'Vaccination'
+    // You must ensure the App\Models\Service model is imported (use App\Models\Service;)
+    $vaccinationServiceId = \App\Models\Service::where('serv_name', self::VACCINATION_SERVICE_NAME)
+        ->value('serv_id');
+
+    $vaccinationAppointmentsQuery = Appointment::with([
+    'pet.owner', 
+    // Load services and specifically load the 'product' relation where the foreign key is 'tbl_appoint_serv.prod_id'
+    'services' => function ($query) {
+        $query->withPivot('prod_id', 'vacc_next_dose', 'vacc_batch_no', 'vacc_notes');
+        $query->leftJoin('tbl_prod', 'tbl_prod.prod_id', '=', 'tbl_appoint_serv.prod_id')
+              ->select('tbl_serv.*', 'tbl_prod.prod_name as pivot_product_name'); // Alias the name to retrieve it directly on the Service object
+    },
+    'user'
+])
+        ->whereHas('user', function($q) use ($activeBranchId) {
+            $q->where('branch_id', $activeBranchId);
+        })
+        // Filter appointments that have the Vaccination Service attached
+        ->whereHas('services', function ($q) use ($vaccinationServiceId) {
+            $q->where('tbl_appoint_serv.serv_id', $vaccinationServiceId);
+        })
+        ->orderBy('appoint_date', 'desc')
+        ->orderBy('appoint_id', 'desc');
+
+
+    if ($vaccinationPerPage === 'all') {
+        $vaccinationAppointments = $vaccinationAppointmentsQuery->get();
+    } else {
+        // Use a different page parameter name ('vaccinationsPage') to avoid conflicts
+        $vaccinationAppointments = $vaccinationAppointmentsQuery->paginate((int) $vaccinationPerPage, ['*'], 'vaccinationsPage');
+    }
+
         return view('medicalManagement', compact(
             'appointments', 
             'prescriptions', 
             'referrals',
+            'vaccinationAppointments',
             'activeTab',
             'filteredOwners',
             'filteredPets'
         ));
     }
+
+    /**
+     * Record vaccination details for an appointment
+     */
+// In MedicalManagementController.php
+
+public function recordVaccineDetails(Request $request, $appointmentId)
+{
+    // 1. Fetch Appointment Date Safely for Validation Reference
+    // We only fetch the date here for validation purposes.
+    $appointment = Appointment::select('appoint_date')->findOrFail($appointmentId);
+    
+    // Merge the appointment ID and the date into the request for validation
+    $request->merge([
+        'appoint_id' => $appointmentId,
+        'appointment_date_reference' => $appointment->appoint_date,
+    ]);
+
+    // 2. Validation
+    $validated = $request->validate([
+        // Required for security and model lookup
+        'appoint_id' => 'required|exists:tbl_appoint,appoint_id', 
+        'active_tab' => 'required|string', 
+
+        // Pivot Data fields
+        'service_id' => 'required|exists:tbl_serv,serv_id',
+        'prod_id' => 'required|exists:tbl_prod,prod_id',
+        
+        // **FIXED VALIDATION RULE**
+        // Uses the merged field as the reference date
+        'vacc_next_dose' => 'nullable|date|after_or_equal:appointment_date_reference', 
+        
+        'vacc_batch_no' => 'nullable|string|max:255',
+        'vacc_notes' => 'nullable|string',
+    ]);
+
+    // 3. Database Operation
+    try {
+        DB::beginTransaction();
+
+        // Get the full Appointment model again to use Eloquent relations
+        $fullAppointment = Appointment::findOrFail($appointmentId);
+        $serviceId = $validated['service_id'];
+
+        // Verify attachment and perform the update (updateExistingPivot is correct)
+        $isAttached = $fullAppointment->services()->where('tbl_appoint_serv.serv_id', $serviceId)->exists();
+
+        if (!$isAttached) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'The selected service is not linked to this appointment.');
+        }
+
+        // Update the pivot table with the extra vaccine columns
+        $fullAppointment->services()->updateExistingPivot($serviceId, [
+            'prod_id' => $validated['prod_id'],
+            'vacc_next_dose' => $validated['vacc_next_dose'],
+            'vacc_batch_no' => $validated['vacc_batch_no'],
+            'vacc_notes' => $validated['vacc_notes'],
+        ]);
+        
+        // OPTIONAL: Update status to completed after recording vaccine details
+        if ($fullAppointment->appoint_status !== 'completed') {
+            $fullAppointment->update(['appoint_status' => 'completed']);
+        }
+
+        // ⭐ CRITICAL FIX: ADD INVENTORY DEDUCTION HERE ⭐
+        // This is necessary because this action confirms the vaccine was used.
+        $deductionSuccess = $this->inventoryService->deductSpecificProduct(
+            $validated['prod_id'], 
+            1, // Assuming 1 unit/vial is used per vaccination record
+            $appointmentId,
+            $serviceId
+        );
+        
+        // Log error if deduction failed (optional, handled inside service, but good check)
+        if (!$deductionSuccess) {
+            Log::warning("💉 Vaccine deduction failed for Appt {$appointmentId}. Check InventoryService logs.");
+        }
+        
+        DB::commit();
+
+        // 4. Successful Redirection
+        // ⭐ CRITICAL FIX: Redirect to the Inventory page to force data refresh/display update ⭐
+        return redirect()->route('prodServEquip.index', ['tab' => 'products'])
+                         ->with('success', 'Vaccination details recorded, inventory deducted, and status updated.');
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error("Failed to record vaccine details for Appt {$appointmentId}: " . $e->getMessage());
+        
+        return redirect()->back()->with('error', 'Database Error: Failed to save vaccination details. Check logs for details.');
+    }
+}
+public function getServiceProductsForVaccination($serviceId)
+{
+    try {
+        // Assuming your ServiceProduct model maps tbl_serv_prod (or similar)
+        // Adjust the model name if different
+        $serviceProducts = \App\Models\ServiceProduct::where('serv_id', $serviceId)
+            ->with('product') // Assumes ServiceProduct model has a 'product' relationship to tbl_prod
+            ->get()
+            ->map(function($sp) {
+                return [
+                    'prod_id' => $sp->prod_id,
+                    'product_name' => $sp->product->prod_name ?? 'Unknown Product',
+                    'current_stock' => $sp->product->prod_stocks ?? 0,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'products' => $serviceProducts
+        ]);
+    } catch (\Exception $e) {
+        Log::error("Error fetching service products: " . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
 
     // ==================== APPOINTMENT METHODS ====================
 
@@ -457,12 +617,10 @@ class MedicalManagementController extends Controller
             Log::error("Stack trace: " . $e->getTraceAsString());
         }
 
-        // ===== RETURN RESPONSE =====
-        // Handle AJAX requests from dashboard
-        if ($request->expectsJson() || $request->wantsJson() || $request->header('Accept') === 'application/json') {
-            return response()->json([
-                'success' => true,
-                'message' => $successMessage,
+    if ($request->expectsJson() || $request->wantsJson() || $request->header('Accept') === 'application/json') {
+    return response()->json([
+        'success' => true,
+        'message' => $successMessage,
                 'appointment' => [
                     'id' => $appointment->appoint_id,
                     'pet_id' => $appointment->pet_id,
@@ -477,10 +635,18 @@ class MedicalManagementController extends Controller
             ]);
         }
 
+        if ($statusChanged && in_array($newStatus, ['arrived', 'completed']) && !in_array($oldStatus, ['arrived', 'completed'])) {
+    // Redirect to the Inventory page's products tab so it loads fresh stock data
+    return redirect()->route('prodServEquip.index', ['tab' => 'products']) 
+                     ->with('success', 'Appointment finalized, inventory deducted, and status updated.');
+}
+
         // Regular form submission redirect
         $activeTab = $request->input('active_tab', 'appointments');
         return redirect()->route('medical.index', ['active_tab' => $activeTab])
                        ->with('success', $successMessage);
+
+        
     }
 
     /**

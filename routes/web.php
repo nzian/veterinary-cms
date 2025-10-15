@@ -127,11 +127,19 @@ Route::put('inventory/update-damage/{id}', [App\Http\Controllers\ProdServEquipCo
 
 Route::put('/equipment/{id}/update-status', [App\Http\Controllers\ProdServEquipController::class, 'updateEquipmentStatus'])->name('equipment.updateStatus');
 
+Route::get('medical-management/services/{serviceId}/products', [ProdServEquipController::class, 'getServiceProductsForVaccination'])->name('medical.services.products');
+
+// Route to save the specific vaccine details to the pivot table
+
 use App\Http\Controllers\MedicalManagementController;
 Route::prefix('medical-management')->group(function () {
     Route::get('/', [MedicalManagementController::class, 'index'])->name('medical.index');
-    
-    // Appointment routes
+Route::put('appointments/{appointmentId}/record-vaccine-details', [MedicalManagementController::class, 'recordVaccineDetails'])
+        ->name('appointments.record-vaccine-details');
+
+    // 2. Route for AJAX fetching products (used in the modal)
+    Route::get('services/{serviceId}/products', [MedicalManagementController::class, 'getServiceProductsForVaccination'])
+        ->name('services.products'); // Appointment routes
     Route::post('/appointments', [MedicalManagementController::class, 'storeAppointment'])->name('medical.appointments.store'); 
     Route::put('/appointments/{appointment}', [MedicalManagementController::class, 'updateAppointment'])->name('medical.appointments.update');
     Route::delete('/appointments/{id}', [MedicalManagementController::class, 'destroyAppointment'])->name('medical.appointments.destroy');

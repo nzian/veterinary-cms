@@ -32,15 +32,28 @@ protected $casts = [
         'tbl_pet_pet_id',
     ];
 
+
+     public function services()
+    {
+        return $this->belongsToMany(
+            Service::class, 
+            'tbl_appoint_serv', 
+            'appoint_id', 
+            'serv_id'
+        )
+            ->using(\App\Models\AppointServ::class) // Tell Eloquent to use the custom pivot model
+            ->withPivot([
+                'prod_id',
+                'vacc_next_dose',
+                'vacc_batch_no',
+                'vacc_notes'
+            ]);
+    }
     public function pet()
 {
     return $this->belongsTo(Pet::class, 'pet_id', 'pet_id'); // ✅ correct reference
 }
-public function service()
-{
-    return $this->belongsTo(Service::class, 'serv_id', 'serv_id');
-}
-
+//public function service(){return $this->belongsTo(Service::class, 'serv_id', 'serv_id');}
 
     public function referral()
 {
@@ -71,12 +84,6 @@ public function products()
     return $this->hasMany(Order::class, 'appoint_id', 'appoint_id');
 }
 
-// Appointment.php
-// In Appointment model
-public function services()
-{
-    return $this->belongsToMany(Service::class, 'tbl_appoint_serv', 'appoint_id', 'serv_id');
-}
 
 
 }

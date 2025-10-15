@@ -26,6 +26,10 @@ class Order extends Model
         'updated_at'
     ];
 
+    protected $casts = [
+    'ord_date' => 'datetime', 
+];
+
     /**
      * Get the user who created this order
      */

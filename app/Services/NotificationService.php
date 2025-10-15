@@ -156,6 +156,10 @@ class NotificationService
     /**
      * Get product expiration alerts (expiring within 30 days)
      */
+   
+    /**
+     * Get product expiration alerts (expiring within 30 days)
+     */
     private function getProductExpirationAlerts($user)
     {
         $alerts = [];
@@ -166,25 +170,21 @@ class NotificationService
             
             $thirtyDaysFromNow = Carbon::now()->addDays(30);
             
-            // Check both prod_expiry and prod_expiration column names
+            // --- FIXED QUERY FOR EXPIRING PRODUCTS ---
             $expiringProducts = Product::where('branch_id', $activeBranchId)
                 ->where(function($query) use ($thirtyDaysFromNow) {
-                    $query->where(function($q) use ($thirtyDaysFromNow) {
-                        $q->whereNotNull('prod_expiry')
+                    // Check for products with an expiration date that falls in the next 30 days
+                    $query->whereNotNull('prod_expiry')
                           ->where('prod_expiry', '<=', $thirtyDaysFromNow)
                           ->where('prod_expiry', '>=', Carbon::now());
-                    })
-                    ->orWhere(function($q) use ($thirtyDaysFromNow) {
-                        $q->whereNotNull('prod_expiration')
-                          ->where('prod_expiration', '<=', $thirtyDaysFromNow)
-                          ->where('prod_expiration', '>=', Carbon::now());
-                    });
                 })
-                ->orderByRaw('COALESCE(prod_expiry, prod_expiration) ASC')
+                // Sort only by the existing column
+                ->orderBy('prod_expiry', 'ASC')
                 ->get();
 
             foreach ($expiringProducts as $product) {
-                $expiryDate = $product->prod_expiry ?? $product->prod_expiration;
+                // We know $product->prod_expiry is not null here due to the query filter
+                $expiryDate = $product->prod_expiry;
                 if ($expiryDate) {
                     $daysUntilExpiry = Carbon::now()->diffInDays($expiryDate);
                     $isUrgent = $daysUntilExpiry <= 7;
@@ -203,36 +203,29 @@ class NotificationService
                 }
             }
 
-            // Expired products
+            // --- FIXED QUERY FOR EXPIRED PRODUCTS ---
             $expiredProducts = Product::where('branch_id', $activeBranchId)
-                ->where(function($query) {
-                    $query->where(function($q) {
-                        $q->whereNotNull('prod_expiry')
-                          ->where('prod_expiry', '<', Carbon::now());
-                    })
-                    ->orWhere(function($q) {
-                        $q->whereNotNull('prod_expiration')
-                          ->where('prod_expiration', '<', Carbon::now());
-                    });
-                })
+                ->whereNotNull('prod_expiry') // Only check products that *can* expire
+                ->where('prod_expiry', '<', Carbon::now())
                 ->get();
 
             foreach ($expiredProducts as $product) {
-                $expiryDate = $product->prod_expiry ?? $product->prod_expiration;
+                $expiryDate = $product->prod_expiry;
                 $alerts[] = [
                     'id' => 'expired_' . $product->prod_id,
                     'type' => 'expiration_alert',
                     'icon' => 'fa-ban',
                     'color' => 'red',
                     'title' => 'Product Expired',
-                    'message' => $product->prod_name . ' has expired! Remove from inventory immediately.',
+                    'message' => $product->prod_name . ' has expired! Update inventory immediately.',
                     'timestamp' => $expiryDate,
                     'route' => route('prodservequip.index') . '?tab=products',
                     'is_read' => $this->isNotificationRead('expired_' . $product->prod_id)
                 ];
             }
         } catch (\Exception $e) {
-            Log::error('Expiration alerts error: ' . $e->getMessage());
+            // Log the fixed query error message
+            Log::error('Expiration alerts error: ' . $e->getMessage()); 
         }
 
         return $alerts;

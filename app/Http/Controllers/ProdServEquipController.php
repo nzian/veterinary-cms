@@ -936,4 +936,31 @@ public function getServiceInventoryOverview()
         ], 500);
     }
 }
+public function getServiceProductsForVaccination($serviceId)
+{
+    try {
+        $serviceProducts = \App\Models\ServiceProduct::where('serv_id', $serviceId)
+            ->with('product') // Assumes ServiceProduct model has a 'product' relationship
+            ->get()
+            ->map(function($sp) {
+                return [
+                    'prod_id' => $sp->prod_id,
+                    'product_name' => $sp->product->prod_name ?? 'Unknown',
+                    'current_stock' => $sp->product->prod_stocks ?? 0,
+                    // Include any other necessary pivot data for validation/display
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'products' => $serviceProducts
+        ]);
+    } catch (\Exception $e) {
+        // ... Error handling ...
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
 }

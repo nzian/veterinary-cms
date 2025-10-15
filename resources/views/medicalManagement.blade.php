@@ -96,6 +96,10 @@
             class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab', 'appointments') == 'appointments' ? 'active' : '' }}">
             <h2 class="font-bold text-xl">Appointments</h2>
         </button>
+        <button onclick="showTab('vaccinations')" id="vaccinations-tab" 
+            class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'vaccinations' ? 'active' : '' }}">
+            <h2 class="font-bold text-xl">Vaccinations</h2>
+        </button>
         <button onclick="showTab('prescriptions')" id="prescriptions-tab" 
             class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'prescriptions' ? 'active' : '' }}">
             <h2 class="font-bold text-xl">Prescriptions</h2>
@@ -266,7 +270,148 @@
             </div>
             @endif
         </div>
+<div id="vaccinationsContent" class="tab-content hidden">
+    {{-- Filtering and pagination controls --}}
+    <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+        <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
+            <input type="hidden" name="active_tab" value="vaccinations">
+            <label for="vaccinationPerPage" class="text-sm text-black">Show</label>
+            <select name="vaccinationPerPage" id="vaccinationPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                @foreach ([10, 20, 50, 100, 'all'] as $limit)
+                    <option value="{{ $limit }}" {{ request('vaccinationPerPage') == $limit ? 'selected' : '' }}>
+                        {{ $limit === 'all' ? 'All' : $limit }}
+                    </option>
+                @endforeach
+            </select>
+            <span>entries</span>
+        </form>
+    </div>
+    <br>
 
+    <div class="overflow-x-auto">
+        <table class="w-full table-auto text-sm border text-center">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="border px-2 py-2">#</th>
+                    <th class="border px-4 py-2">Pet (Owner)</th>
+                    <th class="border px-4 py-2">Date</th>
+                    <th class="border px-4 py-2">Vaccine Used / Notes</th>
+                    <th class="border px-4 py-2">Batch/Serial No.</th>
+                    <th class="border px-4 py-2">Next Dose Date</th>
+                    <th class="border px-4 py-2">Status</th>
+                    <th class="border px-4 py-2">Actions</th>
+                </tr>
+            </thead>
+             <tbody>
+                @php
+                    // Get the Service ID for 'Vaccination'
+                    $vaccinationServiceId = \App\Models\Service::where('serv_name', 'Vaccination')->value('serv_id');
+                @endphp
+                @forelse($vaccinationAppointments as $index => $appointment)
+                    @php
+                        // 1. Find the specific Vaccination service object from the services collection.
+                        $vaccService = $appointment->services->firstWhere('serv_id', $vaccinationServiceId);
+                        
+                        // 2. Safely initialize all required variables.
+                        $vaccineProdId = $vaccService->pivot->prod_id ?? null;
+                        
+                        // *** FIX: Safely pull the product name by checking existence ***
+                        // This checks the service attachment, the product relationship, and the product name itself.
+                        $vaccineProdName = 'N/A (Not Recorded)';
+
+                        if ($vaccineProdId) {
+                            $product = \App\Models\Product::find($vaccineProdId);
+                            $vaccineProdName = $product->prod_name ?? 'N/A (Product Missing)';
+                        }
+                        
+                        $vaccineNextDose = $vaccService->pivot->vacc_next_dose ?? null; 
+                        $vaccineBatchNo = $vaccService->pivot->vacc_batch_no ?? 'N/A';
+                        $vaccineNotes = $vaccService->pivot->vacc_notes ?? 'No specific notes.';
+                    @endphp
+                    <tr>
+                        <td class="border px-2 py-2">
+                            {{ $vaccinationAppointments->firstItem() + $index }}
+                        </td>
+                        <td class="border px-4 py-2">
+                            {{ $appointment->pet?->pet_name ?? 'N/A' }} 
+                            <span class="text-gray-500 text-xs">({{ $appointment->pet->owner->own_name ?? 'N/A' }})</span>
+                        </td>
+                        <td class="border px-4 py-2">
+                            {{ \Carbon\Carbon::parse($appointment->appoint_date)->format('F j, Y') }}
+                        </td>
+                       <td class="border px-4 py-2 text-left text-gray-700">
+    {{-- Vaccine Name (Standard font) --}}
+    <span class="text-sm font-medium">**{{ $vaccineProdName }}**</span> 
+</td>
+                        
+                        {{-- BATCH/SERIAL NO. COLUMN (Clean Display) --}}
+                        <td class="border px-4 py-2 text-gray-700">
+                            <span class="text-sm">{{ $vaccineBatchNo }}</span>
+                        </td>
+                        
+                        {{-- NEXT DOSE DATE COLUMN (Clean Display) --}}
+                        <td class="border px-4 py-2 text-gray-700">
+                            @if($vaccineNextDose)
+                                <span class="text-sm">
+                                    {{ \Carbon\Carbon::parse($vaccineNextDose)->format('M j, Y') }}
+                                </span>
+                            @else
+                                <em class="text-gray-500">N/A</em>
+                            @endif
+                        </td>
+                        
+                        {{-- STATUS COLUMN (Retains color badge) --}}
+                        <td class="border px-4 py-2">
+                            <span class="px-2 py-1 rounded text-xs
+                                {{ $appointment->appoint_status == 'completed' ? 'bg-green-100 text-green-800' : 
+                                   ($appointment->appoint_status == 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                   ($appointment->appoint_status == 'refer' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800')) }}">
+                                {{ ucfirst($appointment->appoint_status) }}
+                            </span>
+                        </td>
+                        
+                        {{-- ACTIONS COLUMN (Standardized button color) --}}
+                        <td class="border px-2 py-1 text-center">
+                            <div class="flex justify-center">
+                                <button onclick="openVaccineDetailsModal(
+                                    {{ $appointment->appoint_id }}, 
+                                    '{{ $appointment->pet?->pet_name ?? 'N/A' }}', 
+                                    '{{ $appointment->appoint_date }}', 
+                                    '{{ $vaccService->serv_id ?? '' }}',
+                                    '{{ $vaccineProdId }}',
+                                    '{{ $vaccineNextDose }}',
+                                    '{{ $vaccineBatchNo }}',
+                                    '{{ $vaccineNotes }}'
+                                )"
+                                    class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs"
+                                    title="{{ $vaccineProdId ? 'Edit Vaccine Record' : 'Add Vaccine' }}">
+                                    <i class="fas fa-syringe"></i> {{ $vaccineProdId ? 'Edit' : 'Add' }}
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="8" class="text-center text-gray-500 py-4">No appointments found with the 'Vaccination' service.</td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+    
+    {{-- Pagination --}}
+    @if(method_exists($vaccinationAppointments, 'links'))
+    <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+        <div>
+            Showing {{ $vaccinationAppointments->firstItem() }} to {{ $vaccinationAppointments->lastItem() }} of
+            {{ $vaccinationAppointments->total() }} entries
+        </div>
+        <div class="inline-flex border border-gray-400 rounded overflow-hidden">
+            {{ $vaccinationAppointments->appends(['active_tab' => 'vaccinations'])->links() }}
+        </div>
+    </div>
+    @endif
+</div>
         <!-- ==================== PRESCRIPTIONS TAB ==================== -->
         <div id="prescriptionsContent" class="tab-content hidden">
             <!-- Show Entries Dropdown for Prescriptions -->
@@ -525,6 +670,53 @@
             </div>
             @endif
         </div>
+    </div>
+</div>
+
+<div id="vaccineDetailsModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center hidden z-50">
+    <div class="bg-white w-full max-w-lg p-6 rounded shadow-lg max-h-[90vh] overflow-y-auto">
+        <h2 class="text-lg font-semibold text-purple-600 mb-4" id="vaccineDetailsModalTitle">Record Vaccine Details</h2>
+        <form id="vaccineDetailsForm" method="POST">
+            @csrf
+            @method('PUT') 
+            <input type="hidden" name="appoint_id" id="vacc_appoint_id">
+            <input type="hidden" name="service_id" id="vacc_service_id">
+            <input type="hidden" name="active_tab" value="vaccinations">
+
+            <p class="text-sm text-gray-700 mb-4 border-b pb-2">
+                Pet: <strong id="vacc_pet_name"></strong> | Date: <strong id="vacc_appoint_date"></strong>
+            </p>
+
+            <div class="mb-4">
+                <label class="block text-sm mb-1">Vaccine Product</label>
+                <div class="relative">
+                    <input type="hidden" name="prod_id" id="vacc_prod_id" required>
+                    <input type="text" id="vacc_product_search" class="w-full border px-3 py-2 rounded text-sm" placeholder="Search product (only available services product)">
+                    <div id="vacc_product_suggestions" class="product-suggestions hidden"></div>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm mb-1">Batch / Serial No.</label>
+                    <input type="text" name="vacc_batch_no" id="vacc_batch_no_input" class="w-full border px-3 py-2 rounded text-sm" placeholder="Batch No.">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Next Vaccine Date</label>
+                    <input type="date" name="vacc_next_dose" id="vacc_next_dose_input" class="w-full border px-3 py-2 rounded text-sm">
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm mb-1">Veterinarian Notes</label>
+                <textarea name="vacc_notes" id="vacc_notes_input" rows="2" class="w-full border px-3 py-2 rounded text-sm" placeholder="Adverse reactions, etc."></textarea>
+            </div>
+            
+            <div class="flex justify-end space-x-2 mt-6">
+                <button type="button" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400" onclick="closeVaccineDetailsModal()">Cancel</button>
+                <button type="submit" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">Save Vaccine Record</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -1651,6 +1843,7 @@ let selectedServices = [];
 let medicationCounter = 0;
 let currentPrescriptionId = null;
 let currentReferralId = null;
+let availableVaccineProducts = [];
 
 // Setup CSRF token
 function setupCSRF() {
@@ -1683,6 +1876,135 @@ function showTab(tabName) {
     const url = new URL(window.location);
     url.searchParams.set('tab', tabName);
     window.history.replaceState({}, '', url);
+}
+
+function openVaccineDetailsModal(appointId, petName, appointDate, serviceId, prodId, nextDose, batchNo, notes) {
+    const modal = document.getElementById('vaccineDetailsModal');
+    const form = document.getElementById('vaccineDetailsForm');
+    
+    // 1. Reset Form and set action URL
+    form.reset();
+    form.action = `/medical-management/appointments/${appointId}/record-vaccine-details`;
+    
+    // 2. Set hidden IDs and display info
+    document.getElementById('vacc_appoint_id').value = appointId;
+    document.getElementById('vacc_service_id').value = serviceId;
+    document.getElementById('vacc_pet_name').textContent = petName;
+    document.getElementById('vacc_appoint_date').textContent = formatDate(appointDate); // Assuming formatDate exists
+    
+    // 3. Populate fields with existing data
+    document.getElementById('vacc_prod_id').value = prodId;
+    document.getElementById('vacc_next_dose_input').value = nextDose;
+    document.getElementById('vacc_batch_no_input').value = batchNo;
+    document.getElementById('vacc_notes_input').value = notes;
+
+    // --- FIX START ---
+    // Clear previous search results and ensure the search bar is reset
+    const searchInput = document.getElementById('vacc_product_search');
+    const suggestionsDiv = document.getElementById('vacc_product_suggestions');
+    searchInput.value = '';
+    suggestionsDiv.innerHTML = '';
+    suggestionsDiv.classList.add('hidden');
+    // --- FIX END ---
+
+    // 4. Load Products linked to the Vaccination service (AJAX call to a new endpoint)
+    fetch(`/medical-management/services/${serviceId}/products`, {
+        headers: { 'X-CSRF-TOKEN': window.csrfToken, 'Accept': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.products) {
+            availableVaccineProducts = data.products;
+            
+            // Set search input display for existing vaccine
+            const existingProduct = availableVaccineProducts.find(p => String(p.prod_id) === String(prodId));
+            
+            // Populate the search bar and title after product list is loaded
+            searchInput.value = existingProduct ? existingProduct.product_name : '';
+            document.getElementById('vaccineDetailsModalTitle').textContent = prodId ? 'Edit Vaccine Record' : 'Record Vaccine Details';
+
+        } else {
+            availableVaccineProducts = [];
+            alert('Error fetching products linked to the Vaccination service.');
+        }
+    })
+    .catch(error => {
+        console.error('Error fetching service products:', error);
+        alert('Failed to load available products.');
+    });
+
+    // 5. Show Modal and ensure search listener is attached
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    
+    // Since the listener logic itself is separate and self-contained, 
+    // we only need to call it once globally (see section 2)
+    // Here we ensure the listener is ready to work:
+    setupVaccineProductSearchListener('vacc_product_search', 'vacc_prod_id', 'vacc_product_suggestions');
+}
+
+function closeVaccineDetailsModal() {
+    document.getElementById('vaccineDetailsModal').classList.remove('flex');
+    document.getElementById('vaccineDetailsModal').classList.add('hidden');
+}
+
+function setupVaccineProductSearchListener(searchInputId, productIdInputId, suggestionsDivId) {
+    const searchInput = document.getElementById(searchInputId);
+    const productIdInput = document.getElementById(productIdInputId);
+    const suggestionsDiv = document.getElementById(suggestionsDivId);
+    
+    // Add null checks for safety (in case the DOM hasn't fully loaded the elements yet)
+    if (!searchInput || !productIdInput || !suggestionsDiv) return;
+
+    let searchTimeout;
+
+    // Attach the input event listener once.
+    // Use .setAttribute('oninput', ...) if you suspect the listener isn't clearing between modal uses.
+    searchInput.oninput = function() { 
+        // --- Listener Logic ---
+        const query = this.value.toLowerCase().trim();
+        clearTimeout(searchTimeout);
+
+        // Clear product ID if user manually types (to force re-selection)
+        productIdInput.value = '';
+
+        if (query.length < 2) {
+            suggestionsDiv.classList.add('hidden');
+            return;
+        }
+        
+        searchTimeout = setTimeout(() => {
+            const filtered = availableVaccineProducts.filter(p => p.product_name.toLowerCase().includes(query));
+            suggestionsDiv.innerHTML = '';
+            
+            if (filtered.length > 0) {
+                filtered.forEach(product => {
+                    const item = document.createElement('div');
+                    item.className = 'product-suggestion-item text-sm px-3 py-2 cursor-pointer hover:bg-gray-100 border-b last:border-b-0';
+                    item.innerHTML = `<div>${product.product_name}</div><div class="text-xs text-gray-500">Stock: ${product.current_stock}</div>`;
+                   item.onclick = function() {
+                        // **CRITICAL FIX: Ensure both fields are set and the suggestions close**
+                        document.getElementById(productIdInputId).value = product.prod_id; // Set the hidden ID
+                        document.getElementById(searchInputId).value = product.product_name; // Set the visible text
+                        suggestionsDiv.classList.add('hidden');
+                    };
+                    suggestionsDiv.appendChild(item);
+                });
+                suggestionsDiv.classList.remove('hidden');
+            } else {
+                suggestionsDiv.innerHTML = '<div class="product-suggestion-item text-gray-500 px-3 py-2">No linked products found matching query.</div>';
+                suggestionsDiv.classList.remove('hidden');
+            }
+        }, 300);
+    };
+    
+    // Global click handler to dismiss suggestions when clicking outside the search area
+    document.addEventListener('click', function(e) {
+        // Use .contains() to check if the click target is outside the search input and suggestions list
+        if (!searchInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
+            suggestionsDiv.classList.add('hidden');
+        }
+    });
 }
 
 
@@ -2991,6 +3313,8 @@ function validateAppointmentForm(formData) {
     }
     
     return true;
+
+     setupVaccineProductSearchListener('vacc_product_search', 'vacc_prod_id', 'vacc_product_suggestions');
 }
 
 function validatePrescriptionForm(medications, petId, prescriptionDate) {

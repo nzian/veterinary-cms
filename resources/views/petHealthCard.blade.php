@@ -69,10 +69,11 @@
         }
         
         /* --- START FIX FOR FULL TABLE HEIGHT AND SPACING --- */
-        .vaccination-panel {
-            /* This is the parent div wrapping the table, must use flex-1 and overflow-hidden */
+        /* This class is used for the container around the tables (Deworming & Vaccination) */
+        .record-panel {
             height: 100%;
             overflow-y: hidden;
+            flex: 1; /* Ensures it takes up all remaining vertical space in its column */
         }
 
         .table-full-height {
@@ -86,7 +87,7 @@
         }
 
         .table-full-height tr {
-            /* This evenly distributes the 10 rows vertically across the available height */
+            /* Evenly distributes the 10 rows vertically */
             height: calc(100% / 10);
             min-height: 48px; /* Fallback min height for space */
         }
@@ -114,35 +115,46 @@
             {{-- PANEL 1: BACK FOLD (Deworming/Heartworm History) --}}
             <div class="border-dashed-print p-6 flex flex-col bg-blue-light">
                 <div class="mb-4">
-                    <h3 class="color-orange-main font-bold text-xl mb-3 border-b border-orange-300 pb-2">
-                        <i class="fas fa-pills mr-2"></i> DEWORMING & HEARTWORM
-                    </h3>
+                    <h4 class="color-orange-main font-bold text-xl mb-3 border-b border-orange-300 pb-2">
+                        <i class="fas fa-pills mr-2"></i> DEWORMING HISTORY & HEARTWORM PREVENTION
+                    </h4>
                 </div>
 
-                <div class="flex-1 overflow-hidden">
-                    <table class="w-full border-collapse text-xs">
+                {{-- **FIXED** Using record-panel and table-full-height classes --}}
+                <div class="record-panel"> 
+                    <table class="w-full border-collapse text-xs table-full-height">
                         <thead>
                             <tr class="table-header-blue">
-                                <th class="border border-gray-400 p-1 text-left" style="width: 25%">DATE</th>
-                                <th class="border border-gray-400 p-1 text-left" style="width: 20%">WEIGHT</th>
-                                <th class="border border-gray-400 p-1 text-left" style="width: 55%">MEDICATION / VET</th>
+                                <th class="border border-gray-400 p-1 text-center" style="width: 25%">DATE</th>
+                                <th class="border border-gray-400 p-1 text-center" style="width: 20%">WEIGHT</th>
+                                <th class="border border-gray-400 p-1 text-center" style="width: 55%">MANUFACTURER</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {{-- Placeholder/Data loop for Deworming (14 rows total) --}}
-                            @php $dewormingMaxRows = 14; $dewormingDataCount = count($deworming); @endphp
+                            @php 
+                                $dewormingMaxRows = 10; // Fixed to 10 rows
+                                $dewormingDataCount = count($deworming); 
+                            @endphp
+                            
+                            {{-- Data loop --}}
                             @foreach($deworming as $record)
                                 <tr>
-                                    <td class="border border-gray-400 p-1 h-5">{{ \Carbon\Carbon::parse($record->visit_date)->format('M d, Y') }}</td>
-                                    <td class="border border-gray-400 p-1">{{ $record->weight ?? '--' }} kg</td>
-                                    <td class="border border-gray-400 p-1">{{ $record->medication ?? Str::limit($record->treatment, 15) }}</td>
+                                    <td class="border border-gray-400 px-1">{{ \Carbon\Carbon::parse($record->visit_date)->format('M d, Y') }}</td>
+                                    <td class="border border-gray-400 px-1">{{ $record->weight ?? '--' }} kg</td>
+                                    
+                                    {{-- Manufacturer/Sticker column --}}
+                                    <td class="border border-gray-400 px-1">
+                                        {{ Str::limit($record->treatment, 35) }}
+                                    </td>
                                 </tr>
                             @endforeach
+                            
+                            {{-- Filler rows --}}
                             @for($i = $dewormingDataCount; $i < $dewormingMaxRows; $i++)
                                 <tr>
-                                    <td class="border border-gray-400 p-1 h-5"></td>
-                                    <td class="border border-gray-400 p-1"></td>
-                                    <td class="border border-gray-400 p-1"></td>
+                                    <td class="border border-gray-400"></td>
+                                    <td class="border border-gray-400"></td>
+                                    <td class="border border-gray-400"></td>
                                 </tr>
                             @endfor
                         </tbody>
@@ -151,11 +163,11 @@
             </div>
 
             {{-- PANEL 2: INNER FOLD (Notes) --}}
-            <div class="border-dashed-print p-6 bg-white">
+            <div class="border-dashed-print p-6 flex flex-col bg-white">
                 <h3 class="color-blue-main font-bold text-xl mb-4 border-b border-blue-300 pb-2">
                     <i class="fas fa-clipboard-list mr-2"></i> NOTES / MEMO
                 </h3>
-                <div class="border border-gray-300 h-full p-3 space-y-2 text-sm">
+                <div class="border border-gray-300 flex-1 p-3 space-y-2 text-sm overflow-hidden">
                     @for($i = 0; $i < 20; $i++)
                         <div class="border-b border-gray-200 h-5"></div>
                     @endfor
@@ -170,7 +182,8 @@
                         <h4 class="text-2xl font-extrabold color-blue-main mb-1">
                             PET HEALTH CARD
                         </h4>
-                        <img src="{{ asset('images/pets2go.png') }}" alt="Clinic Logo" 
+                        {{-- Assuming asset('images/pets2go.png') is a valid path to your logo --}}
+                        <img src="{{ $clinicInfo['logo_url'] ?? asset('images/default_logo.png') }}" alt="Clinic Logo" 
                              class="max-h-30 object-contain mx-auto mb-4 p-1">
                     </div>
 
@@ -228,7 +241,6 @@
                         <i class="fas fa-user-friends mr-2"></i> PET OWNER RECORD
                     </h3>
                     <br><br>
-                    <!-- pet-photo -->
                     @if($pet->pet_photo)
                         <img src="{{ asset('storage/' . $pet->pet_photo) }}" alt="Pet Photo" 
                              class="w-32 h-32 object-cover mx-auto border-4 border-orange-600 mb-4 rounded-full shadow-md">
@@ -281,20 +293,17 @@
                     </h3>
                 </div>
 
-                {{-- Added vaccination-panel class for the height fix --}}
-                <div class="vaccination-panel">
+                <div class="record-panel">
                     <table class="w-full border-collapse text-xs table-full-height">
                         <thead>
                             <tr class="table-header-blue">
-                                {{-- Column widths adjusted slightly for 5 columns --}}
-                                <th class="border border-gray-400 p-1 text-left" style="width: 15%">DATE GIVEN</th>
-                                <th class="border border-gray-400 p-1 text-left" style="width: 25%">AGAINST</th>
+                                <th class="border border-gray-400 p-1 text-center" style="width: 15%">DATE GIVEN</th>
+                                <th class="border border-gray-400 p-1 text-center" style="width: 25%">AGAINST</th>
                                 
-                                {{-- Manufacturer Sticker column (35% width) --}}
-                                <th class="border border-gray-400 p-1 text-left" style="width: 30%">MANUFACTURER</th>
+                                <th class="border border-gray-400 p-1 text-center" style="width: 30%">MANUFACTURER</th>
                                 
-                                <th class="border border-gray-400 p-1 text-left" style="width: 15%">DATE DUE</th>
-                                <th class="border border-gray-400 p-1 text-left" style="width: 20%">VETERINARIAN</th>
+                                <th class="border border-gray-400 p-1 text-center" style="width: 15%">DATE DUE</th>
+                                <th class="border border-gray-400 p-1 text-center" style="width: 20%">VETERINARIAN</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -342,11 +351,12 @@
     <script>
         // Apply the necessary height settings for the print layout to work
         document.addEventListener('DOMContentLoaded', function() {
-            const vacPanelWrapper = document.querySelector('.vaccination-panel');
-            if (vacPanelWrapper) {
+            const panels = document.querySelectorAll('.record-panel');
+            panels.forEach(panel => {
                 // Set the height of the wrapper to utilize remaining space within the flex-col parent
-                vacPanelWrapper.style.flex = '1';
-            }
+                panel.style.flex = '1';
+                panel.style.height = '100%'; // Ensure flex container utilizes all available height
+            });
         });
         
         window.onload = function() {

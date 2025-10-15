@@ -289,7 +289,7 @@
                 data-weight="{{ $pet->pet_weight }}"
                 data-temperature="{{ $pet->pet_temperature }}"
                 data-registration="{{ $pet->pet_registration }}"
-                data-owner="{{ $pet->own_id }}"
+                data-owner-name="{{ $pet->owner ? $pet->owner->own_name : 'N/A' }}"
                 data-photo="{{ $pet->pet_photo }}">
                 <i class="fas fa-pen"></i>
             </button>
@@ -778,19 +778,29 @@
 
                 <div class="flex gap-4 mb-4">
                     <div class="w-1/2">
-                        <label class="block text-sm">Registration Date</label>
-                        <input type="date" name="pet_registration" id="pet_registration" class="w-full border px-2 py-1 rounded" required>
-                    </div>
+    <label class="block text-sm">Registration Date</label>
+    <input 
+        type="date" 
+        name="pet_registration" 
+        id="pet_registration" 
+        class="w-full border px-2 py-1 rounded" 
+        value="{{ now()->format('Y-m-d') }}" {{-- 💥 AUTO-SET TO TODAY'S DATE 💥 --}}
+        required>
+</div>
                     <div class="w-1/2">
-                        <label class="block text-sm">Owner</label>
-                        <select name="own_id" id="own_id" class="w-full border px-2 py-1 rounded" required>
-                            <option value="">Select Owner</option>
-                            @foreach ($allOwners as $owner)
-                                <option value="{{ $owner->own_id }}">{{ $owner->own_name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                    <label class="block text-sm">Owner</label>
+                    <input type="text" 
+                        id="owner_name_display" 
+                        class="w-full border px-2 py-1 rounded bg-gray-100 cursor-not-allowed" 
+                        readonly 
+                        placeholder="Owner name will be pre-filled">
+
+                    <input type="hidden" 
+                        name="own_id" 
+                        id="own_id">
                 </div>
+                </div>
+               
 
                 <div class="flex justify-end space-x-2 mt-6">
                     <button type="button" class="px-4 py-2 bg-gray-300 rounded text-sm hover:bg-gray-400" onclick="closePetModal()">Cancel</button>
@@ -986,6 +996,10 @@
                         class="owner-tab-button py-2 px-1 border-b-2 font-medium text-sm">
                         <i class="fas fa-calendar mr-2"></i>Appointments
                     </button>
+                     <button onclick="switchOwnerTab('purchases')" id="owner-purchases-tab" 
+                class="owner-tab-button py-2 px-1 border-b-2 font-medium text-sm">
+                <i class="fas fa-shopping-cart mr-2"></i>Purchases
+            </button>
                 </nav>
             </div>
 
@@ -1002,6 +1016,12 @@
                     {{-- Appointments will be populated here --}}
                 </div>
             </div>
+
+            <div id="owner-purchases-content" class="owner-tab-content mt-4 hidden">
+        <div class="space-y-3" id="ownerPurchasesList">
+            {{-- Purchases will be populated here --}}
+        </div>
+    </div>
         </div>
     </div>
 </div>
@@ -1386,6 +1406,7 @@ document.addEventListener('click', function(e) {
     document.getElementById('pet_temperature').value = button.dataset.temperature;
     document.getElementById('pet_registration').value = button.dataset.registration;
     document.getElementById('own_id').value = button.dataset.owner;
+    document.getElementById('owner_name_display').value = button.dataset.ownerName; 
 
     // Handle breed selection for edit
     const species = button.dataset.species;
@@ -1426,8 +1447,10 @@ function openAddPetForOwner(ownerId, ownerName) {
     document.getElementById('selected_breed').value = '';
     hideBreedDropdown();
     
-    // Pre-select the owner
-    document.getElementById('own_id').value = ownerId;
+    // *** NEW LOGIC: Set read-only fields ***
+    document.getElementById('own_id').value = ownerId; // Hidden ID for submission
+    document.getElementById('owner_name_display').value = ownerName; // Displayed Name
+    // ***************************************
     
     document.getElementById('petModal').classList.remove('hidden');
 }
@@ -1995,10 +2018,91 @@ function displayEnhancedOwnerModal(data) {
         petsList.innerHTML = '<div class="col-span-full text-center text-gray-500 py-8"><i class="fas fa-paw text-3xl mb-2"></i><p>No pets registered</p></div>';
     }
     
-    // Display appointments (placeholder)
     const appointmentsList = document.getElementById('ownerAppointmentsList');
-    appointmentsList.innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fas fa-calendar text-3xl mb-2"></i><p>No appointments found</p></div>';
+    appointmentsList.innerHTML = ''; // Clear previous content
     
+    if (data.appointments && data.appointments.length > 0) {
+        data.appointments.forEach(function(appointment) {
+            // Determine color based on status
+            let statusColor = 'bg-gray-100 text-gray-700';
+            if (appointment.status === 'completed') {
+                statusColor = 'bg-green-100 text-green-700';
+            } else if (appointment.status === 'pending') {
+                statusColor = 'bg-yellow-100 text-yellow-700';
+            } else if (appointment.status === 'refer') {
+                statusColor = 'bg-red-100 text-red-700';
+            }
+
+            const appointmentDiv = document.createElement('div');
+            appointmentDiv.className = 'bg-white p-4 rounded-lg shadow border-l-4 border-blue-400';
+            
+            appointmentDiv.innerHTML = `
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="font-semibold text-lg text-gray-800">${appointment.pet_name}</h4>
+                    <span class="text-xs font-medium px-2 py-1 rounded-full ${statusColor}">
+                        ${appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+                    </span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                    <p><i class="fas fa-calendar mr-2 text-blue-500"></i>${appointment.date} @ ${appointment.time}</p>
+                    <p><i class="fas fa-syringe mr-2 text-green-500"></i>${appointment.type || 'General Checkup'}</p>
+                    <p class="col-span-2"><i class="fas fa-user-md mr-2 text-purple-500"></i>Veterinarian: ${appointment.veterinarian}</p>
+                </div>
+            `;
+            
+            appointmentsList.appendChild(appointmentDiv);
+        });
+    } else {
+        appointmentsList.innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fas fa-calendar-times text-3xl mb-2"></i><p>No appointments found for this owner.</p></div>';
+    }
+
+    const purchasesList = document.getElementById('ownerPurchasesList');
+    purchasesList.innerHTML = ''; // Clear previous content
+
+    if (data.purchases && data.purchases.length > 0) {
+        // Group by date to show transactions clearly
+        const groupedPurchases = data.purchases.reduce((acc, purchase) => {
+            const date = purchase.date;
+            if (!acc[date]) {
+                acc[date] = [];
+            }
+            acc[date].push(purchase);
+            return acc;
+        }, {});
+
+        for (const date in groupedPurchases) {
+            const transactionTotal = groupedPurchases[date].reduce((sum, item) => sum + (item.quantity * item.price), 0);
+            
+            const dateSection = document.createElement('div');
+            dateSection.className = 'border-t pt-3 mt-3 first:border-t-0';
+            dateSection.innerHTML = `
+                <div class="flex justify-between items-center bg-gray-50 p-2 rounded-t font-semibold text-sm">
+                    <span><i class="fas fa-calendar-alt mr-2 text-gray-500"></i>${date}</span>
+                    <span>Total: $${transactionTotal.toFixed(2)}</span>
+                </div>
+                <ul class="divide-y divide-gray-100"></ul>
+            `;
+            const ul = dateSection.querySelector('ul');
+            
+            groupedPurchases[date].forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center p-2 text-sm';
+                li.innerHTML = `
+                    <div>
+                        <span class="font-medium">${item.product || 'N/A'}</span>
+                        <span class="text-xs text-gray-500 ml-2">(${item.quantity} x $${item.price.toFixed(2)})</span>
+                    </div>
+                    <span class="font-semibold">$${(item.quantity * item.price).toFixed(2)}</span>
+                `;
+                ul.appendChild(li);
+            });
+
+            purchasesList.appendChild(dateSection);
+        }
+
+    } else {
+        purchasesList.innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fas fa-shopping-basket text-3xl mb-2"></i><p>No purchase history found for this owner.</p></div>';
+    }
     modal.classList.remove('hidden');
 }
 

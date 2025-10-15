@@ -17,7 +17,7 @@ class PetManagementController extends Controller
 {
     use BranchFilterable;
 
-    public function index(Request $request)
+     public function index(Request $request)
     {
         try {
             // Get pagination parameters for all tabs
@@ -39,7 +39,8 @@ class PetManagementController extends Controller
             
             // --- Pets Pagination (Used by 'Pets' and 'Health Card' tabs) ---
             $petsQuery = Pet::with('owner')
-                ->whereIn('user_id', $branchUserIds);
+                ->whereIn('user_id', $branchUserIds)
+                ->orderBy('pet_id', 'desc'); // 👈 **PETS FIX: Sort by ID descending (newest first)**
             
             if ($perPage === 'all') {
                 $pets = $petsQuery->get();
@@ -56,11 +57,8 @@ class PetManagementController extends Controller
             // ----------------------------------------------------------------
             
             // Filter owners by branch users
-// ... (The rest of your existing index method logic for owners, medical, allOwners, allPets remains the same)
-
-            // Filter owners by branch users
             $ownersQuery = Owner::whereIn('user_id', $branchUserIds)
-                ->orderBy('own_name', 'asc');
+                ->orderBy('own_id', 'desc'); // 👈 **OWNERS FIX: Sort by ID descending (newest first)**
             
             if ($ownersPerPage === 'all') {
                 $owners = $ownersQuery->get();
@@ -77,7 +75,8 @@ class PetManagementController extends Controller
 
             // Filter medical histories by branch users
             $medicalQuery = MedicalHistory::with('pet')
-                ->whereIn('user_id', $branchUserIds);
+                ->whereIn('user_id', $branchUserIds)
+                ->orderBy('id', 'desc'); // 👈 **MEDICAL FIX: Sort by ID descending (newest first)**
             
             if ($medicalPerPage === 'all') {
                 $medicalHistories = $medicalQuery->get();
@@ -127,47 +126,77 @@ public function getOwnerDetails($id)
         $appointments = [];
         $lastVisit = 'Never';
         $appointmentsCount = 0;
+        
         if (!empty($petIds)) {
-            $appointmentsE = Appointment::with(['service', 'pet'])
+            // Fetch appointments with 'user' (veterinarian/user) and 'pet' relationships
+            // Note: Removed the potentially incorrect 'service' relationship.
+            $appointmentsE = Appointment::with(['user', 'pet']) 
                 ->whereIn('pet_id', $petIds)
                 ->orderBy('appoint_date', 'desc')
+                ->orderBy('appoint_time', 'desc')
                 ->limit(50)
                 ->get();
+                
             $appointments = $appointmentsE->map(function ($a) {
+                // Safely retrieve veterinarian name using optional helper
+                $veterinarianName = optional($a->user)->user_name ?? 'N/A';
+                
                 return [
                     'id' => $a->appoint_id,
-                    'date' => $a->appoint_date,
-                    'time' => $a->appoint_time,
+                    'date' => Carbon::parse($a->appoint_date)->format('M d, Y'),
+                    'time' => Carbon::parse($a->appoint_time)->format('h:i A'), // Formatted for display
                     'status' => $a->appoint_status,
                     'type' => $a->appoint_type,
-                    'description' => $a->appoint_description,
-                    'service' => $a->service ? $a->service->serv_name : null,
-                    'pet' => $a->pet ? $a->pet->pet_name : null,
+                    // Note: If you want service names, you must load the services() relation (often a many-to-many relationship)
+                    'veterinarian' => $veterinarianName,
+                    'pet_name' => optional($a->pet)->pet_name,
                 ];
             });
+            
             $appointmentsCount = $appointmentsE->count();
             if ($appointmentsE->first()) {
                 $lastVisit = Carbon::parse($appointmentsE->first()->appoint_date)->format('M d, Y');
             }
         }
 
-        // Purchases for this owner (orders linked to owner)
-        $purchasesE = Order::with(['product'])
-            ->where('own_id', $owner->own_id)
-            ->orderBy('ord_date', 'desc')
-            ->limit(50)
-            ->get();
-        $purchases = $purchasesE->map(function ($o) {
-            return [
-                'id' => $o->ord_id,
-                'date' => optional($o->ord_date)->format('Y-m-d'),
-                'product' => $o->product ? $o->product->prod_name : null,
-                'quantity' => $o->ord_quantity,
-                'price' => $o->ord_price,
-                'total' => $o->total,
-            ];
-        });
+        // Purchases and Medical Count logic remains the same
+$purchasesE = Order::with(['product']) 
+    ->where('own_id', $owner->own_id)
+    ->orderBy('ord_date', 'desc')
+    ->limit(50)
+    ->get();
+    
+$purchasesE = Order::with(['product']) 
+    ->where('own_id', $owner->own_id)
+    ->orderBy('ord_date', 'desc')
+    ->limit(50)
+    ->get();
+    
+$purchases = $purchasesE->map(function ($o) {
+    // Safely get the product name and unit price
+    $productName = optional($o->product)->prod_name;
+    $unitPrice = optional($o->product)->prod_price ?? 0;
+    
+    // Calculate total for this item
+    $itemTotal = $o->ord_quantity * $unitPrice;
 
+    // 💥 CRITICAL FIX: Use ord_date if present, otherwise fall back to created_at
+    // We assume created_at is not null, as it's an Eloquent timestamp.
+    $dateSource = $o->ord_date ?: $o->created_at; // Use created_at if ord_date is falsy (null/empty)
+    
+    // Now safely format the chosen date source
+    $purchaseDate = optional($dateSource)->format('Y-m-d') ?? 'N/A';
+    // ------------------------------------------------------------------------
+
+    return [
+        'id' => $o->ord_id,
+        'date' => $purchaseDate, // Use the fixed date
+        'product' => $productName ?? 'N/A',
+        'quantity' => $o->ord_quantity,
+        'price' => (float)$unitPrice,
+        'total' => (float)$itemTotal,
+    ];
+});
         // Medical records count across owner pets
         $medicalCount = 0;
         if (!empty($petIds)) {
@@ -192,7 +221,7 @@ public function getOwnerDetails($id)
                     'pet_photo' => $p->pet_photo,
                 ];
             }),
-            'appointments' => $appointments,
+            'appointments' => $appointments, // Now includes formatted time and veterinarian
             'purchases' => $purchases,
             'stats' => [
                 'pets' => $owner->pets->count(),
@@ -202,7 +231,8 @@ public function getOwnerDetails($id)
             ],
         ]);
     } catch (\Exception $e) {
-        return response()->json(['error' => 'Server error: ' . $e->getMessage()], 500);
+        \Log::error('getOwnerDetails Error: ' . $e->getMessage());
+        return response()->json(['error' => 'Server error while fetching owner details.'], 500);
     }
 }
 
