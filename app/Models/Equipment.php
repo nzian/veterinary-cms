@@ -1,10 +1,11 @@
 <?php
 namespace App\Models;
-
+use App\Traits\BranchDataScope;
 use Illuminate\Database\Eloquent\Model;
 
 class Equipment extends Model
 {
+    use BranchDataScope;
     protected $table = 'tbl_equipment';
     public $timestamps = false; // Disable timestamps
     
@@ -15,5 +16,10 @@ class Equipment extends Model
 
     public function branch() {
         return $this->belongsTo(Branch::class, 'branch_id', 'branch_id');
+    }
+
+    public function getBranchIdColumn()
+    {
+        return 'user_id'; // We filter Pet records based on the user_id that created them
     }
 }

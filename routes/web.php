@@ -95,7 +95,7 @@ Route::get('/prodservequip', [ProdServEquipController::class, 'index'])->name('p
 // This single route definition will handle the 'prodServEquip.index' route
 Route::resource('prod-serv-equip', App\Http\Controllers\ProdServEquipController::class)->names([
     'index' => 'prodServEquip.index',
-    'store' => 'products.store', // Assuming you use this for products store
+    //'store' => 'products.store', // Assuming you use this for products store
     // ... add other necessary route names if needed
 ]);
 

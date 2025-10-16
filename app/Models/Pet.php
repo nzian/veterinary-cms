@@ -4,8 +4,7 @@ namespace App\Models;
 use App\Models\Branch;
 use App\Models\Owner;
 use App\Models\Appointment;
-
-
+use App\Traits\BranchDataScope; 
 
 use Illuminate\Database\Eloquent\Model;
 
@@ -65,4 +64,8 @@ public function medicalHistories()
     return $this->belongsTo(User::class, 'user_id', 'user_id');
 }
 
+public function getBranchIdColumn()
+    {
+        return 'user_id'; // We filter Pet records based on the user_id that created them
+    }
 }

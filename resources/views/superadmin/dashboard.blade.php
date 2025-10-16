@@ -72,7 +72,7 @@
                 'color' => 'from-emerald-500 to-emerald-600',
                 'subtext' => 'Today: ₱' . number_format($todayRevenue, 0),
                 'change' => '+15%',
-                'route' => route('reports.index') // Mapped to /reports
+                'route' => route('sales.index')
             ],
             [
                 'label' => 'Total Staff',
@@ -507,10 +507,10 @@
                             <p class="text-xs text-gray-500">{{ $referral->appointment->pet->owner->own_name ?? 'N/A' }}</p>
                         </td>
                         <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
-                            {{ $referral->refByBranch->branch_name ?? 'N/A' }}
+                            {{ $referral->refByBranch?->branch_name ?? 'N/A' }}
                         </td>
                         <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
-                            {{ $referral->refToBranch->branch_name ?? 'N/A' }}
+                            {{ $referral->refToBranch?->branch_name ?? 'N/A' }}
                         </td>
                         <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
                             {{ \Carbon\Carbon::parse($referral->ref_date)->format('M d, Y') }}

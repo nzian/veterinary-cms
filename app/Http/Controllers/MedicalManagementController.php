@@ -229,8 +229,9 @@ public function recordVaccineDetails(Request $request, $appointmentId)
 
         // 4. Successful Redirection
         // ⭐ CRITICAL FIX: Redirect to the Inventory page to force data refresh/display update ⭐
-        return redirect()->route('prodServEquip.index', ['tab' => 'products'])
-                         ->with('success', 'Vaccination details recorded successfully.');
+        return redirect()->route('medical.index', ['active_tab' => 'vaccinations'])
+                     ->with('success', 'Vaccination details recorded successfully.');
+
 
     } catch (\Exception $e) {
         DB::rollBack();

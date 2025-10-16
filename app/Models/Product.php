@@ -3,9 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\BranchDataScope;
 
 class Product extends Model
 {
+    use BranchDataScope;
     protected $table = 'tbl_prod';
    protected $primaryKey = 'prod_id'; 
    public $timestamps = false;
@@ -49,5 +51,9 @@ class Product extends Model
 {
     return $this->belongsTo(Branch::class, 'branch_id');
 }
+public function getBranchIdColumn()
+    {
+        return 'user_id'; // We filter Pet records based on the user_id that created them
+    }
 
 }

@@ -1,11 +1,13 @@
 <?php
 
 namespace App\Models;
-
+use App\Traits\BranchDataScope;
 use Illuminate\Database\Eloquent\Model;
 
 class Service extends Model
 {
+    use BranchDataScope;
+
     protected $table = 'tbl_serv';
     protected $primaryKey = 'serv_id'; // <-- tell Laravel the real primary key
 
@@ -20,6 +22,8 @@ class Service extends Model
         'serv_type',
         'branch_id',
     ];
+
+    
 
      public function products()
     {
@@ -62,4 +66,8 @@ public function appointments()
     return $this->belongsTo(Branch::class, 'branch_id');
 }
 
+ public function getBranchIdColumn()
+    {
+        return 'branch_id'; // It should use branch_id directly, not user_id
+    }
 }

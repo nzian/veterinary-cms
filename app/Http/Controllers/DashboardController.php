@@ -64,6 +64,11 @@ class DashboardController extends Controller
             ->pluck('user_id')
             ->toArray();
 
+        $totalProducts = Product::where('branch_id', $activeBranchId)->count(); 
+        $totalServices = Service::where('branch_id', $activeBranchId)->count(); 
+        $totalPets = Pet::whereIn('user_id', $branchUserIds)->count();
+$totalOwners = Owner::whereIn('user_id', $branchUserIds)->count();
+
         // --- NEW THRESHOLDS ---
         // 1. Critical Due Soon: 14 days from now.
         $dueSoonThreshold = $today->copy()->addDays(14);

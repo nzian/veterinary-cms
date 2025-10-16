@@ -1,12 +1,13 @@
 <?php
 namespace App\Models;
-
+use App\Traits\BranchDataScope;
 use Illuminate\Database\Eloquent\Model;
 
 
 
 class Appointment extends Model
 {
+    use BranchDataScope;
     protected $table = 'tbl_appoint';
      protected $primaryKey = 'appoint_id'; 
     public $incrementing = true; 
@@ -91,6 +92,9 @@ public function products()
     return $this->hasMany(Order::class, 'appoint_id', 'appoint_id');
 }
 
-
+public function getBranchIdColumn()
+    {
+        return 'user_id'; // We filter Pet records based on the user_id that created them
+    }
 
 }

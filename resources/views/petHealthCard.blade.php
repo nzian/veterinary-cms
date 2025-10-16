@@ -334,7 +334,7 @@
                         
                         {{-- Mapped to Veterinarian Name + License --}}
                         <td class="border border-gray-400 px-1 text-xs">
-                            <p class="font-semibold leading-tight">{{ Str::limit($record->name, 10) }}</p>
+                           <p class="font-semibold leading-tight">{{ Str::limit($record->user_name, 10) }}</p>
                             <p class="text-gray-600 leading-tight">Lic: {{ $record->user_licenseNum ?? '--' }}</p>
                         </td>
                     </tr>
