@@ -980,56 +980,88 @@
                     </select>
                 </div>
             </div>
-
-           <!-- Row 5: Services & Description -->
-<div class="grid grid-cols-2 gap-4 mb-3">
-    <div>
-        <label class="block text-sm mb-1">Selected Services</label>
-        <input type="text" id="edit_selectedServicesDisplay" class="w-full border rounded px-3 py-2 text-sm" readonly placeholder="Click 'Select Services' to choose services" />
-        <button type="button" onclick="toggleServiceSelection('edit')" class="mt-2 bg-[#0f7ea0] text-white px-3 py-1 rounded hover:bg-[#0c6a86] text-sm">
+<div class="mb-3">
+    <div class="flex justify-between items-center mb-2">
+        <label class="block text-sm">Selected Services</label>
+        <button type="button" onclick="toggleServiceSelection('edit')" class="bg-[#0f7ea0] text-white px-3 py-1 rounded hover:bg-[#0c6a86] text-sm">
             <span id="editServiceButtonText">Select Services</span>
         </button>
+    </div>
+    <input type="text" id="edit_selectedServicesDisplay" class="w-full border rounded px-3 py-2 text-sm" readonly placeholder="Click 'Select Services' to choose services" />
+    
+    <div id="editServiceSelection" class="hidden mt-4 border-2 border-[#0f7ea0] rounded-lg p-5 bg-gradient-to-br from-blue-50 to-gray-50">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-base font-bold text-[#0f7ea0]">Choose Services</h3>
+            <span id="editSelectedCount" class="text-sm bg-[#0f7ea0] text-white px-3 py-1 rounded-full font-semibold">
+                0 selected
+            </span>
+        </div>
         
-        <!-- Inline Service Selection - Hidden by default -->
-        <div id="editServiceSelection" class="hidden mt-3 border rounded-lg p-4 bg-gray-50">
-            <div class="flex justify-between items-center mb-3">
-                <h3 class="text-sm font-semibold text-gray-700">Choose Services</h3>
-                <span id="editSelectedCount" class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                    0 selected
-                </span>
+        <div class="mb-4">
+            <div class="relative">
+                <input type="text" 
+                       id="editServiceSearch" 
+                       placeholder="Search services..." 
+                       class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 pl-10 text-sm focus:border-[#0f7ea0] focus:ring-2 focus:ring-[#0f7ea0] focus:ring-opacity-50 transition-all"
+                       oninput="filterServices('edit')"
+                       onkeyup="filterServices('edit')">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                <button type="button" 
+                        onclick="clearServiceSearch('edit')" 
+                        id="editClearSearch"
+                        class="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 hidden">
+                    <i class="fas fa-times-circle"></i>
+                </button>
             </div>
-            
-            <div class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto mb-3">
-                @foreach(\App\Models\Service::all() as $service)
-                    <label class="flex items-center gap-2 border p-2 rounded cursor-pointer hover:bg-white transition-colors bg-gray-50">
-                        <input type="checkbox"
-                               value="{{ $service->serv_id }}"
-                               data-name="{{ $service->serv_name }}"
-                               class="edit-service-checkbox"
-                               onchange="updateServiceCount('edit')">
-                        <span class="text-sm">{{ $service->serv_name }}</span>
-                    </label>
-                @endforeach
+            <div id="editSearchStats" class="text-xs text-gray-600 mt-1 hidden">
+                Found <span id="editFoundCount">0</span> service(s)
             </div>
-            
-            <div class="flex justify-end gap-2">
+        </div>
+        
+        <div id="editServiceGrid" class="grid grid-cols-4 gap-3 max-h-64 overflow-y-auto mb-4 p-2">
+            @foreach(\App\Models\Service::all() as $service)
+                <label class="service-item flex items-center gap-2 border-2 p-3 rounded-lg cursor-pointer hover:bg-white hover:border-[#0f7ea0] transition-all bg-white shadow-sm" data-service-name="{{ strtolower($service->serv_name) }}">
+                    <input type="checkbox"
+                           value="{{ $service->serv_id }}"
+                           data-name="{{ $service->serv_name }}"
+                           class="edit-service-checkbox w-4 h-4 text-[#0f7ea0] focus:ring-[#0f7ea0]"
+                           onchange="updateServiceCount('edit')">
+                    <span class="text-sm font-medium">{{ $service->serv_name }}</span>
+                </label>
+            @endforeach
+        </div>
+        
+        <div id="editNoResults" class="hidden text-center py-8 text-gray-500">
+            <i class="fas fa-search text-4xl mb-2 opacity-50"></i>
+            <p class="text-sm font-medium">No services found</p>
+            <p class="text-xs">Try a different search term</p>
+        </div>
+        
+        <div class="flex justify-between items-center pt-3 border-t-2">
+            <button type="button"
+                    onclick="selectAllServices('edit')"
+                    class="bg-green-500 text-white text-xs px-3 py-1.5 rounded hover:bg-green-600 transition-colors">
+                <i class="fas fa-check-double mr-1"></i> Select All
+            </button>
+            <div class="flex gap-3">
                 <button type="button"
                         onclick="cancelServiceSelection('edit')"
-                        class="bg-gray-300 text-xs px-3 py-1 rounded hover:bg-gray-400">
+                        class="bg-gray-400 text-white text-sm px-4 py-2 rounded hover:bg-gray-500 transition-colors">
                     Cancel
                 </button>
                 <button type="button"
                         onclick="saveSelectedServices('edit')"
-                        class="bg-[#0f7ea0] text-white text-xs px-3 py-1 rounded hover:bg-[#0c6a86]">
-                    Save Selected
+                        class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86] transition-colors font-semibold">
+                    Save Selected Services
                 </button>
             </div>
         </div>
     </div>
-    <div>
-        <label class="block text-sm mb-1">Description</label>
-        <textarea id="edit_appoint_description" name="appoint_description" rows="3" class="w-full border rounded px-3 py-2 text-sm"></textarea>
-    </div>
+</div>
+
+<div class="mb-3">
+    <label class="block text-sm mb-1">Description</label>
+    <textarea id="edit_appoint_description" name="appoint_description" rows="3" class="w-full border rounded px-3 py-2 text-sm"></textarea>
 </div>
 
             <div class="flex justify-end gap-2 mt-4">
