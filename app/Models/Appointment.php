@@ -1,13 +1,13 @@
 <?php
 namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Traits\BranchDataScope;
 use Illuminate\Database\Eloquent\Model;
 
-
-
 class Appointment extends Model
 {
-    use BranchDataScope;
+    use HasFactory, BranchDataScope;
     protected $table = 'tbl_appoint';
      protected $primaryKey = 'appoint_id'; 
     public $incrementing = true; 

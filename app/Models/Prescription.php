@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\BranchDataScope;
 class Prescription extends Model
 {
+    use HasFactory, BranchDataScope;
     use BranchDataScope;
     protected $table = 'tbl_prescription'; // make sure your table name is correct
     protected $primaryKey = 'prescription_id';

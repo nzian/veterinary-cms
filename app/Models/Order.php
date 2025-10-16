@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Order extends Model
 {
+    use HasFactory;
     protected $table = 'tbl_ord';
     protected $primaryKey = 'ord_id';
-    public $timestamps = true;
+   // public $timestamps = true;
 
     protected $fillable = [
         'ord_quantity',
@@ -22,8 +24,6 @@ class Order extends Model
 
     protected $dates = [
         'ord_date',
-        'created_at',
-        'updated_at'
     ];
 
     protected $casts = [

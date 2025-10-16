@@ -1,12 +1,14 @@
 <?php
 
 namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Traits\BranchDataScope;
 use Illuminate\Database\Eloquent\Model;
 
 class Service extends Model
 {
-    use BranchDataScope;
+    use HasFactory, BranchDataScope;
 
     protected $table = 'tbl_serv';
     protected $primaryKey = 'serv_id'; // <-- tell Laravel the real primary key
