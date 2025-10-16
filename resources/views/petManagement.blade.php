@@ -289,7 +289,7 @@
                 data-weight="{{ $pet->pet_weight }}"
                 data-temperature="{{ $pet->pet_temperature }}"
                 data-registration="{{ $pet->pet_registration }}"
-                data-owner-name="{{ $pet->owner ? $pet->owner->own_name : 'N/A' }}"
+              data-owner-id="{{ $pet->owner ? $pet->owner->own_id : '' }}"** data-owner-name="{{ $pet->owner ? $pet->owner->own_name : 'N/A' }}"
                 data-photo="{{ $pet->pet_photo }}">
                 <i class="fas fa-pen"></i>
             </button>
@@ -308,6 +308,7 @@
             data-temperature="{{ $pet->pet_temperature }}"
             data-registration="{{ \Carbon\Carbon::parse($pet->pet_registration)->format('F d, Y') }}"
             data-photo="{{ $pet->pet_photo }}"
+            data-owner-id="{{ $pet->owner ? $pet->owner->own_id : '' }}"
             data-owner="{{ $pet->owner ? $pet->owner->own_name : 'N/A' }}">
             <i class="fas fa-eye"></i>
         </button>
@@ -1405,7 +1406,7 @@ document.addEventListener('click', function(e) {
     document.getElementById('pet_weight').value = button.dataset.weight;
     document.getElementById('pet_temperature').value = button.dataset.temperature;
     document.getElementById('pet_registration').value = button.dataset.registration;
-    document.getElementById('own_id').value = button.dataset.owner;
+    document.getElementById('own_id').value = button.dataset.ownerId;
     document.getElementById('owner_name_display').value = button.dataset.ownerName; 
 
     // Handle breed selection for edit
