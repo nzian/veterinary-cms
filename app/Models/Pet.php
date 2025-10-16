@@ -1,6 +1,8 @@
 <?php
 
 namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Branch;
 use App\Models\Owner;
 use App\Models\Appointment;
@@ -10,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Pet extends Model
 {
+    use HasFactory;
     protected $table = 'tbl_pet';
     protected $primaryKey = 'pet_id'; 
 

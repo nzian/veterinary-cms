@@ -3,10 +3,12 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class InventoryTransaction extends Model
 {
+    use HasFactory;
     protected $table = 'tbl_inventory_transactions';
     protected $primaryKey = 'transaction_id';
     

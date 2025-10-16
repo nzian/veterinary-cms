@@ -2,9 +2,12 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use App\Models\{
+    Branch, User, Owner, Pet, Service, Product, ServiceProduct,
+    Appointment, AppointServ, Order, Billing, Payment, MedicalHistory,
+    Prescription, Equipment, InventoryTransaction
+};
 
 class DatabaseSeeder extends Seeder
 {
@@ -13,11 +16,46 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        $count = 500; // entries per factory
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        // Create branches first
+        Branch::factory()->count(10)->create();
+
+        // Users (assign some to branches)
+        User::factory()->count(100)->create()->each(function ($u) {
+            // optionally attach branch if null
+            if (!$u->branch_id && \App\Models\Branch::count()) {
+                $u->branch_id = \App\Models\Branch::inRandomOrder()->first()->branch_id;
+                $u->save();
+            }
+        });
+
+        // Products and Services
+        Product::factory()->count(200)->create();
+        Service::factory()->count(100)->create();
+
+        // Service-Product pivot entries
+        ServiceProduct::factory()->count(200)->create();
+
+        // Owners and Pets
+        Owner::factory()->count(100)->create();
+        Pet::factory()->count(300)->create();
+
+        // Appointments and pivot services
+        Appointment::factory()->count(500)->create();
+        AppointServ::factory()->count(500)->create();
+
+        // Orders, Billing, Payments
+        Order::factory()->count(500)->create();
+        Billing::factory()->count(500)->create();
+        Payment::factory()->count(500)->create();
+
+        // Medical histories, prescriptions, equipment, inventory transactions
+        MedicalHistory::factory()->count(300)->create();
+        Prescription::factory()->count(300)->create();
+        Equipment::factory()->count(100)->create();
+        InventoryTransaction::factory()->count(200)->create();
+
+        $this->command->info('Database seeding completed.');
     }
 }
