@@ -10,7 +10,7 @@ class Order extends Model
     use HasFactory;
     protected $table = 'tbl_ord';
     protected $primaryKey = 'ord_id';
-    public $timestamps = true;
+   // public $timestamps = true;
 
     protected $fillable = [
         'ord_quantity',
