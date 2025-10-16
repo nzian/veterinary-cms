@@ -31,8 +31,8 @@ class MedicalManagementController extends Controller
     // 🎯 FIXED: Define the explicit list of vaccination service names
     const VACCINATION_SERVICE_NAMES = [
         'Vaccination',
-        'Vaccination - Kernnel Cough',
-        'Vaccination - Kernnel Cough (one dose)',
+        'Vaccination - Kennel Cough',
+        'Vaccination - Kennel Cough (one dose)',
         'Vaccination - Anti Rabies',
     ];
 
