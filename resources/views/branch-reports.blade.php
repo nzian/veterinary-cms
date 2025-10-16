@@ -3,7 +3,6 @@
 @section('content')
 <div class="min-h-screen bg-gray-50">
     <div class="max-w-7xl mx-auto p-6">
-        <!-- Filter Section -->
         <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
             <form method="GET" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
@@ -31,13 +30,13 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
                     <input type="date" name="start_date" value="{{ $startDate }}" 
-                           class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">End Date</label>
                     <input type="date" name="end_date" value="{{ $endDate }}" 
-                           class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 </div>
 
                 <div class="flex items-end">
@@ -55,7 +54,6 @@
             </form>
         </div>
 
-        <!-- Note: Branch Filter Removed -->
         <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
             <div class="flex">
                 <div class="flex-shrink-0">
@@ -69,11 +67,9 @@
             </div>
         </div>
 
-        <!-- Report Content -->
         @if(isset($reports[$reportType]))
             @php $currentReport = $reports[$reportType]; @endphp
             
-            <!-- Report Header -->
             <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
                 <div class="flex justify-between items-start">
                     <div>
@@ -92,7 +88,6 @@
                 </div>
             </div>
 
-            <!-- Report Table -->
             <div class="bg-white rounded-lg shadow-sm overflow-hidden">
                 @if($currentReport['data']->count() > 0)
                     <div class="overflow-x-auto">
@@ -192,19 +187,15 @@
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                                                     {{ $row->status === 'completed' ? 'bg-green-100 text-green-800' : 
-                                                       ($row->status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
+                                                        ($row->status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
                                                     {{ ucfirst($row->status) }}
                                                 </span>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="viewRecordDetails('appointments', '{{ $row->appoint_id }}')" 
-                                                            class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View Details">
-                                                        <i class="fas fa-eye"></i>
-                                                    </button>
                                                     <button onclick="openDetailedPDF('appointments', '{{ $row->appoint_id }}')" 
-                                                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
-                                                        <i class="fas fa-file-pdf"></i>
+                                                            class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
+                                                        <i class="fas fa-eye"></i>
                                                     </button>
                                                 </div>
                                             </td>
@@ -224,13 +215,9 @@
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ \Carbon\Carbon::parse($row->registration_date)->format('M d, Y') }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="viewRecordDetails('pets', '{{ $row->pet_id }}')" 
-                                                            class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View Details">
-                                                        <i class="fas fa-eye"></i>
-                                                    </button>
                                                     <button onclick="openDetailedPDF('pets', '{{ $row->pet_id }}')" 
                                                             class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
-                                                        <i class="fas fa-file-pdf"></i>
+                                                        <i class="fas fa-file-pdf"></i> View & Print
                                                     </button>
                                                 </div>
                                             </td>
@@ -247,13 +234,9 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="viewRecordDetails('billing', '{{ $row->bill_id }}')" 
-                                                            class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View Details">
-                                                        <i class="fas fa-eye"></i>
-                                                    </button>
                                                     <button onclick="openDetailedPDF('billing', '{{ $row->bill_id }}')" 
                                                             class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
-                                                        <i class="fas fa-file-pdf"></i>
+                                                        <i class="fas fa-file-pdf"></i> View & Print
                                                     </button>
                                                 </div>
                                             </td>
@@ -268,13 +251,9 @@
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->cashier }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="viewRecordDetails('sales', '{{ $row->ord_id }}')" 
-                                                            class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View Details">
-                                                        <i class="fas fa-eye"></i>
-                                                    </button>
                                                     <button onclick="openDetailedPDF('sales', '{{ $row->ord_id }}')" 
                                                             class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
-                                                        <i class="fas fa-file-pdf"></i>
+                                                        <i class="fas fa-file-pdf"></i> View & Print
                                                     </button>
                                                 </div>
                                             </td>
@@ -288,13 +267,9 @@
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->referred_to }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="viewRecordDetails('referrals', '{{ $row->ref_id }}')" 
-                                                            class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View Details">
-                                                        <i class="fas fa-eye"></i>
-                                                    </button>
                                                     <button onclick="openDetailedPDF('referrals', '{{ $row->ref_id }}')" 
                                                             class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
-                                                        <i class="fas fa-file-pdf"></i>
+                                                        <i class="fas fa-file-pdf"></i> View & Print
                                                     </button>
                                                 </div>
                                             </td>
@@ -306,19 +281,15 @@
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                                                     {{ $row->stock_status === 'Good Stock' ? 'bg-green-100 text-green-800' : 
-                                                       ($row->stock_status === 'Low Stock' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
+                                                        ($row->stock_status === 'Low Stock' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
                                                     {{ $row->stock_status }}
                                                 </span>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="viewRecordDetails('equipment', '{{ $row->equipment_id }}')" 
-                                                            class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View Details">
-                                                        <i class="fas fa-eye"></i>
-                                                    </button>
                                                     <button onclick="openDetailedPDF('equipment', '{{ $row->equipment_id }}')" 
                                                             class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
-                                                        <i class="fas fa-file-pdf"></i>
+                                                        <i class="fas fa-file-pdf"></i> View & Print
                                                     </button>
                                                 </div>
                                             </td>
@@ -334,13 +305,9 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="viewRecordDetails('services', '{{ $row->service_id }}')" 
-                                                            class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View Details">
-                                                        <i class="fas fa-eye"></i>
-                                                    </button>
                                                     <button onclick="openDetailedPDF('services', '{{ $row->service_id }}')" 
                                                             class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
-                                                        <i class="fas fa-file-pdf"></i>
+                                                        <i class="fas fa-file-pdf"></i> View & Print
                                                     </button>
                                                 </div>
                                             </td>
@@ -353,19 +320,15 @@
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                                                     {{ $row->stock_status === 'Good Stock' ? 'bg-green-100 text-green-800' : 
-                                                       ($row->stock_status === 'Low Stock' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
+                                                        ($row->stock_status === 'Low Stock' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
                                                     {{ $row->stock_status }}
                                                 </span>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="viewRecordDetails('inventory', '{{ $row->product_id }}')" 
-                                                            class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View Details">
-                                                        <i class="fas fa-eye"></i>
-                                                    </button>
                                                     <button onclick="openDetailedPDF('inventory', '{{ $row->product_id }}')" 
                                                             class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
-                                                        <i class="fas fa-file-pdf"></i>
+                                                        <i class="fas fa-file-pdf"></i> View & Print
                                                     </button>
                                                 </div>
                                             </td>
@@ -392,7 +355,6 @@
                 @endif
             </div>
         @else
-            <!-- Default state -->
             <div class="bg-white rounded-lg shadow-sm p-12 text-center">
                 <div class="text-gray-400 mb-4">
                     <i class="fas fa-file-alt text-6xl"></i>
@@ -404,48 +366,9 @@
     </div>
 </div>
 
-<!-- Universal Record Details Modal -->
-<div id="recordModal" class="fixed inset-0 hidden z-50">
-    <div class="flex items-center justify-center min-h-screen p-4">
-        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <!-- Header with Logo -->
-            <div class="header w-full">
-                <div class="p-4 rounded-t-lg w-full" style="background-color: #f88e28;">
-                    <img src="{{ asset('images/header.jpg') }}" alt="Pets2GO Veterinary Clinic Header" 
-                         class="w-full h-auto object-contain" style="max-height: 120px; min-height: 80px;">
-                </div>
-            </div>
-            
-            <div class="flex justify-between items-center p-6 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900" id="modalTitle">Record Details</h3>
-                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
-                    <i class="fa-solid fa-circle-xmark text-2xl"></i>
-                </button>
-            </div>
-            <div class="p-6" id="modalContent">
-                <!-- Content will be loaded here -->
-            </div>
-        </div>
-    </div>
-</div>
-
 <style>
-@keyframes fadeSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fadeSlideUp {
-  animation: fadeSlideUp 0.6s ease-out;
-}
-
 @media print {
+    /* Retaining original print styles for table view printing */
     body * { visibility: hidden; }
     #reportTable, #reportTable * { visibility: visible; }
     .no-print, button { display: none !important; }
@@ -475,6 +398,7 @@ function exportReport() {
 }
 
 function printReportClean() {
+    // This function remains to handle the direct browser table print (with table-only layout)
     const reportTitle = document.querySelector('.text-2xl.font-bold')?.textContent || 'Report';
     const reportTable = document.getElementById('reportTable');
     
@@ -676,7 +600,6 @@ function printReportClean() {
             </style>
         </head>
         <body>
-            <!-- Fixed Footer (only visible in print) -->
             <div class="page-footer">
                 <div class="footer-content">
                     <div class="footer-row">
@@ -694,15 +617,12 @@ function printReportClean() {
             </div>
 
             <div class="content-wrapper">
-                <!-- Header -->
                 <div class="header-container">
                     <img src="{{ asset('images/header.jpg') }}" alt="Pets2GO Veterinary Clinic Header">
                 </div>
                 
-                <!-- Report Title -->
                 <div class="report-title">${reportTitle}</div>
                 
-                <!-- Table -->
                 ${tableClone.outerHTML}
             </div>
             
@@ -727,602 +647,7 @@ function openDetailedPDF(reportType, recordId) {
     window.open(url, '_blank');
 }
 
-function viewRecordDetails(reportType, recordId) {
-    console.log('Viewing details for:', reportType, recordId);
-    
-    fetch(`/branch-reports/${reportType}/${recordId}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data) {
-                showRecordModal(data, reportType);
-            } else {
-                alert('Record details not found');
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching record details:', error);
-            alert('Error loading record details: ' + error.message);
-        });
-}
-
-function showRecordModal(data, reportType) {
-    const modal = document.getElementById('recordModal');
-    const title = document.getElementById('modalTitle');
-    const content = document.getElementById('modalContent');
-    
-    const titles = {
-        'appointments': 'Appointment Details',
-        'pets': 'Pet Medical Record',
-        'billing': 'Billing Statement',
-        'sales': 'Sales Receipt',
-        'equipment': 'Equipment Information',
-        'services': 'Service Information',
-        'inventory': 'Inventory Record',
-        'referrals': 'Referral Details',
-        'revenue': 'Revenue Transaction'
-    };
-    
-    title.textContent = titles[reportType] || 'Record Details';
-    
-    let html = '<div class="space-y-6">';
-    
-    // Copy the EXACT same switch cases from your report.blade.php file here
-    // I'll include the complete code for all report types...
-    
-    switch(reportType) {
-        case 'appointments':
-            html += `
-                <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Patient & Owner Information</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Owner Name</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.own_name || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Contact Number</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.own_contactnum || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Pet Name</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.pet_name || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Breed/Species</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.pet_breed || 'N/A'} - ${data.pet_species || 'N/A'}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white border border-gray-200 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Appointment Information</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Appointment ID</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.appoint_id || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Type</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.appoint_type || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Date</p>
-                            <p class="text-sm font-semibold text-gray-900">${formatDate(data.appoint_date)}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Time</p>
-                            <p class="text-sm font-semibold text-gray-900">${formatTime(data.appoint_time)}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Veterinarian</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.user_name || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Status</p>
-                            <p class="text-sm"><span class="px-3 py-1 rounded-full ${getStatusClass(data.appoint_status)}">${data.appoint_status || 'N/A'}</span></p>
-                        </div>
-                    </div>
-                </div>
-
-                ${data.appoint_description ? `
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Description/Notes</h4>
-                    <p class="text-sm text-gray-700 whitespace-pre-wrap">${data.appoint_description}</p>
-                </div>
-                ` : ''}
-            `;
-            break;
-
-        case 'pets':
-            html += `
-                <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Owner Information</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Owner Name</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.own_name || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Contact Number</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.own_contactnum || 'N/A'}</p>
-                        </div>
-                        <div class="col-span-2">
-                            <p class="text-xs text-gray-500 uppercase">Address</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.own_location || 'N/A'}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white border border-gray-200 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Pet Profile</h4>
-                    <div class="grid grid-cols-3 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Pet ID</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.pet_id || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Pet Name</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.pet_name || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Registration Date</p>
-                            <p class="text-sm font-semibold text-gray-900">${formatDate(data.pet_registration)}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-purple-50 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Physical Information</h4>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Species</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.pet_species || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Breed</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.pet_breed || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Gender</p>
-                            <p class="text-sm"><span class="px-3 py-1 rounded-full ${data.pet_gender === 'male' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'}">${(data.pet_gender || 'N/A').toUpperCase()}</span></p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Age</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.pet_age || 'N/A'} years</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Date of Birth</p>
-                            <p class="text-sm font-semibold text-gray-900">${formatDate(data.pet_birthdate)}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Weight</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.pet_weight || 'N/A'} kg</p>
-                        </div>
-                        ${data.pet_temperature ? `
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Temperature</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.pet_temperature} °C</p>
-                        </div>
-                        ` : ''}
-                    </div>
-                </div>
-            `;
-            break;
-
-        case 'billing':
-            html += `
-                <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Customer Information</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Customer Name</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.own_name || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Pet Name</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.pet_name || 'N/A'}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white border border-gray-200 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Bill Information</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Bill ID</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.bill_id || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Service Date</p>
-                            <p class="text-sm font-semibold text-gray-900">${formatDate(data.appoint_date)}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Billing Date</p>
-                            <p class="text-sm font-semibold text-gray-900">${formatDate(data.bill_date)}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Payment Summary</h4>
-                    <div class="space-y-3">
-                        <div class="flex justify-between items-center">
-                            <span class="text-sm text-gray-600">Total Amount:</span>
-                            <span class="text-xl font-bold text-green-600">₱${formatMoney(data.pay_total)}</span>
-                        </div>
-                        <div class="flex justify-between items-center pt-2 border-t">
-                            <span class="text-sm text-gray-600">Payment Status:</span>
-                            <span class="px-3 py-1 rounded-full text-xs ${getStatusClass(data.bill_status)}">${data.bill_status || 'N/A'}</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-            break;
-
-        case 'sales':
-            html += `
-                <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Transaction Information</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Order ID</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.ord_id || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Sale Date</p>
-                            <p class="text-sm font-semibold text-gray-900">${formatDate(data.ord_date)}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Customer Name</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.own_name || 'Walk-in Customer'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Cashier</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.user_name || 'N/A'}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white border border-gray-200 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Product Details</h4>
-                    <div classspace-y-3">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Product Name</p>
-                            <p class="text-lg font-semibold text-gray-900">${data.prod_name || 'N/A'}</p>
-                        </div>
-                        <div class="grid grid-cols-3 gap-4 pt-2">
-                            <div>
-                                <p class="text-xs text-gray-500 uppercase">Unit Price</p>
-                                <p class="text-sm font-semibold">₱${formatMoney(data.prod_price)}</p>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500 uppercase">Quantity</p>
-                                <p class="text-sm font-semibold">${data.ord_quantity || 'N/A'}</p>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500 uppercase">Total</p>
-                                <p class="text-lg font-bold text-green-600">₱${formatMoney(data.ord_total)}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            break;
-
-        case 'equipment':
-            html += `
-                <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Equipment Information</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Equipment ID</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.equipment_id || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Equipment Name</p>
-                            <p class="text-lg font-semibold text-gray-900">${data.equipment_name || 'N/A'}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white border border-gray-200 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Description</h4>
-                    <p class="text-sm text-gray-700 whitespace-pre-wrap">${data.equipment_description || 'No description available'}</p>
-                </div>
-
-                <div class="bg-purple-50 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Stock Information</h4>
-                    <div class="grid grid-cols-3 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Quantity</p>
-                            <p class="text-2xl font-bold text-gray-900">${data.equipment_quantity || '0'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Branch</p>
-                            <p class="text-sm font-semibold text-gray-900">{{ $branch->branch_name }}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Status</p>
-                            <p class="text-sm"><span class="px-3 py-1 rounded-full ${getStatusClass(data.stock_status)}">${data.stock_status || 'N/A'}</span></p>
-                        </div>
-                    </div>
-                </div>
-            `;
-            break;
-
-        case 'services':
-            html += `
-                <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Service Information</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Service ID</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.serv_id || data.service_id || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Service Name</p>
-                            <p class="text-lg font-semibold text-gray-900">${data.serv_name || 'N/A'}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white border border-gray-200 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Details</h4>
-                    <div class="space-y-3">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Description</p>
-                            <p class="text-sm text-gray-700 whitespace-pre-wrap">${data.serv_description || 'No description available'}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Pricing & Availability</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Price</p>
-                            <p class="text-xl font-bold text-green-600">₱${formatMoney(data.serv_price)}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Status</p>
-                            <p class="text-sm"><span class="px-3 py-1 rounded-full bg-green-100 text-green-800">Active</span></p>
-                        </div>
-                    </div>
-                </div>
-            `;
-            break;
-
-        case 'inventory':
-            html += `
-                <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Product Information</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Product ID</p>
-                            <p class="text-sm font-semibold text-gray-900">${data.prod_id || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Product Name</p>
-                            <p class="text-lg font-semibold text-gray-900">${data.prod_name || 'N/A'}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white border border-gray-200 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Product Details</h4>
-                    <div class="space-y-3">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Description</p>
-                            <p class="text-sm text-gray-700 whitespace-pre-wrap">${data.prod_description || 'No description available'}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-orange-50 p-4 rounded-lg border-l-4 border-orange-500">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Stock Information</h4>
-                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Current Stock</p>
-                            <p class="text-2xl font-bold text-gray-900">${data.prod_quantity || '0'}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Branch</p>
-                            <p class="text-sm font-semibold text-gray-900">{{ $branch->branch_name }}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Status</p>
-                            <p class="text-sm"><span class="px-3 py-1 rounded-full ${getStatusClass(data.stock_status)}">${data.stock_status || 'N/A'}</span></p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3">Pricing Information</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Unit Price</p>
-                            <p class="text-xl font-bold text-green-600">₱${formatMoney(data.prod_price)}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500 uppercase">Total Value</p>
-                            <p class="text-sm font-semibold text-gray-900">₱${formatMoney((data.prod_price || 0) * (data.prod_quantity || 0))}</p>
-                        </div>
-                    </div>
-                </div>
-            `;
-            break;
-
-        case 'referrals':
-            html += `
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3 border-b border-gray-300 pb-2">Basic Information</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Referral ID</dt>
-                            <dd class="mt-1 text-sm text-gray-900">${data.ref_id || 'N/A'}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Date</dt>
-                            <dd class="mt-1 text-sm text-gray-900">${formatDate(data.ref_date)}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Owner Name</dt>
-                            <dd class="mt-1 text-sm text-gray-900">${data.own_name || 'N/A'}</dd>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-blue-50 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3 border-b border-gray-300 pb-2">Pet Information</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Pet Name</dt>
-                            <dd class="mt-1 text-sm text-gray-900">${data.pet_name || 'N/A'}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Date of Birth</dt>
-                            <dd class="mt-1 text-sm text-gray-900">${formatDate(data.pet_birthdate)}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Gender</dt>
-                            <dd class="mt-1 text-sm text-gray-900">${data.pet_gender ? data.pet_gender.charAt(0).toUpperCase() + data.pet_gender.slice(1) : 'N/A'}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Species</dt>
-                            <dd class="mt-1 text-sm text-gray-900">${data.pet_species || 'N/A'}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Breed</dt>
-                            <dd class="mt-1 text-sm text-gray-900">${data.pet_breed || 'N/A'}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Contact Number</dt>
-                            <dd class="mt-1 text-sm text-gray-900">${data.own_contactnum || 'N/A'}</dd>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white border border-gray-200 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3 border-b border-gray-300 pb-2">Medical History</h4>
-                    <div class="text-sm text-gray-700 whitespace-pre-wrap">${data.medical_history || 'No medical history provided'}</div>
-                </div>
-
-                <div class="bg-white border border-gray-200 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3 border-b border-gray-300 pb-2">Tests Conducted</h4>
-                    <div class="text-sm text-gray-700 whitespace-pre-wrap">${data.tests_conducted || 'No tests documented'}</div>
-                </div>
-
-                <div class="bg-white border border-gray-200 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3 border-b border-gray-300 pb-2">Medications Given</h4>
-                    <div class="text-sm text-gray-700 whitespace-pre-wrap">${data.medications_given || 'No medications documented'}</div>
-                </div>
-
-                <div class="bg-yellow-50 p-4 rounded-lg">
-                    <h4 class="text-md font-semibold text-gray-800 mb-3 border-b border-gray-300 pb-2">Reason for Referral</h4>
-                    <div class="text-sm text-gray-700 whitespace-pre-wrap">${data.ref_description || 'No reason provided'}</div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="bg-orange-50 p-4 rounded-lg border-l-4 border-orange-400">
-                        <h4 class="text-md font-semibold text-gray-800 mb-3">Referring Veterinarian</h4>
-                        <div class="space-y-2">
-                            <div>
-                                <dt class="text-sm font-medium text-gray-500">From Branch</dt>
-                                <dd class="mt-1 text-sm text-gray-900">${data.ref_by || '{{ $branch->branch_name }}'}</dd>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                        <h4 class="text-md font-semibold text-gray-800 mb-3">Referred To</h4>
-                        <div class="space-y-2">
-                            <div>
-                                <dt class="text-sm font-medium text-gray-500">Branch/Facility</dt>
-                                <dd class="mt-1 text-sm text-gray-900 font-semibold">${data.ref_to || 'N/A'}</dd>
-                            </div>
-                            <div>
-                                <dt class="text-sm font-medium text-gray-500">Purpose</dt>
-                                <dd class="mt-1 text-sm text-gray-900">Specialist Veterinary Care</dd>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            break;
-
-        default:
-            html += '<p class="text-gray-500">No details available for this record type.</p>';
-    }
-    
-    html += '</div>';
-    content.innerHTML = html;
-    modal.classList.remove('hidden');
-}
-
-function closeModal() {
-    document.getElementById('recordModal').classList.add('hidden');
-}
-
-// Helper functions
-function formatDate(date) {
-    if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    });
-}
-
-function formatTime(time) {
-    if (!time) return 'N/A';
-    return new Date('1970-01-01T' + time + 'Z').toLocaleTimeString('en-US', {
-        timeZone: 'UTC',
-        hour12: true,
-        hour: 'numeric',
-        minute: '2-digit'
-    });
-}
-
-function formatMoney(amount) {
-    if (!amount || isNaN(parseFloat(amount))) return '0.00';
-    return parseFloat(amount).toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    });
-}
-
-function getStatusClass(status) {
-    if (!status) return 'bg-gray-100 text-gray-800';
-    const statusLower = status.toString().toLowerCase();
-    if (['completed', 'paid', 'active', 'good', 'good stock'].includes(statusLower)) {
-        return 'bg-green-100 text-green-800 font-medium';
-    } else if (['pending', 'processing'].includes(statusLower)) {
-        return 'bg-yellow-100 text-yellow-800 font-medium';
-    } else if (['cancelled', 'expired', 'inactive', 'out of stock'].includes(statusLower)) {
-        return 'bg-red-100 text-red-800 font-medium';
-    } else if (['low stock', 'expiring soon'].includes(statusLower)) {
-        return 'bg-orange-100 text-orange-800 font-medium';
-    }
-    return 'bg-gray-100 text-gray-800 font-medium';
-}
-
-// Close modal when clicking outside
-document.addEventListener('DOMContentLoaded', function() {
-    const recordModal = document.getElementById('recordModal');
-    
-    if (recordModal) {
-        recordModal.addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeModal();
-            }
-        });
-    }
-});
+// REMOVED: viewRecordDetails function
 
 document.getElementById('reportSelect').addEventListener('change', function() {
     this.form.submit();

@@ -1,794 +1,553 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-    <title>{{ $title }} - {{ $branch->branch_name }}</title>
+    <meta charset="utf-8">
+    <title>{{ $title ?? 'Report Details' }} - {{ $branch->branch_name ?? 'Branch Report' }}</title>
     <style>
+        body {
+            font-family: 'DejaVu Sans', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .header {
+            background-color: #f88e28;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header img {
+            max-height: 80px;
+            /* Ensure image path is correct, use public_path() for dompdf */
+            content: url("{{ public_path('images/header.jpg') }}");
+        }
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #1f2937;
+            text-transform: uppercase;
+        }
+        .section {
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+        }
+        .section-header {
+            background-color: #3b82f6;
+            color: white;
+            padding: 10px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 14px;
+            page-break-after: avoid; /* Keep header with content */
+        }
+        .section-header.orange { background-color: #f88e28; }
+        .section-header.green { background-color: #059669; }
+        .section-header.purple { background-color: #7c3aed; }
+        .section-header.yellow { background-color: #eab308; }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        td {
+            padding: 8px;
+            border: 1px solid #e5e7eb;
+            vertical-align: top;
+            /* Added float for layout fix, necessary when mixing tables and text */
+            float: none !important; 
+        }
+        .label {
+            font-weight: 600;
+            color: #6b7280;
+            width: 35%;
+            background-color: #f9fafb;
+            text-transform: uppercase;
+            font-size: 11px;
+        }
+        .value {
+            color: #1f2937;
+            font-size: 13px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+             /* Force print colors */
+            -webkit-print-color-adjust: exact;
+            color-adjust: exact;
+        }
+        .status-completed, .status-paid, .status-active, .status-good {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        .status-pending, .status-processing {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        .status-cancelled, .status-expired, .status-inactive, .status-out {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+        .status-low {
+            background-color: #ffedd5;
+            color: #9a3412;
+        }
+        .amount {
+            font-size: 16px; /* Slightly smaller for table cell */
+            font-weight: bold;
+            color: #059669;
+        }
+        .text-area {
+            padding: 12px;
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            min-height: 50px;
+            white-space: pre-wrap;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        /* Page numbering for consistency */
         @page {
             size: letter;
             margin: 15mm 20mm 25mm 20mm;
+            counter-increment: page;
+            @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 10px;
+                color: #6b7280;
+            }
         }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: 'DejaVu Sans', Arial, sans-serif;
-            font-size: 10pt;
-            line-height: 1.4;
-            color: #1f2937;
-        }
-
-        .first-page-header {
-            background-color: #f88e28;
-            padding: 12px 15px;
-            margin: 0 0 20px 0;
-            text-align: center;
-            border-radius: 4px;
-        }
-
-        .first-page-header img {
-            max-height: 70px;
-            width: 100%;
-            object-fit: contain;
-        }
-
-        .page-footer {
-            position: fixed;
-            bottom: 0;
-            left: 20mm;
-            right: 20mm;
-            height: 18mm;
-            padding: 8px 0;
-            border-top: 2px solid #f88e28;
-            font-size: 8pt;
-            color: #6b7280;
-            background-color: white;
-        }
-
-        .footer-content {
-            display: table;
-            width: 100%;
-        }
-
-        .footer-left, .footer-center, .footer-right {
-            display: table-cell;
-            vertical-align: middle;
-        }
-
-        .footer-left {
-            text-align: left;
-            width: 33%;
-        }
-
-        .footer-center {
-            text-align: center;
-            width: 34%;
-        }
-
-        .footer-right {
-            text-align: right;
-            width: 33%;
-        }
-
-        .page-number:before {
-            content: counter(page);
-        }
-
-        .page-total:before {
-            content: counter(pages);
-        }
-
-        .content-wrapper {
-            margin-bottom: 22mm;
-        }
-
-        .report-title-section {
-            text-align: center;
-            margin-bottom: 20px;
-            padding-bottom: 12px;
-            border-bottom: 3px solid #f88e28;
-            page-break-after: avoid;
-        }
-
-        .report-title {
-            font-size: 18pt;
-            font-weight: bold;
-            color: #1f2937;
-            margin-bottom: 5px;
-        }
-
-        .report-subtitle {
-            font-size: 11pt;
-            color: #6b7280;
-            margin-bottom: 3px;
-        }
-
-        .report-id {
-            font-size: 9pt;
-            color: #9ca3af;
-            font-family: 'Courier New', monospace;
-        }
-
-        .section-header {
-            background-color: #f88e28;
-            color: white;
-            padding: 10px 14px;
-            margin-top: 18px;
-            margin-bottom: 10px;
-            border-radius: 3px;
-            font-weight: 600;
-            font-size: 11pt;
-            page-break-after: avoid;
-        }
-
-        .section-header:first-of-type {
-            margin-top: 0;
-        }
-
-        .info-row {
-            display: table;
-            width: 100%;
-            margin-bottom: 6px;
-            padding: 7px 10px;
-            background-color: #f9fafb;
-            border-radius: 3px;
-            page-break-inside: avoid;
-        }
-
-        .info-label {
-            display: table-cell;
-            font-weight: 600;
-            color: #4b5563;
-            width: 180px;
-            font-size: 9.5pt;
-        }
-
-        .info-value {
-            display: table-cell;
-            color: #1f2937;
-            font-size: 9.5pt;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 10px;
-            font-size: 8.5pt;
-            font-weight: 600;
-        }
-
-        .status-completed, .status-paid, .status-arrived, .status-active { 
-            background-color: #d1fae5; 
-            color: #065f46; 
-        }
-        
-        .status-pending, .status-rescheduled { 
-            background-color: #fef3c7; 
-            color: #92400e; 
-        }
-        
-        .status-cancelled, .status-missed { 
-            background-color: #fee2e2; 
-            color: #991b1b; 
-        }
-
-        .text-content-box {
-            padding: 10px;
-            background-color: #f9fafb;
-            border-radius: 4px;
-            border-left: 3px solid #3b82f6;
-            margin-bottom: 10px;
-            line-height: 1.6;
-            white-space: pre-wrap;
-            page-break-inside: avoid;
-            font-size: 9.5pt;
-        }
-
-        .signature-section {
+        .footer {
             margin-top: 40px;
-            page-break-inside: avoid;
-        }
-
-        .signature-grid {
-            display: table;
-            width: 100%;
-            margin-top: 15px;
-        }
-
-        .signature-box {
-            display: table-cell;
-            width: 50%;
             text-align: center;
-            padding: 0 15px;
-        }
-
-        .signature-line {
-            border-bottom: 2px solid #1f2937;
-            min-height: 35px;
-            margin-bottom: 8px;
-        }
-
-        .end-notice {
-            margin-top: 25px;
-            padding: 12px;
-            background-color: #f3f4f6;
-            border-radius: 5px;
-            text-align: center;
-            page-break-inside: avoid;
-        }
-
-        .referral-info-grid {
-            margin-top: 10px;
-        }
-
-        .referral-boxes {
-            display: table;
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 10px 0;
-        }
-
-        .referral-box {
-            display: table-cell;
-            width: 50%;
-            padding: 10px;
-            border-radius: 4px;
-            border: 2px solid;
-            font-size: 9pt;
-        }
-
-        .referral-box.from {
-            background-color: #fff7ed;
-            border-color: #fb923c;
-        }
-
-        .referral-box.to {
-            background-color: #eff6ff;
-            border-color: #60a5fa;
-        }
-
-        .referral-box h4 {
-            font-weight: 600;
-            margin-bottom: 8px;
-            font-size: 10pt;
-        }
-
-        .referral-box.from h4 { color: #ea580c; }
-        .referral-box.to h4 { color: #2563eb; }
-
-        .ref-detail {
-            margin-bottom: 6px;
-        }
-
-        .ref-detail-label {
-            font-size: 8pt;
+            font-size: 10px;
             color: #6b7280;
-            margin-bottom: 2px;
-        }
-
-        .ref-detail-value {
-            font-weight: 600;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 15px;
         }
     </style>
 </head>
 <body>
-    <div class="page-footer">
-        <div class="footer-content">
-            <div class="footer-left">
-                <strong>{{ $branch->branch_name }}</strong>
-            </div>
-            <div class="footer-center">
-                Generated: {{ \Carbon\Carbon::now()->format('M d, Y - h:i A') }}
-            </div>
-            <div class="footer-right">
-                Page <span class="page-number"></span> of <span class="page-total"></span>
-            </div>
-        </div>
+    @php
+        // Map data structure from eloquent objects/db result to unified variable $record
+        $record = $data;
+
+        // Helper function definitions from your desired template:
+        function getStatusClass($status) {
+            if (!$status) return '';
+            $statusLower = strtolower($status);
+            if (in_array($statusLower, ['completed', 'paid', 'active', 'good', 'good stock'])) {
+                return 'status-completed';
+            } elseif (in_array($statusLower, ['pending', 'processing', 'low stock'])) {
+                return 'status-pending';
+            } elseif (in_array($statusLower, ['cancelled', 'expired', 'inactive', 'out of stock'])) {
+                return 'status-cancelled';
+            } elseif (in_array($statusLower, ['low stock', 'expiring soon'])) {
+                return 'status-low';
+            }
+            return '';
+        }
+
+        function formatDate($date) {
+            if (!$date) return 'N/A';
+            try {
+                return \Carbon\Carbon::parse($date)->format('F d, Y');
+            } catch (\Exception $e) {
+                return 'N/A';
+            }
+        }
+
+        function formatTime($time) {
+            if (!$time) return 'N/A';
+            try {
+                return \Carbon\Carbon::parse($time)->format('h:i A');
+            } catch (\Exception $e) {
+                return 'N/A';
+            }
+        }
+
+        function getField($record, ...$fields) {
+            foreach ($fields as $field) {
+                if (is_object($record) && isset($record->$field) && $record->$field !== null && $record->$field !== '') {
+                    // Special handling for relational data nested in controller fetch, if necessary
+                    if ($field === 'owner_name' && isset($record->owner->own_name)) return $record->owner->own_name;
+                    if ($field === 'owner_contact' && isset($record->owner->own_contactnum)) return $record->owner->own_contactnum;
+                    if ($field === 'pet_name' && isset($record->pet->pet_name)) return $record->pet->pet_name;
+                    if ($field === 'pet_species' && isset($record->pet->pet_species)) return $record->pet->pet_species;
+                    if ($field === 'pet_breed' && isset($record->pet->pet_breed)) return $record->pet->pet_breed;
+                    if ($field === 'pet_gender' && isset($record->pet->pet_gender)) return $record->pet->pet_gender;
+                    if ($field === 'branch_name' && isset($record->branch->branch_name)) return $record->branch->branch_name;
+
+                    // Fallback to direct field
+                    return $record->$field;
+                }
+            }
+            return null;
+        }
+    @endphp
+
+    <div class="header">
+        <img src="{{ public_path('images/header.jpg') }}" alt="Pets2GO Veterinary Clinic">
     </div>
 
-    <div class="content-wrapper">
-        <div class="first-page-header">
-            <img src="{{ public_path('images/header.jpg') }}" alt="Pets2GO Veterinary Clinic Header">
+    <div class="title">{{ $title ?? 'REPORT DETAILS' }}</div>
+    <p style="text-align: center; font-size: 12px; color: #6b7280; margin-top: -15px;">
+        **Branch:** {{ $branch->branch_name ?? 'N/A' }} | **Generated:** {{ \Carbon\Carbon::now()->format('F d, Y h:i A') }}
+    </p>
+
+    {{-- 1. APPOINTMENTS REPORT (Includes Pets data for eloquent models) --}}
+    @if($reportType === 'appointments')
+        <div class="section">
+            <div class="section-header">Appointment & Handler Information</div>
+            <table>
+                <tr>
+                    <td class="label">Appointment ID</td>
+                    <td class="value">{{ getField($record, 'appoint_id') ?? 'N/A' }}</td>
+                    <td class="label">Branch</td>
+                    <td class="value">{{ getField($record, 'branch_name', 'user.branch.branch_name') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Date</td>
+                    <td class="value">{{ formatDate(getField($record, 'appoint_date')) }}</td>
+                    <td class="label">Time</td>
+                    <td class="value">{{ formatTime(getField($record, 'appoint_time')) }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Status</td>
+                    <td class="value">{{ ucfirst(getField($record, 'appoint_status')) }}</td>
+                    <td class="label">Veterinarian</td>
+                    <td class="value">{{ getField($record, 'user.name') ?? 'N/A' }}</td>
+                </tr>
+            </table>
         </div>
 
-        <div class="report-title-section">
-            <div class="report-title">{{ $title }}</div>
-            <div class="report-subtitle">{{ $branch->branch_name }}</div>
-            <div class="report-id">
-                @php
-                    switch ($reportType) {
-                        case 'appointments':
-                            $idField = 'appoint_id';
-                            break;
-                        case 'pets':
-                            $idField = 'pet_id';
-                            break;
-                        case 'referrals':
-                            $idField = 'ref_id';
-                            break;
-                        case 'billing':
-                            $idField = 'bill_id';
-                            break;
-                        case 'sales':
-                            $idField = 'ord_id';
-                            break;
-                        case 'equipment':
-                            $idField = 'equipment_id';
-                            break;
-                        case 'services':
-                            $idField = 'service_id';
-                            break;
-                        case 'inventory':
-                            $idField = 'prod_id';
-                            break;
-                        default:
-                            $idField = 'id';
-                            break;
-                    }
-                @endphp
-                Report ID: {{ strtoupper($reportType) }}-{{ str_pad($data->{$idField} ?? '000', 6, '0', STR_PAD_LEFT) }}
-            </div>
+        <div class="section">
+            <div class="section-header orange">Patient & Owner Information</div>
+            <table>
+                <tr>
+                    <td class="label">Owner Name</td>
+                    <td class="value">{{ getField($record, 'pet.owner.own_name') ?? 'N/A' }}</td>
+                    <td class="label">Contact Number</td>
+                    <td class="value">{{ getField($record, 'pet.owner.own_contactnum') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Pet Name</td>
+                    <td class="value">{{ getField($record, 'pet.pet_name') ?? 'N/A' }}</td>
+                    <td class="label">Species</td>
+                    <td class="value">{{ getField($record, 'pet.pet_species') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Breed</td>
+                    <td class="value">{{ getField($record, 'pet.pet_breed') ?? 'N/A' }}</td>
+                    <td class="label">Age</td>
+                    <td class="value">{{ getField($record, 'pet.pet_age') ?? 'N/A' }} years</td>
+                </tr>
+            </table>
         </div>
 
-        @if($reportType === 'appointments')
-            <div class="section-header">Patient & Owner Information</div>
-            <div class="info-row">
-                <div class="info-label">Appointment ID:</div>
-                <div class="info-value"><strong>{{ $data->appoint_id }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Owner Name:</div>
-                <div class="info-value">{{ $data->pet->owner->own_name ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Contact Number:</div>
-                <div class="info-value">{{ $data->pet->owner->own_contactnum ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Email Address:</div>
-                <div class="info-value">{{ $data->pet->owner->own_email ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Address:</div>
-                <div class="info-value">{{ $data->pet->owner->own_location ?? 'N/A' }}</div>
-            </div>
-
-            <div class="section-header">Pet Information</div>
-            <div class="info-row">
-                <div class="info-label">Pet Name:</div>
-                <div class="info-value"><strong>{{ $data->pet->pet_name ?? 'N/A' }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Species:</div>
-                <div class="info-value">{{ $data->pet->pet_species ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Breed:</div>
-                <div class="info-value">{{ $data->pet->pet_breed ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Age:</div>
-                <div class="info-value">{{ $data->pet->pet_age ?? 'N/A' }} years old</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Gender:</div>
-                <div class="info-value">{{ ucfirst($data->pet->pet_gender ?? 'N/A') }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Weight:</div>
-                <div class="info-value">{{ $data->pet->pet_weight ?? 'N/A' }} kg</div>
-            </div>
-            @if($data->pet->pet_temperature)
-            <div class="info-row">
-                <div class="info-label">Temperature:</div>
-                <div class="info-value">{{ $data->pet->pet_temperature }} °C</div>
-            </div>
-            @endif
-
-            <div class="section-header">Appointment Details</div>
-            <div class="info-row">
-                <div class="info-label">Appointment Date:</div>
-                <div class="info-value"><strong>{{ \Carbon\Carbon::parse($data->appoint_date)->format('l, F d, Y') }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Appointment Time:</div>
-                <div class="info-value"><strong>{{ \Carbon\Carbon::parse($data->appoint_time)->format('h:i A') }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Appointment Type:</div>
-                <div class="info-value">{{ ucfirst($data->appoint_type ?? 'N/A') }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Veterinarian:</div>
-                <div class="info-value">{{ $data->user->name ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Branch Location:</div>
-                <div class="info-value">{{ $data->user->branch->branch_name ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Status:</div>
-                <div class="info-value">
-                    <span class="status-badge status-{{ strtolower($data->appoint_status) }}">
-                        {{ strtoupper($data->appoint_status) }}
-                    </span>
-                </div>
-            </div>
-
-            @if($data->appoint_description)
-            <div class="section-header">Notes & Description</div>
-            <div class="text-content-box">{{ $data->appoint_description }}</div>
-            @endif
-
-        @elseif($reportType === 'pets')
+        @if(getField($record, 'appoint_description'))
+        <div class="section">
+            <div class="section-header">Description/Notes</div>
+            <div class="text-area">{{ getField($record, 'appoint_description') }}</div>
+        </div>
+        @endif
+    {{-- 2. PETS REPORT --}}
+    @elseif($reportType === 'pets')
+        <div class="section">
             <div class="section-header">Owner Information</div>
-            <div class="info-row">
-                <div class="info-label">Owner Name:</div>
-                <div class="info-value"><strong>{{ $data->owner->own_name ?? 'N/A' }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Contact Number:</div>
-                <div class="info-value">{{ $data->owner->own_contactnum ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Email Address:</div>
-                <div class="info-value">{{ $data->owner->own_email ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Address:</div>
-                <div class="info-value">{{ $data->owner->own_location ?? 'N/A' }}</div>
-            </div>
+            <table>
+                <tr>
+                    <td class="label">Owner Name</td>
+                    <td class="value">{{ getField($record, 'owner.own_name') ?? 'N/A' }}</td>
+                    <td class="label">Contact</td>
+                    <td class="value">{{ getField($record, 'owner.own_contactnum') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Address</td>
+                    <td class="value" colspan="3">{{ getField($record, 'owner.own_location') ?? 'N/A' }}</td>
+                </tr>
+            </table>
+        </div>
 
-            <div class="section-header">Pet Registration Details</div>
-            <div class="info-row">
-                <div class="info-label">Pet ID:</div>
-                <div class="info-value"><strong>{{ $data->pet_id }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Pet Name:</div>
-                <div class="info-value"><strong>{{ $data->pet_name }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Species:</div>
-                <div class="info-value">{{ $data->pet_species }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Breed:</div>
-                <div class="info-value">{{ $data->pet_breed }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Date of Birth:</div>
-                <div class="info-value">{{ \Carbon\Carbon::parse($data->pet_birthdate)->format('F d, Y') }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Age:</div>
-                <div class="info-value">{{ $data->pet_age }} years old</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Gender:</div>
-                <div class="info-value">{{ ucfirst($data->pet_gender) }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Weight:</div>
-                <div class="info-value">{{ $data->pet_weight ?? 'N/A' }} kg</div>
-            </div>
-            @if(isset($data->pet_temperature))
-            <div class="info-row">
-                <div class="info-label">Temperature:</div>
-                <div class="info-value">{{ $data->pet_temperature }} °C</div>
+        <div class="section">
+            <div class="section-header orange">Pet Profile</div>
+            <table>
+                <tr>
+                    <td class="label">Pet ID</td>
+                    <td class="value">{{ getField($record, 'pet_id') ?? 'N/A' }}</td>
+                    <td class="label">Name</td>
+                    <td class="value">{{ getField($record, 'pet_name') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Species</td>
+                    <td class="value">{{ getField($record, 'pet_species') ?? 'N/A' }}</td>
+                    <td class="label">Breed</td>
+                    <td class="value">{{ getField($record, 'pet_breed') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Gender</td>
+                    <td class="value">{{ ucfirst(getField($record, 'pet_gender') ?? 'N/A') }}</td>
+                    <td class="label">Date of Birth</td>
+                    <td class="value">{{ formatDate(getField($record, 'pet_birthdate')) }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Weight</td>
+                    <td class="value">{{ getField($record, 'pet_weight') ?? 'N/A' }} kg</td>
+                    <td class="label">Registration Date</td>
+                    <td class="value">{{ formatDate(getField($record, 'pet_registration')) }}</td>
+                </tr>
+            </table>
+        </div>
+    {{-- 3. BILLING REPORT (DB Query result) --}}
+    @elseif($reportType === 'billing')
+        <div class="section">
+            <div class="section-header">Customer & Branch Information</div>
+            <table>
+                <tr>
+                    <td class="label">Bill ID</td>
+                    <td class="value">{{ getField($record, 'bill_id') ?? 'N/A' }}</td>
+                    <td class="label">Customer Name</td>
+                    <td class="value">{{ getField($record, 'own_name') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Pet Name</td>
+                    <td class="value">{{ getField($record, 'pet_name') ?? 'N/A' }}</td>
+                    <td class="label">Contact Number</td>
+                    <td class="value">{{ getField($record, 'own_contactnum') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Service Date</td>
+                    <td class="value">{{ formatDate(getField($record, 'appoint_date')) }}</td>
+                    <td class="label">Billing Date</td>
+                    <td class="value">{{ formatDate(getField($record, 'bill_date')) }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="section">
+            <div class="section-header green">Payment Summary</div>
+            <table>
+                <tr>
+                    <td class="label">Total Amount</td>
+                    <td class="value" colspan="3"><span class="amount">₱{{ number_format(getField($record, 'pay_total') ?? 0, 2) }}</span></td>
+                </tr>
+                <tr>
+                    <td class="label">Payment Status</td>
+                    <td class="value" colspan="3">
+                        <span class="status-badge {{ getStatusClass(getField($record, 'bill_status')) }}">
+                            {{ ucfirst(getField($record, 'bill_status') ?? 'N/A') }}
+                        </span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+    {{-- 4. SALES REPORT --}}
+    @elseif($reportType === 'sales')
+        <div class="section">
+            <div class="section-header">Transaction Information</div>
+            <table>
+                <tr>
+                    <td class="label">Order ID</td>
+                    <td class="value">{{ getField($record, 'ord_id') ?? 'N/A' }}</td>
+                    <td class="label">Sale Date</td>
+                    <td class="value">{{ formatDate(getField($record, 'ord_date')) }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Customer</td>
+                    <td class="value">{{ getField($record, 'owner.own_name') ?? 'Walk-in' }}</td>
+                    <td class="label">Cashier</td>
+                    <td class="value">{{ getField($record, 'user.name') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Branch</td>
+                    <td class="value" colspan="3">{{ getField($record, 'user.branch.branch_name') ?? 'N/A' }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="section">
+            <div class="section-header orange">Product Details</div>
+            <table>
+                <tr>
+                    <td class="label">Product Name</td>
+                    <td class="value">{{ getField($record, 'product.prod_name') ?? 'N/A' }}</td>
+                    <td class="label">Unit Price</td>
+                    <td class="value">₱{{ number_format(getField($record, 'product.prod_price') ?? 0, 2) }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Quantity Sold</td>
+                    <td class="value">{{ getField($record, 'ord_quantity') ?? 0 }}</td>
+                    <td class="label">Total Amount</td>
+                    <td class="value"><span class="amount">₱{{ number_format(getField($record, 'ord_total') ?? 0, 2) }}</span></td>
+                </tr>
+            </table>
+            @if(getField($record, 'product.prod_description'))
+            <div class="section">
+                <div class="section-header">Product Description</div>
+                <div class="text-area">{{ getField($record, 'product.prod_description') }}</div>
             </div>
             @endif
-            <div class="info-row">
-                <div class="info-label">Registration Date:</div>
-                <div class="info-value"><strong>{{ \Carbon\Carbon::parse($data->pet_registration)->format('l, F d, Y') }}</strong></div>
-            </div>
-
-        @elseif($reportType === 'referrals')
+        </div>
+    {{-- 5. REFERRALS REPORT --}}
+    @elseif($reportType === 'referrals')
+        <div class="section">
             <div class="section-header">Basic Information</div>
-            <div class="info-row">
-                <div class="info-label">Referral ID:</div>
-                <div class="info-value"><strong>{{ $data->ref_id }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Referral Date:</div>
-                <div class="info-value"><strong>{{ \Carbon\Carbon::parse($data->ref_date)->format('l, F d, Y') }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Owner Name:</div>
-                <div class="info-value">{{ $data->appointment->pet->owner->own_name ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Contact Number:</div>
-                <div class="info-value">{{ $data->appointment->pet->owner->own_contactnum ?? 'N/A' }}</div>
-            </div>
-
-            <div class="section-header">Pet Information</div>
-            <div class="info-row">
-                <div class="info-label">Pet Name:</div>
-                <div class="info-value"><strong>{{ $data->appointment->pet->pet_name ?? 'N/A' }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Species:</div>
-                <div class="info-value">{{ $data->appointment->pet->pet_species ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Breed:</div>
-                <div class="info-value">{{ $data->appointment->pet->pet_breed ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Date of Birth:</div>
-                <div class="info-value">{{ \Carbon\Carbon::parse($data->appointment->pet->pet_birthdate)->format('F d, Y') }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Gender:</div>
-                <div class="info-value">{{ ucfirst($data->appointment->pet->pet_gender ?? 'N/A') }}</div>
-            </div>
-
-            <div class="section-header">Medical History</div>
-            <div class="text-content-box">{{ $data->medical_history ?? 'No medical history provided' }}</div>
-
-            <div class="section-header">Tests Conducted</div>
-            <div class="text-content-box" style="border-left-color: #8b5cf6;">{{ $data->tests_conducted ?? 'No tests documented' }}</div>
-
-            <div class="section-header">Medications Given</div>
-            <div class="text-content-box" style="border-left-color: #10b981;">{{ $data->medications_given ?? 'No medications documented' }}</div>
-
+            <table>
+                <tr>
+                    <td class="label">Referral ID</td>
+                    <td class="value">{{ getField($record, 'ref_id') ?? 'N/A' }}</td>
+                    <td class="label">Date</td>
+                    <td class="value">{{ formatDate(getField($record, 'ref_date')) }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Pet Name</td>
+                    <td class="value">{{ getField($record, 'appointment.pet.pet_name') ?? 'N/A' }}</td>
+                    <td class="label">Owner Name</td>
+                    <td class="value">{{ getField($record, 'appointment.pet.owner.own_name') ?? 'N/A' }}</td>
+                </tr>
+            </table>
+        </div>
+        <div class="section">
+            <div class="section-header orange">Referral Details</div>
+            <table>
+                <tr>
+                    <td class="label">Referred By (Staff)</td>
+                    <td class="value">{{ getField($record, 'appointment.user.name') ?? 'N/A' }}</td>
+                    <td class="label">From Branch</td>
+                    <td class="value">{{ getField($record, 'appointment.user.branch.branch_name') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Referred To (Facility)</td>
+                    <td class="value" colspan="3">{{ getField($record, 'ref_to') ?? 'N/A' }}</td>
+                </tr>
+            </table>
+        </div>
+        <div class="section">
             <div class="section-header">Reason for Referral</div>
-            <div class="text-content-box" style="background-color: #fef3c7; border-left-color: #f59e0b;">
-                <strong>{{ $data->ref_description ?? 'No reason provided' }}</strong>
-            </div>
-
-            <div class="section-header">Referral Information</div>
-            <div class="referral-info-grid">
-                <div class="referral-boxes">
-                    <div class="referral-box from">
-                        <h4>Referring Veterinarian</h4>
-                        <div class="ref-detail">
-                            <div class="ref-detail-label">Veterinarian:</div>
-                            <div class="ref-detail-value">{{ $data->appointment->user->name ?? 'N/A' }}</div>
-                        </div>
-                        <div class="ref-detail">
-                            <div class="ref-detail-label">From Branch:</div>
-                            <div class="ref-detail-value">{{ $data->appointment->user->branch->branch_name ?? 'N/A' }}</div>
-                        </div>
-                    </div>
-
-                    <div class="referral-box to">
-                        <h4>Referred To</h4>
-                        <div class="ref-detail">
-                            <div class="ref-detail-label">Branch/Facility:</div>
-                            <div class="ref-detail-value" style="color: #2563eb;">{{ $data->ref_to ?? 'N/A' }}</div>
-                        </div>
-                        <div class="ref-detail">
-                            <div class="ref-detail-label">Purpose:</div>
-                            <div class="ref-detail-value">Specialist Veterinary Care</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-        @elseif($reportType === 'billing')
-            <div class="section-header">Customer Information</div>
-            <div class="info-row">
-                <div class="info-label">Bill ID:</div>
-                <div class="info-value"><strong>{{ $data->bill_id }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Customer Name:</div>
-                <div class="info-value">{{ $data->own_name ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Contact Number:</div>
-                <div class="info-value">{{ $data->own_contactnum ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Pet Name:</div>
-                <div class="info-value">{{ $data->pet_name ?? 'N/A' }}</div>
-            </div>
-
-            <div class="section-header">Billing Details</div>
-            <div class="info-row">
-                <div class="info-label">Service Date:</div>
-                <div class="info-value"><strong>{{ \Carbon\Carbon::parse($data->appoint_date)->format('l, F d, Y') }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Bill Date:</div>
-                <div class="info-value">{{ \Carbon\Carbon::parse($data->bill_date ?? $data->appoint_date)->format('l, F d, Y') }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Total Amount:</div>
-                <div class="info-value"><strong style="color: #059669;">₱{{ number_format($data->pay_total ?? 0, 2) }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Payment Status:</div>
-                <div class="info-value">
-                    <span class="status-badge status-{{ strtolower($data->bill_status ?? 'pending') }}">
-                        {{ strtoupper($data->bill_status ?? 'PENDING') }}
-                    </span>
-                </div>
-            </div>
-
-        @elseif($reportType === 'sales')
-            <div class="section-header">Customer Information</div>
-            <div class="info-row">
-                <div class="info-label">Order ID:</div>
-                <div class="info-value"><strong>{{ $data->ord_id }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Customer Name:</div>
-                <div class="info-value">{{ $data->owner->own_name ?? 'Walk-in Customer' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Contact Number:</div>
-                <div class="info-value">{{ $data->owner->own_contactnum ?? 'N/A' }}</div>
-            </div>
-
-            <div class="section-header">Sales Details</div>
-            <div class="info-row">
-                <div class="info-label">Sale Date:</div>
-                <div class="info-value"><strong>{{ \Carbon\Carbon::parse($data->ord_date)->format('l, F d, Y') }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Product Name:</div>
-                <div class="info-value">{{ $data->product->prod_name ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Product Description:</div>
-                <div class="info-value">{{ $data->product->prod_description ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Quantity Sold:</div>
-                <div class="info-value">{{ $data->ord_quantity }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Unit Price:</div>
-                <div class="info-value">₱{{ number_format($data->product->prod_price ?? 0, 2) }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Total Amount:</div>
-                <div class="info-value"><strong style="color: #059669;">₱{{ number_format($data->ord_total, 2) }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Cashier:</div>
-                <div class="info-value">{{ $data->user->name ?? 'N/A' }}</div>
-            </div>
-
-        @elseif($reportType === 'equipment')
+            <div class="text-area">{{ getField($record, 'ref_description') ?? 'No reason provided' }}</div>
+        </div>
+    {{-- 6. EQUIPMENT REPORT --}}
+    @elseif($reportType === 'equipment')
+        <div class="section">
             <div class="section-header">Equipment Details</div>
-            <div class="info-row">
-                <div class="info-label">Equipment ID:</div>
-                <div class="info-value"><strong>{{ $data->equipment_id }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Equipment Name:</div>
-                <div class="info-value"><strong>{{ $data->equipment_name }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Description:</div>
-                <div class="info-value">{{ $data->equipment_description ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Quantity:</div>
-                <div class="info-value">{{ $data->equipment_quantity }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Branch:</div>
-                <div class="info-value">{{ $branch->branch_name }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Stock Status:</div>
-                <div class="info-value">
-                    @php
-                        $qty = $data->equipment_quantity;
-                        $status = $qty > 10 ? 'Good Stock' : ($qty > 0 ? 'Low Stock' : 'Out of Stock');
-                        $statusClass = $qty > 10 ? 'completed' : ($qty > 0 ? 'pending' : 'cancelled');
-                    @endphp
-                    <span class="status-badge status-{{ $statusClass }}">
-                        {{ strtoupper($status) }}
-                    </span>
-                </div>
-            </div>
-
-        @elseif($reportType === 'services')
+            <table>
+                <tr>
+                    <td class="label">Equipment ID</td>
+                    <td class="value">{{ getField($record, 'equipment_id') ?? 'N/A' }}</td>
+                    <td class="label">Name</td>
+                    <td class="value">{{ getField($record, 'equipment_name') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Branch</td>
+                    <td class="value">{{ $branch->branch_name ?? 'N/A' }}</td>
+                    <td class="label">Quantity</td>
+                    <td class="value">{{ getField($record, 'equipment_quantity') ?? 0 }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Status</td>
+                    <td class="value" colspan="3">
+                         @php 
+                            $qty = getField($record, 'equipment_quantity');
+                            $status = $qty > 10 ? 'Good Stock' : ($qty > 0 ? 'Low Stock' : 'Out of Stock');
+                        @endphp
+                        <span class="status-badge {{ getStatusClass($status) }}">{{ $status }}</span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        @if(getField($record, 'equipment_description'))
+        <div class="section">
+            <div class="section-header">Description</div>
+            <div class="text-area">{{ getField($record, 'equipment_description') }}</div>
+        </div>
+        @endif
+    {{-- 7. SERVICES REPORT --}}
+    @elseif($reportType === 'services')
+        <div class="section">
             <div class="section-header">Service Details</div>
-            <div class="info-row">
-                <div class="info-label">Service ID:</div>
-                <div class="info-value"><strong>{{ $data->service_id }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Service Name:</div>
-                <div class="info-value"><strong>{{ $data->service_name }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Description:</div>
-                <div class="info-value">{{ $data->service_description }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Price:</div>
-                <div class="info-value"><strong style="color: #059669;">₱{{ number_format($data->service_price, 2) }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Branch:</div>
-                <div class="info-value">{{ $data->branch->branch_name ?? $branch->branch_name }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Status:</div>
-                <div class="info-value">
-                    <span class="status-badge status-active">ACTIVE</span>
-                </div>
-            </div>
-
-        @elseif($reportType === 'inventory')
+            <table>
+                <tr>
+                    <td class="label">Service ID</td>
+                    <td class="value">{{ getField($record, 'serv_id') ?? 'N/A' }}</td>
+                    <td class="label">Name</td>
+                    <td class="value">{{ getField($record, 'serv_name') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Branch</td>
+                    <td class="value">{{ $branch->branch_name ?? 'N/A' }}</td>
+                    <td class="label">Price</td>
+                    <td class="value"><span class="amount">₱{{ number_format(getField($record, 'serv_price') ?? 0, 2) }}</span></td>
+                </tr>
+                <tr>
+                    <td class="label">Status</td>
+                    <td class="value" colspan="3">
+                        <span class="status-badge status-active">ACTIVE</span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        @if(getField($record, 'serv_description'))
+        <div class="section">
+            <div class="section-header">Description</div>
+            <div class="text-area">{{ getField($record, 'serv_description') }}</div>
+        </div>
+        @endif
+    {{-- 8. INVENTORY REPORT --}}
+    @elseif($reportType === 'inventory')
+        <div class="section">
             <div class="section-header">Product Details</div>
-            <div class="info-row">
-                <div class="info-label">Product ID:</div>
-                <div class="info-value"><strong>{{ $data->prod_id }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Product Name:</div>
-                <div class="info-value"><strong>{{ $data->prod_name }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Description:</div>
-                <div class="info-value">{{ $data->prod_description }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Quantity in Stock:</div>
-                <div class="info-value">{{ $data->prod_quantity }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Unit Price:</div>
-                <div class="info-value"><strong style="color: #059669;">₱{{ number_format($data->prod_price, 2) }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Total Value:</div>
-                <div class="info-value"><strong style="color: #059669;">₱{{ number_format($data->prod_quantity * $data->prod_price, 2) }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Stock Status:</div>
-                <div class="info-value">
-                    @php
-                        $qty = $data->prod_quantity;
-                        $status = $qty > 20 ? 'Good Stock' : ($qty > 0 ? 'Low Stock' : 'Out of Stock');
-                        $statusClass = $qty > 20 ? 'completed' : ($qty > 0 ? 'pending' : 'cancelled');
-                    @endphp
-                    <span class="status-badge status-{{ $statusClass }}">
-                        {{ strtoupper($status) }}
-                    </span>
-                </div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Branch:</div>
-                <div class="info-value">{{ $data->branch->branch_name ?? $branch->branch_name }}</div>
-            </div>
-    @endif
-
-    <div class="signature-section">
-        <div class="signature-grid">
-            <div class="signature-box">
-                <div class="signature-line"></div>
-                <p style="font-weight: 600; margin-bottom: 3px; font-size: 9.5pt;">Prepared By</p>
-                <p style="font-size: 8.5pt; color: #6b7280;">{{ auth()->user()->name }}</p>
-            </div>
-            <div class="signature-box">
-                <div class="signature-line"></div>
-                <p style="font-weight: 600; margin-bottom: 3px; font-size: 9.5pt;">Verified By</p>
-                <p style="font-size: 8.5pt; color: #6b7280;">Branch Manager</p>
+            <table>
+                <tr>
+                    <td class="label">Product ID</td>
+                    <td class="value">{{ getField($record, 'prod_id') ?? 'N/A' }}</td>
+                    <td class="label">Name</td>
+                    <td class="value">{{ getField($record, 'prod_name') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Branch</td>
+                    <td class="value">{{ $branch->branch_name ?? 'N/A' }}</td>
+                    <td class="label">Unit Price</td>
+                    <td class="value">₱{{ number_format(getField($record, 'prod_price') ?? 0, 2) }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Quantity in Stock</td>
+                    <td class="value">{{ getField($record, 'prod_quantity', 'prod_stocks') ?? 0 }}</td>
+                    <td class="label">Stock Status</td>
+                    <td class="value">
+                        @php 
+                            $qty = getField($record, 'prod_quantity', 'prod_stocks');
+                            $status = $qty > 20 ? 'Good Stock' : ($qty > 0 ? 'Low Stock' : 'Out of Stock');
+                        @endphp
+                        <span class="status-badge {{ getStatusClass($status) }}">{{ $status }}</span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        @if(getField($record, 'prod_description'))
+        <div class="section">
+            <div class="section-header">Description</div>
+            <div class="text-area">{{ getField($record, 'prod_description') }}</div>
+        </div>
+        @endif
+    {{-- 9. FALLBACK / REVENUE --}}
+    @else
+        <div class="section">
+            <div class="section-header orange">Report Details ({{ ucfirst($reportType) }})</div>
+            <div class="text-area" style="border-left-color: #f88e28;">
+                <p>No specific layout is defined for this report type. Displaying raw data:</p>
+                <pre style="font-size: 10px; line-height: 1.4;">{{ print_r($record, true) }}</pre>
             </div>
         </div>
+    @endif
+ <div class="footer">
+        Generated by Multi-Branch Veterinary Clinic Management System | Pets2GO Veterinary Clinic<br>
     </div>
-
-    <div class="end-notice">
-        <p style="font-size: 10pt; color: #6b7280; font-weight: 600;">— END OF REPORT —</p>
-        <p style="font-size: 8pt; color: #9ca3af; margin-top: 5px;">
-            This is a computer-generated document. No signature is required.
-        </p>
-    </div>
-</div>
 </body>
 </html>
