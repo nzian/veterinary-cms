@@ -2057,12 +2057,12 @@
                         <option value="Preventive Care">Preventive Care</option>
                         <option value="Diagnostic Services">Diagnostic Services</option>
                         <option value="Surgical Services">Surgical Services</option>
-                        <option value="Dental Care">Dental Care</option>
                         <option value="Emergency & Critical Care">Emergency & Critical Care</option>
                         <option value="Reproductive & Breeding">Reproductive & Breeding</option>
                         <option value="Grooming & Hygiene">Grooming & Hygiene</option>
                         <option value="Wellness & Nutrition">Wellness & Nutrition</option>
-                        <option value="Pet Identification & Travel">Pet Identification & Travel</option>
+                        <option value="Additional Fees </option>
+                        <option value="Other Services </option>
                         <option value="Boarding & Daycare">Boarding & Daycare</option>
                     </select>
                 </div>

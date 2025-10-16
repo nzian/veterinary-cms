@@ -1059,7 +1059,9 @@
                     <select name="pet_id" id="prescription_pet_id" class="w-full border px-2 py-1 rounded" required>
                         <option value="">Select Pet</option>
                         @foreach (\App\Models\Pet::with('owner')->get() as $pet)
-                            <option value="{{ $pet->pet_id }}">{{ $pet->pet_name }} ({{ $pet->pet_species }}) - {{ $pet->owner->own_name }}</option>
+                           <option value="{{ $pet->pet_id }}">
+                                {{ $pet->pet_name }} ({{ $pet->pet_species }}) - {{ $pet->owner?->own_name ?? 'No Owner' }}
+                            </option>
                         @endforeach
                     </select>
                 </div>

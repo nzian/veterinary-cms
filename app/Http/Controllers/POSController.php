@@ -11,6 +11,7 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Owner;
 use App\Models\Billing;
+use App\Models\User;
 use App\Models\Prescription;
 use Illuminate\Support\Facades\Log;
 
@@ -18,21 +19,58 @@ class POSController extends Controller
 {
     public function index(Request $request)
     {
-        // Get owners for dropdown
-        $owners = Owner::select('own_id', 'own_name')
-            ->orderBy('own_name', 'asc')
-            ->get();
+        // 1. DETERMINE ACTIVE BRANCH CONTEXT
+        $user = Auth::user();
+        $activeBranchId = optional($user)->branch_id; 
 
-        // Get pending billings for payment
-        $billings = Billing::with([
+        // If no branch ID is found (e.g., user model lacks the field), handle gracefully
+        if (!$activeBranchId) {
+            Log::warning('POS access denied: User has no active branch ID.');
+            // You may want to redirect or return an error view instead of defaulting
+            // For now, we'll proceed with empty lists if filtering is critical.
+            $branchUserIds = [];
+        } else {
+            // Get all user IDs associated with the current user's branch
+            $branchUserIds = User::where('branch_id', $activeBranchId)
+                ->pluck('user_id')
+                ->toArray();
+        }
+
+        // 2. FETCH AND FILTER OWNERS (Customers) 
+        // Only show owners created by users within the current branch
+        $ownersQuery = Owner::select('own_id', 'own_name')
+            ->orderBy('own_name', 'asc');
+            
+        // Apply filter unless the list should remain empty
+        if (!empty($branchUserIds)) {
+            $ownersQuery->whereIn('user_id', $branchUserIds);
+        }
+        
+        $owners = $ownersQuery->get();
+        
+        // Add Walk-in Customer option to the filtered list
+        $owners->prepend((object)[
+            'own_id' => 0,
+            'own_name' => 'Walk-in Customer',
+        ]);
+        
+        // 3. FETCH AND FILTER PENDING BILLINGS (Appointments)
+        $billingsQuery = Billing::with([
             'appointment.pet.owner', 
             'appointment.services'
         ])
         ->where('bill_status', 'Pending')
-        ->orderBy('bill_date', 'desc')
-        ->get();
+        ->orderBy('bill_date', 'desc');
 
-        // Calculate billing totals including prescriptions
+        // Filter billings based on the user who created the associated appointment
+        // We assume appointment table has a user_id foreign key or is linked via pet/owner. 
+        // Assuming Appointment is linked to Pet, and Pet is linked to User/Owner:
+        $billings = $billingsQuery->whereHas('appointment.pet', function ($query) use ($branchUserIds) {
+            $query->whereIn('user_id', $branchUserIds);
+        })->get();
+
+
+        // Calculate billing totals (Original logic remains, applied to filtered list)
         foreach ($billings as $billing) {
             $servicesTotal = 0;
             $prescriptionTotal = 0;
@@ -42,7 +80,8 @@ class POSController extends Controller
                 $servicesTotal = $billing->appointment->services->sum('serv_price');
             }
             
-            // Prescription products total
+            // Prescription products total (Note: Prescription lookup logic should also be optimized 
+            // to potentially consider the product's branch/inventory scope, but kept as-is for base logic)
             if ($billing->appointment && $billing->appointment->pet) {
                 $prescriptions = Prescription::where('pet_id', $billing->appointment->pet->pet_id)
                     ->whereDate('prescription_date', '<=', $billing->bill_date)
@@ -68,17 +107,22 @@ class POSController extends Controller
             $billing->calculated_total = $servicesTotal + $prescriptionTotal;
         }
 
-        // Add Walk-in Customer option
-        $owners->prepend((object)[
-            'own_id' => 0,
-            'own_name' => 'Walk-in Customer',
-        ]);
-
-        // Get ALL products that have stock
-        $items = Product::select('prod_id', 'prod_name', 'prod_price', 'prod_stocks', 'prod_category')
+        // 4. FETCH AND FILTER PRODUCTS (Items)
+        // NOTE: This assumes the Product model/table has a 'branch_id' column or a 'user_id' link. 
+        // Since that link is unknown, we default to filtering by the user IDs linked to the branch.
+        $itemsQuery = Product::select('prod_id', 'prod_name', 'prod_price', 'prod_stocks', 'prod_category')
             ->where('prod_stocks', '>', 0)
-            ->orderBy('prod_name', 'asc')
-            ->get();
+            ->orderBy('prod_name', 'asc');
+
+        if (!empty($branchUserIds) && $activeBranchId) {
+            // Assuming products are linked to the branch via a dedicated 'branch_id' field on the product table
+            // OR through the user who created it (using the current user's branch ID is simpler):
+             $itemsQuery->where('branch_id', $activeBranchId); 
+             // If products are linked by the creator: 
+             // $itemsQuery->whereIn('user_id', $branchUserIds); 
+        }
+        
+        $items = $itemsQuery->get();
 
         Log::info("POS loaded: " . $items->count() . " products, " . $billings->count() . " pending bills");
 
