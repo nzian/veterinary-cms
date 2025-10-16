@@ -2047,7 +2047,10 @@ function openEditModal(appointment) {
     document.getElementById('editForm').action = `/medical-management/appointments/${appointment.appoint_id}`;
     document.getElementById('edit_appoint_id').value = appointment.appoint_id ?? '';
     document.getElementById('edit_appoint_date').value = appointment.appoint_date ?? '';
-    document.getElementById('edit_appoint_time').value = appointment.appoint_time ?? '';
+
+    const timeValue = formatTime24hr(appointment.appoint_time ?? '');
+    document.getElementById('edit_appoint_time').value = timeValue;
+    //document.getElementById('edit_appoint_time').value = appointment.appoint_time ?? '';
     document.getElementById('edit_appoint_contactNum').value = appointment.appoint_contactNum ?? '';
     document.getElementById('edit_appoint_status').value = appointment.appoint_status ?? '';
     document.getElementById('edit_appoint_type').value = appointment.appoint_type ?? '';
@@ -2061,6 +2064,8 @@ function openEditModal(appointment) {
     const names = (appointment.services || []).map(s => s.serv_name).join(', ');
     document.getElementById('edit_selectedServicesDisplay').value = names || 'No services selected';
     
+
+    
     // Store selected services globally
     selectedServices = serviceIds;
 
@@ -2072,6 +2077,19 @@ function openEditModal(appointment) {
 function closeEditModal() {
     document.getElementById('editModal').classList.remove('flex');
     document.getElementById('editModal').classList.add('hidden');
+}
+
+function formatTime24hr(timeString) {
+    if (!timeString) return '';
+    try {
+        // This ensures the string is trimmed to HH:MM format (e.g., '14:00:00' -> '14:00')
+        if (timeString.length >= 5 && timeString.includes(':')) {
+             return timeString.substring(0, 5);
+        }
+    } catch (e) {
+        console.error('Error formatting time:', e);
+    }
+    return timeString;
 }
 
 // ==================== SERVICE SELECTION FUNCTIONS ====================
