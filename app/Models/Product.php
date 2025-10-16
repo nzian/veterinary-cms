@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\BranchDataScope;
 
 class Product extends Model
 {
-    use BranchDataScope;
+    use HasFactory, BranchDataScope;
     protected $table = 'tbl_prod';
    protected $primaryKey = 'prod_id'; 
    public $timestamps = false;

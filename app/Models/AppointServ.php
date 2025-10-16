@@ -3,9 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\Pivot;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class AppointServ extends Pivot
 {
+    use HasFactory;
     // Define the actual pivot table name
     protected $table = 'tbl_appoint_serv'; 
     

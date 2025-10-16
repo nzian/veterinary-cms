@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\BranchDataScope;
 use App\Models\Pet;
@@ -9,7 +10,7 @@ use App\Models\Branch;
 
 class Owner extends Model
 {
-    use BranchDataScope;
+    use HasFactory, BranchDataScope;
     protected $table = 'tbl_own'; // ✅ ensure it points to the correct table
     protected $primaryKey = 'own_id';
     public $timestamps = false;

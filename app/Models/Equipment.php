@@ -1,11 +1,12 @@
 <?php
 namespace App\Models;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Traits\BranchDataScope;
 use Illuminate\Database\Eloquent\Model;
 
 class Equipment extends Model
 {
-    use BranchDataScope;
+    use HasFactory, BranchDataScope;
     protected $table = 'tbl_equipment';
     public $timestamps = false; // Disable timestamps
     
