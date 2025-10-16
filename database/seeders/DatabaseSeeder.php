@@ -6,7 +6,8 @@ use Illuminate\Database\Seeder;
 use App\Models\{
     Branch, User, Owner, Pet, Service, Product, ServiceProduct,
     Appointment, AppointServ, Order, Billing, Payment, MedicalHistory,
-    Prescription, Equipment, InventoryTransaction
+    Prescription, Equipment, InventoryTransaction,
+    Referral
 };
 
 class DatabaseSeeder extends Seeder
@@ -22,13 +23,7 @@ class DatabaseSeeder extends Seeder
         Branch::factory()->count(10)->create();
 
         // Users (assign some to branches)
-        User::factory()->count(100)->create()->each(function ($u) {
-            // optionally attach branch if null
-            if (!$u->branch_id && \App\Models\Branch::count()) {
-                $u->branch_id = \App\Models\Branch::inRandomOrder()->first()->branch_id;
-                $u->save();
-            }
-        });
+        User::factory()->count(100)->create();
 
         // Products and Services
         Product::factory()->count(200)->create();
@@ -40,6 +35,7 @@ class DatabaseSeeder extends Seeder
         // Owners and Pets
         Owner::factory()->count(100)->create();
         Pet::factory()->count(300)->create();
+        Referral::factory()->count(100)->create();
 
         // Appointments and pivot services
         Appointment::factory()->count(500)->create();

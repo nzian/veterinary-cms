@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Models\Branch;
+use App\Models\Order;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -22,7 +24,10 @@ class ProductFactory extends Factory
             'prod_damaged' => 0,
             'prod_pullout' => 0,
             'prod_expiry' => $this->faker->optional()->dateTimeBetween('now', '+2 years'),
-            'branch_id' => null,
+            'prod_min_stock' => $this->faker->numberBetween(10,100),
+            'prod_reorderlevel' => $this->faker->numberBetween(5,20),
+            'branch_id' => Branch::inRandomOrder()->first()->branch_id,
+            'ord_id' => Order::inRandomOrder()->first()?->ord_id ?? NULL
         ];
     }
 }

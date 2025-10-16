@@ -16,10 +16,10 @@ class AppointServFactory extends Factory
     public function definition(): array
     {
         return [
-            'appoint_id' => Appointment::factory(),
-            'serv_id' => Service::factory(),
-            'prod_id' => Product::factory(),
-            'vet_user_id' => User::factory(),
+            'appoint_id' => Appointment::inRandomOrder()->first()->appoint_id,
+            'serv_id' => Service::inRandomOrder()->first()->serv_id,
+            'prod_id' => Product::inRandomOrder()->first()->prod_id,
+            'vet_user_id' => User::whereIn('user_role',['veterinarian'])->inRandomOrder()->first()->user_id,
             'vacc_next_dose' => $this->faker->optional()->date(),
             'vacc_batch_no' => $this->faker->lexify('????-####'),
             'vacc_notes' => $this->faker->optional()->sentence(),

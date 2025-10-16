@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Branch;
 use App\Models\Equipment;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -17,7 +18,7 @@ class EquipmentFactory extends Factory
             'equipment_quantity' => $this->faker->numberBetween(0,100),
             'equipment_category' => $this->faker->word(),
             'equipment_image' => null,
-            'branch_id' => null,
+            'branch_id' => Branch::inRandomOrder()->first()->branch_id,
         ];
     }
 }

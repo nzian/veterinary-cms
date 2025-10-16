@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Branch;
 use App\Models\Service;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -16,7 +17,7 @@ class ServiceFactory extends Factory
             'serv_description' => $this->faker->sentence(),
             'serv_price' => $this->faker->randomFloat(2, 50, 5000),
             'serv_type' => $this->faker->randomElement(['Consultation','Procedure','Vaccination']),
-            'branch_id' => null,
+            'branch_id' => Branch::inRandomOrder()->first()->branch_id,
         ];
     }
 }

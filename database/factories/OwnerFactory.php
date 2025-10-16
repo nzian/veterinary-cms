@@ -16,7 +16,7 @@ class OwnerFactory extends Factory
             'own_name' => $this->faker->name(),
             'own_contactnum' => $this->faker->phoneNumber(),
             'own_location' => $this->faker->address(),
-            'user_id' => User::inRandomOrder()->first()->id,
+            'user_id' => User::inRandomOrder()->first()->user_id,
         ];
     }
 }

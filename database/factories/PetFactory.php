@@ -24,8 +24,8 @@ class PetFactory extends Factory
             'pet_gender' => $this->faker->randomElement(['Male','Female']),
             'pet_registration' => $this->faker->date(),
             'pet_temperature' => $this->faker->randomFloat(1, 36, 40),
-            'own_id' => Owner::inRandomOrder()->first()->id,
-            'user_id' => User::inRandomOrder()->first()->id,
+            'own_id' => Owner::inRandomOrder()->first()->own_id,
+            'user_id' => User::inRandomOrder()->first()->user_id,
         ];
     }
 }

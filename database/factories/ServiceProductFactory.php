@@ -14,8 +14,8 @@ class ServiceProductFactory extends Factory
     public function definition(): array
     {
         return [
-            'serv_id' => Service::factory(),
-            'prod_id' => Product::factory(),
+            'serv_id' => Service::inRandomOrder()->first()->serv_id,
+            'prod_id' => Product::inRandomOrder()->first()->prod_id,
             'quantity_used' => $this->faker->randomFloat(2, 1, 10),
             'is_billable' => $this->faker->boolean(80),
         ];
