@@ -616,11 +616,12 @@ class ProdServEquipController extends Controller
         'serv_type' => 'nullable|string|max:255',
         'serv_description' => 'nullable|string|max:1000',
         'serv_price' => 'required|numeric|min:0',
-        'branch_id' => 'nullable|exists:tbl_branch,branch_id',
-        'tab' => 'nullable|string|in:products,services,equipment' // Added tab for redirect
+        'branch_id' => 'required|exists:tbl_branch,branch_id',
+        'tab' => 'nullable|string|in:products,service,equipment' // Added tab for redirect
     ]);
 
     Service::create($validated);
+    
 
     $redirectTab = $this->getRedirectTab($request, 'services');
     return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Service added successfully!');
@@ -634,8 +635,8 @@ class ProdServEquipController extends Controller
         'serv_type' => 'nullable|string|max:255',
         'serv_description' => 'nullable|string|max:1000',
         'serv_price' => 'required|numeric|min:0',
-        'branch_id' => 'nullable|exists:tbl_branch,branch_id',
-        'tab' => 'nullable|string|in:products,services,equipment' // Added tab for redirect
+        'branch_id' => 'required|exists:tbl_branch,branch_id',
+        'tab' => 'nullable|string|in:products,service,equipment' // Added tab for redirect
     ]);
 
     $service = Service::findOrFail($id);

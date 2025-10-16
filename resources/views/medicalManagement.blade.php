@@ -734,18 +734,22 @@
             @csrf
             <input type="hidden" name="active_tab" value="appointments">
 
-            <!-- Row 1: Pet Owner -->
-            <div class="mb-3">
-                <label class="block text-sm mb-1">Pet Owner</label>
-                <select id="owner_id" class="w-full border rounded px-3 py-2 text-sm" required onchange="populateOwnerDetails(this)">
-                    <option disabled selected>Select Pet Owner</option>
-                    @foreach(\App\Models\Owner::with('pets')->get() as $owner)
-                        <option value="{{ $owner->own_id }}" data-contact="{{ $owner->own_contactnum }}" data-pets='@json($owner->pets->map(fn($p) => ["id"=>$p->pet_id,"name"=>$p->pet_name]))'>
-                            {{ $owner->own_name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
+          <div class="mb-3">
+            <label class="block text-sm mb-1">Pet Owner</label>
+            <select id="owner_id" class="w-full border rounded px-3 py-2 text-sm" required onchange="populateOwnerDetails(this)">
+                <option disabled selected>Select Pet Owner</option>
+                {{-- **FIX: Replace the inline DB query with the Controller variable** --}}
+                @foreach($filteredOwners as $owner) 
+                    <option 
+                        value="{{ $owner->own_id }}" 
+                        data-contact="{{ $owner->own_contactnum }}" 
+                        data-pets='@json($owner->pets->map(fn($p) => ["id"=>$p->pet_id,"name"=>$p->pet_name]))'
+                    >
+                        {{ $owner->own_name }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
 
             <!-- Row 2: Contact Number & Pet -->
             <div class="grid grid-cols-2 gap-4 mb-3">
