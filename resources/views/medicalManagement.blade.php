@@ -300,32 +300,42 @@
                     <th class="border px-2 py-2">#</th>
                     <th class="border px-4 py-2">Pet (Owner)</th>
                     <th class="border px-4 py-2">Date</th>
-                    <th class="border px-4 py-2">Vaccine Used / Notes</th>
+                    <th class="border px-4 py-2">Service (Vaccine Used)</th>
                     <th class="border px-4 py-2">Batch/Serial No.</th>
                     <th class="border px-4 py-2">Next Dose Date</th>
                     <th class="border px-4 py-2">Status</th>
                     <th class="border px-4 py-2">Actions</th>
                 </tr>
             </thead>
-             <tbody>
+            <tbody>
                 @php
-                    // Get the Service ID for 'Vaccination'
-                    $vaccinationServiceId = \App\Models\Service::where('serv_name', 'Vaccination')->value('serv_id');
+                    // 1. Get the explicit list of names from the Controller constant
+                    $vaccinationServiceNames = \App\Http\Controllers\MedicalManagementController::VACCINATION_SERVICE_NAMES;
+                    
+                    // 2. Retrieve the corresponding Service IDs for robust filtering
+                    // Note: This is re-running the lookup done in the controller, 
+                    // which is necessary here because $vaccinationServiceIds isn't passed directly to the view.
+                    $vaccinationServiceIds = \App\Models\Service::whereIn('serv_name', $vaccinationServiceNames)
+                        ->pluck('serv_id')
+                        ->toArray();
                 @endphp
                 @forelse($vaccinationAppointments as $index => $appointment)
                     @php
-                        // 1. Find the specific Vaccination service object from the services collection.
-                        $vaccService = $appointment->services->firstWhere('serv_id', $vaccinationServiceId);
+                        // Find the first service in the appointment's collection that matches one of the vaccination IDs.
+                        $vaccService = $appointment->services->first(function ($service) use ($vaccinationServiceIds) {
+                            return in_array($service->serv_id, $vaccinationServiceIds);
+                        });
                         
-                        // 2. Safely initialize all required variables.
-                        $vaccineProdId = $vaccService->pivot->prod_id ?? null;
+                        // Safely extract all required variables
+                        $vaccServiceId = $vaccService->serv_id ?? null;
                         
-                        // *** FIX: Safely pull the product name by checking existence ***
-                        // This checks the service attachment, the product relationship, and the product name itself.
+                        // Safely check for pivot existence and prod_id
+                        $vaccineProdId = $vaccService && isset($vaccService->pivot->prod_id) ? $vaccService->pivot->prod_id : null;
+                        
+                        // Safely look up the product name using the Product model 
                         $vaccineProdName = 'N/A (Not Recorded)';
-
                         if ($vaccineProdId) {
-                            $product = \App\Models\Product::find($vaccineProdId);
+                            $product = \App\Models\Product::find($vaccineProdId); 
                             $vaccineProdName = $product->prod_name ?? 'N/A (Product Missing)';
                         }
                         
@@ -344,17 +354,19 @@
                         <td class="border px-4 py-2">
                             {{ \Carbon\Carbon::parse($appointment->appoint_date)->format('F j, Y') }}
                         </td>
-                       <td class="border px-4 py-2 text-left text-gray-700">
-    {{-- Vaccine Name (Standard font) --}}
-    <span class="text-sm font-medium">**{{ $vaccineProdName }}**</span> 
-</td>
+                        <td class="border px-4 py-2 text-left text-gray-700">
+                            {{-- Display the service name for context --}}
+                            <div class="text-xs text-gray-500 mb-1">{{ $vaccService->serv_name ?? 'Service N/A' }}</div>
+                            {{-- Vaccine Product Name --}}
+                            <span class="text-sm font-medium">**{{ $vaccineProdName }}**</span> 
+                        </td>
                         
-                        {{-- BATCH/SERIAL NO. COLUMN (Clean Display) --}}
+                        {{-- BATCH/SERIAL NO. COLUMN --}}
                         <td class="border px-4 py-2 text-gray-700">
                             <span class="text-sm">{{ $vaccineBatchNo }}</span>
                         </td>
                         
-                        {{-- NEXT DOSE DATE COLUMN (Clean Display) --}}
+                        {{-- NEXT DOSE DATE COLUMN --}}
                         <td class="border px-4 py-2 text-gray-700">
                             @if($vaccineNextDose)
                                 <span class="text-sm">
@@ -365,7 +377,7 @@
                             @endif
                         </td>
                         
-                        {{-- STATUS COLUMN (Retains color badge) --}}
+                        {{-- STATUS COLUMN --}}
                         <td class="border px-4 py-2">
                             <span class="px-2 py-1 rounded text-xs
                                 {{ $appointment->appoint_status == 'completed' ? 'bg-green-100 text-green-800' : 
@@ -375,14 +387,15 @@
                             </span>
                         </td>
                         
-                        {{-- ACTIONS COLUMN (Standardized button color) --}}
+                        {{-- ACTIONS COLUMN --}}
                         <td class="border px-2 py-1 text-center">
                             <div class="flex justify-center">
+                                @if($vaccServiceId)
                                 <button onclick="openVaccineDetailsModal(
                                     {{ $appointment->appoint_id }}, 
                                     '{{ $appointment->pet?->pet_name ?? 'N/A' }}', 
                                     '{{ $appointment->appoint_date }}', 
-                                    '{{ $vaccService->serv_id ?? '' }}',
+                                    '{{ $vaccServiceId }}', // Use the specific service ID found
                                     '{{ $vaccineProdId }}',
                                     '{{ $vaccineNextDose }}',
                                     '{{ $vaccineBatchNo }}',
@@ -392,12 +405,13 @@
                                     title="{{ $vaccineProdId ? 'Edit Vaccine Record' : 'Add Vaccine' }}">
                                     <i class="fas fa-syringe"></i> {{ $vaccineProdId ? 'Edit' : 'Add' }}
                                 </button>
+                                @endif
                             </div>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="text-center text-gray-500 py-4">No appointments found with the 'Vaccination' service.</td>
+                        <td colspan="8" class="text-center text-gray-500 py-4">No appointments found with the listed Vaccination services.</td>
                     </tr>
                 @endforelse
             </tbody>
