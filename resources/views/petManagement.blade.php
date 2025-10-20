@@ -72,14 +72,14 @@
                     class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'pets' ? 'active' : '' }}">
                 <h2 class="font-bold text-xl">Pets</h2>
                 </button>
-                <button onclick="switchTab('medical')" id="medical-tab" 
+              <!--  <button onclick="switchTab('medical')" id="medical-tab" 
                     class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'medical' ? 'active' : '' }}">
                 <h2 class="font-bold text-xl">Medical History</h2>
                 </button>
                  <button onclick="switchTab('health-card')" id="health-card-tab" 
             class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'health-card' ? 'active' : '' }}">
             <h2 class="font-bold text-xl">Pet Health Card</h2>
-        </button>
+        </button>-->
             </nav>
         </div>
 
@@ -313,6 +313,11 @@
             <i class="fas fa-eye"></i>
         </button>
 
+         <a href="{{ route('pet-management.healthCard', ['id' => $pet->pet_id]) }}" target="_blank"
+                                        class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs">
+                                       <i class="fa-solid fa-hospital-user"></i>
+                                    </a>
+
         @if(hasPermission('add_medical', $can))
             <button onclick="openAddMedicalForPet({{ $pet->pet_id }}, '{{ $pet->pet_name }}')"
                 class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="add medical">
@@ -370,7 +375,7 @@
             </div>
         </div>
 
-        {{-- Medical History Tab Content (Now Third) --}}
+      <!--  {{-- Medical History Tab Content (Now Third) --}}
         <div id="medical-content" class="tab-content {{ request('tab') != 'medical' ? 'hidden' : '' }}">
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
@@ -534,7 +539,7 @@
                                 <td class="border px-2 py-1">
                                     <a href="{{ route('pet-management.healthCard', ['id' => $pet->pet_id]) }}" target="_blank"
                                         class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs">
-                                        <i class="fas fa-print"></i> 
+                                       <i class="fa-solid fa-hospital-user"></i>
                                     </a>
                                 </td>
                             </tr>
@@ -577,7 +582,7 @@
             </div>
         </div>
         {{-- END CORRECTED TAB CONTENT --}}
-    </div> 
+    </div> -->
     
     
 

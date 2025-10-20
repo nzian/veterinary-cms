@@ -12,9 +12,11 @@ use App\Models\Branch;
 use App\Models\User;
 use App\Models\Product; // Ensure this model exists
 use App\Models\ServiceProduct; // Ensure this model exists
+use App\Models\Visit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 use App\Services\NotificationService;
 use App\Services\InventoryService;
@@ -26,6 +28,143 @@ class MedicalManagementController extends Controller
     public function __construct(InventoryService $inventoryService)
     {
         $this->inventoryService = $inventoryService;
+    }
+
+    // ==================== SERVICE SAVE HANDLERS ====================
+    public function saveConsultation(Request $request, $visit)
+    {
+        $validated = $request->validate([
+            'weight' => ['nullable','numeric'],
+            'temperature' => ['nullable','numeric'],
+            'heart_rate' => ['nullable','numeric'],
+            'respiratory_rate' => ['nullable','numeric'],
+            'physical_findings' => ['nullable','string'],
+            'diagnosis' => ['required','string'],
+            'prescriptions' => ['nullable','string'],
+            'recommendations' => ['nullable','string'],
+            'next_appointment' => ['nullable','date'],
+        ]);
+        if ($request->has('workflow_status')) {
+            $visitModel = \App\Models\Visit::findOrFail($visit);
+            $visitModel->workflow_status = $request->input('workflow_status');
+            $visitModel->save();
+        }
+        return redirect()->route('medical.visits.perform', $visit)->with('success', 'Consultation saved');
+    }
+
+    public function saveVaccination(Request $request, $visit)
+    {
+        $validated = $request->validate([
+            'vaccine' => ['required','string'],
+            'dose' => ['nullable','string'],
+            'batch_no' => ['nullable','string'],
+            'expiry_date' => ['nullable','date'],
+            'next_schedule' => ['nullable','date'],
+            'administered_by' => ['nullable','string'],
+        ]);
+        if ($request->has('workflow_status')) {
+            $visitModel = \App\Models\Visit::findOrFail($visit);
+            $visitModel->workflow_status = $request->input('workflow_status');
+            $visitModel->save();
+        }
+        return redirect()->route('medical.visits.perform', $visit)->with('success', 'Vaccination recorded');
+    }
+
+    public function saveDeworming(Request $request, $visit)
+    {
+        $validated = $request->validate([
+            'product' => ['required','string'],
+            'dosage' => ['nullable','string'],
+            'next_reminder' => ['nullable','date'],
+        ]);
+        if ($request->has('workflow_status')) {
+            $visitModel = \App\Models\Visit::findOrFail($visit);
+            $visitModel->workflow_status = $request->input('workflow_status');
+            $visitModel->save();
+        }
+        return redirect()->route('medical.visits.perform', $visit)->with('success', 'Deworming recorded');
+    }
+
+    public function saveGrooming(Request $request, $visit)
+    {
+        $validated = $request->validate([
+            'grooming_type' => ['nullable','string'],
+            'additional_services' => ['nullable','string'],
+            'instructions' => ['nullable','string'],
+            'workflow_status' => ['nullable','in:Waiting,In Grooming,Bathing,Drying,Finishing,Completed,Picked Up'],
+        ]);
+        if ($request->filled('workflow_status')) {
+            $visitModel = \App\Models\Visit::findOrFail($visit);
+            $new = $request->input('workflow_status');
+            $visitModel->workflow_status = $new;
+            $visitModel->save();
+        }
+        return redirect()->route('medical.visits.perform', $visit)->with('success', 'Grooming recorded');
+    }
+
+    public function saveBoarding(Request $request, $visit)
+    {
+        $validated = $request->validate([
+            'checkin' => ['required','date'],
+            'checkout' => ['nullable','date','after_or_equal:checkin'],
+            'room' => ['nullable','string'],
+            'care_instructions' => ['nullable','string'],
+            'monitoring_notes' => ['nullable','string'],
+            'billing_basis' => ['nullable','in:hour,day'],
+            'rate' => ['nullable','numeric'],
+        ]);
+        if ($request->has('workflow_status')) {
+            $visitModel = \App\Models\Visit::findOrFail($visit);
+            $visitModel->workflow_status = $request->input('workflow_status');
+            $visitModel->save();
+        }
+        return redirect()->route('medical.visits.perform', $visit)->with('success', 'Boarding saved');
+    }
+
+    public function saveDiagnostic(Request $request, $visit)
+    {
+        $validated = $request->validate([
+            'test_type' => ['required','string'],
+            'interpretation' => ['nullable','string'],
+        ]);
+        if ($request->has('workflow_status')) {
+            $visitModel = \App\Models\Visit::findOrFail($visit);
+            $visitModel->workflow_status = $request->input('workflow_status');
+            $visitModel->save();
+        }
+        return redirect()->route('medical.visits.perform', $visit)->with('success', 'Diagnostic recorded');
+    }
+
+    public function saveSurgical(Request $request, $visit)
+    {
+        $validated = $request->validate([
+            'checklist' => ['nullable','string'],
+            'surgery_type' => ['required','string'],
+            'start_time' => ['nullable','date'],
+            'end_time' => ['nullable','date','after_or_equal:start_time'],
+            'medications_used' => ['nullable','string'],
+        ]);
+        if ($request->has('workflow_status')) {
+            $visitModel = \App\Models\Visit::findOrFail($visit);
+            $visitModel->workflow_status = $request->input('workflow_status');
+            $visitModel->save();
+        }
+        return redirect()->route('medical.visits.perform', $visit)->with('success', 'Surgical record saved');
+    }
+
+    public function saveEmergency(Request $request, $visit)
+    {
+        $validated = $request->validate([
+            'triage_notes' => ['nullable','string'],
+            'procedures' => ['nullable','string'],
+            'immediate_meds' => ['nullable','string'],
+        ]);
+        if ($request->has('workflow_status')) {
+            $visitModel = \App\Models\Visit::findOrFail($visit);
+            $visitModel->workflow_status = $request->input('workflow_status');
+            $visitModel->save();
+        }
+        return redirect()->route('medical.visits.perform', $visit)->with('success', 'Emergency record saved');
     }
 
     // 🎯 FIXED: Define the explicit list of vaccination service names
@@ -99,7 +238,22 @@ class MedicalManagementController extends Controller
         }
 
         $filteredOwners = Owner::whereIn('user_id', $branchUserIds)->get();
-        $filteredPets = Pet::whereIn('user_id', $branchUserIds)->get();
+        $filteredPets = Pet::whereIn('user_id', $branchUserIds)->with('owner')->get();
+
+        // --- Visits Query ---
+        $visitPerPage = $request->get('visitPerPage', 10);
+        $visitsQuery = \App\Models\Visit::with(['pet.owner', 'user'])
+            ->whereHas('user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            })
+            ->orderBy('visit_date', 'desc')
+            ->orderBy('visit_id', 'desc');
+
+        if ($visitPerPage === 'all') {
+            $visits = $visitsQuery->get();
+        } else {
+            $visits = $visitsQuery->paginate((int) $visitPerPage);
+        }
 
         // ===== VACCINATION APPOINTMENTS QUERY (FIXED) =====
         $vaccinationPerPage = $request->get('vaccinationPerPage', 10);
@@ -140,6 +294,45 @@ class MedicalManagementController extends Controller
             $vaccinationAppointments = $vaccinationAppointmentsQuery->paginate((int) $vaccinationPerPage, ['*'], 'vaccinationsPage');
         }
 
+        // Services list for per-pet selection in Visits modal (use real services)
+        $serviceTypes = Service::orderBy('serv_name')->get(['serv_id','serv_name','serv_type']);
+
+        // Filter Navigation by Selected Services: if visit_id present, derive selected service types
+        $selectedServiceTabs = [];
+        $visitIdParam = $request->get('visit_id');
+        if ($visitIdParam) {
+            $visitForTabs = \App\Models\Visit::with(['services'])->find($visitIdParam);
+            if ($visitForTabs) {
+                $types = $visitForTabs->services->pluck('serv_type')->filter()->map(function($t){
+                    $t = strtolower(trim($t));
+                    if ($t === 'diagnostic') { $t = 'diagnostics'; }
+                    if ($t === 'checkup') { $t = 'check up'; }
+                    return $t;
+                })->unique()->values()->all();
+
+                // Build tabs meta (label and optional route to workspace)
+                $labelMap = [
+                    'boarding' => 'Boarding',
+                    'check up' => 'Check-up',
+                    'deworming' => 'Deworming',
+                    'diagnostics' => 'Diagnostic',
+                    'emergency' => 'Emergency',
+                    'grooming' => 'Grooming',
+                    'surgical' => 'Surgical',
+                    'vaccination' => 'Vaccination',
+                ];
+                foreach ($types as $t) {
+                    $selectedServiceTabs[] = [
+                        'key' => $t,
+                        'label' => $labelMap[$t] ?? ucfirst($t),
+                        'visit_id' => (int)$visitIdParam,
+                        // Route to perform with explicit type to render the correct form
+                        'url' => route('medical.visits.perform', ['id' => $visitIdParam]) . '?type=' . urlencode($t),
+                    ];
+                }
+            }
+        }
+
         return view('medicalManagement', compact(
             'appointments', 
             'prescriptions', 
@@ -147,7 +340,10 @@ class MedicalManagementController extends Controller
             'vaccinationAppointments',
             'activeTab',
             'filteredOwners',
-            'filteredPets'
+            'filteredPets',
+            'visits',
+            'serviceTypes',
+            'selectedServiceTabs'
         ));
     }
 
@@ -642,6 +838,220 @@ class MedicalManagementController extends Controller
         $activeTab = $request->input('active_tab', 'appointments');
         return redirect()->route('medical.index', ['active_tab' => $activeTab])
                        ->with('success', 'Appointment deleted successfully');
+    }
+
+    // ==================== VISIT METHODS ====================
+    public function storeVisit(Request $request)
+    {
+        $validated = $request->validate([
+            'visit_date' => 'required|date',
+            'pet_ids' => 'required|array|min:1',
+            'pet_ids.*' => 'exists:tbl_pet,pet_id',
+            'weight' => 'nullable',
+            'temperature' => 'nullable',
+            'service_type' => 'nullable', // now array of arrays
+            'patient_type' => 'required|string|max:100',
+        ]);
+
+        $userId = auth()->id() ?? $request->input('user_id');
+
+        DB::transaction(function () use ($validated, $userId, $request) {
+            foreach ($validated['pet_ids'] as $petId) {
+                $data = [
+                    'visit_date' => $validated['visit_date'],
+                    'pet_id' => $petId,
+                    'user_id' => $userId,
+                    'weight' => $request->input("weight.$petId") ?? null,
+                    'temperature' => $request->input("temperature.$petId") ?? null,
+                    'patient_type' => $validated['patient_type'],
+                    // 'service_type' => null, // no longer used for multi
+                ];
+
+                $visit = Visit::create($data);
+                if (Schema::hasColumn('tbl_visit_record', 'visit_status')) {
+                    $visit->visit_status = 'arrived';
+                    $visit->save();
+                }
+
+                // Attach selected services (array of IDs, serv_type strings, or names)
+                $selected = $request->input("service_type.$petId", []);
+                if (is_array($selected) && !empty($selected)) {
+                    $serviceIds = [];
+                    $selectedTypes = [];
+
+                    // 1) Use numeric IDs directly
+                    $numericIds = array_values(array_filter(array_map(function($v){
+                        return is_numeric($v) ? (int)$v : null;
+                    }, $selected)));
+                    if (!empty($numericIds)) {
+                        $serviceIds = array_merge($serviceIds, $numericIds);
+                    }
+
+                    // 2) Map serv_type strings to a representative service ID per type
+                    $stringVals = array_values(array_filter($selected, function($v){ return !is_numeric($v); }));
+                    if (!empty($stringVals)) {
+                        $normalized = array_map(function($s){
+                            $s = strtolower(trim($s));
+                            if ($s === 'diagnostic') { $s = 'diagnostics'; }
+                            if ($s === 'checkup') { $s = 'check up'; }
+                            return $s;
+                        }, $stringVals);
+
+                        $foundTypeIds = [];
+                        $foundTypes = [];
+                        foreach (array_unique($normalized) as $type) {
+                            // Try exact serv_type match first
+                            $svc = \App\Models\Service::whereRaw('LOWER(serv_type) = ?', [$type])
+                                ->orderBy('serv_id')
+                                ->first(['serv_id','serv_type','serv_name']);
+                            if (!$svc) {
+                                // Try LIKE on serv_type and serv_name
+                                $svc = \App\Models\Service::whereRaw('LOWER(serv_type) LIKE ?', ['%'.$type.'%'])
+                                    ->orWhereRaw('LOWER(serv_name) LIKE ?', ['%'.$type.'%'])
+                                    ->orderBy('serv_id')
+                                    ->first(['serv_id','serv_type','serv_name']);
+                            }
+                            if ($svc) {
+                                $foundTypeIds[] = (int)$svc->serv_id;
+                                $foundTypes[] = strtolower($svc->serv_type);
+                                continue;
+                            }
+                            // Last fallback: any service whose name contains the type token
+                            $svc = \App\Models\Service::whereRaw('LOWER(serv_name) LIKE ?', ['%'.$type.'%'])
+                                ->orderBy('serv_id')
+                                ->first(['serv_id','serv_type','serv_name']);
+                            if ($svc) {
+                                $foundTypeIds[] = (int)$svc->serv_id;
+                                $foundTypes[] = strtolower($svc->serv_type);
+                            }
+                        }
+                        if (!empty($foundTypeIds)) {
+                            $serviceIds = array_merge($serviceIds, $foundTypeIds);
+                            $selectedTypes = array_merge($selectedTypes, $foundTypes);
+                        }
+
+                        // Fallback: map by service names if provided (original values)
+                        $byName = \App\Models\Service::whereIn('serv_name', $stringVals)->pluck('serv_id')->toArray();
+                        if (!empty($byName)) {
+                            $serviceIds = array_merge($serviceIds, $byName);
+                        }
+                    }
+
+                    $serviceIds = array_values(array_unique($serviceIds));
+                    if (!empty($serviceIds)) {
+                        $visit->services()->sync($serviceIds);
+                    }
+
+                    // Optionally persist types summary into visit record if a column exists
+                    if (!empty($selectedTypes)) {
+                        $typesSummary = implode(', ', array_values(array_unique($selectedTypes)));
+                        if (\Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
+                            $visit->visit_service_type = $typesSummary;
+                            $visit->save();
+                        } elseif (\Schema::hasColumn('tbl_visit_record', 'service_type')) {
+                            $visit->service_type = $typesSummary;
+                            $visit->save();
+                        }
+                    }
+                }
+            }
+        });
+
+        $activeTab = $request->input('active_tab', 'visits');
+        return redirect()->route('medical.index', ['active_tab' => $activeTab])
+            ->with('success', 'Visit recorded successfully');
+    }
+
+    public function updateVisit(Request $request, Visit $visit)
+    {
+        $validated = $request->validate([
+            'visit_date' => 'required|date',
+            'pet_id' => 'required|exists:tbl_pet,pet_id',
+            'weight' => 'nullable|numeric',
+            'temperature' => 'nullable|numeric',
+            'patient_type' => 'required|string|max:100',
+        ]);
+
+        $visit->update($validated);
+        if (Schema::hasColumn('tbl_visit_record', 'visit_status') && $request->filled('visit_status')) {
+            $visit->visit_status = $request->input('visit_status');
+            $visit->save();
+        }
+
+        $activeTab = $request->input('active_tab', 'visits');
+        return redirect()->route('medical.index', ['active_tab' => $activeTab])
+            ->with('success', 'Visit updated successfully');
+    }
+
+    public function destroyVisit(Request $request, $id)
+    {
+        $visit = Visit::findOrFail($id);
+        $visit->delete();
+
+        $activeTab = $request->input('active_tab', 'visits');
+        return redirect()->route('medical.index', ['active_tab' => $activeTab])
+            ->with('success', 'Visit deleted successfully');
+    }
+
+    public function showVisit($id)
+    {
+        $visit = Visit::with(['pet.owner', 'user'])->findOrFail($id);
+        return response()->json($visit);
+    }
+
+    // ==================== VISIT WORKSPACE (PERFORM SERVICE) ====================
+    public function performVisit(Request $request, $id)
+    {
+        $visit = Visit::with(['pet.owner', 'user'])->findOrFail($id);
+
+        // Determine active workspace tab: prefer explicit 'type' from query, else from visit record
+        $explicitType = $request->query('type');
+        $serviceType = null;
+        if ($explicitType) {
+            $serviceType = $explicitType;
+        } else {
+            if (\Illuminate\Support\Facades\Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
+                $serviceType = $visit->visit_service_type;
+            } elseif (\Illuminate\Support\Facades\Schema::hasColumn('tbl_visit_record', 'service_type')) {
+                $serviceType = $visit->service_type;
+            }
+        }
+
+        // Map prodServEquip service types to blade names
+        $map = [
+            'preventive care' => 'preventive',
+            'diagnostic services' => 'diagnostic',
+            'surgical services' => 'surgical',
+            'emergency & critical care' => 'emergency',
+            'reproductive & breeding' => 'reproductive',
+            'grooming & hygiene' => 'grooming',
+            'wellness & nutrition' => 'wellness',
+            'boarding & daycare' => 'boarding',
+            'additional fees' => 'additional',
+            'other' => 'other',
+            // Fallbacks for common specific types if used
+            'consultation' => 'consultation',
+            'check-up' => 'consultation',
+            'checkup' => 'consultation',
+            'vaccination' => 'vaccination',
+            'deworming' => 'deworming',
+            'grooming' => 'grooming',
+            'boarding' => 'boarding',
+            'laboratory' => 'diagnostic',
+            'diagnostic' => 'diagnostic',
+            'surgery' => 'surgical',
+            'surgical' => 'surgical',
+            'emergency' => 'emergency',
+        ];
+        $key = $serviceType ? strtolower($serviceType) : null;
+        // Normalize common variations
+        if ($key === 'diagnostics') { $key = 'diagnostic'; }
+        if ($key === 'checkup' || $key === 'check-up' || $key === 'check up') { $key = 'consultation'; }
+        $blade = $map[$key] ?? 'consultation';
+
+        // Render specific blade per service type
+        $viewName = 'visits.' . $blade;
+        return view($viewName, compact('visit'));
     }
 
     /**

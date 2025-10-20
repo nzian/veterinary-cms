@@ -25,6 +25,28 @@ class Service extends Model
         'branch_id',
     ];
 
+    // Only allow these service types
+    public static $allowedTypes = [
+        'boarding',
+        'check up',
+        'deworming',
+        'diagnostics',
+        'emergency',
+        'grooming',
+        'surgical',
+        'vaccination',
+    ];
+
+    public static function boot()
+    {
+        parent::boot();
+        static::saving(function ($model) {
+            if (!in_array(strtolower($model->serv_type), self::$allowedTypes)) {
+                throw new \InvalidArgumentException('Invalid service type.');
+            }
+        });
+    }
+
     
 
      public function products()

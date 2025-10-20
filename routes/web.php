@@ -1,12 +1,15 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ConsultationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\PetManagementController;
 use App\Http\Controllers\BranchManagementController;
 use App\Http\Controllers\SalesManagementController;
+use App\Http\Controllers\ActivityController;
+use App\Http\Controllers\GroomingAgreementController;
 
 
 Route::get('/', function () {
@@ -72,6 +75,15 @@ Route::get('/sales/daily', [OrderController::class, 'dailySales'])->name('sales.
 Route::middleware(['auth', 'isSuperAdmin'])->group(function () {
     Route::get('/superadmin/dashboard', [DashboardController::class, 'superAdminDashboard'])->name('superadmin.dashboard');
 });
+Route::middleware(['auth'])->group(function () {
+    // Consultation routes
+    Route::resource('consultations', ConsultationController::class)->only(['index', 'show', 'edit', 'update', 'destroy']);
+    Route::post('consultations', [ConsultationController::class, 'store'])->name('consultations.store');
+    Route::get('consultations/{consultation}/view', [ConsultationController::class, 'view'])->name('consultation.view');
+    Route::get('consultations/{consultation}/export', [ConsultationController::class, 'export'])->name('consultation.export');
+    Route::get('visits/{visit}/consultation/create', [ConsultationController::class, 'show'])->name('consultation.create');
+});
+Route::get('/medical-management/pets/details', [MedicalManagementController::class, 'getPetDetails'])->name('medical.pets.details');
 
 // Route for the new health card print function
 Route::get('/pet-management/pet/{id}/health-card', [PetManagementController::class, 'healthCard'])->name('pet-management.healthCard');
@@ -170,7 +182,37 @@ Route::put('appointments/{appointmentId}/record-vaccine-details', [MedicalManage
     Route::put('/referrals/{id}', [MedicalManagementController::class, 'updateReferral'])->name('medical.referrals.update');
     Route::get('/referrals/{id}', [MedicalManagementController::class, 'showReferral'])->name('medical.referrals.show');
     Route::delete('/referrals/{id}', [MedicalManagementController::class, 'destroyReferral'])->name('medical.referrals.destroy');
+
+Route::prefix('visits')->group(function () {
+    Route::get('/{visitId}/workspace', [VisitWorkspaceController::class, 'index'])
+        ->name('visits.workspace');
+    
+    Route::post('/{visitId}/save', [VisitWorkspaceController::class, 'saveService'])
+        ->name('visits.save.service');
+    
+    Route::post('/{visitId}/complete', [VisitWorkspaceController::class, 'completeVisit'])
+        ->name('visits.complete');
 });
+    // Visits CRUD
+    Route::post('/visits', [MedicalManagementController::class, 'storeVisit'])->name('medical.visits.store');
+    Route::put('/visits/{visit}', [MedicalManagementController::class, 'updateVisit'])->name('medical.visits.update');
+    Route::delete('/visits/{id}', [MedicalManagementController::class, 'destroyVisit'])->name('medical.visits.destroy');
+    Route::get('/visits/{id}', [MedicalManagementController::class, 'showVisit'])->name('medical.visits.show');
+
+    // Service Saves
+    Route::post('/visits/{visit}/consultation', [MedicalManagementController::class, 'saveConsultation'])->name('medical.visits.consultation.save');
+    Route::post('/visits/{visit}/vaccination', [MedicalManagementController::class, 'saveVaccination'])->name('medical.visits.vaccination.save');
+    Route::post('/visits/{visit}/deworming', [MedicalManagementController::class, 'saveDeworming'])->name('medical.visits.deworming.save');
+    Route::post('/visits/{visit}/grooming', [MedicalManagementController::class, 'saveGrooming'])->name('medical.visits.grooming.save');
+    Route::post('/visits/{visit}/boarding', [MedicalManagementController::class, 'saveBoarding'])->name('medical.visits.boarding.save');
+    Route::post('/visits/{visit}/diagnostic', [MedicalManagementController::class, 'saveDiagnostic'])->name('medical.visits.diagnostic.save');
+    Route::post('/visits/{visit}/surgical', [MedicalManagementController::class, 'saveSurgical'])->name('medical.visits.surgical.save');
+    Route::post('/visits/{visit}/emergency', [MedicalManagementController::class, 'saveEmergency'])->name('medical.visits.emergency.save');
+    Route::post('/visits/{visit}/agreement', [GroomingAgreementController::class, 'store'])->name('medical.visits.grooming.agreement.store');
+});
+
+// Restore Attend/Perform Visit route so the Visits table Attend link works
+Route::get('/medical-management/visits/{id}/perform', [MedicalManagementController::class, 'performVisit'])->name('medical.visits.perform');
 
 
 
@@ -429,4 +471,19 @@ Route::middleware(['auth'])->group(function () {
     
     Route::get('/superadmin/branch/{branchId}', [SuperAdminDashboardController::class, 'showBranch'])
         ->name('superadmin.branch.show');
+});
+
+Route::controller(ActivityController::class)->group(function () {
+    
+    // 1. Sidebar Route (INDEX)
+    // Route name: activities.index | URL: /activities-index
+    Route::get('/activities-index', 'index')->name('activities.index'); 
+    
+    // 2. Dynamic View Route (ATTEND)
+    // Route name: activities.attend | URL: /activities/{id}
+    Route::get('/activities/{id}', 'attendVisit')->name('activities.attend');
+
+    // 3. Dynamic Save Route (SAVE)
+    // Route name: activities.save | URL: /activities/{visitId}/save/{activityKey}
+    Route::post('/activities/{visitId}/save/{activityKey}', 'handleActivitySave')->name('activities.save');
 });

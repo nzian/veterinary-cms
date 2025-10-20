@@ -588,5 +588,6 @@
     // Smooth scroll
     document.documentElement.style.scrollBehavior = 'smooth';
   </script>
+@stack('scripts')
 </body>
 </html>

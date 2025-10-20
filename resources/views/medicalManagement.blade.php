@@ -94,36 +94,242 @@
         
         {{-- Tab Navigation --}}
 <div class="border-b border-gray-200 mb-6">
-    <nav class="-mb-px flex space-x-8">
-        <button onclick="showTab('appointments')" id="appointments-tab" 
-            class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab', 'appointments') == 'appointments' ? 'active' : '' }}">
-            <h2 class="font-bold text-xl">Appointments</h2>
+    <nav class="-mb-px flex space-x-8 items-center">
+        <button onclick="showTab('visits')" id="visits-tab" 
+            class="tab-button py-2 px-1 border-b-2 font-medium text-sm active">
+            <h2 class="font-bold text-xl">Visits</h2>
         </button>
-       @if(hasPermission('view_vaccinations', $can))
-        <button onclick="showTab('vaccinations')" id="vaccinations-tab" 
-            class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'vaccinations' ? 'active' : '' }}">
-            <h2 class="font-bold text-xl">Vaccinations</h2>
-        </button>
+        @if(!empty($selectedServiceTabs))
+            <span class="mx-2 h-6 w-px bg-gray-300"></span>
+            @foreach($selectedServiceTabs as $tab)
+                <a href="{{ $tab['url'] }}" class="py-2 px-3 border-b-2 border-transparent text-sm font-medium text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    {{ $tab['label'] }}
+                </a>
+            @endforeach
         @endif
-        <button onclick="showTab('prescriptions')" id="prescriptions-tab" 
-            class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'prescriptions' ? 'active' : '' }}">
-            <h2 class="font-bold text-xl">Prescriptions</h2>
-        </button>
-        <button onclick="showTab('referrals')" id="referrals-tab" 
-            class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'referrals' ? 'active' : '' }}">
-            <h2 class="font-bold text-xl">Referrals</h2>
-        </button>
     </nav>
 </div>
 
-        
 
-        <!-- Success/Error Messages -->
+        {{-- Success/Error Messages --}}
         @if(session('success'))
             <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded mb-4 text-sm">
                 {{ session('success') }}
             </div>
         @endif
+        @if(session('error'))
+            <div class="bg-red-500 text-white p-2 rounded mb-4">
+                {{ session('error') }}
+            </div>
+        @endif
+        <!-- ==================== VISITS TAB ==================== -->
+        <div id="visitsContent" class="tab-content">
+            <!-- Controls -->
+            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
+                    <input type="hidden" name="active_tab" value="visits">
+                    <label for="visitPerPage" class="text-sm text-black">Show</label>
+                    <select name="visitPerPage" id="visitPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                        @foreach ([10, 20, 50, 100, 'all'] as $limit)
+                            <option value="{{ $limit }}" {{ request('visitPerPage') == $limit ? 'selected' : '' }}>
+                                {{ $limit === 'all' ? 'All' : $limit }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <span>entries</span>
+                </form>
+                @if(auth()->check() && in_array(auth()->user()->user_role, ['receptionist']))
+                <button onclick="openAddVisitModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">+ Add Visit</button>
+                @endif
+            </div>
+            <br>
+
+            <!-- Visits Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full table-auto text-sm border text-center">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="border px-2 py-2">#</th>
+                            <th class="border px-4 py-2">Date</th>
+                            <th class="border px-4 py-2">Pet</th>
+                            <th class="border px-4 py-2">Owner</th>
+                            <th class="border px-4 py-2">Weight</th>
+                            <th class="border px-4 py-2">Temp</th>
+                            <th class="border px-4 py-2">Patient Type</th>
+                            <th class="border px-4 py-2">Service Type</th>
+                            <th class="border px-4 py-2">Status</th>
+                            <th class="border px-4 py-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse(($visits ?? []) as $index => $visit)
+                            <tr>
+                                <td class="border px-2 py-2">
+                                    @if(method_exists($visits, 'firstItem'))
+                                        {{ $visits->firstItem() + $index }}
+                                    @else
+                                        {{ $index + 1 }}
+                                    @endif
+                                </td>
+                                <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($visit->visit_date)->format('F j, Y') }}</td>
+                                <td class="border px-4 py-2">{{ $visit->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">{{ $visit->pet->owner->own_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">{{ $visit->weight ? number_format($visit->weight, 2) . ' kg' : 'N/A' }}</td>
+                                <td class="border px-4 py-2">{{ $visit->temperature ? number_format($visit->temperature, 1) . ' °C' : 'N/A' }}</td>
+                                <td class="border px-4 py-2">{{ $visit->patient_type }}</td>
+                                <td class="border px-4 py-2">{{ $visit->service_type ?? '-' }}</td>
+                                <td class="border px-4 py-2">{{ $visit->visit_status ?? '-' }}</td>
+                                <td class="border px-2 py-1">
+                                    <div class="flex justify-center items-center gap-1">
+                                        <a href="{{ route('medical.index', ['visit_id' => $visit->visit_id, 'active_tab' => 'visits']) }}" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
+                                            <i class="fas fa-user-check"></i>
+                                        </a>
+                                        @if(hasPermission('edit_appointment', $can))
+                                        <button onclick="openEditVisitModal({{ $visit->visit_id }}, false)" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs" title="edit">
+                                            <i class="fas fa-pen"></i>
+                                        </button>
+                                        @endif
+                                        @if(hasPermission('delete_appointment', $can))
+                                        <form action="{{ route('medical.visits.destroy', $visit->visit_id) }}" method="POST" onsubmit="return confirm('Delete this visit?');" class="inline">
+                                            @csrf
+                                            @method('DELETE')
+                                            <input type="hidden" name="active_tab" value="visits">
+                                            <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs" title="delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                        @endif
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="10" class="text-center text-gray-500 py-4">No visits found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            @if(isset($visits) && method_exists($visits, 'links'))
+            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+                <div>
+                    Showing {{ $visits->firstItem() }} to {{ $visits->lastItem() }} of
+                    {{ $visits->total() }} entries
+                </div>
+                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
+                    {{ $visits->appends(['active_tab' => 'visits'])->links() }}
+                </div>
+            </div>
+            @endif
+        </div>
+
+        <!-- Add Visit Modal -->
+        <div id="addVisitModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-5">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold">Add Visit</h3>
+                    <button onclick="closeAddVisitModal()" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button>
+                </div>
+                <form id="addVisitForm" method="POST" action="{{ route('medical.visits.store') }}" class="space-y-4">
+                    @csrf
+                    <input type="hidden" name="active_tab" value="visits">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium">Date</label>
+                            <input type="date" name="visit_date" id="add_visit_date" value="{{ now()->format('Y-m-d') }}" class="border border-gray-300 rounded px-3 py-2 w-full" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium">Owner</label>
+                            <select id="add_owner_id" class="border border-gray-300 rounded px-3 py-2 w-full">
+                                <option value="" selected disabled>Select owner</option>
+                                @foreach(($filteredOwners ?? []) as $owner)
+                                    <option value="{{ $owner->own_id }}">{{ $owner->own_name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-sm font-medium">Pets for selected owner</label>
+                            <div id="add_owner_pets_container" class="space-y-3 border border-gray-200 rounded p-3 max-h-64 overflow-y-auto">
+                                <div class="text-gray-500 text-sm">Select an owner to load their pets.</div>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Tick the pets to include and set their weight, temperature and service type.</p>
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-sm font-medium">Patient Type</label>
+                            <select name="patient_type" id="add_patient_type" class="border border-gray-300 rounded px-3 py-2 w-full" required>
+                                <option value="Outpatient">Outpatient</option>
+                                <option value="Inpatient">Inpatient</option>
+                                <option value="Emergency">Emergency</option>
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">All new visits will be created with status <strong>Arrived</strong>.</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" onclick="closeAddVisitModal()" class="px-4 py-2 border rounded">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-[#0f7ea0] text-white rounded">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Edit Visit Modal -->
+        <div id="editVisitModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-5">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold" id="editVisitTitle">Edit Visit</h3>
+                    <button onclick="closeEditVisitModal()" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button>
+                </div>
+                <form id="editVisitForm" method="POST" action="#" class="space-y-4">
+                    @csrf
+                    @method('PUT')
+                    <input type="hidden" name="active_tab" value="visits">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium">Date</label>
+                            <input type="date" name="visit_date" id="edit_visit_date" class="border border-gray-300 rounded px-3 py-2 w-full" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium">Pet</label>
+                            <select name="pet_id" id="edit_pet_id" class="border border-gray-300 rounded px-3 py-2 w-full" required>
+                                @foreach(($filteredPets ?? []) as $pet)
+                                    <option value="{{ $pet->pet_id }}">{{ $pet->pet_name }} ({{ $pet->owner->own_name ?? 'N/A' }})</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium">Weight (kg)</label>
+                            <input type="number" step="0.01" name="weight" id="edit_weight" class="border border-gray-300 rounded px-3 py-2 w-full">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium">Temperature (°C)</label>
+                            <input type="number" step="0.1" name="temperature" id="edit_temperature" class="border border-gray-300 rounded px-3 py-2 w-full">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium">Patient Type</label>
+                            <select name="patient_type" id="edit_patient_type" class="border border-gray-300 rounded px-3 py-2 w-full" required>
+                                @foreach(['Outpatient','Inpatient','Emergency'] as $pt)
+                                    <option value="{{ $pt }}">{{ $pt }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium">Status</label>
+                            <select name="visit_status" id="edit_visit_status" class="border border-gray-300 rounded px-3 py-2 w-full">
+                                <option value="arrived">Arrived</option>
+                                <option value="completed">Completed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" onclick="closeEditVisitModal()" class="px-4 py-2 border rounded">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-[#0f7ea0] text-white rounded">Update</button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         @if(session('error'))
             <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4 text-sm">
@@ -141,1421 +347,20 @@
             </div>
         @endif
 
-        <!-- ==================== APPOINTMENTS TAB ==================== -->
-        <div id="appointmentsContent" class="tab-content">
-
-            <!-- Show Entries Dropdown -->
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
-                    <input type="hidden" name="active_tab" value="appointments">
-                    <label for="perPage" class="text-sm text-black">Show</label>
-                    <select name="perPage" id="perPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
-                        @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                            <option value="{{ $limit }}" {{ request('perPage') == $limit ? 'selected' : '' }}>
-                                {{ $limit === 'all' ? 'All' : $limit }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <span>entries</span>
-                </form>
-               @if(auth()->check() && in_array(auth()->user()->user_role, [ 'receptionist']))
-    <button onclick="openAddModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-        + Add Appointment
-    </button>
-@endif
-            </div>
-            <br>
-
-            <!-- Appointments Table -->
-            <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
-                    <thead class="bg-gray-100">
-                        <tr>
-                            <th class="border px-2 py-2">#</th>
-                            <th class="border px-4 py-2">Date</th>
-                            <th class="border px-4 py-2">Type</th>
-                            <th class="border px-4 py-2">Time</th>
-                            <th class="border px-4 py-2">Pet</th>
-                            <th class="border px-4 py-2">Services</th>
-                            <th class="border px-4 py-2">Owner</th>
-                            <th class="border px-4 py-2">Contact</th>
-                            <th class="border px-4 py-2">Status</th>
-                            <th class="border px-4 py-2">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($appointments as $index => $appointment)
-                            <tr>
-                                <td class="border px-2 py-2">{{ $appointments->firstItem() + $index }}</td>
-                                <td class="border px-4 py-2">
-                                    {{ \Carbon\Carbon::parse($appointment->appoint_date)->format('F j, Y') }}
-                                </td>
-                                <td class="border px-4 py-2">{{ $appointment->appoint_type }}</td>
-                                <td class="border px-4 py-2">
-                                    {{ \Carbon\Carbon::parse($appointment->appoint_time)->format('h:i A') }}
-                                </td>
-                                <td class="border px-4 py-2">{{ $appointment->pet?->pet_name ?? 'N/A' }}</td>
-                                <td class="border px-2 py-1 text-left">
-                                    @if($appointment->services->count())
-                                        {{ $appointment->services->pluck('serv_name')->join(', ') }}
-                                    @else
-                                        <em>No Service Assigned</em>
-                                    @endif
-                                </td>
-                                <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_name ?? 'N/A' }}</td>
-                                <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_contactnum}}</td>
-                                <td class="border px-4 py-2">
-                                    <span class="px-2 py-1 rounded text-xs 
-                                        {{ $appointment->appoint_status == 'completed' ? 'bg-green-100 text-green-800' : 
-                                           ($appointment->appoint_status == 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                                           ($appointment->appoint_status == 'refer' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800')) }}">
-                                        {{ ucfirst($appointment->appoint_status) }}
-                                    </span>
-                                </td>
-                               <td class="border px-2 py-1">
-    <div class="flex justify-center items-center gap-1">
-         <button onclick="viewAppointment({{ $appointment->appoint_id }})"
-            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view">
-            <i class="fas fa-eye"></i> 
-        </button>
-        @if(hasPermission('edit_appointment', $can))
-            <button onclick='openEditModal(@json($appointment))'
-                class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs" title="edit">
-                <i class="fas fa-pen"></i> 
-            </button>
-        @endif
-        
-        @if(hasPermission('refer_appointment', $can) && $appointment->appoint_status != 'refer')
-            <button onclick="openReferralModal({{ $appointment->appoint_id }})"
-                class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 flex items-center gap-1 text-xs" title="refer">
-                <i class="fas fa-share"></i>
-            </button>
-        @endif
-
-        @if(hasPermission('prescribe_appointment', $can))
-            <button onclick="openPrescriptionFromAppointment({{ $appointment->appoint_id }}, '{{ $appointment->pet?->pet_name ?? '' }}', '{{ $appointment->appoint_date }}')"
-                class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="prescribe">
-                <i class="fas fa-prescription"></i>
-            </button>
-        @endif
-
-        @if(hasPermission('delete_appointment', $can))
-            <form action="{{ route('medical.appointments.destroy', $appointment->appoint_id) }}" method="POST" onsubmit="return confirm('Are you sure?');" class="inline">
-                @csrf
-                @method('DELETE')
-                <input type="hidden" name="active_tab" value="appointments">
-                <button type="submit"
-                    class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs">
-                    <i class="fas fa-trash"></i> 
-                </button>
-            </form>
-        @endif
-    </div>
-</td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="10" class="text-center text-gray-500 py-4">No appointments found.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Pagination -->
-            @if(method_exists($appointments, 'links'))
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>
-                    Showing {{ $appointments->firstItem() }} to {{ $appointments->lastItem() }} of
-                    {{ $appointments->total() }} entries
-                </div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $appointments->appends(['active_tab' => 'appointments'])->links() }}
-                </div>
-            </div>
-            @endif
-        </div>
-<div id="vaccinationsContent" class="tab-content hidden">
-    {{-- Filtering and pagination controls --}}
-    <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-        <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
-            <input type="hidden" name="active_tab" value="vaccinations">
-            <label for="vaccinationPerPage" class="text-sm text-black">Show</label>
-            <select name="vaccinationPerPage" id="vaccinationPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
-                @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                    <option value="{{ $limit }}" {{ request('vaccinationPerPage') == $limit ? 'selected' : '' }}>
-                        {{ $limit === 'all' ? 'All' : $limit }}
-                    </option>
-                @endforeach
-            </select>
-            <span>entries</span>
-        </form>
-    </div>
-    <br>
-
-    <div class="overflow-x-auto">
-        <table class="w-full table-auto text-sm border text-center">
-            <thead class="bg-gray-100">
-                <tr>
-                    <th class="border px-2 py-2">#</th>
-                    <th class="border px-4 py-2">Pet (Owner)</th>
-                    <th class="border px-4 py-2">Date</th>
-                    <th class="border px-4 py-2">Service (Vaccine Used)</th>
-                    <th class="border px-4 py-2">Batch/Serial No.</th>
-                    <th class="border px-4 py-2">Next Dose Date</th>
-                    <th class="border px-4 py-2">Status</th>
-                    <th class="border px-4 py-2">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @php
-                    // 1. Get the explicit list of names from the Controller constant
-                    $vaccinationServiceNames = \App\Http\Controllers\MedicalManagementController::VACCINATION_SERVICE_NAMES;
-                    
-                    // 2. Retrieve the corresponding Service IDs for robust filtering
-                    // Note: This is re-running the lookup done in the controller, 
-                    // which is necessary here because $vaccinationServiceIds isn't passed directly to the view.
-                    $vaccinationServiceIds = \App\Models\Service::whereIn('serv_name', $vaccinationServiceNames)
-                        ->pluck('serv_id')
-                        ->toArray();
-                @endphp
-                @forelse($vaccinationAppointments as $index => $appointment)
-                    @php
-                        // Find the first service in the appointment's collection that matches one of the vaccination IDs.
-                        $vaccService = $appointment->services->first(function ($service) use ($vaccinationServiceIds) {
-                            return in_array($service->serv_id, $vaccinationServiceIds);
-                        });
-                        
-                        // Safely extract all required variables
-                        $vaccServiceId = $vaccService->serv_id ?? null;
-                        
-                        // Safely check for pivot existence and prod_id
-                        $vaccineProdId = $vaccService && isset($vaccService->pivot->prod_id) ? $vaccService->pivot->prod_id : null;
-                        
-                        // Safely look up the product name using the Product model 
-                        $vaccineProdName = 'N/A (Not Recorded)';
-                        if ($vaccineProdId) {
-                            $product = \App\Models\Product::find($vaccineProdId); 
-                            $vaccineProdName = $product->prod_name ?? 'N/A (Product Missing)';
-                        }
-                        
-                        $vaccineNextDose = $vaccService->pivot->vacc_next_dose ?? null; 
-                        $vaccineBatchNo = $vaccService->pivot->vacc_batch_no ?? 'N/A';
-                        $vaccineNotes = $vaccService->pivot->vacc_notes ?? 'No specific notes.';
-                    @endphp
-                    <tr>
-                        <td class="border px-2 py-2">
-                            {{ $vaccinationAppointments->firstItem() + $index }}
-                        </td>
-                        <td class="border px-4 py-2">
-                            {{ $appointment->pet?->pet_name ?? 'N/A' }} 
-                            <span class="text-gray-500 text-xs">({{ $appointment->pet->owner->own_name ?? 'N/A' }})</span>
-                        </td>
-                        <td class="border px-4 py-2">
-                            {{ \Carbon\Carbon::parse($appointment->appoint_date)->format('F j, Y') }}
-                        </td>
-                        <td class="border px-4 py-2 text-left text-gray-700">
-                            {{-- Display the service name for context --}}
-                            <div class="text-xs text-gray-500 mb-1">{{ $vaccService->serv_name ?? 'Service N/A' }}</div>
-                            {{-- Vaccine Product Name --}}
-                            <span class="text-sm font-medium">**{{ $vaccineProdName }}**</span> 
-                        </td>
-                        
-                        {{-- BATCH/SERIAL NO. COLUMN --}}
-                        <td class="border px-4 py-2 text-gray-700">
-                            <span class="text-sm">{{ $vaccineBatchNo }}</span>
-                        </td>
-                        
-                        {{-- NEXT DOSE DATE COLUMN --}}
-                        <td class="border px-4 py-2 text-gray-700">
-                            @if($vaccineNextDose)
-                                <span class="text-sm">
-                                    {{ \Carbon\Carbon::parse($vaccineNextDose)->format('M j, Y') }}
-                                </span>
-                            @else
-                                <em class="text-gray-500">N/A</em>
-                            @endif
-                        </td>
-                        
-                        {{-- STATUS COLUMN --}}
-                        <td class="border px-4 py-2">
-                            <span class="px-2 py-1 rounded text-xs
-                                {{ $appointment->appoint_status == 'completed' ? 'bg-green-100 text-green-800' : 
-                                   ($appointment->appoint_status == 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                   ($appointment->appoint_status == 'refer' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800')) }}">
-                                {{ ucfirst($appointment->appoint_status) }}
-                            </span>
-                        </td>
-                        
-                        {{-- ACTIONS COLUMN --}}
-                        <td class="border px-2 py-1 text-center">
-                            <div class="flex justify-center">
-                                @if($vaccServiceId)
-                                <button onclick="openVaccineDetailsModal(
-                                    {{ $appointment->appoint_id }}, 
-                                    '{{ $appointment->pet?->pet_name ?? 'N/A' }}', 
-                                    '{{ $appointment->appoint_date }}', 
-                                    '{{ $vaccServiceId }}', // Use the specific service ID found
-                                    '{{ $vaccineProdId }}',
-                                    '{{ $vaccineNextDose }}',
-                                    '{{ $vaccineBatchNo }}',
-                                    '{{ $vaccineNotes }}'
-                                )"
-                                    class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs"
-                                    title="{{ $vaccineProdId ? 'Edit Vaccine Record' : 'Add Vaccine' }}">
-                                    <i class="fas fa-syringe"></i> {{ $vaccineProdId ? 'Edit' : 'Add' }}
-                                </button>
-                                @endif
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="8" class="text-center text-gray-500 py-4">No appointments found with the listed Vaccination services.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-    
-    {{-- Pagination --}}
-    @if(method_exists($vaccinationAppointments, 'links'))
-    <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-        <div>
-            Showing {{ $vaccinationAppointments->firstItem() }} to {{ $vaccinationAppointments->lastItem() }} of
-            {{ $vaccinationAppointments->total() }} entries
-        </div>
-        <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-            {{ $vaccinationAppointments->appends(['active_tab' => 'vaccinations'])->links() }}
-        </div>
-    </div>
-    @endif
-</div>
-        <!-- ==================== PRESCRIPTIONS TAB ==================== -->
-        <div id="prescriptionsContent" class="tab-content hidden">
-            <!-- Show Entries Dropdown for Prescriptions -->
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
-                    <input type="hidden" name="active_tab" value="prescriptions">
-                    <label for="prescriptionPerPage" class="text-sm text-black">Show</label>
-                    <select name="prescriptionPerPage" id="prescriptionPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
-                        @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                            <option value="{{ $limit }}" {{ request('prescriptionPerPage') == $limit ? 'selected' : '' }}>
-                                {{ $limit === 'all' ? 'All' : $limit }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <span>entries</span>
-                </form>
-                <!--<button onclick="openPrescriptionModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-                    + Add Prescription
-                </button>-->
-            </div>
-            <br>
-
-            <!-- Prescriptions Table -->
-            <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
-                    <thead class="bg-gray-100">
-                        <tr>
-                            <th class="border px-2 py-2">#</th>
-                            <th class="border px-2 py-2">Pet</th>
-                            <th class="border px-2 py-2">Date</th>
-                            <th class="border px-2 py-2">Medications</th>
-                            <th class="border px-2 py-2">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($prescriptions ?? [] as $index => $prescription)
-                        <tr class="hover:bg-gray-50">
-                            <td class="border px-2 py-2">
-                                @if(method_exists($prescriptions, 'firstItem'))
-                                    {{ $prescriptions->firstItem() + $index }}
-                                @else
-                                    {{ $index + 1 }}
-                                @endif
-                            </td>
-                            <td class="border px-2 py-2">{{ $prescription->pet->pet_name }}</td>
-                            <td class="border px-2 py-2">{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}</td>
-                            <td class="border px-2 py-2">
-                                @if($prescription->medication)
-                                    @php
-                                        $medications = json_decode($prescription->medication, true) ?? [];
-                                    @endphp
-                                    {{ count($medications) }} medication(s)
-                                @else
-                                    No medications
-                                @endif
-                            </td>
-                            <td class="border px-2 py-1 flex justify-center gap-1">
-                               @if(hasPermission('view_prescriptions', $can))
-                                <button onclick="viewPrescription(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
-                                    data-id="{{ $prescription->prescription_id }}"
-                                    data-pet="{{ $prescription->pet->pet_name }}"
-                                    data-species="{{ $prescription->pet->pet_species }}"
-                                    data-breed="{{ $prescription->pet->pet_breed }}"
-                                    data-weight="{{ $prescription->pet->pet_weight }}"
-                                    data-age="{{ $prescription->pet->pet_age }}"
-                                    data-temp="{{ $prescription->pet->pet_temperature }}"
-                                    data-gender="{{ $prescription->pet->pet_gender }}"
-                                    data-date="{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}"
-                                    data-medication="{{ $prescription->medication }}"
-                                     data-differential-diagnosis="{{ $prescription->differential_diagnosis }}"
-                                    data-notes="{{ $prescription->notes }}"
-                                    data-branch-name="{{ $prescription->branch->branch_name ?? 'Main Branch' }}"
-                                    data-branch-address="{{ $prescription->branch->branch_address ?? 'Branch Address' }}"
-                                    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}"title="View Prescription">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                 @endif
-@if(hasPermission('print_prescription', $can))
-                                <!-- Direct Print Button -->
-                                <button onclick="directPrint(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
-                                    data-id="{{ $prescription->prescription_id }}"
-                                    data-pet="{{ $prescription->pet->pet_name }}"
-                                    data-species="{{ $prescription->pet->pet_species }}"
-                                    data-breed="{{ $prescription->pet->pet_breed }}"
-                                    data-weight="{{ $prescription->pet->pet_weight }}"
-                                    data-age="{{ $prescription->pet->pet_age }}"
-                                    data-temp="{{ $prescription->pet->pet_temperature }}"
-                                    data-gender="{{ $prescription->pet->pet_gender }}"
-                                    data-date="{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}"
-                                    data-medication="{{ $prescription->medication }}"
-                                     data-differential-diagnosis="{{ $prescription->differential_diagnosis }}"
-                                    data-notes="{{ $prescription->notes }}"
-                                    data-branch-name="{{ $prescription->branch->branch_name ?? 'Main Branch' }}"
-                                    data-branch-address="{{ $prescription->branch->branch_address ?? 'Branch Address' }}"
-                                    data-branch-contact="{{ $prescription->branch->branch_contactNum ?? 'Contact Number' }}" title="print">
-                                    <i class="fas fa-print"></i>
-                                </button> 
-                                @endif
-@if(hasPermission('edit_prescription', $can))
-                                <!-- Edit -->
-                                <button onclick="editPrescription({{ $prescription->prescription_id }})" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs" title="edit">
-                                    <i class="fas fa-pen"></i>
-                                </button>
- @endif
- @if(hasPermission('edit_prescription', $can))
-                                <!-- Delete -->
-                                <form action="{{ route('medical.prescriptions.destroy', $prescription->prescription_id) }}" method="POST"
-                                    onsubmit="return confirm('Are you sure you want to delete this prescription?');" class="inline">
-                                    @csrf
-                                    @method('DELETE')
-                                    <input type="hidden" name="active_tab" value="prescriptions">
-                                    <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs" title="delete">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </form>
-                                 @endif
-                            </td>
-                        </tr>
-                        @empty
-                        <tr>
-                            <td colspan="5" class="text-center text-gray-500 py-4">No prescriptions found.</td>
-                        </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Pagination for Prescriptions -->
-            @if(method_exists($prescriptions, 'links'))
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>
-                    Showing {{ $prescriptions->firstItem() }} to {{ $prescriptions->lastItem() }} of
-                    {{ $prescriptions->total() }} entries
-                </div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $prescriptions->appends(['active_tab' => 'prescriptions'])->links() }}
-                </div>
-            </div>
-            @endif
-        </div>
-
-        <!-- ==================== REFERRALS TAB ==================== -->
-        <div id="referralsContent" class="tab-content hidden">
-            <!-- Show Entries Dropdown for Referrals -->
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
-                    <input type="hidden" name="active_tab" value="referrals">
-                    <label for="referralPerPage" class="text-sm text-black">Show</label>
-                    <select name="referralPerPage" id="referralPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
-                        @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                            <option value="{{ $limit }}" {{ request('referralPerPage') == $limit ? 'selected' : '' }}>
-                                {{ $limit === 'all' ? 'All' : $limit }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <span>entries</span>
-                </form>
-                <!--<button onclick="openReferralModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-                    + Add Referral
-                </button>-->
-            </div>
-            <br>
-
-            <!-- Referrals Table -->
-            <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
-                    <thead class="bg-gray-100">
-                        <tr>
-                            <th class="border px-2 py-2">#</th>
-                            <th class="border px-2 py-2">Date</th>
-                            <th class="border px-2 py-2">Pet</th>
-                            <th class="border px-2 py-2">Owner</th>
-                            <th class="border px-2 py-2">Referred To</th>
-                            <th class="border px-2 py-2">Description</th>
-                            <th class="border px-2 py-2">Status</th>
-                            <th class="border px-2 py-2">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($referrals ?? [] as $index => $referral)
-                            <tr>
-                                <td class="border px-2 py-2">
-                                    @if(method_exists($referrals, 'firstItem'))
-                                        {{ $referrals->firstItem() + $index }}
-                                    @else
-                                        {{ $index + 1 }}
-                                    @endif
-                                </td>
-                                <td class="border px-2 py-2">{{ \Carbon\Carbon::parse($referral->ref_date)->format('F j, Y') }}</td>
-                                <td class="border px-2 py-2">{{ $referral->appointment?->pet?->pet_name ?? 'N/A' }}</td>
-                                <td class="border px-2 py-2">{{ $referral->appointment?->pet?->owner?->own_name ?? 'N/A' }}</td>
-                                <td class="border px-2 py-2">{{ $referral->refToBranch?->branch_name ?? 'N/A' }}</td>
-                                <td class="border px-2 py-2">{{ Str::limit($referral->ref_description, 50) }}</td>
-                                <td class="border px-2 py-2">
-                                    <span class="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs">
-                                        Referred
-                                    </span>
-                                </td>
-                                <td class="border px-2 py-1">
-    <div class="flex justify-center items-center gap-1">
-        @if(hasPermission('view_referrals', $can))
-            <button onclick="viewReferral({{ $referral->ref_id }})"
-                class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view">
-                <i class="fas fa-eye"></i>
-            </button>
-        @endif
-        
-        @if(hasPermission('print_referral', $can))
-            <button onclick="printReferral({{ $referral->ref_id }})"
-                class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="print">
-                <i class="fas fa-print"></i>
-            </button>
-        @endif
-        
-        @if(hasPermission('edit_referral', $can))
-            <button onclick="editReferral({{ $referral->ref_id }})"
-                class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs" title="edit">
-                <i class="fas fa-pen"></i>
-            </button>
-        @endif
-        
-        @if(hasPermission('delete_referral', $can))
-            <form action="{{ route('medical.referrals.destroy', $referral->ref_id) }}" method="POST"
-                onsubmit="return confirm('Are you sure you want to delete this referral?');" class="inline">
-                @csrf
-                @method('DELETE')
-                <input type="hidden" name="active_tab" value="referrals">
-                <button type="submit"
-                    class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs" title="delete">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </form>
-        @endif
-    </div>
-</td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="8" class="text-center text-gray-500 py-4">No referrals found.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Pagination for Referrals -->
-            @if(method_exists($referrals, 'links'))
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>
-                    Showing {{ $referrals->firstItem() }} to {{ $referrals->lastItem() }} of
-                    {{ $referrals->total() }} entries
-                </div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $referrals->appends(['active_tab' => 'referrals'])->links() }}
-                </div>
-            </div>
-            @endif
-        </div>
-    </div>
-</div>
-
-<div id="vaccineDetailsModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center hidden z-50">
-    <div class="bg-white w-full max-w-lg p-6 rounded shadow-lg max-h-[90vh] overflow-y-auto">
-        <h2 class="text-lg font-semibold text-[#0f7ea0] mb-4" id="vaccineDetailsModalTitle">Record Vaccine Details</h2>
-        <form id="vaccineDetailsForm" method="POST">
-            @csrf
-            @method('PUT') 
-            <input type="hidden" name="appoint_id" id="vacc_appoint_id">
-            <input type="hidden" name="service_id" id="vacc_service_id">
-            <input type="hidden" name="active_tab" value="vaccinations">
-
-            <p class="text-sm text-gray-700 mb-4 border-b pb-2">
-                Pet: <strong id="vacc_pet_name"></strong> | Date: <strong id="vacc_appoint_date"></strong>
-            </p>
-
-            <div class="mb-4">
-                <label class="block text-sm mb-1">Vaccine Product</label>
-                <div class="relative">
-                    <input type="hidden" name="prod_id" id="vacc_prod_id" required>
-                    <input type="text" id="vacc_product_search" class="w-full border px-3 py-2 rounded text-sm" placeholder="Search product (only available services product)">
-                    <div id="vacc_product_suggestions" class="product-suggestions hidden"></div>
-                </div>
-            </div>
-            
-            <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label class="block text-sm mb-1">Batch / Serial No.</label>
-                    <input type="text" name="vacc_batch_no" id="vacc_batch_no_input" class="w-full border px-3 py-2 rounded text-sm" placeholder="Batch No.">
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Next Vaccine Date</label>
-                    <input type="date" name="vacc_next_dose" id="vacc_next_dose_input" class="w-full border px-3 py-2 rounded text-sm">
-                </div>
-            </div>
-
-            <div class="mb-4">
-                <label class="block text-sm mb-1">Veterinarian Notes</label>
-                <textarea name="vacc_notes" id="vacc_notes_input" rows="2" class="w-full border px-3 py-2 rounded text-sm" placeholder="Adverse reactions, etc."></textarea>
-            </div>
-            
-            <div class="flex justify-end space-x-2 mt-6">
-                <button type="button" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400" onclick="closeVaccineDetailsModal()">Cancel</button>
-                <button type="submit" class="px-4 py-2 bg-[#0f7ea0] text-white rounded hover:bg-purple-700">Save</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- ==================== APPOINTMENT MODALS ==================== -->
-<!-- Add Appointment Modal -->
-<div id="addModal" class="fixed inset-0 hidden items-center justify-center bg-black bg-opacity-50" style="z-index: 50;">
-    <div class="bg-white p-6 rounded shadow-md w-full max-w-3xl" style="z-index: 51;">
-        <h2 class="text-lg font-bold text-[#0f7ea0] mb-4">Add Appointment</h2>
-        <form id="addForm" action="{{ route('medical.appointments.store') }}" method="POST">
-            @csrf
-            <input type="hidden" name="active_tab" value="appointments">
-
-          <div class="mb-3">
-            <label class="block text-sm mb-1">Pet Owner</label>
-            <select id="owner_id" class="w-full border rounded px-3 py-2 text-sm" required onchange="populateOwnerDetails(this)">
-                <option disabled selected>Select Pet Owner</option>
-                {{-- **FIX: Replace the inline DB query with the Controller variable** --}}
-                @foreach($filteredOwners as $owner) 
-                    <option 
-                        value="{{ $owner->own_id }}" 
-                        data-contact="{{ $owner->own_contactnum }}" 
-                        data-pets='@json($owner->pets->map(fn($p) => ["id"=>$p->pet_id,"name"=>$p->pet_name]))'
-                    >
-                        {{ $owner->own_name }}
-                    </option>
-                @endforeach
-            </select>
-        </div>
-
-            <!-- Row 2: Contact Number & Pet -->
-            <div class="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                    <label class="block text-sm mb-1">Contact Number</label>
-                    <input type="text" name="appoint_contactNum" id="appoint_contactNum" required class="w-full border rounded px-3 py-2 text-sm" readonly />
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Pet</label>
-                    <select name="pet_id" id="pet_id" required class="w-full border rounded px-3 py-2 text-sm">
-                        <option disabled selected>Select Pet</option>
-                    </select>
-                </div>
-            </div>
-
-                    <!-- Row 3: Appointment Type & Appointment Date -->
-            <div class="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                    <label class="block text-sm mb-1">Appointment Type</label>
-                    <select name="appoint_type" required class="w-full border rounded px-3 py-2 text-sm">
-                        <option value="Walk-in" selected>Walk-in</option>
-                        <option value="Referral">Referral</option>
-                        <option value="Follow-up">Follow-up</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Appointment Date</label>
-                    <input type="date" 
-                        name="appoint_date" 
-                        value="{{ date('Y-m-d') }}" 
-                        required 
-                        class="w-full border rounded px-3 py-2 text-sm" />
-                </div>
-            </div>
-
-            <!-- Row 4: Appointment Time & Status -->
-            <div class="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                    <label class="block text-sm mb-1">Appointment Time</label>
-                    <select name="appoint_time" class="w-full border rounded px-3 py-2 text-sm" required>
-                        <option value="" disabled selected>Select a time</option>
-                        @foreach ([
-                            '09:00 AM','10:00 AM','11:00 AM','01:00 PM','02:00 PM','03:00 PM','04:00 PM','05:00 PM'
-                        ] as $label)
-                            <option value="{{ date('H:i', strtotime($label)) }}">{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Appointment Status</label>
-                    <select name="appoint_status" required class="w-full border rounded px-3 py-2 text-sm">
-                        <option value="pending">Pending</option>
-                        <option value="arrived">Arrived</option>
-                        <option value="completed">Complete</option>
-                    </select>
-                </div>
-            </div>
-<!-- Row 5: Services & Description -->
-<!-- Row 5: Services Button -->
-<div class="mb-3">
-    <div class="flex justify-between items-center mb-2">
-        <label class="block text-sm">Selected Services</label>
-        <button type="button" onclick="toggleServiceSelection('add')" class="bg-[#0f7ea0] text-white px-3 py-1 rounded hover:bg-[#0c6a86] text-sm">
-            <span id="addServiceButtonText">Select Services</span>
-        </button>
-    </div>
-    <input type="text" id="selectedServicesDisplay" class="w-full border rounded px-3 py-2 text-sm" readonly placeholder="Click 'Select Services' to choose services" />
-    
-    <!-- Inline Service Selection - Full Width, Hidden by default -->
-    <div id="addServiceSelection" class="hidden mt-4 border-2 border-[#0f7ea0] rounded-lg p-5 bg-gradient-to-br from-blue-50 to-gray-50">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-base font-bold text-[#0f7ea0]">Choose Services</h3>
-            <span id="addSelectedCount" class="text-sm bg-[#0f7ea0] text-white px-3 py-1 rounded-full font-semibold">
-                0 selected
-            </span>
-        </div>
-        
-        <!-- Search Bar -->
-        <div class="mb-4">
-            <div class="relative">
-                <input type="text" 
-                       id="addServiceSearch" 
-                       placeholder="Search services..." 
-                       class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 pl-10 text-sm focus:border-[#0f7ea0] focus:ring-2 focus:ring-[#0f7ea0] focus:ring-opacity-50 transition-all"
-                       oninput="filterServices('add')"
-                       onkeyup="filterServices('add')">
-                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                <button type="button" 
-                        onclick="clearServiceSearch('add')" 
-                        id="addClearSearch"
-                        class="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 hidden">
-                    <i class="fas fa-times-circle"></i>
-                </button>
-            </div>
-            <div id="addSearchStats" class="text-xs text-gray-600 mt-1 hidden">
-                Found <span id="addFoundCount">0</span> service(s)
-            </div>
-        </div>
-        
-        <!-- 4 Column Grid -->
-        <div id="addServiceGrid" class="grid grid-cols-4 gap-3 max-h-64 overflow-y-auto mb-4 p-2">
-            @foreach(\App\Models\Service::all() as $service)
-                <label class="service-item flex items-center gap-2 border-2 p-3 rounded-lg cursor-pointer hover:bg-white hover:border-[#0f7ea0] transition-all bg-white shadow-sm" data-service-name="{{ strtolower($service->serv_name) }}">
-                    <input type="checkbox"
-                           value="{{ $service->serv_id }}"
-                           data-name="{{ $service->serv_name }}"
-                           class="add-service-checkbox w-4 h-4 text-[#0f7ea0] focus:ring-[#0f7ea0]"
-                           onchange="updateServiceCount('add')">
-                    <span class="text-sm font-medium">{{ $service->serv_name }}</span>
-                </label>
-            @endforeach
-        </div>
-        
-        <!-- No Results Message -->
-        <div id="addNoResults" class="hidden text-center py-8 text-gray-500">
-            <i class="fas fa-search text-4xl mb-2 opacity-50"></i>
-            <p class="text-sm font-medium">No services found</p>
-            <p class="text-xs">Try a different search term</p>
-        </div>
-        
-        <!-- Action Buttons -->
-        <div class="flex justify-between items-center pt-3 border-t-2">
-            <button type="button"
-                    onclick="selectAllServices('add')"
-                    class="bg-green-500 text-white text-xs px-3 py-1.5 rounded hover:bg-green-600 transition-colors">
-                <i class="fas fa-check-double mr-1"></i> Select All
-            </button>
-            <div class="flex gap-3">
-                <button type="button"
-                        onclick="cancelServiceSelection('add')"
-                        class="bg-gray-400 text-white text-sm px-4 py-2 rounded hover:bg-gray-500 transition-colors">
-                    Cancel
-                </button>
-                <button type="button"
-                        onclick="saveSelectedServices('add')"
-                        class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86] transition-colors font-semibold">
-                    Save Selected Services
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Row 6: Description -->
-<div class="mb-3">
-    <label class="block text-sm mb-1">Description</label>
-    <textarea name="appoint_description" rows="3" class="w-full border rounded px-3 py-2 text-sm" placeholder="Add description..."></textarea>
-</div>
-
-            <div class="flex justify-end gap-2 mt-4">
-                <button type="button" onclick="closeAddModal()" class="bg-gray-300 text-sm px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
-                <button type="submit" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0d6b85]">Save</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Edit Appointment Modal -->
-<div id="editModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-30">
-    <div class="bg-white w-full max-w-3xl p-6 rounded shadow">
-        <h2 class="text-lg font-semibold text-[#0f7ea0] mb-4">Update Appointment</h2>
-        <form method="POST" id="editForm" class="space-y-4">
-            @csrf
-            @method('PUT')
-            <input type="hidden" name="active_tab" value="appointments">
-
-            <input type="hidden" id="edit_appoint_id" name="appoint_id">
-
-            <!-- Row 1: Pet Owner -->
-            <div class="mb-3">
-                <label class="block text-sm mb-1">Pet Owner</label>
-                <select id="edit_owner_id" class="w-full border rounded px-3 py-2 text-sm" required onchange="populateOwnerDetailsEdit(this)">
-                    <option disabled selected>Select Pet Owner</option>
-                    @foreach(\App\Models\Owner::with('pets')->get() as $owner)
-                        <option value="{{ $owner->own_id }}" data-contact="{{ $owner->own_contactnum }}" data-pets='@json($owner->pets->map(fn($p) => ["id"=>$p->pet_id,"name"=>$p->pet_name]))'>
-                            {{ $owner->own_name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-
-            <!-- Row 2: Contact Number & Pet -->
-            <div class="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                    <label class="block text-sm mb-1">Contact Number</label>
-                    <input type="text" id="edit_appoint_contactNum" name="appoint_contactNum" class="w-full border rounded px-3 py-2 text-sm" readonly />
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Pet</label>
-                    <select id="edit_pet_id" name="pet_id" required class="w-full border rounded px-3 py-2 text-sm">
-                    </select>
-                </div>
-            </div>
-
-            <!-- Row 3: Appointment Type & Appointment Date -->
-            <div class="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                    <label class="block text-sm mb-1">Appointment Type</label>
-                    <select id="edit_appoint_type" name="appoint_type" class="w-full border rounded px-3 py-2 text-sm">
-                        <option value="Walk-in">Walk-in</option>
-                        <option value="Follow-up">Follow-up</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Appointment Date</label>
-                    <input type="date" id="edit_appoint_date" name="appoint_date" class="w-full border rounded px-3 py-2 text-sm" />
-                </div>
-            </div>
-
-            <!-- Row 4: Appointment Time & Status -->
-            <div class="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                    <label class="block text-sm mb-1">Appointment Time</label>
-                    <select id="edit_appoint_time" name="appoint_time" class="w-full border rounded px-3 py-2 text-sm">
-                        @foreach ([
-                            '09:00 AM','10:00 AM','11:00 AM','01:00 PM','02:00 PM','03:00 PM','04:00 PM','05:00 PM'
-                        ] as $label)
-                            <option value="{{ date('H:i', strtotime($label)) }}">{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Appointment Status</label>
-                    <select id="edit_appoint_status" name="appoint_status" class="w-full border rounded px-3 py-2 text-sm">
-                        <option value="pending">Pending</option>
-                        <option value="arrived">Arrived</option>
-                        <option value="completed">Completed</option>
-                    </select>
-                </div>
-            </div>
-<div class="mb-3">
-    <div class="flex justify-between items-center mb-2">
-        <label class="block text-sm">Selected Services</label>
-        <button type="button" onclick="toggleServiceSelection('edit')" class="bg-[#0f7ea0] text-white px-3 py-1 rounded hover:bg-[#0c6a86] text-sm">
-            <span id="editServiceButtonText">Select Services</span>
-        </button>
-    </div>
-    <input type="text" id="edit_selectedServicesDisplay" class="w-full border rounded px-3 py-2 text-sm" readonly placeholder="Click 'Select Services' to choose services" />
-    
-    <div id="editServiceSelection" class="hidden mt-4 border-2 border-[#0f7ea0] rounded-lg p-5 bg-gradient-to-br from-blue-50 to-gray-50">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-base font-bold text-[#0f7ea0]">Choose Services</h3>
-            <span id="editSelectedCount" class="text-sm bg-[#0f7ea0] text-white px-3 py-1 rounded-full font-semibold">
-                0 selected
-            </span>
-        </div>
-        
-        <div class="mb-4">
-            <div class="relative">
-                <input type="text" 
-                       id="editServiceSearch" 
-                       placeholder="Search services..." 
-                       class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 pl-10 text-sm focus:border-[#0f7ea0] focus:ring-2 focus:ring-[#0f7ea0] focus:ring-opacity-50 transition-all"
-                       oninput="filterServices('edit')"
-                       onkeyup="filterServices('edit')">
-                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                <button type="button" 
-                        onclick="clearServiceSearch('edit')" 
-                        id="editClearSearch"
-                        class="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 hidden">
-                    <i class="fas fa-times-circle"></i>
-                </button>
-            </div>
-            <div id="editSearchStats" class="text-xs text-gray-600 mt-1 hidden">
-                Found <span id="editFoundCount">0</span> service(s)
-            </div>
-        </div>
-        
-        <div id="editServiceGrid" class="grid grid-cols-4 gap-3 max-h-64 overflow-y-auto mb-4 p-2">
-            @foreach(\App\Models\Service::all() as $service)
-                <label class="service-item flex items-center gap-2 border-2 p-3 rounded-lg cursor-pointer hover:bg-white hover:border-[#0f7ea0] transition-all bg-white shadow-sm" data-service-name="{{ strtolower($service->serv_name) }}">
-                    <input type="checkbox"
-                           value="{{ $service->serv_id }}"
-                           data-name="{{ $service->serv_name }}"
-                           class="edit-service-checkbox w-4 h-4 text-[#0f7ea0] focus:ring-[#0f7ea0]"
-                           onchange="updateServiceCount('edit')">
-                    <span class="text-sm font-medium">{{ $service->serv_name }}</span>
-                </label>
-            @endforeach
-        </div>
-        
-        <div id="editNoResults" class="hidden text-center py-8 text-gray-500">
-            <i class="fas fa-search text-4xl mb-2 opacity-50"></i>
-            <p class="text-sm font-medium">No services found</p>
-            <p class="text-xs">Try a different search term</p>
-        </div>
-        
-        <div class="flex justify-between items-center pt-3 border-t-2">
-            <button type="button"
-                    onclick="selectAllServices('edit')"
-                    class="bg-green-500 text-white text-xs px-3 py-1.5 rounded hover:bg-green-600 transition-colors">
-                <i class="fas fa-check-double mr-1"></i> Select All
-            </button>
-            <div class="flex gap-3">
-                <button type="button"
-                        onclick="cancelServiceSelection('edit')"
-                        class="bg-gray-400 text-white text-sm px-4 py-2 rounded hover:bg-gray-500 transition-colors">
-                    Cancel
-                </button>
-                <button type="button"
-                        onclick="saveSelectedServices('edit')"
-                        class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86] transition-colors font-semibold">
-                    Save Selected Services
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="mb-3">
-    <label class="block text-sm mb-1">Description</label>
-    <textarea id="edit_appoint_description" name="appoint_description" rows="3" class="w-full border rounded px-3 py-2 text-sm"></textarea>
-</div>
-
-            <div class="flex justify-end gap-2 mt-4">
-                <button type="button" onclick="closeEditModal()" class="bg-gray-300 text-sm px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
-                <button type="submit" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0d6b85]">Update</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-
-        
-<!-- ==================== PRESCRIPTION MODALS ==================== -->
-<!-- Add/Edit Prescription Modal -->
-<div id="prescriptionModal" class="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center hidden z-50">
-    <div class="bg-white w-full max-w-4xl p-6 rounded shadow-lg max-h-[90vh] overflow-y-auto">
-        <h2 class="text-lg font-semibold text-[#0f7ea0] mb-4" id="prescriptionModalTitle">Add Prescription</h2>
-        <form id="prescriptionForm" method="POST">
-            @csrf
-            <input type="hidden" name="_method" id="prescriptionFormMethod" value="POST">
-            <input type="hidden" name="prescription_id" id="prescription_id">
-            <input type="hidden" name="active_tab" value="prescriptions">
-
-            <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label class="block text-sm">Pet</label>
-                    <select name="pet_id" id="prescription_pet_id" class="w-full border px-2 py-1 rounded" required>
-                        <option value="">Select Pet</option>
-                        @foreach (\App\Models\Pet::with('owner')->get() as $pet)
-                           <option value="{{ $pet->pet_id }}">
-                                {{ $pet->pet_name }} ({{ $pet->pet_species }}) - {{ $pet->owner?->own_name ?? 'No Owner' }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-sm">Date</label>
-                    <input type="date" name="prescription_date" id="prescription_date" class="w-full border px-2 py-1 rounded" required>
-                </div>
-            </div>
-
-            <!-- Medications Section -->
-            <div class="mb-4">
-                <div class="flex justify-between items-center mb-3">
-                    <label class="block text-sm font-medium">Medications</label>
-                    <button type="button" onclick="addMedicationField()" class="bg-green-500 text-white px-3 py-1 rounded text-xs hover:bg-green-600">
-                        <i class="fas fa-plus"></i> Add Medication
-                    </button>
-                </div>
-                
-                <div id="medicationContainer" class="space-y-3">
-                    <!-- Initial medication field will be added by JavaScript -->
-                </div>
-            </div>
-
-            <div class="mb-4">
-                <label class="block text-sm font-medium">Differential Diagnosis</label>
-                <textarea name="differential_diagnosis" id="differential_diagnosis" rows="3" 
-                          class="w-full border px-2 py-1 rounded" 
-                          placeholder="Enter differential diagnosis (conditions being considered)"></textarea>
-            </div>
-
-            <div class="mb-4">
-                <label class="block text-sm">Notes/Recommendations</label>
-                <textarea name="notes" id="prescription_notes" rows="3" class="w-full border px-2 py-1 rounded" placeholder="Additional notes or recommendations"></textarea>
-            </div>
-
-            <div class="flex justify-end space-x-2 mt-6">
-                <button type="button" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400" onclick="closePrescriptionModal()">Cancel</button>
-                <button type="submit" class="px-4 py-2 bg-[#0f7ea0] text-white rounded hover:bg-[#0d6b85]">Save Prescription</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- View Prescription Modal -->
-<div id="viewPrescriptionModal" class="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50 hidden no-print">
-    <div class="bg-white w-full max-w-2xl p-0 rounded-lg shadow-lg relative max-h-[100vh] overflow-y-auto">
-        <div id="prescriptionContent" class="prescription-container bg-white p-10">
-            <div class="header flex items-center justify-between border-b-2 border-black pb-6 mb-6">
-                <!-- Left side: Logo -->
-                <div class="flex-shrink-0">
-                    <img src="{{ asset('images/pets2go.png') }}" alt="Pets2GO Logo" class="w-28 h-28 object-contain">
-                </div>
-                
-                <!-- Right side: Clinic Information -->
-                <div class="flex-grow text-center">
-                    <div class="clinic-name text-2xl font-bold text-[#a86520] tracking-wide">
-                        PETS 2GO VETERINARY CLINIC
-                    </div>
-                    <div class="branch-name text-lg font-bold underline text-center mt-1" id="branch_name">
-                    
-                    </div>
-                    <div class="clinic-details text-sm text-gray-700 mt-1 text-center leading-tight">
-                        <div id="branch_address"></div>
-                        <div id="branch_contactNum"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="prescription-body">
-                <div class="patient-info mb-6">
-                    <div class="grid grid-cols-3 gap-2 text-sm">
-                        <div>
-                            <div class="mb-2"><strong>DATE:</strong> <span id="viewDate"></span></div>
-                            <div class="mb-2"><strong>NAME OF PET:</strong> <span id="viewPet"></span></div>
-                        </div>
-                        <div class="text-center">
-                            <div><strong>WEIGHT:</strong> <span id="viewWeight"></span></div>
-                            <div><strong>TEMP:</strong> <span id="viewTemp"></span></div>
-                        </div>
-                        <div class="text-right">
-                            <div><strong>AGE:</strong> <span id="viewAge"></span></div>
-                            <div><strong>GENDER:</strong> <span id="viewGender"></span></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="rx-symbol text-left my-8 text-6xl font-bold text-gray-800">℞</div>
-
-                <div class="medication-section mb-8">
-                    <div class="section-title text-base font-bold mb-4">MEDICATION</div>
-                    <div id="medicationsList" class="space-y-3"></div>
-                </div>
-
-                <div class="differential-diagnosis mb-6">
-                    <h3 class="text-base font-bold mb-2">DIFFERENTIAL DIAGNOSIS:</h3>
-                    <div id="viewDifferentialDiagnosis" class="text-sm bg-blue-50 p-3 rounded border-l-4 border-blue-500"></div>
-                </div>
-
-                <div class="recommendations mb-8">
-                    <h3 class="text-base font-bold mb-4">RECOMMENDATION/REMINDER:</h3>
-                    <div id="viewNotes" class="text-sm"></div>
-                </div>
-
-                <div class="footer text-right pt-8 border-t-2 border-black">
-                    <div class="doctor-info text-sm">
-                        <div class="doctor-name font-bold mb-1">JAN JERICK M. GO DVM</div>
-                        <div class="license-info text-gray-600">License No.: 0012045</div>
-                        <div class="license-info text-gray-600">Attending Veterinarian</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <button onclick="document.getElementById('viewPrescriptionModal').classList.add('hidden')" 
-                class="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl no-print">&times;</button>
-    </div>
-</div>
-
-<!-- Hidden Print Container -->
-<div id="printContainer" style="display: none;">
-    <div id="printContent" class="prescription-container bg-white p-10">
-        <!-- Content will be populated by JavaScript -->
-    </div>
-</div>
-
-<!-- ==================== REFERRAL MODALS ==================== -->
-<!-- Enhanced Referral Modal -->
-<div id="referralModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white w-full max-w-4xl p-6 rounded shadow-lg max-h-[90vh] overflow-y-auto">
-        <h2 class="text-lg font-semibold text-[#0f7ea0] mb-4" id="referralModalTitle">Create Referral</h2>
-        <form id="referralForm" method="POST">
-            @csrf
-            <input type="hidden" name="_method" id="referralFormMethod" value="POST">
-            <input type="hidden" name="ref_id" id="ref_id">
-            <input type="hidden" name="active_tab" value="referrals">
-
-            <!-- Appointment Selection -->
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Select Appointment</label>
-                <select name="appointment_id" id="appointment_id" class="w-full border px-3 py-2 rounded" required onchange="loadAppointmentDetails(this.value)">
-                    <option value="">Select Appointment</option>
-                    @foreach(\App\Models\Appointment::with(['pet.owner'])->where('appoint_status', '!=', 'refer')->get() as $appointment)
-                        <option value="{{ $appointment->appoint_id }}">
-                            {{ \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y') }} - 
-                            {{ $appointment->pet->pet_name ?? 'N/A' }} ({{ $appointment->pet->owner->own_name ?? 'N/A' }})
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-
-            <!-- Patient Information Section -->
-            <div class="bg-gray-50 p-4 rounded mb-4">
-                <h3 class="text-sm font-semibold text-gray-700 mb-3">Patient Information</h3>
-                <div class="grid grid-cols-3 gap-4 text-sm">
-                    <div>
-                        <label class="block text-gray-600">Pet Name:</label>
-                        <span id="ref_pet_name" class="font-medium">-</span>
-                    </div>
-                    <div>
-                        <label class="block text-gray-600">Gender:</label>
-                        <span id="ref_pet_gender" class="font-medium">-</span>
-                    </div>
-                    <div>
-                        <label class="block text-gray-600">Date of Birth:</label>
-                        <span id="ref_pet_dob" class="font-medium">-</span>
-                    </div>
-                    <div>
-                        <label class="block text-gray-600">Species:</label>
-                        <span id="ref_pet_species" class="font-medium">-</span>
-                    </div>
-                    <div>
-                        <label class="block text-gray-600">Breed:</label>
-                        <span id="ref_pet_breed" class="font-medium">-</span>
-                    </div>
-                    <div>
-                        <label class="block text-gray-600">Weight:</label>
-                        <span id="ref_pet_weight" class="font-medium">-</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Owner Information Section -->
-            <div class="bg-gray-50 p-4 rounded mb-4">
-                <h3 class="text-sm font-semibold text-gray-700 mb-3">Owner Information</h3>
-                <div class="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                        <label class="block text-gray-600">Owner Name:</label>
-                        <span id="ref_owner_name" class="font-medium">-</span>
-                    </div>
-                    <div>
-                        <label class="block text-gray-600">Contact Number:</label>
-                        <span id="ref_owner_contact" class="font-medium">-</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Medical History -->
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Medical History</label>
-                <textarea name="medical_history" id="medical_history" rows="3" class="w-full border px-3 py-2 rounded text-sm" 
-                          placeholder="Previous treatments, conditions, allergies, etc."></textarea>
-            </div>
-
-            <!-- Tests Conducted -->
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Tests Conducted</label>
-                <textarea name="tests_conducted" id="tests_conducted" rows="3" class="w-full border px-3 py-2 rounded text-sm" 
-                          placeholder="Blood tests, X-rays, examinations performed, etc."></textarea>
-            </div>
-
-            <!-- Medications Given -->
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Medications Given</label>
-                <textarea name="medications_given" id="medications_given" rows="3" class="w-full border px-3 py-2 rounded text-sm" 
-                          placeholder="Current medications, dosages, treatment plan, etc."></textarea>
-            </div>
-
-            <!-- Referral Details -->
-            <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Referral Date</label>
-                    <input type="date" name="ref_date" id="ref_date" class="w-full border px-3 py-2 rounded" required>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Refer To Branch</label>
-                    <select name="ref_to" id="ref_to" class="w-full border px-3 py-2 rounded" required>
-                        <option value="">Select Branch</option>
-                        @foreach(\App\Models\Branch::all() as $branch)
-                            <option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-            </div>
-
-            <!-- Reason for Referral -->
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Reason for Referral</label>
-                <textarea name="ref_description" id="ref_description" rows="4" class="w-full border px-3 py-2 rounded" 
-                          placeholder="Detailed reason for referral, specialist needed, urgency level, etc." required></textarea>
-            </div>
-
-            <div class="flex justify-end gap-2">
-                <button type="button" onclick="closeReferralModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
-                <button type="submit" class="px-4 py-2 bg-[#0f7ea0] text-white rounded hover:bg-[#0d6b85]">Submit Referral</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- View Referral Modal -->
-<div id="viewReferralModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white w-full max-w-4xl p-0 rounded-lg shadow-lg max-h-[90vh] overflow-y-auto">
-        <div class="flex justify-between items-center p-6 border-b">
-            <h2 class="text-lg font-semibold text-[#0f7ea0]">Referral Details</h2>
-            <button onclick="closeViewReferralModal()" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
-        </div>
-        
-        <div id="referralFormContent" class="referral-container bg-white p-8">
-            <div class="header mb-8">
-                <img src="{{ asset('images/header.jpg') }}" alt="Pets2GO Veterinary Clinic Header" class="w-full h-auto object-contain">
-            </div>
-            <br><br>
-            
-            <!-- Basic Information Section -->
-            <div class="patient-info mb-6">
-                <div class="grid grid-cols-3 gap-2 text-sm">
-                    <div>
-                        <div class="mb-2"><strong>DATE:</strong> <span id="view_ref_date">-</span></div>
-                        <div class="mb-2"><strong>NAME OF PET:</strong> <span id="view_pet_name">-</span></div>
-                    </div>
-                    <div class="text-center">
-                        <div class="mb-2"><strong>OWNER:</strong> <span id="view_owner_name">-</span></div>
-                        <div class="mb-2"><strong>CONTACT #:</strong> <span id="view_owner_contact">-</span></div>
-                    </div>
-                    <div class="text-right">
-                        <div class="mb-2"><strong>DOB:</strong> <span id="view_pet_dob">-</span></div>
-                        <div class="mb-2"><strong>GENDER:</strong> <span id="view_pet_gender">-</span></div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- History Section -->
-            <div class="form-section mb-6">
-                <div class="section-title font-bold text-base text-gray-800 mb-4 border-b border-gray-300 pb-2">HISTORY:</div>
-                <div id="view_medical_history" class="text-sm text-gray-700 mb-4">No medical history provided</div>
-            </div>
-            
-            <!-- Test Conducted Section -->
-            <div class="form-section mb-6">
-                <div class="section-title font-bold text-base text-gray-800 mb-4 border-b border-gray-300 pb-2">TEST CONDUCTED:</div>
-                <div id="view_tests_conducted" class="text-sm text-gray-700 mb-4">No tests documented</div>
-                <div class="test-note text-center font-bold text-gray-600 mt-4 text-sm italic">***NO FURTHER TESTS WERE PERFORMED***</div>
-            </div>
-            
-            <!-- Medications Given Section -->
-            <div class="form-section mb-6">
-                <div class="section-title font-bold text-base text-gray-800 mb-4 border-b border-gray-300 pb-2">MEDS GIVEN:</div>
-                <div id="view_medications_given" class="text-sm text-gray-700 mb-4">No medications documented</div>
-                <div class="med-note text-center font-bold text-gray-600 mt-4 text-sm italic">***NO OTHER MEDICATIONS GIVEN***</div>
-            </div>
-            
-            <!-- Reason for Referral Section -->
-            <div class="form-section mb-6">
-                <div class="section-title font-bold text-base text-gray-800 mb-4 border-b border-gray-300 pb-2">REASON FOR REFERRAL:</div>
-                <div id="view_ref_description" class="text-sm text-gray-700 mb-4">-</div>
-            </div>
-            
-            <!-- Referring Information Section -->
-            <div class="form-section">
-                <div class="referral-info bg-gray-100 p-5 rounded-lg border-l-4 border-[#ff8c42]">
-                    <div class="section-title font-bold text-base text-gray-800 mb-4">REFERRING VETERINARIAN:</div>
-                    <div class="vet-name text-lg font-bold text-gray-800 mb-2">DR. JAN JERICK M. GO</div>
-                    <div class="clinic-details text-gray-600 mb-1">LIC. NO. 0012045</div>
-                    <div class="clinic-details text-gray-600 mb-1" id="view_ref_from_branch">PETS 2GO VETERINARY CLINIC</div>
-                    <div class="clinic-details text-gray-600">0906-765-9732</div>
-                </div>
-            </div>
-            
-            <!-- Referred To Section -->
-            <div class="form-section mt-6">
-                <div class="referral-info bg-blue-50 p-5 rounded-lg border-l-4 border-blue-500">
-                    <div class="section-title font-bold text-base text-gray-800 mb-4">REFERRED TO:</div>
-                    <div class="clinic-details text-lg font-bold text-gray-800 mb-2" id="view_ref_to_branch">-</div>
-                    <div class="clinic-details text-gray-600 mb-1">Specialist Veterinary Care</div>
-                    <div class="clinic-details text-gray-600">For specialized treatment and consultation</div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Print Container for Referral -->
-<div id="printReferralContainer" style="display: none;">
-    <div id="printReferralContent" class="referral-container bg-white p-8">
-        <!-- Content will be populated by JavaScript -->
-    </div>
-</div>
-
-<!-- View Appointment Modal -->
-<div id="viewAppointmentModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white w-full max-w-4xl p-6 rounded-lg shadow-lg max-h-[90vh] overflow-y-auto">
-        <div class="flex justify-between items-center mb-6 border-b pb-4">
-            <h2 class="text-xl font-bold text-[#0f7ea0]">
-                <i class="fas fa-calendar-check mr-2"></i>
-                Appointment Details
-            </h2>
-            <button onclick="closeViewAppointmentModal()" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
-        </div>
-        
-        <!-- Current Appointment Information -->
-        <div class="grid grid-cols-2 gap-6 mb-6">
-            <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
-                <h3 class="font-semibold text-gray-700 mb-3 pb-2 border-b border-blue-300 flex items-center">
-                    <i class="fas fa-info-circle mr-2 text-blue-600"></i>
-                    Appointment Information
-                </h3>
-                <div class="space-y-2 text-sm">
-                    <div class="flex">
-                        <span class="font-medium w-32 text-gray-600">
-                            <i class="fas fa-calendar mr-1"></i>Date:
-                        </span>
-                        <span id="view_appoint_date" class="text-gray-800 font-medium">-</span>
-                    </div>
-                    <div class="flex">
-                        <span class="font-medium w-32 text-gray-600">
-                            <i class="fas fa-clock mr-1"></i>Time:
-                        </span>
-                        <span id="view_appoint_time" class="text-gray-800 font-medium">-</span>
-                    </div>
-                    <div class="flex">
-                        <span class="font-medium w-32 text-gray-600">
-                            <i class="fas fa-tag mr-1"></i>Type:
-                        </span>
-                        <span id="view_appoint_type" class="text-gray-800 font-medium">-</span>
-                    </div>
-                    <div class="flex">
-                        <span class="font-medium w-32 text-gray-600">
-                            <i class="fas fa-flag mr-1"></i>Status:
-                        </span>
-                        <span id="view_appoint_status">-</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
-                <h3 class="font-semibold text-gray-700 mb-3 pb-2 border-b border-green-300 flex items-center">
-                    <i class="fas fa-paw mr-2 text-green-600"></i>
-                    Pet & Owner Details
-                </h3>
-                <div class="space-y-2 text-sm">
-                    <div class="flex">
-                        <span class="font-medium w-32 text-gray-600">
-                            <i class="fas fa-dog mr-1"></i>Pet Name:
-                        </span>
-                        <span id="view_pet_name_appt" class="text-gray-800 font-medium">-</span>
-                    </div>
-                    <div class="flex">
-                        <span class="font-medium w-32 text-gray-600">
-                            <i class="fas fa-user mr-1"></i>Owner:
-                        </span>
-                        <span id="view_owner_name_appt" class="text-gray-800 font-medium">-</span>
-                    </div>
-                    <div class="flex">
-                        <span class="font-medium w-32 text-gray-600">
-                            <i class="fas fa-phone mr-1"></i>Contact:
-                        </span>
-                        <span id="view_owner_contact_appt" class="text-gray-800 font-medium">-</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Services -->
-        <div class="mb-6">
-            <h3 class="font-semibold text-gray-700 mb-3 flex items-center">
-                <i class="fas fa-briefcase-medical mr-2 text-purple-600"></i>
-                Services
-            </h3>
-            <div id="view_services" class="bg-purple-50 p-3 rounded-lg text-sm text-gray-700 border border-purple-200">-</div>
-        </div>
-        
-        <!-- Description -->
-        <div class="mb-6">
-            <h3 class="font-semibold text-gray-700 mb-3 flex items-center">
-                <i class="fas fa-file-alt mr-2 text-orange-600"></i>
-                Description
-            </h3>
-            <div id="view_description" class="bg-orange-50 p-3 rounded-lg text-sm text-gray-700 border border-orange-200">No description provided</div>
-        </div>
-        
-        <!-- History Timeline -->
-        <div>
-            <h3 class="font-semibold text-gray-700 mb-4 flex items-center">
-                <i class="fas fa-history mr-2 text-indigo-600"></i>
-                Change History Timeline
-            </h3>
-            <div id="appointment_history" class="space-y-3 bg-gray-50 p-4 rounded-lg">
-                <!-- History items will be inserted here -->
-            </div>
-        </div>
-        
-        <div class="mt-6 flex justify-end">
-            <button onclick="closeViewAppointmentModal()" class="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600">
-                Close
-            </button>
-        </div>
-    </div>
-</div>
+        <!-- Data for Visits modal rendering -->
+        <script type="application/json" id="visit_pets_data">
+            {!! collect($filteredPets ?? [])->map(function($p){
+                return [
+                    'pet_id' => $p->pet_id,
+                    'pet_name' => $p->pet_name,
+                    'owner_id' => $p->owner->own_id ?? null,
+                    'owner_name' => $p->owner->own_name ?? null,
+                ];
+            })->values()->toJson() !!}
+        </script>
+        <script type="application/json" id="visit_service_types">
+            {!! collect($serviceTypes ?? [])->values()->toJson() !!}
+        </script>
 
 <style>
 /* Referral-specific styles */
@@ -1934,6 +739,163 @@ function showTab(tabName) {
     url.searchParams.set('tab', tabName);
     window.history.replaceState({}, '', url);
 }
+
+// ===== Visits Modals Helpers =====
+function openAddVisitModal() {
+    showTab('visits');
+    const modal = document.getElementById('addVisitModal');
+    if (!modal) return;
+    // Reset form
+    const form = document.getElementById('addVisitForm');
+    if (form) form.reset();
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('add_visit_date');
+    if (dateInput) dateInput.value = today;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeAddVisitModal() {
+    const modal = document.getElementById('addVisitModal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function filterPetsByOwner(ownerId) {
+    const petsSelect = document.getElementById('add_pet_ids');
+    if (!petsSelect) return;
+    const options = petsSelect.querySelectorAll('option');
+    options.forEach(opt => {
+        const belongs = String(opt.dataset.owner || '') === String(ownerId || '');
+        // Show only matching owner's pets
+        opt.hidden = !belongs;
+        if (!belongs) opt.selected = false;
+    });
+}
+
+function openEditVisitModal(visitId, attending) {
+    showTab('visits');
+    fetch(`/medical-management/visits/${visitId}`, {
+        headers: { 'Accept': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(v => {
+        const modal = document.getElementById('editVisitModal');
+        const form = document.getElementById('editVisitForm');
+        if (!modal || !form) return;
+        form.action = `/medical-management/visits/${visitId}`;
+        const title = document.getElementById('editVisitTitle');
+        if (title) title.textContent = attending ? 'Attend Visit' : 'Edit Visit';
+
+        const dateInput = document.getElementById('edit_visit_date');
+        const petSelect = document.getElementById('edit_pet_id');
+        const weightInput = document.getElementById('edit_weight');
+        const tempInput = document.getElementById('edit_temperature');
+        const typeSelect = document.getElementById('edit_patient_type');
+        const statusSelect = document.getElementById('edit_visit_status');
+
+        if (dateInput) dateInput.value = v.visit_date?.substring(0,10) || '';
+        if (petSelect) petSelect.value = v.pet_id;
+        if (weightInput) weightInput.value = v.weight ?? '';
+        if (tempInput) tempInput.value = v.temperature ?? '';
+        if (typeSelect) typeSelect.value = v.patient_type ?? 'Outpatient';
+        if (statusSelect && v.visit_status) {
+            statusSelect.value = v.visit_status;
+        } else if (statusSelect && attending) {
+            statusSelect.value = 'arrived';
+        }
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    })
+    .catch(() => alert('Failed to load visit details.'));
+}
+
+function closeEditVisitModal() {
+    const modal = document.getElementById('editVisitModal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Default to Visits tab on load
+    try { showTab('visits'); } catch(e) {}
+    const ownerSelect = document.getElementById('add_owner_id');
+    // Build pets dataset for rendering owner pets
+    const allPets = (function(){
+        try {
+            return JSON.parse(document.getElementById('visit_pets_data').textContent);
+        } catch { return []; }
+    })();
+    const serviceTypes = (function(){
+        try {
+            return JSON.parse(document.getElementById('visit_service_types').textContent);
+        } catch { return []; }
+    })();
+
+    function renderOwnerPets(ownerId) {
+        const container = document.getElementById('add_owner_pets_container');
+        if (!container) return;
+        const pets = allPets.filter(p => String(p.owner_id) === String(ownerId));
+        if (pets.length === 0) {
+            container.innerHTML = '<div class="text-gray-500 text-sm">No pets found for the selected owner.</div>';
+            return;
+        }
+        container.innerHTML = pets.map(p => {
+            // Fixed serv_type options
+            const fixedTypes = ['boarding','check up','deworming','diagnostics','emergency','grooming','surgical','vaccination'];
+            const serviceCheckboxes = fixedTypes.map(type => `
+                <label class='inline-flex items-center mr-3 mb-1'>
+                    <input type="checkbox" name="service_type[${p.pet_id}][]" value="${type}" class="service-checkbox mr-1"> ${type}
+                </label>
+            `).join('');
+            return `
+            <div class="border border-gray-200 rounded p-3">
+                <label class="flex items-start gap-3">
+                    <input type="checkbox" name="pet_ids[]" value="${p.pet_id}" class="mt-1 pet-check" data-pet="${p.pet_id}">
+                    <div class="flex-1">
+                        <div class="font-medium">${p.pet_name}</div>
+                        <div class="grid grid-cols-3 gap-3 mt-2 text-sm">
+                            <div>
+                                <label class="block text-xs text-gray-600">Weight (kg)</label>
+                                <input type="number" step="0.01" name="weight[${p.pet_id}]" class="border border-gray-300 rounded px-2 py-1 w-full" placeholder="e.g. 3.50">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-600">Temperature (°C)</label>
+                                <input type="number" step="0.1" name="temperature[${p.pet_id}]" class="border border-gray-300 rounded px-2 py-1 w-full" placeholder="e.g. 38.5">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-600">Service Type(s)</label>
+                                <div class="flex flex-wrap" data-service-group="${p.pet_id}">${serviceCheckboxes}</div>
+                                <p class="text-xs text-gray-400 mt-1">Select one or more services for this pet's visit.</p>
+                            </div>
+                        </div>
+                    </div>
+                </label>
+            </div>`;
+        }).join('');
+
+        // Auto-check the pet when any service type is selected
+        const groups = container.querySelectorAll('[data-service-group]');
+        groups.forEach(g => {
+            const pet = g.getAttribute('data-service-group');
+            const petBox = container.querySelector(`input.pet-check[data-pet="${pet}"]`);
+            g.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    if (cb.checked && petBox && !petBox.checked) petBox.checked = true;
+                });
+            });
+        });
+    }
+
+    if (ownerSelect) {
+        ownerSelect.addEventListener('change', function() {
+            renderOwnerPets(this.value);
+        });
+    }
+});
 
 function openVaccineDetailsModal(appointId, petName, appointDate, serviceId, prodId, nextDose, batchNo, notes) {
     const modal = document.getElementById('vaccineDetailsModal');
