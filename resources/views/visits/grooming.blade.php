@@ -20,7 +20,15 @@
             <div class="grid grid-cols-4 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Pet Name</label>
-                    <div class="bg-blue-50 p-3 rounded-lg font-semibold text-gray-800">{{ $visit->pet->pet_name ?? 'N/A' }}</div>
+                    <div class="bg-blue-50 p-3 rounded-lg font-semibold text-gray-800">
+                        @php($s = strtolower($visit->pet->pet_species ?? ''))
+                        @if($s === 'cat')
+                            <i class="fas fa-cat mr-1" title="Cat"></i>
+                        @elseif($s === 'dog')
+                            <i class="fas fa-dog mr-1" title="Dog"></i>
+                        @endif
+                        {{ $visit->pet->pet_name ?? 'N/A' }}
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Owner Name</label>
@@ -67,7 +75,15 @@
                 </div>
                 <div>
                     <div class="text-gray-500">Species / Breed</div>
-                    <div class="font-semibold">{{ $visit->pet->pet_species ?? 'N/A' }}{{ $visit->pet->pet_breed ? ' • '.$visit->pet->pet_breed : '' }}</div>
+                    <div class="font-semibold">
+                        @php($s = strtolower($visit->pet->pet_species ?? ''))
+                        @if($s === 'cat')
+                            <i class="fas fa-cat mr-1" title="Cat"></i>
+                        @elseif($s === 'dog')
+                            <i class="fas fa-dog mr-1" title="Dog"></i>
+                        @endif
+                        {{ $visit->pet->pet_species ?? 'N/A' }}{{ $visit->pet->pet_breed ? ' • '.$visit->pet->pet_breed : '' }}
+                    </div>
                 </div>
                 <div>
                     <div class="text-gray-500">Age</div>

@@ -40,20 +40,39 @@
         <div class="bg-white rounded-lg shadow p-6 mb-6">
             <div class="flex items-center justify-between">
                 <h3 class="text-lg font-semibold text-gray-700">Status Timeline</h3>
-                <div class="flex items-center gap-2 text-xs">
-                    <span class="px-2 py-1 rounded bg-gray-100">Waiting</span>
-                    <span>→</span>
-                    <span class="px-2 py-1 rounded bg-gray-100">Consultation</span>
-                    <span>→</span>
-                    <span class="px-2 py-1 rounded bg-gray-100">Vaccination Ongoing</span>
-                    <span>→</span>
-                    <span class="px-2 py-1 rounded bg-gray-100">Observation</span>
-                    <span>→</span>
-                    <span class="px-2 py-1 rounded bg-gray-100">Completed</span>
-                </div>
+                <form method="POST" action="{{ route('medical.visits.vaccination.save', $visit->visit_id) }}" class="flex items-center gap-2 text-xs">
+                    @csrf
+                    <select name="workflow_status" class="border px-2 py-1 rounded">
+                        @foreach(['Waiting','Consultation','Vaccination Ongoing','Observation','Completed'] as $s)
+                            <option value="{{ $s }}" {{ (($visit->workflow_status ?? 'Waiting') === $s) ? 'selected' : '' }}>{{ $s }}</option>
+                        @endforeach
+                    </select>
+                    <button type="submit" class="px-2 py-1 bg-blue-600 text-white rounded">Update</button>
+                </form>
+            </div>
+            <div class="mt-3 flex items-center gap-2 text-xs">
+                @foreach(['Waiting','Consultation','Vaccination Ongoing','Observation','Completed'] as $i => $label)
+                    <span class="px-2 py-1 rounded {{ (($visit->workflow_status ?? 'Waiting') === $label) ? 'bg-green-600 text-white' : 'bg-gray-100' }}">{{ $label }}</span>
+                    @if($label !== 'Completed')<span>→</span>@endif
+                @endforeach
             </div>
         </div>
 
+        @php
+            $__details = json_decode($visit->details_json ?? '[]', true) ?: [];
+            $__vacc = [];
+            if (isset($serviceData) && $serviceData) {
+                $__vacc = [
+                    'vaccine' => $serviceData->vaccine_name ?? null,
+                    'manufacturer' => $serviceData->manufacturer ?? null,
+                    'batch_no' => $serviceData->batch_no ?? null,
+                    'date_administered' => $serviceData->date_administered ?? null,
+                    'next_due_date' => $serviceData->next_due_date ?? null,
+                    'administered_by' => $serviceData->administered_by ?? (auth()->user()->user_name ?? null),
+                    'remarks' => $serviceData->remarks ?? null,
+                ];
+            }
+        @endphp
         <form action="{{ route('medical.visits.vaccination.save', $visit->visit_id) }}" method="POST" class="space-y-6">
             @csrf
 
@@ -63,40 +82,44 @@
                         <label class="block text-sm font-medium mb-1">Vaccine Name</label>
                         <select name="vaccine" class="w-full border p-2 rounded" required>
                             <option value="">Select Vaccine</option>
-                            <option value="Anti Rabies">Anti Rabies</option>
-                            <option value="Kennel Cough">Kennel Cough</option>
-                            <option value="Kennel Cough (one dose)">Kennel Cough (one dose)</option>
-                            <option value="5-in-1 / DHPP">5-in-1 / DHPP</option>
+                            @php($vaccOptions = ['Anti Rabies','Kennel Cough','Kennel Cough (one dose)','5-in-1 / DHPP'])
+                            @foreach($vaccOptions as $opt)
+                                <option value="{{ $opt }}" {{ old('vaccine', $__vacc['vaccine'] ?? ($__details['vaccine'] ?? ''))===$opt ? 'selected' : '' }}>{{ $opt }}</option>
+                            @endforeach
                         </select>
                     </div>
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-3 gap-3">
                         <div>
                             <label class="block text-sm font-medium mb-1">Dose</label>
-                            <input type="text" name="dose" class="w-full border p-2 rounded" placeholder="e.g., 1 mL"/>
+                            <input type="text" name="dose" class="w-full border p-2 rounded" placeholder="e.g., 1 mL" value="{{ old('dose', $__details['dose'] ?? '') }}" />
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">Administered By</label>
-                            <input type="text" name="administered_by" value="{{ auth()->user()->user_name ?? '' }}" class="w-full border p-2 rounded"/>
+                            <input type="text" name="administered_by" value="{{ old('administered_by', $__vacc['administered_by'] ?? (auth()->user()->user_name ?? '')) }}" class="w-full border p-2 rounded"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Manufacturer</label>
+                            <input type="text" name="manufacturer" class="w-full border p-2 rounded" value="{{ old('manufacturer', $__vacc['manufacturer'] ?? '') }}" />
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-sm font-medium mb-1">Batch No.</label>
-                            <input type="text" name="batch_no" class="w-full border p-2 rounded"/>
+                            <input type="text" name="batch_no" class="w-full border p-2 rounded" value="{{ old('batch_no', $__vacc['batch_no'] ?? '') }}" />
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1">Expiry Date</label>
-                            <input type="date" name="expiry_date" class="w-full border p-2 rounded"/>
+                            <label class="block text-sm font-medium mb-1">Date Administered</label>
+                            <input type="date" name="date_administered" class="w-full border p-2 rounded" value="{{ old('date_administered', $__vacc['date_administered'] ?? '') }}" />
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-sm font-medium mb-1">Next Vaccination Schedule</label>
-                            <input type="date" name="next_schedule" class="w-full border p-2 rounded"/>
+                            <label class="block text-sm font-medium mb-1">Next Due Date</label>
+                            <input type="date" name="next_due_date" class="w-full border p-2 rounded" value="{{ old('next_due_date', $__vacc['next_due_date'] ?? '') }}" />
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">Remarks / Reactions</label>
-                            <input type="text" name="remarks" class="w-full border p-2 rounded" placeholder="Optional"/>
+                            <input type="text" name="remarks" class="w-full border p-2 rounded" placeholder="Optional" value="{{ old('remarks', $__vacc['remarks'] ?? '') }}" />
                         </div>
                     </div>
                 </div>

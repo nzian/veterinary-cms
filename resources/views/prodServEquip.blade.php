@@ -84,7 +84,7 @@
             @endif
 
             <div id="productInventoryTab" class="main-tab-content">
-                <div class="flex justify-between items-center mb-4">
+                <div class="flex justify-between items-center mb-4 gap-2 flex-wrap">
                     <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
                         <input type="hidden" name="tab" value="products">
                         <label for="productsPerPage" class="text-sm text-black">Show</label>
@@ -98,7 +98,11 @@
                         </select>
                         <span>entries</span>
                     </form>
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 items-center flex-wrap">
+                        <div class="relative">
+                            <input type="search" id="productsSearch" placeholder="Search products..." class="border border-gray-300 rounded px-3 py-2 text-sm pl-8">
+                            <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        </div>
                         <button onclick="openInventoryOverview()"
                             class="bg-purple-600 text-white text-sm px-4 py-2 rounded hover:bg-purple-700">
                             📊 Inventory Overview
@@ -272,7 +276,7 @@
             </div>
 
             <div id="servicesTab" class="main-tab-content hidden">
-                <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+                <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
                     <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
                         <input type="hidden" name="tab" value="services">
                         <label for="servicesPerPage" class="text-sm text-black">Show</label>
@@ -286,7 +290,11 @@
                         </select>
                         <span>entries</span>
                     </form>
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 items-center flex-wrap">
+                        <div class="relative">
+                            <input type="search" id="servicesSearch" placeholder="Search services..." class="border border-gray-300 rounded px-3 py-2 text-sm pl-8">
+                            <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        </div>
                         <button onclick="openServiceInventoryOverview()"
                             class="bg-purple-600 text-white text-sm px-4 py-2 rounded hover:bg-purple-700">
                             <i class="fas fa-pills mr-1"></i> Service Inventory Overview
@@ -393,7 +401,7 @@
             </div>
 
             <div id="equipmentTab" class="main-tab-content hidden">
-                <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+                <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
                     <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
                         <input type="hidden" name="tab" value="equipment">
                         <label for="equipmentPerPage" class="text-sm text-black">Show</label>
@@ -407,12 +415,18 @@
                         </select>
                         <span>entries</span>
                     </form>
-                    @if(hasPermission('add_equipment', $can))
-                        <button onclick="openAddModal('equipment')"
-                            class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-                            + Add Equipment
-                        </button>
-                    @endif
+                    <div class="flex gap-2 items-center flex-wrap">
+                        <div class="relative">
+                            <input type="search" id="equipmentSearch" placeholder="Search equipment..." class="border border-gray-300 rounded px-3 py-2 text-sm pl-8">
+                            <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        </div>
+                        @if(hasPermission('add_equipment', $can))
+                            <button onclick="openAddModal('equipment')"
+                                class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
+                                + Add Equipment
+                            </button>
+                        @endif
+                    </div>
                 </div>
                 <br>
                 <div class="overflow-x-auto">
@@ -696,10 +710,8 @@
     <div id="manageProductsModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
         <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-4">
-                <div>
-                    <h3 class="text-lg font-bold">Manage Products for Service</h3>
-                    <p class="text-sm text-gray-600" id="serviceNameDisplay"></p>
-                </div>
+                <h3 class="text-lg font-bold">Manage Products for Service</h3>
+                <p class="text-sm text-gray-600" id="serviceNameDisplay"></p>
                 <button onclick="closeManageProductsModal()"
                     class="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
             </div>
@@ -2052,19 +2064,17 @@
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Service Type</label>
-                    <select name="serv_type" class="border p-2 w-full rounded">
-                        <option value="">Select Service Type</option>
-                        <option value="Preventive Care">Preventive Care</option>
-                        <option value="Diagnostic Services">Diagnostic Services</option>
-                        <option value="Surgical Services">Surgical Services</option>
-                        <option value="Emergency & Critical Care">Emergency & Critical Care</option>
-                        <option value="Reproductive & Breeding">Reproductive & Breeding</option>
-                        <option value="Grooming & Hygiene">Grooming & Hygiene</option>
-                        <option value="Wellness & Nutrition">Wellness & Nutrition</option>
-                        <option value="Additional Fees">Additional Fees</option>
-                        <option value="Other">Other Services</option>
-                        <option value="Boarding & Daycare">Boarding & Daycare</option>
-                    </select>
+                   <select name="serv_type" class="border p-2 w-full rounded">
+                    <option value="">Select Service Type</option>
+                    <option value="Vaccination">Vaccination</option>
+                    <option value="Deworming">Deworming</option>
+                    <option value="Grooming">Grooming</option>
+                    <option value="Emergency">Emergency</option>
+                    <option value="Check-up">Check-up</option>
+                    <option value="Diagnostics">Diagnostics</option>
+                    <option value="Surgical">Surgical</option>
+                    <option value="Boarding">Boarding</option>
+                </select>
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Price</label>
@@ -2167,7 +2177,7 @@
                         <option value="Deworming" ${data.serv_type === 'Deworming' ? 'selected' : ''}>Deworming</option>
                         <option value="Grooming" ${data.serv_type === 'Grooming' ? 'selected' : ''}>Grooming</option>
                         <option value="Emergency" ${data.serv_type === 'Emergency' ? 'selected' : ''}>Emergency</option>
-                        <option value="Check-up/Consultation" ${data.serv_type === 'Check-up/Consultation' ? 'selected' : ''}>Check-up/Consultation</option>
+                        <option value="Check-up" ${data.serv_type === 'Check-up' ? 'selected' : ''}>Check-up/Consultation</option>
                         <option value="Diagnostics" ${data.serv_type === 'Diagnostics' ? 'selected' : ''}>Diagnostics</option>
                         <option value="Surgical" ${data.serv_type === 'Surgical' ? 'selected' : ''}>Surgical</option>
                         <option value="Boarding" ${data.serv_type === 'Boarding' ? 'selected' : ''}>Boarding</option>
@@ -2284,5 +2294,77 @@
         document.addEventListener('DOMContentLoaded', function () {
             // switchMainTab is called in the load event listener above
         });
+
+        // Instant search with auto-expand to 'All' and persistence
+        (function(){
+            function persistKey(tab){ return `pse_search_${tab}`; }
+            function setPersist(tab, val){ try{ localStorage.setItem(persistKey(tab), val); }catch(e){} }
+            function getPersist(tab){ try{ return localStorage.getItem(persistKey(tab)) || ''; }catch(e){ return ''; } }
+
+            function filterBody(tbody, q){
+                const needle = String(q || '').toLowerCase();
+                tbody.querySelectorAll('tr').forEach(tr => {
+                    const text = tr.textContent.toLowerCase();
+                    tr.style.display = !needle || text.includes(needle) ? '' : 'none';
+                });
+            }
+
+            function setupTableFilter({inputId, tableSelector, tab, perPageSelectId, formSelector}){
+                const input = document.getElementById(inputId);
+                const table = document.querySelector(tableSelector);
+                const tbody = table ? table.querySelector('tbody') : null;
+                const sel = document.getElementById(perPageSelectId);
+                const form = formSelector ? document.querySelector(formSelector) : (sel ? sel.form : null);
+                if(!input || !tbody) return;
+
+                const last = getPersist(tab);
+                if(last){
+                    input.value = last;
+                    if (sel && sel.value !== 'all') {
+                        sel.value = 'all';
+                        if (form) form.submit();
+                        return;
+                    }
+                    filterBody(tbody, last);
+                }
+
+                input.addEventListener('input', function(){
+                    const q = this.value.trim();
+                    setPersist(tab, q);
+                    if (q && sel && sel.value !== 'all') {
+                        sel.value = 'all';
+                        if (form) form.submit();
+                        return;
+                    }
+                    if (!tbody) return;
+                    filterBody(tbody, q);
+                });
+            }
+
+            // Products
+            setupTableFilter({
+                inputId: 'productsSearch',
+                tableSelector: '#productInventoryTab table',
+                tab: 'products',
+                perPageSelectId: 'productsPerPage',
+                formSelector: '#productInventoryTab form[action]'
+            });
+            // Services
+            setupTableFilter({
+                inputId: 'servicesSearch',
+                tableSelector: '#servicesTab table',
+                tab: 'services',
+                perPageSelectId: 'servicesPerPage',
+                formSelector: '#servicesTab form[action]'
+            });
+            // Equipment
+            setupTableFilter({
+                inputId: 'equipmentSearch',
+                tableSelector: '#equipmentTab table',
+                tab: 'equipment',
+                perPageSelectId: 'equipmentPerPage',
+                formSelector: '#equipmentTab form[action]'
+            });
+        })();
     </script>
 @endsection

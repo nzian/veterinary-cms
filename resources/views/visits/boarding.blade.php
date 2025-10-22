@@ -9,6 +9,8 @@
                     <h1 class="text-4xl font-bold text-gray-800">Boarding</h1>
                     <p class="text-gray-600 mt-1">Manage hotel-style check-in/out and daily logs</p>
                 </div>
+
+            
                 <a href="{{ route('medical.index', ['active_tab' => 'visits']) }}" 
                    class="px-4 py-2 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-medium">
                     ← Back
@@ -40,20 +42,41 @@
         <div class="bg-white rounded-lg shadow p-6 mb-6">
             <div class="flex items-center justify-between">
                 <h3 class="text-lg font-semibold text-gray-700">Status Timeline</h3>
-                <div class="flex items-center gap-2 text-xs">
-                    <span class="px-2 py-1 rounded bg-gray-100">Reserved</span>
-                    <span>→</span>
-                    <span class="px-2 py-1 rounded bg-gray-100">Checked In</span>
-                    <span>→</span>
-                    <span class="px-2 py-1 rounded bg-gray-100">In Boarding</span>
-                    <span>→</span>
-                    <span class="px-2 py-1 rounded bg-gray-100">Ready for Pick-up</span>
-                    <span>→</span>
-                    <span class="px-2 py-1 rounded bg-gray-100">Checked Out</span>
-                </div>
+                <form method="POST" action="{{ route('medical.visits.boarding.save', $visit->visit_id) }}" class="flex items-center gap-2 text-xs">
+                    @csrf
+                    <select name="workflow_status" class="border px-2 py-1 rounded">
+                        @foreach(['Reserved','Checked In','In Boarding','Ready for Pick-up','Checked Out'] as $s)
+                            <option value="{{ $s }}" {{ (($visit->workflow_status ?? 'Reserved') === $s) ? 'selected' : '' }}>{{ $s }}</option>
+                        @endforeach
+                    </select>
+                    <button type="submit" class="px-2 py-1 bg-blue-600 text-white rounded">Update</button>
+                </form>
+            </div>
+            <div class="mt-3 flex items-center gap-2 text-xs">
+                @foreach(['Reserved','Checked In','In Boarding','Ready for Pick-up','Checked Out'] as $i => $label)
+                    <span class="px-2 py-1 rounded {{ (($visit->workflow_status ?? 'Reserved') === $label) ? 'bg-green-600 text-white' : 'bg-gray-100' }}">{{ $label }}</span>
+                    @if($label !== 'Checked Out')<span>→</span>@endif
+                @endforeach
             </div>
         </div>
 
+        @php
+            $__details = json_decode($visit->details_json ?? '[]', true) ?: [];
+            $__board = [];
+            if (isset($serviceData) && $serviceData) {
+                $__board = [
+                    'checkin' => $serviceData->check_in_date ?? null,
+                    'checkout' => $serviceData->check_out_date ?? null,
+                    'room' => $serviceData->room_no ?? null,
+                    'care_instructions' => $serviceData->feeding_schedule ?? null,
+                    'monitoring_notes' => $serviceData->daily_notes ?? null,
+                    'billing_basis' => null,
+                    'rate' => null,
+                    'total_days' => null,
+                    'service_items' => $__details['service_items'] ?? [],
+                ];
+            }
+        @endphp
         <form action="{{ route('medical.visits.boarding.save', $visit->visit_id) }}" method="POST" class="space-y-6">
             @csrf
 
@@ -61,38 +84,39 @@
                 <div class="grid grid-cols-3 gap-4">
                     <div>
                         <label class="block text-sm font-medium mb-1">Check-in</label>
-                        <input type="datetime-local" name="checkin" class="w-full border p-2 rounded" required />
+                        <input type="datetime-local" name="checkin" class="w-full border p-2 rounded" required value="{{ old('checkin', $__board['checkin'] ?? ($__details['checkin'] ?? '')) }}" />
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Check-out</label>
-                        <input type="datetime-local" name="checkout" class="w-full border p-2 rounded" />
+                        <input type="datetime-local" name="checkout" class="w-full border p-2 rounded" value="{{ old('checkout', $__board['checkout'] ?? ($__details['checkout'] ?? '')) }}" />
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Cage / Room</label>
-                        <input type="text" name="room" class="w-full border p-2 rounded" />
+                        <input type="text" name="room" class="w-full border p-2 rounded" value="{{ old('room', $__board['room'] ?? ($__details['room'] ?? '')) }}" />
                     </div>
                     <div class="col-span-3">
                         <label class="block text-sm font-medium mb-1">Feeding Instructions</label>
-                        <textarea name="care_instructions" rows="3" class="w-full border p-2 rounded" placeholder="Diet, water, meds times..."></textarea>
+                        <textarea name="care_instructions" rows="3" class="w-full border p-2 rounded" placeholder="Diet, water, meds times...">{{ old('care_instructions', $__board['care_instructions'] ?? ($__details['care_instructions'] ?? '')) }}</textarea>
                     </div>
                     <div class="col-span-3">
                         <label class="block text-sm font-medium mb-1">Monitoring Notes / Daily Logs</label>
-                        <textarea name="monitoring_notes" rows="3" class="w-full border p-2 rounded" placeholder="Daily observations..."></textarea>
+                        <textarea name="monitoring_notes" rows="3" class="w-full border p-2 rounded" placeholder="Daily observations...">{{ old('monitoring_notes', $__board['monitoring_notes'] ?? ($__details['monitoring_notes'] ?? '')) }}</textarea>
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Billing Basis</label>
                         <select name="billing_basis" class="w-full border p-2 rounded">
-                            <option value="day">Per Day</option>
-                            <option value="hour">Per Hour</option>
+                            @php($bb = old('billing_basis', $__board['billing_basis'] ?? ($__details['billing_basis'] ?? 'day')))
+                            <option value="day" {{ $bb==='day'?'selected':'' }}>Per Day</option>
+                            <option value="hour" {{ $bb==='hour'?'selected':'' }}>Per Hour</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Daily Rate</label>
-                        <input type="number" step="0.01" name="rate" class="w-full border p-2 rounded" />
+                        <input type="number" step="0.01" name="rate" class="w-full border p-2 rounded" value="{{ old('rate', $__board['rate'] ?? ($__details['rate'] ?? '')) }}" />
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Total Days</label>
-                        <input type="number" step="0.1" name="total_days" class="w-full border p-2 rounded" />
+                        <input type="number" step="0.1" name="total_days" class="w-full border p-2 rounded" value="{{ old('total_days', $__board['total_days'] ?? ($__details['total_days'] ?? '')) }}" />
                     </div>
                 </div>
             </div>
@@ -108,3 +132,5 @@
     </div>
 </div>
 @endsection
+
+

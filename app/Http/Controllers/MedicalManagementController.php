@@ -37,18 +37,55 @@ class MedicalManagementController extends Controller
             'weight' => ['nullable','numeric'],
             'temperature' => ['nullable','numeric'],
             'heart_rate' => ['nullable','numeric'],
-            'respiratory_rate' => ['nullable','numeric'],
+            'respiratory_rate' => ['nullable','numeric'], // legacy name
+            'respiration_rate' => ['nullable','numeric'], // preferred name
             'physical_findings' => ['nullable','string'],
             'diagnosis' => ['required','string'],
             'prescriptions' => ['nullable','string'],
             'recommendations' => ['nullable','string'],
             'next_appointment' => ['nullable','date'],
         ]);
+        $visitModel = \App\Models\Visit::findOrFail($visit);
         if ($request->has('workflow_status')) {
-            $visitModel = \App\Models\Visit::findOrFail($visit);
             $visitModel->workflow_status = $request->input('workflow_status');
-            $visitModel->save();
         }
+        // Persist details if a suitable column exists
+        $rr = $request->input('respiration_rate');
+        if ($rr === null) { $rr = $request->input('respiratory_rate'); }
+        $payload = [
+            'weight' => $request->input('weight'),
+            'temperature' => $request->input('temperature'),
+            'heart_rate' => $request->input('heart_rate'),
+            'respiration_rate' => $rr,
+            'physical_findings' => $request->input('physical_findings'),
+            'diagnosis' => $request->input('diagnosis'),
+            'prescriptions' => $request->input('prescriptions'),
+            'recommendations' => $request->input('recommendations'),
+            'next_appointment' => $request->input('next_appointment'),
+            'service_items' => (function($json){ $arr = json_decode($json, true); return is_array($arr) ? $arr : []; })($request->input('service_items_json')),
+        ];
+        if (Schema::hasColumn('tbl_visit_record', 'details_json')) {
+            $visitModel->details_json = json_encode($payload);
+        } elseif (Schema::hasColumn('tbl_visit_record', 'notes')) {
+            $visitModel->notes = trim(($visitModel->notes ? ($visitModel->notes."\n") : '') . 'Consultation: '.json_encode($payload));
+        }
+        $visitModel->save();
+        // Upsert into tbl_checkup_record (tables already exist)
+        DB::table('tbl_checkup_record')->updateOrInsert(
+            ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
+            [
+                'weight' => $request->input('weight'),
+                'temperature' => $request->input('temperature'),
+                'heart_rate' => $request->input('heart_rate'),
+                'respiration_rate' => $rr,
+                'symptoms' => $request->input('physical_findings'),
+                'findings' => $request->input('diagnosis'),
+                'treatment_plan' => $request->input('recommendations'),
+                'next_visit' => $request->input('next_appointment'),
+                'updated_at' => now(),
+                'created_at' => DB::raw('COALESCE(created_at, NOW())'),
+            ]
+        );
         return redirect()->route('medical.visits.perform', $visit)->with('success', 'Consultation saved');
     }
 
@@ -58,15 +95,48 @@ class MedicalManagementController extends Controller
             'vaccine' => ['required','string'],
             'dose' => ['nullable','string'],
             'batch_no' => ['nullable','string'],
-            'expiry_date' => ['nullable','date'],
-            'next_schedule' => ['nullable','date'],
+            'expiry_date' => ['nullable','date'], // legacy
+            'next_schedule' => ['nullable','date'], // legacy
+            'date_administered' => ['nullable','date'], // new
+            'next_due_date' => ['nullable','date'], // new
             'administered_by' => ['nullable','string'],
         ]);
+        $visitModel = \App\Models\Visit::findOrFail($visit);
         if ($request->has('workflow_status')) {
-            $visitModel = \App\Models\Visit::findOrFail($visit);
             $visitModel->workflow_status = $request->input('workflow_status');
-            $visitModel->save();
         }
+        $dateAdmin = $request->input('date_administered') ?: $request->input('expiry_date');
+        $nextDue = $request->input('next_due_date') ?: $request->input('next_schedule');
+        $payload = [
+            'vaccine' => $request->input('vaccine'),
+            'dose' => $request->input('dose'),
+            'batch_no' => $request->input('batch_no'),
+            'date_administered' => $dateAdmin,
+            'next_due_date' => $nextDue,
+            'administered_by' => $request->input('administered_by'),
+            'remarks' => $request->input('remarks'),
+            'service_items' => (function($json){ $arr = json_decode($json, true); return is_array($arr) ? $arr : []; })($request->input('service_items_json')),
+        ];
+        if (Schema::hasColumn('tbl_visit_record', 'details_json')) {
+            $visitModel->details_json = json_encode($payload);
+        } elseif (Schema::hasColumn('tbl_visit_record', 'notes')) {
+            $visitModel->notes = trim(($visitModel->notes ? ($visitModel->notes."\n") : '') . 'Vaccination: '.json_encode($payload));
+        }
+        $visitModel->save();
+        DB::table('tbl_vaccination_record')->updateOrInsert(
+            ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
+            [
+                'vaccine_name' => $request->input('vaccine'),
+                'manufacturer' => $request->input('manufacturer'),
+                'batch_no' => $request->input('batch_no'),
+                'date_administered' => $dateAdmin ?: now()->toDateString(),
+                'next_due_date' => $nextDue,
+                'administered_by' => $request->input('administered_by'),
+                'remarks' => $request->input('remarks'),
+                'updated_at' => now(),
+                'created_at' => DB::raw('COALESCE(created_at, NOW())'),
+            ]
+        );
         return redirect()->route('medical.visits.perform', $visit)->with('success', 'Vaccination recorded');
     }
 
@@ -77,11 +147,35 @@ class MedicalManagementController extends Controller
             'dosage' => ['nullable','string'],
             'next_reminder' => ['nullable','date'],
         ]);
+        $visitModel = \App\Models\Visit::findOrFail($visit);
         if ($request->has('workflow_status')) {
-            $visitModel = \App\Models\Visit::findOrFail($visit);
             $visitModel->workflow_status = $request->input('workflow_status');
-            $visitModel->save();
         }
+        $payload = [
+            'product' => $request->input('product'),
+            'dosage' => $request->input('dosage'),
+            'next_reminder' => $request->input('next_reminder'),
+            'service_items' => (function($json){ $arr = json_decode($json, true); return is_array($arr) ? $arr : []; })($request->input('service_items_json')),
+        ];
+        if (Schema::hasColumn('tbl_visit_record', 'details_json')) {
+            $visitModel->details_json = json_encode($payload);
+        } elseif (Schema::hasColumn('tbl_visit_record', 'notes')) {
+            $visitModel->notes = trim(($visitModel->notes ? ($visitModel->notes."\n") : '') . 'Deworming: '.json_encode($payload));
+        }
+        $visitModel->save();
+        DB::table('tbl_deworming_record')->updateOrInsert(
+            ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
+            [
+                'dewormer_name' => $request->input('product'),
+                'dosage' => $request->input('dosage'),
+                'route' => null,
+                'next_due_date' => $request->input('next_reminder'),
+                'remarks' => null,
+                'administered_by' => auth()->user()->user_name ?? null,
+                'updated_at' => now(),
+                'created_at' => DB::raw('COALESCE(created_at, NOW())'),
+            ]
+        );
         return redirect()->route('medical.visits.perform', $visit)->with('success', 'Deworming recorded');
     }
 
@@ -93,12 +187,40 @@ class MedicalManagementController extends Controller
             'instructions' => ['nullable','string'],
             'workflow_status' => ['nullable','in:Waiting,In Grooming,Bathing,Drying,Finishing,Completed,Picked Up'],
         ]);
+        $visitModel = \App\Models\Visit::findOrFail($visit);
         if ($request->filled('workflow_status')) {
-            $visitModel = \App\Models\Visit::findOrFail($visit);
-            $new = $request->input('workflow_status');
-            $visitModel->workflow_status = $new;
-            $visitModel->save();
+            $visitModel->workflow_status = $request->input('workflow_status');
         }
+        $payload = [
+            'grooming_type' => $request->input('grooming_type'),
+            'additional_services' => $request->input('additional_services'),
+            'instructions' => $request->input('instructions'),
+            'start_time' => $request->input('start_time'),
+            'end_time' => $request->input('end_time'),
+            'products_used' => $request->input('products_used'),
+            'total_price' => $request->input('total_price'),
+            'service_items' => (function($json){ $arr = json_decode($json, true); return is_array($arr) ? $arr : []; })($request->input('service_items_json')),
+        ];
+        if (Schema::hasColumn('tbl_visit_record', 'details_json')) {
+            $visitModel->details_json = json_encode($payload);
+        } elseif (Schema::hasColumn('tbl_visit_record', 'notes')) {
+            $visitModel->notes = trim(($visitModel->notes ? ($visitModel->notes."\n") : '') . 'Grooming: '.json_encode($payload));
+        }
+        $visitModel->save();
+        DB::table('tbl_grooming_record')->updateOrInsert(
+            ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
+            [
+                'service_package' => $request->input('grooming_type'),
+                'add_ons' => $request->input('additional_services'),
+                'groomer_name' => auth()->user()->user_name ?? null,
+                'start_time' => $request->input('start_time'),
+                'end_time' => $request->input('end_time'),
+                'status' => $request->input('workflow_status') ?: ($visitModel->workflow_status ?? null),
+                'remarks' => $request->input('instructions'),
+                'updated_at' => now(),
+                'created_at' => DB::raw('COALESCE(created_at, NOW())'),
+            ]
+        );
         return redirect()->route('medical.visits.perform', $visit)->with('success', 'Grooming recorded');
     }
 
@@ -113,11 +235,42 @@ class MedicalManagementController extends Controller
             'billing_basis' => ['nullable','in:hour,day'],
             'rate' => ['nullable','numeric'],
         ]);
+        $visitModel = \App\Models\Visit::findOrFail($visit);
         if ($request->has('workflow_status')) {
-            $visitModel = \App\Models\Visit::findOrFail($visit);
             $visitModel->workflow_status = $request->input('workflow_status');
-            $visitModel->save();
         }
+        $payload = [
+            'checkin' => $request->input('checkin'),
+            'checkout' => $request->input('checkout'),
+            'room' => $request->input('room'),
+            'care_instructions' => $request->input('care_instructions'),
+            'monitoring_notes' => $request->input('monitoring_notes'),
+            'billing_basis' => $request->input('billing_basis'),
+            'rate' => $request->input('rate'),
+            'total_days' => $request->input('total_days'),
+            'service_items' => (function($json){ $arr = json_decode($json, true); return is_array($arr) ? $arr : []; })($request->input('service_items_json')),
+        ];
+        if (Schema::hasColumn('tbl_visit_record', 'details_json')) {
+            $visitModel->details_json = json_encode($payload);
+        } elseif (Schema::hasColumn('tbl_visit_record', 'notes')) {
+            $visitModel->notes = trim(($visitModel->notes ? ($visitModel->notes."\n") : '') . 'Boarding: '.json_encode($payload));
+        }
+        $visitModel->save();
+        DB::table('tbl_boarding_record')->updateOrInsert(
+            ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
+            [
+                'check_in_date' => $request->input('checkin'),
+                'check_out_date' => $request->input('checkout'),
+                'room_no' => $request->input('room'),
+                'feeding_schedule' => $request->input('care_instructions'),
+                'medications' => null,
+                'daily_notes' => $request->input('monitoring_notes'),
+                'status' => $request->input('workflow_status') ?: ($visitModel->workflow_status ?? null),
+                'handled_by' => auth()->user()->user_name ?? null,
+                'updated_at' => now(),
+                'created_at' => DB::raw('COALESCE(created_at, NOW())'),
+            ]
+        );
         return redirect()->route('medical.visits.perform', $visit)->with('success', 'Boarding saved');
     }
 
@@ -125,13 +278,39 @@ class MedicalManagementController extends Controller
     {
         $validated = $request->validate([
             'test_type' => ['required','string'],
-            'interpretation' => ['nullable','string'],
+            'interpretation' => ['nullable','string'], // legacy
+            'results' => ['nullable','string'], // preferred name
         ]);
+        $visitModel = \App\Models\Visit::findOrFail($visit);
         if ($request->has('workflow_status')) {
-            $visitModel = \App\Models\Visit::findOrFail($visit);
             $visitModel->workflow_status = $request->input('workflow_status');
-            $visitModel->save();
         }
+        $diagResults = $request->input('results') ?: $request->input('interpretation');
+        $payload = [
+            'test_type' => $request->input('test_type'),
+            'results' => $diagResults,
+            'service_items' => (function($json){ $arr = json_decode($json, true); return is_array($arr) ? $arr : []; })($request->input('service_items_json')),
+        ];
+        if (Schema::hasColumn('tbl_visit_record', 'details_json')) {
+            $visitModel->details_json = json_encode($payload);
+        } elseif (Schema::hasColumn('tbl_visit_record', 'notes')) {
+            $visitModel->notes = trim(($visitModel->notes ? ($visitModel->notes."\n") : '') . 'Diagnostic: '.json_encode($payload));
+        }
+        $visitModel->save();
+        DB::table('tbl_diagnostic_record')->updateOrInsert(
+            ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
+            [
+                'test_type' => $request->input('test_type'),
+                'sample_collected' => null,
+                'collected_by' => auth()->user()->user_name ?? null,
+                'results' => $diagResults,
+                'remarks' => null,
+                'date_completed' => now()->toDateString(),
+                'status' => $request->input('workflow_status') ?: ($visitModel->workflow_status ?? null),
+                'updated_at' => now(),
+                'created_at' => DB::raw('COALESCE(created_at, NOW())'),
+            ]
+        );
         return redirect()->route('medical.visits.perform', $visit)->with('success', 'Diagnostic recorded');
     }
 
@@ -144,11 +323,41 @@ class MedicalManagementController extends Controller
             'end_time' => ['nullable','date','after_or_equal:start_time'],
             'medications_used' => ['nullable','string'],
         ]);
+        $visitModel = \App\Models\Visit::findOrFail($visit);
         if ($request->has('workflow_status')) {
-            $visitModel = \App\Models\Visit::findOrFail($visit);
             $visitModel->workflow_status = $request->input('workflow_status');
-            $visitModel->save();
         }
+        $payload = [
+            'checklist' => $request->input('checklist'),
+            'surgery_type' => $request->input('surgery_type'),
+            'start_time' => $request->input('start_time'),
+            'end_time' => $request->input('end_time'),
+            'medications_used' => $request->input('medications_used'),
+            'service_items' => (function($json){ $arr = json_decode($json, true); return is_array($arr) ? $arr : []; })($request->input('service_items_json')),
+        ];
+        if (Schema::hasColumn('tbl_visit_record', 'details_json')) {
+            $visitModel->details_json = json_encode($payload);
+        } elseif (Schema::hasColumn('tbl_visit_record', 'notes')) {
+            $visitModel->notes = trim(($visitModel->notes ? ($visitModel->notes."\n") : '') . 'Surgical: '.json_encode($payload));
+        }
+        $visitModel->save();
+        DB::table('tbl_surgical_record')->updateOrInsert(
+            ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
+            [
+                'procedure_name' => $request->input('surgery_type'),
+                'date_of_surgery' => now()->toDateString(),
+                'start_time' => $request->input('start_time'),
+                'end_time' => $request->input('end_time'),
+                'surgeon' => auth()->user()->user_name ?? null,
+                'assistants' => null,
+                'anesthesia_used' => null,
+                'findings' => $request->input('checklist'),
+                'post_op_instructions' => $request->input('medications_used'),
+                'status' => $request->input('workflow_status') ?: ($visitModel->workflow_status ?? null),
+                'updated_at' => now(),
+                'created_at' => DB::raw('COALESCE(created_at, NOW())'),
+            ]
+        );
         return redirect()->route('medical.visits.perform', $visit)->with('success', 'Surgical record saved');
     }
 
@@ -159,11 +368,38 @@ class MedicalManagementController extends Controller
             'procedures' => ['nullable','string'],
             'immediate_meds' => ['nullable','string'],
         ]);
+        $visitModel = \App\Models\Visit::findOrFail($visit);
         if ($request->has('workflow_status')) {
-            $visitModel = \App\Models\Visit::findOrFail($visit);
             $visitModel->workflow_status = $request->input('workflow_status');
-            $visitModel->save();
         }
+        $payload = [
+            'triage_notes' => $request->input('triage_notes'),
+            'procedures' => $request->input('procedures'),
+            'immediate_meds' => $request->input('immediate_meds'),
+            'service_items' => (function($json){ $arr = json_decode($json, true); return is_array($arr) ? $arr : []; })($request->input('service_items_json')),
+        ];
+        if (Schema::hasColumn('tbl_visit_record', 'details_json')) {
+            $visitModel->details_json = json_encode($payload);
+        } elseif (Schema::hasColumn('tbl_visit_record', 'notes')) {
+            $visitModel->notes = trim(($visitModel->notes ? ($visitModel->notes."\n") : '') . 'Emergency: '.json_encode($payload));
+        }
+        $visitModel->save();
+        DB::table('tbl_emergency_record')->updateOrInsert(
+            ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
+            [
+                'case_type' => null,
+                'arrival_condition' => null,
+                'vital_signs' => null,
+                'immediate_treatment' => $request->input('procedures'),
+                'medications_administered' => $request->input('immediate_meds'),
+                'outcome' => null,
+                'status' => $request->input('workflow_status') ?: ($visitModel->workflow_status ?? null),
+                'attended_by' => auth()->user()->user_name ?? null,
+                'remarks' => $request->input('triage_notes'),
+                'updated_at' => now(),
+                'created_at' => DB::raw('COALESCE(created_at, NOW())'),
+            ]
+        );
         return redirect()->route('medical.visits.perform', $visit)->with('success', 'Emergency record saved');
     }
 
@@ -242,7 +478,7 @@ class MedicalManagementController extends Controller
 
         // --- Visits Query ---
         $visitPerPage = $request->get('visitPerPage', 10);
-        $visitsQuery = \App\Models\Visit::with(['pet.owner', 'user'])
+        $visitsQuery = \App\Models\Visit::with(['pet.owner', 'user', 'services'])
             ->whereHas('user', function($q) use ($activeBranchId) {
                 $q->where('branch_id', $activeBranchId);
             })
@@ -297,41 +533,76 @@ class MedicalManagementController extends Controller
         // Services list for per-pet selection in Visits modal (use real services)
         $serviceTypes = Service::orderBy('serv_name')->get(['serv_id','serv_name','serv_type']);
 
-        // Filter Navigation by Selected Services: if visit_id present, derive selected service types
-        $selectedServiceTabs = [];
-        $visitIdParam = $request->get('visit_id');
-        if ($visitIdParam) {
-            $visitForTabs = \App\Models\Visit::with(['services'])->find($visitIdParam);
-            if ($visitForTabs) {
-                $types = $visitForTabs->services->pluck('serv_type')->filter()->map(function($t){
-                    $t = strtolower(trim($t));
-                    if ($t === 'diagnostic') { $t = 'diagnostics'; }
-                    if ($t === 'checkup') { $t = 'check up'; }
-                    return $t;
-                })->unique()->values()->all();
+        // --- Per-service-type Visits datasets (8 tabs) ---
+        $vaccinationVisitsPerPage = $request->get('vaccinationVisitsPerPage', 10);
+        $groomingVisitsPerPage = $request->get('groomingVisitsPerPage', 10);
+        $boardingVisitsPerPage = $request->get('boardingVisitsPerPage', 10);
+        $consultationVisitsPerPage = $request->get('consultationVisitsPerPage', 10); // check-up/consultation
+        $dewormingVisitsPerPage = $request->get('dewormingVisitsPerPage', 10);
+        $diagnosticsVisitsPerPage = $request->get('diagnosticsVisitsPerPage', 10);
+        $surgicalVisitsPerPage = $request->get('surgicalVisitsPerPage', 10);
+        $emergencyVisitsPerPage = $request->get('emergencyVisitsPerPage', 10);
 
-                // Build tabs meta (label and optional route to workspace)
-                $labelMap = [
-                    'boarding' => 'Boarding',
-                    'check up' => 'Check-up',
-                    'deworming' => 'Deworming',
-                    'diagnostics' => 'Diagnostic',
-                    'emergency' => 'Emergency',
-                    'grooming' => 'Grooming',
-                    'surgical' => 'Surgical',
-                    'vaccination' => 'Vaccination',
-                ];
-                foreach ($types as $t) {
-                    $selectedServiceTabs[] = [
-                        'key' => $t,
-                        'label' => $labelMap[$t] ?? ucfirst($t),
-                        'visit_id' => (int)$visitIdParam,
-                        // Route to perform with explicit type to render the correct form
-                        'url' => route('medical.visits.perform', ['id' => $visitIdParam]) . '?type=' . urlencode($t),
-                    ];
-                }
-            }
-        }
+        $base = function() use ($activeBranchId) {
+            return Visit::with(['pet.owner', 'user', 'services'])
+                ->whereHas('user', function($q) use ($activeBranchId) {
+                    $q->where('branch_id', $activeBranchId);
+                });
+        };
+
+        $vaccinationVisitsQuery = $base()->whereHas('services', function($sq) {
+            $sq->whereRaw('LOWER(serv_type) = ?', ['vaccination']);
+        })->orderBy('visit_date', 'desc')->orderBy('visit_id', 'desc');
+
+        $groomingVisitsQuery = $base()->whereHas('services', function($sq) {
+            $sq->whereRaw('LOWER(serv_type) = ?', ['grooming']);
+        })->orderBy('visit_date', 'desc')->orderBy('visit_id', 'desc');
+
+        $boardingVisitsQuery = $base()->whereHas('services', function($sq) {
+            $sq->whereRaw('LOWER(serv_type) = ?', ['boarding']);
+        })->orderBy('visit_date', 'desc')->orderBy('visit_id', 'desc');
+
+        // Consultation / Check-up variants
+        $consultationVisitsQuery = $base()->whereHas('services', function($sq) {
+            $sq->where(function($q){
+                $q->whereRaw('LOWER(serv_type) = ?', ['check up'])
+                  ->orWhereRaw('LOWER(serv_type) = ?', ['check-up'])
+                  ->orWhereRaw('LOWER(serv_type) = ?', ['checkup'])
+                  ->orWhereRaw('LOWER(serv_type) = ?', ['consultation']);
+            });
+        })->orderBy('visit_date', 'desc')->orderBy('visit_id', 'desc');
+
+        $dewormingVisitsQuery = $base()->whereHas('services', function($sq) {
+            $sq->whereRaw('LOWER(serv_type) = ?', ['deworming']);
+        })->orderBy('visit_date', 'desc')->orderBy('visit_id', 'desc');
+
+        $diagnosticsVisitsQuery = $base()->whereHas('services', function($sq) {
+            $sq->where(function($q){
+                $q->whereRaw('LOWER(serv_type) = ?', ['diagnostics'])
+                  ->orWhereRaw('LOWER(serv_type) = ?', ['diagnostic'])
+                  ->orWhereRaw('LOWER(serv_type) = ?', ['laboratory']);
+            });
+        })->orderBy('visit_date', 'desc')->orderBy('visit_id', 'desc');
+
+        $surgicalVisitsQuery = $base()->whereHas('services', function($sq) {
+            $sq->where(function($q){
+                $q->whereRaw('LOWER(serv_type) = ?', ['surgical'])
+                  ->orWhereRaw('LOWER(serv_type) = ?', ['surgery']);
+            });
+        })->orderBy('visit_date', 'desc')->orderBy('visit_id', 'desc');
+
+        $emergencyVisitsQuery = $base()->whereHas('services', function($sq) {
+            $sq->whereRaw('LOWER(serv_type) = ?', ['emergency']);
+        })->orderBy('visit_date', 'desc')->orderBy('visit_id', 'desc');
+
+        $vaccinationVisits = $vaccinationVisitsPerPage === 'all' ? $vaccinationVisitsQuery->get() : $vaccinationVisitsQuery->paginate((int) $vaccinationVisitsPerPage, ['*'], 'vaccinationVisitsPage');
+        $groomingVisits = $groomingVisitsPerPage === 'all' ? $groomingVisitsQuery->get() : $groomingVisitsQuery->paginate((int) $groomingVisitsPerPage, ['*'], 'groomingVisitsPage');
+        $boardingVisits = $boardingVisitsPerPage === 'all' ? $boardingVisitsQuery->get() : $boardingVisitsQuery->paginate((int) $boardingVisitsPerPage, ['*'], 'boardingVisitsPage');
+        $consultationVisits = $consultationVisitsPerPage === 'all' ? $consultationVisitsQuery->get() : $consultationVisitsQuery->paginate((int) $consultationVisitsPerPage, ['*'], 'consultationVisitsPage');
+        $dewormingVisits = $dewormingVisitsPerPage === 'all' ? $dewormingVisitsQuery->get() : $dewormingVisitsQuery->paginate((int) $dewormingVisitsPerPage, ['*'], 'dewormingVisitsPage');
+        $diagnosticsVisits = $diagnosticsVisitsPerPage === 'all' ? $diagnosticsVisitsQuery->get() : $diagnosticsVisitsQuery->paginate((int) $diagnosticsVisitsPerPage, ['*'], 'diagnosticsVisitsPage');
+        $surgicalVisits = $surgicalVisitsPerPage === 'all' ? $surgicalVisitsQuery->get() : $surgicalVisitsQuery->paginate((int) $surgicalVisitsPerPage, ['*'], 'surgicalVisitsPage');
+        $emergencyVisits = $emergencyVisitsPerPage === 'all' ? $emergencyVisitsQuery->get() : $emergencyVisitsQuery->paginate((int) $emergencyVisitsPerPage, ['*'], 'emergencyVisitsPage');
 
         return view('medicalManagement', compact(
             'appointments', 
@@ -343,7 +614,14 @@ class MedicalManagementController extends Controller
             'filteredPets',
             'visits',
             'serviceTypes',
-            'selectedServiceTabs'
+            'vaccinationVisits',
+            'groomingVisits',
+            'boardingVisits',
+            'consultationVisits',
+            'dewormingVisits',
+            'diagnosticsVisits',
+            'surgicalVisits',
+            'emergencyVisits'
         ));
     }
 
@@ -867,11 +1145,11 @@ class MedicalManagementController extends Controller
                     // 'service_type' => null, // no longer used for multi
                 ];
 
-                $visit = Visit::create($data);
                 if (Schema::hasColumn('tbl_visit_record', 'visit_status')) {
-                    $visit->visit_status = 'arrived';
-                    $visit->save();
+                    $data['visit_status'] = 'arrived';
                 }
+
+                $visit = Visit::create($data);
 
                 // Attach selected services (array of IDs, serv_type strings, or names)
                 $selected = $request->input("service_type.$petId", []);
@@ -945,13 +1223,18 @@ class MedicalManagementController extends Controller
                     // Optionally persist types summary into visit record if a column exists
                     if (!empty($selectedTypes)) {
                         $typesSummary = implode(', ', array_values(array_unique($selectedTypes)));
+                        $saved = false;
                         if (\Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
                             $visit->visit_service_type = $typesSummary;
-                            $visit->save();
+                            $saved = true;
                         } elseif (\Schema::hasColumn('tbl_visit_record', 'service_type')) {
                             $visit->service_type = $typesSummary;
-                            $visit->save();
+                            $saved = true;
+                        } elseif (\Schema::hasColumn('tbl_visit_record', 'serv_type')) {
+                            $visit->serv_type = $typesSummary;
+                            $saved = true;
                         }
+                        if ($saved) { $visit->save(); }
                     }
                 }
             }
@@ -997,6 +1280,71 @@ class MedicalManagementController extends Controller
     {
         $visit = Visit::with(['pet.owner', 'user'])->findOrFail($id);
         return response()->json($visit);
+    }
+
+    /**
+     * Update or advance a visit's workflow_status. Accepts optional 'type' and 'to' (target status).
+     * If 'to' is not provided, advances to the next stage using grooming-style stages.
+     */
+    public function updateWorkflowStatus(Request $request, $id)
+    {
+        try {
+            $visit = Visit::findOrFail($id);
+
+            $type = strtolower(trim($request->input('type', '')));
+            $target = $request->input('to');
+
+            // Per-service workflow maps (exact strings as requested)
+            $map = [
+                // aliases for diagnostics
+                'diagnostic' => ['Waiting','Sample Collection','Testing','Results Encoding','Completed'],
+                'diagnostics' => ['Waiting','Sample Collection','Testing','Results Encoding','Completed'],
+                // grooming
+                'grooming' => ['Waiting','In Grooming','Bathing','Drying','Finishing','Completed','Picked Up'],
+                // boarding
+                'boarding' => ['Reserved','Checked In','In Boarding','Ready for Pick-up','Checked Out'],
+                // surgical
+                'surgical' => ['Waiting','Pre-op','Surgery Ongoing','Recovery','Completed'],
+                'surgery' => ['Waiting','Pre-op','Surgery Ongoing','Recovery','Completed'],
+                // emergency
+                'emergency' => ['Triage','Stabilization','Treatment','Observation','Completed'],
+                // deworming
+                'deworming' => ['Waiting','Deworming Ongoing','Observation','Completed'],
+                // check-up
+                'check-up' => ['Waiting','Consultation Ongoing','Completed'],
+                'checkup' => ['Waiting','Consultation Ongoing','Completed'],
+                'check up' => ['Waiting','Consultation Ongoing','Completed'],
+                // vaccination
+                'vaccination' => ['Waiting','Consultation','Vaccination Ongoing','Observation','Completed'],
+            ];
+
+            $stages = $map[$type] ?? $map['grooming'];
+
+            // Default start status
+            $defaultStart = ($type === 'boarding') ? 'Reserved' : 'Waiting';
+
+            $current = $visit->workflow_status ?: $defaultStart;
+            if ($target) {
+                // Validate provided target
+                if (!in_array($target, $stages, true)) {
+                    return response()->json(['success' => false, 'error' => 'Invalid status'], 422);
+                }
+                $next = $target;
+            } else {
+                // Advance to next stage
+                $idx = array_search($current, $stages, true);
+                if ($idx === false) { $idx = -1; }
+                $next = $stages[min($idx + 1, count($stages) - 1)];
+            }
+
+            $visit->workflow_status = $next;
+            $visit->save();
+
+            return response()->json(['success' => true, 'workflow_status' => $next]);
+        } catch (\Exception $e) {
+            \Log::error('updateWorkflowStatus error: '.$e->getMessage());
+            return response()->json(['success' => false, 'error' => 'Failed to update status'], 500);
+        }
     }
 
     // ==================== VISIT WORKSPACE (PERFORM SERVICE) ====================
@@ -1049,9 +1397,29 @@ class MedicalManagementController extends Controller
         if ($key === 'checkup' || $key === 'check-up' || $key === 'check up') { $key = 'consultation'; }
         $blade = $map[$key] ?? 'consultation';
 
+        // Load per-service record for prefill
+        $tableByBlade = [
+            'consultation' => 'tbl_checkup_record',
+            'vaccination' => 'tbl_vaccination_record',
+            'deworming' => 'tbl_deworming_record',
+            'grooming' => 'tbl_grooming_record',
+            'boarding' => 'tbl_boarding_record',
+            'diagnostic' => 'tbl_diagnostic_record',
+            'surgical' => 'tbl_surgical_record',
+            'emergency' => 'tbl_emergency_record',
+        ];
+        $serviceData = null;
+        if (isset($tableByBlade[$blade])) {
+            try {
+                $serviceData = DB::table($tableByBlade[$blade])->where('visit_id', $id)->first();
+            } catch (\Throwable $th) {
+                $serviceData = null;
+            }
+        }
+
         // Render specific blade per service type
         $viewName = 'visits.' . $blade;
-        return view($viewName, compact('visit'));
+        return view($viewName, compact('visit','serviceData'));
     }
 
     /**

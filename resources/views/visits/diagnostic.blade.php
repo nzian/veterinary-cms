@@ -40,17 +40,21 @@
         <div class="bg-white rounded-lg shadow p-6 mb-6">
             <div class="flex items-center justify-between">
                 <h3 class="text-lg font-semibold text-gray-700">Status Timeline</h3>
-                <div class="flex items-center gap-2 text-xs">
-                    <span class="px-2 py-1 rounded bg-gray-100">Waiting</span>
-                    <span>→</span>
-                    <span class="px-2 py-1 rounded bg-gray-100">Sample Collection</span>
-                    <span>→</span>
-                    <span class="px-2 py-1 rounded bg-gray-100">Testing</span>
-                    <span>→</span>
-                    <span class="px-2 py-1 rounded bg-gray-100">Results Encoding</span>
-                    <span>→</span>
-                    <span class="px-2 py-1 rounded bg-gray-100">Completed</span>
-                </div>
+                <form method="POST" action="{{ route('medical.visits.diagnostic.save', $visit->visit_id) }}" class="flex items-center gap-2 text-xs">
+                    @csrf
+                    <select name="workflow_status" class="border px-2 py-1 rounded">
+                        @foreach(['Waiting','Sample Collection','Testing','Results Encoding','Completed'] as $s)
+                            <option value="{{ $s }}" {{ (($visit->workflow_status ?? 'Waiting') === $s) ? 'selected' : '' }}>{{ $s }}</option>
+                        @endforeach
+                    </select>
+                    <button type="submit" class="px-2 py-1 bg-blue-600 text-white rounded">Update</button>
+                </form>
+            </div>
+            <div class="mt-3 flex items-center gap-2 text-xs">
+                @foreach(['Waiting','Sample Collection','Testing','Results Encoding','Completed'] as $i => $label)
+                    <span class="px-2 py-1 rounded {{ (($visit->workflow_status ?? 'Waiting') === $label) ? 'bg-green-600 text-white' : 'bg-gray-100' }}">{{ $label }}</span>
+                    @if($label !== 'Completed')<span>→</span>@endif
+                @endforeach
             </div>
         </div>
 

@@ -44,7 +44,7 @@
     }
 
     .gradient-bg {
-      background: linear-gradient(135deg, #ff8c42 30%, #875e0cff 50%, #f88e28 100%);
+      background: linear-gradient(135deg, #ff8c42 20%, #875e0cff 50%, #ec7c13ff 100%);
     }
 
     .hover-lift {
@@ -239,18 +239,22 @@
       @endif
     @endif
 
-    <!-- Global Search Section -->
-    <form method="GET" action="{{ route('global.search') }}" class="flex-1 mx-6 relative">
-      <div class="relative group">
-        <input type="text" name="search" value="{{ request('search') }}"
-          class="w-full h-11 rounded-xl modern-search px-4 pr-12 text-sm text-gray-700 placeholder:text-gray-400 smooth-transition"
-          placeholder="Search pets, owners, appointments, products, services..." />
-        <button type="submit"
-          class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#0f7ea0] smooth-transition">
-          <i class="fas fa-search text-lg"></i>
-        </button>
-      </div>
-    </form>
+    <!-- Global Search (Dashboard only) or layout spacer -->
+    @if (Route::currentRouteName() === 'dashboard-index')
+      <form method="GET" action="{{ route('global.search') }}" class="flex-1 mx-6 relative">
+        <div class="relative group">
+          <input type="text" name="search" value="{{ request('search') }}"
+            class="w-full h-11 rounded-xl modern-search px-4 pr-12 text-sm text-gray-700 placeholder:text-gray-400 smooth-transition"
+            placeholder="Search pets, owners, appointments, products, services..." />
+          <button type="submit"
+            class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#0f7ea0] smooth-transition">
+            <i class="fas fa-search text-lg"></i>
+          </button>
+        </div>
+      </form>
+    @else
+      <div class="flex-1 mx-6"></div>
+    @endif
 
     <!-- Notification Bell -->
     <div class="relative mr-4">

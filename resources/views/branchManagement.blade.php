@@ -26,7 +26,7 @@
 
         {{-- Branch Tab Content --}}
         <div id="branchContent" class="tab-content">
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
                 <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
                     <label for="branchPerPage" class="text-sm text-black">Show</label>
                     <select name="perPage" id="branchPerPage" onchange="this.form.submit()"
@@ -39,9 +39,15 @@
                     </select>
                     <span>entries</span>
                 </form>
-                <button onclick="openAddModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-                    + Add Branch
-                </button>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <div class="relative">
+                        <input type="search" id="branchesSearch" placeholder="Search branches..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                    <button onclick="openAddModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
+                        + Add Branch
+                    </button>
+                </div>
             </div>
             <br>
 
@@ -110,7 +116,7 @@
 
         {{-- User Tab Content --}}
         <div id="userContent" class="tab-content hidden">
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
                 <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
                     <label for="userPerPage" class="text-sm text-black">Show</label>
                     <select name="perPage" id="userPerPage" onchange="this.form.submit()"
@@ -123,9 +129,10 @@
                     </select>
                     <span>entries</span>
                 </form>
-               <!-- <button onclick="openAddUserModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-                    + Add User
-                </button>-->
+               <div class="relative">
+                   <input type="search" id="usersSearch" placeholder="Search users..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                   <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+               </div>
             </div>
             <br>
 
@@ -1075,6 +1082,70 @@ function switchTab(tabName) {
     activeTab.classList.add('active', 'border-[#ff8c42]', 'text-[#ff8c42]');
     activeTab.classList.remove('border-transparent', 'text-gray-500');
 }
+
+// Persistent client-side search for Branches and Users with auto-switch to 'All'
+(function(){
+    function persistKey(tab){ return `bm_search_${tab}`; }
+    function setPersist(tab, val){ try{ localStorage.setItem(persistKey(tab), val); }catch(e){} }
+    function getPersist(tab){ try{ return localStorage.getItem(persistKey(tab)) || ''; }catch(e){ return ''; } }
+
+    function filterBody(tbody, q){
+        const needle = String(q || '').toLowerCase();
+        tbody.querySelectorAll('tr').forEach(tr => {
+            const text = tr.textContent.toLowerCase();
+            tr.style.display = !needle || text.includes(needle) ? '' : 'none';
+        });
+    }
+
+    function setupTableFilter({inputId, tableSelector, tab, perPageSelectId, formSelector}){
+        const input = document.getElementById(inputId);
+        const table = document.querySelector(tableSelector);
+        const tbody = table ? table.querySelector('tbody') : null;
+        const sel = document.getElementById(perPageSelectId);
+        const form = formSelector ? document.querySelector(formSelector) : (sel ? sel.form : null);
+        if(!input || !tbody) return;
+
+        const last = getPersist(tab);
+        if(last){
+            input.value = last;
+            if (sel && sel.value !== 'all') {
+                sel.value = 'all';
+                if (form) form.submit();
+                return;
+            }
+            filterBody(tbody, last);
+        }
+
+        input.addEventListener('input', function(){
+            const q = this.value.trim();
+            setPersist(tab, q);
+            if (q && sel && sel.value !== 'all') {
+                sel.value = 'all';
+                if (form) form.submit();
+                return;
+            }
+            if (!tbody) return;
+            filterBody(tbody, q);
+        });
+    }
+
+    // Branches
+    setupTableFilter({
+        inputId: 'branchesSearch',
+        tableSelector: '#branchContent table',
+        tab: 'branches',
+        perPageSelectId: 'branchPerPage',
+        formSelector: '#branchContent form[action]'
+    });
+    // Users
+    setupTableFilter({
+        inputId: 'usersSearch',
+        tableSelector: '#userContent table',
+        tab: 'users',
+        perPageSelectId: 'userPerPage',
+        formSelector: '#userContent form[action]'
+    });
+})();
 </script>
 
 <style>

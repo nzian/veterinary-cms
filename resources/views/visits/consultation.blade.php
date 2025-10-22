@@ -22,7 +22,15 @@
             <div class="grid grid-cols-4 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Pet Name</label>
-                    <div class="bg-blue-50 p-3 rounded-lg font-semibold text-gray-800">{{ $visit->pet->pet_name ?? 'N/A' }}</div>
+                    <div class="bg-blue-50 p-3 rounded-lg font-semibold text-gray-800">
+                        @php($s = strtolower($visit->pet->pet_species ?? ''))
+                        @if($s === 'cat')
+                            <i class="fas fa-cat mr-1" title="Cat"></i>
+                        @elseif($s === 'dog')
+                            <i class="fas fa-dog mr-1" title="Dog"></i>
+                        @endif
+                        {{ $visit->pet->pet_name ?? 'N/A' }}
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Owner Name</label>
@@ -30,7 +38,15 @@
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Species</label>
-                    <div class="bg-blue-50 p-3 rounded-lg font-semibold text-gray-800">{{ $visit->pet->species ?? 'Unknown' }}</div>
+                    <div class="bg-blue-50 p-3 rounded-lg font-semibold text-gray-800">
+                        @php($s = strtolower($visit->pet->pet_species ?? ''))
+                        @if($s === 'cat')
+                            <i class="fas fa-cat mr-1" title="Cat"></i>
+                        @elseif($s === 'dog')
+                            <i class="fas fa-dog mr-1" title="Dog"></i>
+                        @endif
+                        {{ $visit->pet->pet_species ?? 'Unknown' }}
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Visit Date</label>
@@ -49,14 +65,22 @@
                 <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                     <span class="text-2xl">⏳</span> Status Timeline
                 </h2>
-                <div class="flex items-center gap-4">
-                    <select name="workflow_status" class="border border-gray-300 rounded px-3 py-2">
-                        <option value="arrived" {{ ($visit->workflow_status ?? '') == 'arrived' ? 'selected' : '' }}>Arrived</option>
-                        <option value="in-progress" {{ ($visit->workflow_status ?? '') == 'in-progress' ? 'selected' : '' }}>In Progress</option>
-                        <option value="completed" {{ ($visit->workflow_status ?? '') == 'completed' ? 'selected' : '' }}>Completed</option>
-                        <option value="cancelled" {{ ($visit->workflow_status ?? '') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-                    </select>
-                    <span class="text-gray-600">Current Status: <strong>{{ ucfirst($visit->workflow_status ?? 'Arrived') }}</strong></span>
+                <div class="flex items-center justify-between">
+                    <form method="POST" action="{{ route('medical.visits.consultation.save', $visit->visit_id) }}" class="flex items-center gap-2 text-xs">
+                        @csrf
+                        <select name="workflow_status" class="border px-2 py-1 rounded">
+                            @foreach(['Waiting','Consultation Ongoing','Observation','Completed'] as $s)
+                                <option value="{{ $s }}" {{ (($visit->workflow_status ?? 'Waiting') === $s) ? 'selected' : '' }}>{{ $s }}</option>
+                            @endforeach
+                        </select>
+                        <button type="submit" class="px-2 py-1 bg-blue-600 text-white rounded">Update</button>
+                    </form>
+                </div>
+                <div class="mt-3 flex items-center gap-2 text-xs">
+                    @foreach(['Waiting','Consultation Ongoing','Observation','Completed'] as $i => $label)
+                        <span class="px-2 py-1 rounded {{ (($visit->workflow_status ?? 'Waiting') === $label) ? 'bg-green-600 text-white' : 'bg-gray-100' }}">{{ $label }}</span>
+                        @if($label !== 'Completed')<span>→</span>@endif
+                    @endforeach
                 </div>
             </div>
             <details class="bg-white rounded-lg shadow-md p-6 border-l-4 border-orange-500" open>

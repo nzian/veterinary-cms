@@ -213,6 +213,7 @@ Route::prefix('visits')->group(function () {
 
 // Restore Attend/Perform Visit route so the Visits table Attend link works
 Route::get('/medical-management/visits/{id}/perform', [MedicalManagementController::class, 'performVisit'])->name('medical.visits.perform');
+Route::patch('/medical-management/visits/{id}/workflow', [MedicalManagementController::class, 'updateWorkflowStatus'])->name('medical.visits.workflow');
 
 
 

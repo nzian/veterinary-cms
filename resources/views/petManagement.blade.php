@@ -98,8 +98,8 @@
         
        {{-- Pet Owners Tab Content (Now First) --}}
 <div id="owners-content" class="tab-content {{ request('tab', 'owners') != 'owners' ? 'hidden' : '' }}">
-    <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-    <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
+    <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
+        <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
         <input type="hidden" name="tab" value="owners">
         <label for="ownersPerPage" class="text-sm text-black">Show</label>
         <select name="ownersPerPage" id="ownersPerPage" onchange="this.form.submit()"
@@ -112,12 +112,17 @@
         </select>
         <span>entries</span>
     </form>
-    
-    @if(hasPermission('add_owner', $can))
-        <button onclick="openAddOwnerModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-            + Add Pet Owner
-        </button>
-    @endif
+    <div class="flex items-center gap-2 flex-wrap">
+        <div class="relative">
+            <input type="search" id="ownersSearch" placeholder="Search owners..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+            <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+        </div>
+        @if(hasPermission('add_owner', $can))
+            <button onclick="openAddOwnerModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
+                + Add Pet Owner
+            </button>
+        @endif
+    </div>
 </div>
 
             <div class="overflow-x-auto mt-4">
@@ -215,7 +220,7 @@
 
         {{-- Pets Tab Content (Now Second) --}}
         <div id="pets-content" class="tab-content {{ request('tab') != 'pets' ? 'hidden' : '' }}">
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
                 <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
                     <input type="hidden" name="tab" value="pets">
                     <label for="perPage" class="text-sm text-black">Show</label>
@@ -229,6 +234,10 @@
                     </select>
                     <span>entries</span>
                 </form>
+                <div class="relative">
+                    <input type="search" id="petsSearch" placeholder="Search pets..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                    <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                </div>
                  {{-- 
                 <button onclick="openAddPetModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
                     + Add Pet
@@ -584,6 +593,70 @@
         {{-- END CORRECTED TAB CONTENT --}}
     </div> -->
     
+    <script>
+    document.addEventListener('DOMContentLoaded', function(){
+        function persistKey(tab){ return `pm_search_${tab}`; }
+        function setPersist(tab, val){ try{ localStorage.setItem(persistKey(tab), val); }catch(e){} }
+        function getPersist(tab){ try{ return localStorage.getItem(persistKey(tab)) || ''; }catch(e){ return ''; } }
+
+        function filterBody(tbody, q){
+            const needle = String(q || '').toLowerCase();
+            tbody.querySelectorAll('tr').forEach(tr => {
+                const text = tr.textContent.toLowerCase();
+                tr.style.display = !needle || text.includes(needle) ? '' : 'none';
+            });
+        }
+
+        function setupFilter({inputId, tableSelector, tab, perPageSelectId, formSelector}){
+            const input = document.getElementById(inputId);
+            const table = document.querySelector(tableSelector);
+            const tbody = table ? table.querySelector('tbody') : null;
+            const sel = document.getElementById(perPageSelectId);
+            const form = formSelector ? document.querySelector(formSelector) : (sel ? sel.form : null);
+            if(!input || !tbody) return;
+
+            const last = getPersist(tab);
+            if(last){
+                input.value = last;
+                if (sel && sel.value !== 'all') {
+                    sel.value = 'all';
+                    if (form) form.submit();
+                    return;
+                }
+                filterBody(tbody, last);
+            }
+
+            input.addEventListener('input', function(){
+                const q = this.value.trim();
+                setPersist(tab, q);
+                if (q && sel && sel.value !== 'all') {
+                    sel.value = 'all';
+                    if (form) form.submit();
+                    return;
+                }
+                if (!tbody) return;
+                filterBody(tbody, q);
+            });
+        }
+
+        // Owners
+        setupFilter({
+            inputId: 'ownersSearch',
+            tableSelector: '#owners-content table',
+            tab: 'owners',
+            perPageSelectId: 'ownersPerPage',
+            formSelector: '#owners-content form[action]'
+        });
+        // Pets
+        setupFilter({
+            inputId: 'petsSearch',
+            tableSelector: '#pets-content table',
+            tab: 'pets',
+            perPageSelectId: 'perPage',
+            formSelector: '#pets-content form[action]'
+        });
+    });
+    </script>
     
 
     
