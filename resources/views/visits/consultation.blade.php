@@ -1,309 +1,211 @@
 @extends('AdminBoard')
 
 @section('content')
-<div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-6">
-    <div class="max-w-6xl mx-auto">
+<div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4 sm:p-6">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6">
         
-        
-        <div class="mb-6">
-            <div class="flex items-center justify-between mb-4">
-                <div>
-                    <h1 class="text-4xl font-bold text-gray-800">🩺 Check-up / Consultation</h1>
-                    <p class="text-gray-600 mt-1">Record and manage pet medical visits</p>
+        {{-- Left Column: Pet Overview & History --}}
+        <div class="lg:col-span-1 space-y-6">
+            <div id="petOverviewCard" class="bg-white rounded-xl shadow-lg p-4 border-t-4 border-purple-500">
+                <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-paw mr-2 text-purple-600"></i> Pet Overview
+                </h3>
+                <div class="space-y-2 text-sm">
+                    <p><strong>Name:</strong> {{ $visit->pet->pet_name ?? 'N/A' }}</p>
+                    <p><strong>Species:</strong> {{ $visit->pet->pet_species ?? 'N/A' }}</p>
+                    <p><strong>Breed:</strong> {{ $visit->pet->pet_breed ?? 'N/A' }}</p>
+                    <p><strong>Owner:</strong> {{ $visit->pet->owner->own_name ?? 'N/A' }}</p>
+                    <div class="mt-2 pt-2 border-t border-gray-200">
+                        <p class="text-red-600"><strong>Weight (kg):</strong> {{ $visit->weight ? number_format($visit->weight, 2) . ' kg' : 'N/A' }}</p>
+                        <p class="text-blue-600"><strong>Temp (°C):</strong> {{ $visit->temperature ? number_format($visit->temperature, 1) . ' °C' : 'N/A' }}</p>
+                    </div>
                 </div>
-                <a href="{{ route('medical.index', ['active_tab' => 'visits']) }}" 
-                   class="px-4 py-2 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-medium">
-                    ← Back
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-4 border-t-4 border-orange-500">
+                <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-history mr-2 text-orange-600"></i> Recent Medical History
+                </h3>
+                <div class="space-y-3 max-h-64 overflow-y-auto text-xs">
+                    @forelse($petMedicalHistory as $record)
+                        <div class="border-l-2 pl-2 {{ $record->diagnosis ? 'border-red-400' : 'border-gray-300' }}">
+                            <div class="font-medium">{{ \Carbon\Carbon::parse($record->visit_date)->format('M j, Y') }}</div>
+                            <div class="text-gray-700 truncate">{{ $record->diagnosis ?? $record->treatment ?? 'Routine Visit' }}</div>
+                            @if($record->medication)
+                                <div class="text-xs text-blue-600">Meds: {{ Str::limit($record->medication, 20) }}</div>
+                            @endif
+                        </div>
+                    @empty
+                        <p class="text-gray-500 italic">No recent history found.</p>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+
+        {{-- Main Content Column --}}
+        <div class="lg:col-span-3 space-y-6">
+            
+            {{-- Header and Back Button --}}
+            <div class="flex items-center justify-between bg-white p-4 rounded-xl shadow-sm border">
+                <h2 class="text-3xl font-bold text-gray-800">
+                    Consultation Workspace
+                </h2>
+                <a href="{{ route('medical.index', ['tab' => 'checkup']) }}" 
+                   class="px-4 py-2 bg-gray-200 border-2 border-gray-300 rounded-lg hover:bg-gray-300 font-medium shadow-sm transition">
+                    ← Back 
                 </a>
             </div>
-        </div>
-
-        <div class="bg-white rounded-lg shadow-md p-6 mb-6 border-l-4 border-blue-500">
-            <div class="grid grid-cols-4 gap-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Pet Name</label>
-                    <div class="bg-blue-50 p-3 rounded-lg font-semibold text-gray-800">
-                        @php($s = strtolower($visit->pet->pet_species ?? ''))
-                        @if($s === 'cat')
-                            <i class="fas fa-cat mr-1" title="Cat"></i>
-                        @elseif($s === 'dog')
-                            <i class="fas fa-dog mr-1" title="Dog"></i>
-                        @endif
-                        {{ $visit->pet->pet_name ?? 'N/A' }}
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Owner Name</label>
-                    <div class="bg-blue-50 p-3 rounded-lg font-semibold text-gray-800">{{ $visit->pet->owner->own_name ?? 'N/A' }}</div>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Species</label>
-                    <div class="bg-blue-50 p-3 rounded-lg font-semibold text-gray-800">
-                        @php($s = strtolower($visit->pet->pet_species ?? ''))
-                        @if($s === 'cat')
-                            <i class="fas fa-cat mr-1" title="Cat"></i>
-                        @elseif($s === 'dog')
-                            <i class="fas fa-dog mr-1" title="Dog"></i>
-                        @endif
-                        {{ $visit->pet->pet_species ?? 'Unknown' }}
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Visit Date</label>
-                    <div class="bg-blue-50 p-3 rounded-lg font-semibold text-gray-800">
-                        {{ optional(\Carbon\Carbon::parse($visit->visit_date))->format('F j, Y') }}
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <form action="{{ route('medical.visits.consultation.save', $visit->visit_id) }}" method="POST" class="space-y-6">
-            @csrf
-
-            <!-- Status Timeline Section -->
-            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-indigo-500 mb-6">
-                <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <span class="text-2xl">⏳</span> Status Timeline
-                </h2>
-                <div class="flex items-center justify-between">
+            
+            {{-- Status Timeline (Fixed PHP Syntax) --}}
+            <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-indigo-500">
+                <div class="flex items-center justify-between flex-wrap gap-3">
+                    <h3 class="text-lg font-semibold text-gray-700">Consultation Status</h3>
                     <form method="POST" action="{{ route('medical.visits.consultation.save', $visit->visit_id) }}" class="flex items-center gap-2 text-xs">
                         @csrf
-                        <select name="workflow_status" class="border px-2 py-1 rounded">
-                            @foreach(['Waiting','Consultation Ongoing','Observation','Completed'] as $s)
+                        <select name="workflow_status" class="border border-gray-300 px-3 py-1.5 rounded-lg text-sm">
+                            @php($statuses = ['Waiting','Consultation Ongoing','Observation','Completed'])
+                            @foreach($statuses as $s)
                                 <option value="{{ $s }}" {{ (($visit->workflow_status ?? 'Waiting') === $s) ? 'selected' : '' }}>{{ $s }}</option>
                             @endforeach
                         </select>
-                        <button type="submit" class="px-2 py-1 bg-blue-600 text-white rounded">Update</button>
+                        <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Update Status</button>
                     </form>
                 </div>
-                <div class="mt-3 flex items-center gap-2 text-xs">
-                    @foreach(['Waiting','Consultation Ongoing','Observation','Completed'] as $i => $label)
-                        <span class="px-2 py-1 rounded {{ (($visit->workflow_status ?? 'Waiting') === $label) ? 'bg-green-600 text-white' : 'bg-gray-100' }}">{{ $label }}</span>
-                        @if($label !== 'Completed')<span>→</span>@endif
+                <div class="mt-4 flex items-center justify-between gap-1 text-xs overflow-x-auto pt-2">
+                    @php($current = $visit->workflow_status ?? 'Waiting')
+                    @foreach($statuses as $label)
+                        <span class="px-2 py-1 rounded-full whitespace-nowrap text-[10px] font-semibold 
+                            {{ $current === $label ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-600' }}">
+                            {{ $label }}
+                        </span>
+                        @if($label !== 'Completed')<span class="text-gray-400">→</span>@endif
                     @endforeach
                 </div>
             </div>
-            <details class="bg-white rounded-lg shadow-md p-6 border-l-4 border-orange-500" open>
-                <summary class="text-xl font-bold text-gray-800 mb-4 cursor-pointer list-none flex items-center justify-between">
-                    <span class="flex items-center gap-2">
-                        <span class="text-2xl">📋</span> Medical History (Click to Expand/Collapse)
-                    </span>
-                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                    </svg>
-                </summary>
-                <div class="pt-4 border-t mt-4 border-gray-100">
-                    @php($previousConsultations = $previousConsultations ?? collect())
-                    @if($previousConsultations->count() > 0)
-                        <div class="space-y-3">
-                            @foreach($previousConsultations as $record)
-                                <div class="border-2 border-orange-200 rounded-lg p-4 bg-orange-50">
-                                    <div class="flex justify-between items-start mb-2">
-                                        <div>
-                                            <span class="inline-block bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-semibold mr-2">
-                                                {{ ucfirst($record->visit->visit_type ?? 'Consultation') }}
-                                            </span>
-                                            <span class="text-sm text-gray-600">{{ \Carbon\Carbon::parse($record->consulted_at)->format('F j, Y') }}</span>
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-3 gap-4 text-sm">
-                                        <div>
-                                            <label class="font-semibold text-gray-700">Diagnosis:</label>
-                                            <p class="text-gray-800">{{ $record->diagnosis ?? 'N/A' }}</p>
-                                        </div>
-                                        <div>
-                                            <label class="font-semibold text-gray-700">Treatment:</label>
-                                            <p class="text-gray-800">{{ $record->prescriptions ?? 'N/A' }}</p>
-                                        </div>
-                                        <div>
-                                            <label class="font-semibold text-gray-700">Notes:</label>
-                                            <p class="text-gray-800">{{ $record->recommendations ?? 'N/A' }}</p>
-                                        </div>
-                                    </div>
+
+            @php
+                // Unified data retrieval logic
+                $__checkup = [];
+                if (isset($serviceData) && $serviceData) {
+                    $__checkup = [
+                        'weight' => $serviceData->weight ?? $visit->weight ?? null,
+                        'temperature' => $serviceData->temperature ?? $visit->temperature ?? null,
+                        'heart_rate' => $serviceData->heart_rate ?? null,
+                        'respiration_rate' => $serviceData->respiration_rate ?? null,
+                        'physical_findings' => $serviceData->symptoms ?? null,
+                        'diagnosis' => $serviceData->findings ?? null,
+                        'recommendations' => $serviceData->treatment_plan ?? null,
+                        'next_appointment' => $serviceData->next_visit ?? null,
+                    ];
+                }
+            @endphp
+            
+            <form action="{{ route('medical.visits.consultation.save', $visit->visit_id) }}" method="POST" class="space-y-6">
+                @csrf
+                <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
+                <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {{-- Physical Exam Card --}}
+                    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-file-medical-alt text-green-600 mr-2"></i> Physical Examination / Vitals
+                        </h3>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (kg) <span class="text-red-500">*</span></label>
+                                    <input type="number" step="0.01" name="weight" value="{{ old('weight', $__checkup['weight'] ?? '') }}"
+                                           class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                                           placeholder="Enter weight" required>
                                 </div>
-                            @endforeach
-                        </div>
-                    @else
-                        <div class="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4 flex items-center gap-3">
-                            <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            <p class="text-yellow-800 font-medium">No previous medical history available</p>
-                        </div>
-                    @endif
-                </div>
-            </details>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
-                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                        <span class="text-2xl">🧪</span> Physical Examination
-                    </h2>
-                    <div class="space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-2">Weight (kg)</label>
-                                <input type="number" step="0.01" name="weight" value="{{ old('weight', $visit->weight) }}"
-                                       class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                                       placeholder="Enter weight" required>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Temperature (°C) <span class="text-red-500">*</span></label>
+                                    <input type="number" step="0.1" name="temperature" value="{{ old('temperature', $__checkup['temperature'] ?? '') }}"
+                                           class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                                           placeholder="Enter temperature" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Heart Rate (bpm)</label>
+                                    <input type="number" name="heart_rate" value="{{ old('heart_rate', $__checkup['heart_rate'] ?? '') }}"
+                                           class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                                           placeholder="Enter heart rate">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Respiratory Rate (breaths/min)</label>
+                                    <input type="number" name="respiration_rate" value="{{ old('respiration_rate', $__checkup['respiration_rate'] ?? '') }}"
+                                           class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                                           placeholder="Enter respiratory rate">
+                                </div>
                             </div>
                             <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-2">Temperature (°C)</label>
-                                <input type="number" step="0.1" name="temperature" value="{{ old('temperature', $visit->temperature) }}"
-                                       class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                                       placeholder="Enter temperature" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-2">Heart Rate (bpm)</label>
-                                <input type="number" name="heart_rate" value="{{ old('heart_rate') }}"
-                                       class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                                       placeholder="Enter heart rate">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-2">Respiratory Rate (breaths/min)</label>
-                                <input type="number" name="respiratory_rate" value="{{ old('respiratory_rate') }}"
-                                       class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                                       placeholder="Enter respiratory rate">
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Physical Findings / Symptoms</label>
+                                <textarea name="physical_findings" 
+                                          class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                                          rows="5"
+                                          placeholder="Observations from physical exam: coat, eyes, lymph nodes, gait, etc.">{{ old('physical_findings', $__checkup['physical_findings'] ?? '') }}</textarea>
                             </div>
                         </div>
+                    </div>
+
+                    {{-- Diagnosis & Assessment Card --}}
+                    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-stethoscope text-red-600 mr-2"></i> Diagnosis & Assessment
+                        </h3>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Diagnosis / Clinical Impression <span class="text-red-500">*</span></label>
+                        <textarea name="diagnosis" 
+                                  class="w-full p-4 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+                                  rows="15" 
+                                  placeholder="Primary diagnosis, differential diagnoses, rule-outs..."
+                                  required>{{ old('diagnosis', $__checkup['diagnosis'] ?? '') }}</textarea>
+                    </div>
+                </div>
+
+                {{-- Treatment & Follow-up Card --}}
+                <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-band-aid text-purple-600 mr-2"></i> Treatment & Follow-up
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Physical Findings</label>
-                            <textarea name="physical_findings" 
-                                      class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                                      rows="3"
-                                      placeholder="Observations from physical exam...">{{ old('physical_findings') }}</textarea>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Prescriptions Summary (Long-term)</label>
+                            <textarea name="prescriptions" 
+                                      class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                                      rows="4"
+                                      placeholder="Summary of long-term medications, e.g. Amoxicillin 250mg, 1 tab BID x 7 days">{{ old('prescriptions', $__checkup['prescriptions'] ?? '') }}</textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Additional Recommendations</label>
+                            <textarea name="recommendations" 
+                                      class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                                      rows="4"
+                                      placeholder="Dietary changes, exercise restriction, follow-up testing dates, etc.">{{ old('recommendations', $__checkup['recommendations'] ?? '') }}</textarea>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-red-500">
-                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                        <span class="text-2xl">🔍</span> Diagnosis & Assessment
-                    </h2>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Diagnosis</label>
-                    <textarea name="diagnosis" 
-                              class="w-full p-4 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
-                              rows="12" {{-- Increased rows for better visual balance on the side --}}
-                              placeholder="Primary diagnosis, differential diagnoses, clinical impressions..."
-                              required>{{ old('diagnosis') }}</textarea>
+                {{-- Action Buttons --}}
+                <div class="flex justify-between items-center pt-4">
+                    {{-- NEW Centralized Button (Always visible) --}}
+                    <button type="button" 
+                            onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_id ?? 'N/A' }}', 'Consultation')"
+                            class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold shadow-md transition flex items-center gap-2">
+                        <i class="fas fa-tasks"></i> Service Actions
+                    </button>
+                    
+                    <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
+                        <i class="fas fa-save mr-1"></i> Save Consultation Record
+                    </button>
                 </div>
-            </div>
-
-            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-purple-500">
-                <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <span class="text-2xl">💊</span> Treatment & Follow-up
-                </h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="md:col-span-1">
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Prescriptions</label>
-                        <textarea name="prescriptions" 
-                                  class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
-                                  rows="3"
-                                  placeholder="Medication name, dosage, frequency, duration...">{{ old('prescriptions') }}</textarea>
-                    </div>
-                    <div class="md:col-span-1">
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Additional Recommendations</label>
-                        <textarea name="recommendations" 
-                                  class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
-                                  rows="3"
-                                  placeholder="Diet, exercise, care instructions, follow-up care...">{{ old('recommendations') }}</textarea>
-                    </div>
-                    <div class="md:col-span-1">
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Set Appointment</label>
-                        <button type="button" id="open-appoint-modal" class="w-full p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Set Appointment</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex justify-end gap-3 mt-8">
-                {{-- Added a new button for the "Generate/Update Billing" action --}}
-                <button type="button" class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 font-semibold shadow-md">
-                    Generate/Update Billing
-                </button>
-                <a href="{{ route('medical.index', ['active_tab' => 'visits']) }}" 
-                   class="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold">
-                    Cancel
-                </a>
-                <button type="submit" 
-                        class="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow-lg">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                    Save Consultation
-                </button>
-            </div>
-
-            <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
-            <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
-        </form>
-        
-        <!-- Set Appointment Modal -->
-        <div id="appoint-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
-            <div class="bg-white w-full max-w-lg rounded-lg shadow-xl p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-semibold">Set Appointment</h3>
-                    <button type="button" id="close-appoint-modal" class="text-gray-500 hover:text-gray-700">✕</button>
-                </div>
-                <form method="POST" action="{{ route('medical.appointments.store') }}" class="space-y-4">
-                    @csrf
-                    <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
-                    <input type="hidden" name="appoint_status" value="scheduled">
-                    <input type="hidden" name="appoint_type" value="Follow-up">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Owner Name</label>
-                            <input type="text" value="{{ $visit->pet->owner->own_name ?? 'N/A' }}" class="w-full border p-2 rounded bg-gray-50" readonly>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Owner Contact</label>
-                            <input type="text" value="{{ $visit->pet->owner->own_contactnum ?? 'N/A' }}" class="w-full border p-2 rounded bg-gray-50" readonly>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Pet</label>
-                            <input type="text" value="{{ $visit->pet->pet_name ?? 'N/A' }}" class="w-full border p-2 rounded bg-gray-50" readonly>
-                        </div>
-                        <div></div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Date</label>
-                            <input type="date" name="appoint_date" required class="w-full border p-2 rounded">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Time</label>
-                            <select name="appoint_time" required class="w-full border p-2 rounded">
-                                @php($slots = ['09:00 AM','10:00 AM','11:00 AM','01:00 PM','02:00 PM','03:00 PM','04:00 PM'])
-                                @foreach($slots as $slot)
-                                    <option value="{{ $slot }}">{{ $slot }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-span-2">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Description</label>
-                            <textarea name="appoint_description" rows="3" class="w-full border p-2 rounded" placeholder="Reason / notes for follow-up"></textarea>
-                        </div>
-                    </div>
-                    <div class="flex justify-end gap-2 mt-2">
-                        <button type="button" id="cancel-appoint" class="px-4 py-2 bg-gray-200 rounded">Cancel</button>
-                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Create Appointment</button>
-                    </div>
-                </form>
-            </div>
+            </form>
         </div>
     </div>
 </div>
-@endsection
 
-@push('scripts')
-<script>
-document.addEventListener('DOMContentLoaded', function(){
-    const modal = document.getElementById('appoint-modal');
-    const openBtn = document.getElementById('open-appoint-modal');
-    const closeBtn = document.getElementById('close-appoint-modal');
-    const cancelBtn = document.getElementById('cancel-appoint');
-    function open(){ modal.classList.remove('hidden'); modal.classList.add('flex'); }
-    function close(){ modal.classList.add('hidden'); modal.classList.remove('flex'); }
-    if(openBtn){ openBtn.addEventListener('click', open); }
-    if(closeBtn){ closeBtn.addEventListener('click', close); }
-    if(cancelBtn){ cancelBtn.addEventListener('click', close); }
-});
-</script>
-@endpush
+@include('modals.service_activity_modal', [
+    'allPets' => $allPets, 
+    'allBranches' => $allBranches, 
+    'allProducts' => $allProducts,
+])
+@endsection

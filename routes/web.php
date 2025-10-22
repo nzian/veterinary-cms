@@ -10,6 +10,7 @@ use App\Http\Controllers\BranchManagementController;
 use App\Http\Controllers\SalesManagementController;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\GroomingAgreementController;
+use App\Http\Controllers\InitialAssessmentController;
 
 
 Route::get('/', function () {
@@ -488,3 +489,6 @@ Route::controller(ActivityController::class)->group(function () {
     // Route name: activities.save | URL: /activities/{visitId}/save/{activityKey}
     Route::post('/activities/{visitId}/save/{activityKey}', 'handleActivitySave')->name('activities.save');
 });
+
+Route::post('/medical/initial-assessments', [InitialAssessmentController::class, 'store'])
+    ->name('medical.initial_assessments.store');

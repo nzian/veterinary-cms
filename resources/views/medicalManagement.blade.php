@@ -189,6 +189,9 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $visit->visit_id]) }}" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
+                                        <button type="button" onclick="openInitialAssessment({{ $visit->visit_id }}, {{ $visit->pet_id }}, '{{ $visit->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                            <i class="fas fa-notes-medical"></i>
+                                        </button>
                                         @if(hasPermission('edit_appointment', $can))
                                         <button onclick="openEditVisitModal({{ $visit->visit_id }}, false)" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs" title="edit">
                                             <i class="fas fa-pen"></i>
@@ -281,6 +284,9 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $c->visit_id]) }}?type=check-up" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
+                                        <button type="button" onclick="openInitialAssessment({{ $c->visit_id }}, {{ $c->pet_id }}, '{{ $c->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                            <i class="fas fa-notes-medical"></i>
+                                        </button>
                                         <button type="button" onclick="advanceWorkflow({{ $c->visit_id }}, this, 'check-up')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
@@ -358,6 +364,9 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $d->visit_id]) }}?type=deworming" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
+                                        <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                            <i class="fas fa-notes-medical"></i>
+                                        </button>
                                         <button type="button" onclick="advanceWorkflow({{ $d->visit_id }}, this, 'deworming')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
@@ -435,6 +444,9 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $d->visit_id]) }}?type=diagnostic" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
+                                        <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                            <i class="fas fa-notes-medical"></i>
+                                        </button>
                                         <button type="button" onclick="advanceWorkflow({{ $d->visit_id }}, this)" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
@@ -512,6 +524,9 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $s->visit_id]) }}?type=surgical" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
+                                        <button type="button" onclick="openInitialAssessment({{ $s->visit_id }}, {{ $s->pet_id }}, '{{ $s->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                            <i class="fas fa-notes-medical"></i>
+                                        </button>
                                         <button type="button" onclick="advanceWorkflow({{ $s->visit_id }}, this, 'surgical')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
@@ -1306,5 +1321,31 @@ document.addEventListener('DOMContentLoaded', function(){
     bindSearch('emergencySearch', '#emergencyContent table', 'emergencyVisitsPerPage', 'mm_search_emergency');
 });
 </script>
+
+{{-- Include Service Activity Modal so Initial Assessment is available from Visits page --}}
+@include('modals.service_activity_modal', [
+    'allPets' => $allPets,
+    'allBranches' => $allBranches,
+    'allProducts' => $allProducts,
+])
+
+<script>
+    function openInitialAssessment(visitId, petId, ownerId){
+        // Ensure modal is present and open with Initial Assessment tab
+        if (typeof openActivityModal === 'function') {
+            openActivityModal(String(petId), String(ownerId || ''), 'Initial Assessment');
+            if (typeof switchActivityTab === 'function') {
+                switchActivityTab('initial');
+            }
+            const v = document.getElementById('activity_initial_visit_id');
+            const p = document.getElementById('activity_initial_pet_id');
+            if (v) v.value = String(visitId);
+            if (p) p.value = String(petId);
+        } else {
+            alert('Initial Assessment modal is not available.');
+        }
+    }
+    window.openInitialAssessment = openInitialAssessment;
+  </script>
 
 @endsection
