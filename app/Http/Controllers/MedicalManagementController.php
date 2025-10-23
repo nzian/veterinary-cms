@@ -190,7 +190,8 @@ class MedicalManagementController extends Controller
         DB::table('tbl_vaccination_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
             [
-                'vaccine_name' => $validated['vaccine_name'], 'manufacturer' => $validated['manufacturer'],
+                'vaccine_name' => $validated['vaccine_name'],
+                'dose'=> $validated['dose'], 'manufacturer' => $validated['manufacturer'],
                 'batch_no' => $validated['batch_no'], 'date_administered' => $validated['date_administered'] ?: $visitModel->visit_date,
                 'next_due_date' => $validated['next_due_date'], 'administered_by' => $validated['administered_by'] ?? auth()->user()->user_name,
                 'remarks' => $validated['remarks'], 'updated_at' => now(),

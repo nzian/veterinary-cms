@@ -416,7 +416,7 @@
 
         // 1. Set Pet/Owner context
         petName.textContent = pet?.pet_name || 'N/A';
-        document.getElementById('activity_owner_id').textContent = ownerId;
+        document.getElementById('activity_owner_id').textContent = pet?.owner.own_name;
         document.getElementById('activity_appoint_pet_id').value = petId;
         document.getElementById('activity_prescription_pet_id').value = petId;
         const initPetInput = document.getElementById('activity_initial_pet_id');
