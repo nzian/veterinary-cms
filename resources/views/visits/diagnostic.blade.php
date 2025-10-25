@@ -22,7 +22,7 @@
                 <div class="text-xs text-gray-500">Weight: {{ $visit->weight ? number_format($visit->weight, 2).' kg' : '—' }} • Temp: {{ $visit->temperature ? number_format($visit->temperature, 1).' °C' : '—' }}</div>
                 <div class="mt-3 inline-flex items-center gap-2 text-indigo-600 text-sm font-medium">View Full Profile <i class="fas fa-arrow-right"></i></div>
             </div>
-            <div class="bg-white rounded-xl shadow-sm border p-4 cursor-pointer hover:shadow-md transition" onclick="openPetProfileModal(); setTimeout(function(){var el=document.getElementById('modalHistoryList'); if(el){ el.scrollIntoView({behavior:'smooth', block:'start'});}}, 60);">
+            <div class="bg-white rounded-xl shadow-sm border p-4 cursor-pointer hover:shadow-md transition" onclick="openMedicalHistoryModal()">
                 <div class="font-semibold text-gray-900 mb-2">Recent Medical History</div>
                 <div class="space-y-2 max-h-40 overflow-y-auto text-xs">
                     @forelse($petMedicalHistory as $record)
@@ -117,72 +117,170 @@
     </div>
 </div>
 
-<!-- Full Pet Profile Modal -->
+<!-- Pet Profile Modal (Photo + Pet & Owner Info Only) -->
 <div id="petProfileModal" class="fixed inset-0 bg-black/60 z-50 hidden">
-  <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target.id==='petProfileModal'){closePetProfileModal()}">
-    <div class="bg-white rounded-xl shadow-2xl w-[1200px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
+  <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closePetProfileModal()}">
+    <div class="bg-white rounded-xl shadow-2xl w-[600px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between px-4 py-3 border-b">
-        <h3 class="font-bold text-lg text-gray-800">Full Pet Profile</h3>
+        <h3 class="font-bold text-lg text-gray-800">Pet Profile</h3>
         <button type="button" onclick="closePetProfileModal()" class="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded-md"><i class="fas fa-times mr-1"></i>Close</button>
       </div>
-      <div class="p-4 space-y-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div class="md:col-span-1 space-y-3">
-            <div class="w-full rounded-lg border bg-gray-50 flex items-center justify-center overflow-hidden">
-              @if(!empty($visit->pet->photo_path))
-                <img src="{{ asset('storage/'.$visit->pet->photo_path) }}" alt="{{ $visit->pet->pet_name }}" class="w-full h-64 object-cover"/>
-              @else
-                <div class="h-64 w-full flex items-center justify-center text-gray-400">No photo</div>
-              @endif
+      <div class="p-6 space-y-4">
+        <!-- Pet Photo -->
+        <div class="w-full rounded-lg border bg-gray-50 flex items-center justify-center overflow-hidden">
+          @if(!empty($visit->pet->pet_photo))
+            <img src="{{ asset('storage/'.$visit->pet->pet_photo) }}" alt="{{ $visit->pet->pet_name ?? 'Pet' }}" class="w-full h-80 object-cover"/>
+          @else
+            <div class="h-80 w-full flex items-center justify-center text-gray-400 text-lg">
+              <i class="fas fa-paw text-6xl"></i>
             </div>
-            <div class="bg-white rounded-lg border p-3 text-sm">
-              <div class="font-semibold text-gray-800 text-base">{{ $visit->pet->pet_name ?? 'Pet' }}</div>
-              <div class="text-gray-600">Species: {{ $visit->pet->pet_species ?? '—' }}</div>
-              <div class="text-gray-600">Breed: {{ $visit->pet->pet_breed ?? '—' }}</div>
-              <div class="text-gray-600">Gender: {{ $visit->pet->pet_gender ?? '—' }}</div>
-              <div class="text-gray-600">Age: {{ $visit->pet->pet_age ?? '—' }}</div>
-              <div class="text-gray-600">Weight: {{ $visit->weight ? number_format($visit->weight, 2).' kg' : '—' }}</div>
-              <div class="text-gray-600">Temp: {{ $visit->temperature ? number_format($visit->temperature, 1).' °C' : '—' }}</div>
+          @endif
+        </div>
+
+        <!-- Pet Information -->
+        <div class="bg-white rounded-lg border p-4">
+          <div class="font-semibold text-gray-800 text-lg mb-3 flex items-center gap-2">
+            <i class="fas fa-dog text-blue-600"></i> Pet Information
+          </div>
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <span class="text-gray-500">Name:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->pet_name ?? '—' }}</div>
             </div>
-            <div class="bg-white rounded-lg border p-3 text-sm">
-              <div class="font-semibold text-gray-800">Owner</div>
-              <div class="text-gray-600">{{ $visit->pet->owner->own_name ?? '—' }}</div>
-              <div class="text-gray-600">{{ $visit->pet->owner->own_contactnum ?? '' }}</div>
-              <div class="text-gray-600">{{ $visit->pet->owner->own_location ?? '' }}</div>
+            <div>
+              <span class="text-gray-500">Species:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->pet_species ?? '—' }}</div>
+            </div>
+            <div>
+              <span class="text-gray-500">Breed:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->pet_breed ?? '—' }}</div>
+            </div>
+            <div>
+              <span class="text-gray-500">Gender:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->pet_gender ?? '—' }}</div>
+            </div>
+            <div>
+              <span class="text-gray-500">Age:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->pet_age ?? '—' }}</div>
+            </div>
+            <div>
+              <span class="text-gray-500">Weight:</span>
+              <div class="font-medium text-gray-800">{{ $visit->weight ? number_format($visit->weight, 2).' kg' : '—' }}</div>
+            </div>
+            <div class="col-span-2">
+              <span class="text-gray-500">Temperature:</span>
+              <div class="font-medium text-gray-800">{{ $visit->temperature ? number_format($visit->temperature, 1).' °C' : '—' }}</div>
             </div>
           </div>
-          <div class="md:col-span-2">
-            <div class="bg-white rounded-lg border p-4">
-              <div class="font-semibold text-gray-800 mb-3 flex items-center gap-2"><i class="fas fa-history text-orange-600"></i> Overall Medical History</div>
-              <div id="modalHistoryList" class="space-y-3 max-h-[65vh] overflow-y-auto text-sm">
-                @forelse($petMedicalHistory as $record)
-                  <div class="border-l-2 pl-3 {{ $record->diagnosis ? 'border-red-400' : 'border-gray-300' }}">
-                    <div class="flex items-center justify-between">
-                      <div class="font-medium">{{ \Carbon\Carbon::parse($record->visit_date)->format('M j, Y') }}</div>
-                      @if(!empty($record->service_type))
-                        <span class="text-xs text-gray-500">{{ $record->service_type }}</span>
-                      @endif
-                    </div>
-                    <div class="text-gray-700">{{ $record->diagnosis ?? $record->treatment ?? 'Routine Visit' }}</div>
-                    @if($record->medication)
-                      <div class="text-xs text-blue-600">Meds: {{ Str::limit($record->medication, 120) }}</div>
-                    @endif
-                  </div>
-                @empty
-                  <p class="text-gray-500 italic">No medical history on record.</p>
-                @endforelse
-              </div>
+        </div>
+
+        <!-- Owner Information -->
+        <div class="bg-white rounded-lg border p-4">
+          <div class="font-semibold text-gray-800 text-lg mb-3 flex items-center gap-2">
+            <i class="fas fa-user text-green-600"></i> Owner Information
+          </div>
+          <div class="space-y-2 text-sm">
+            <div>
+              <span class="text-gray-500">Name:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->owner->own_name ?? '—' }}</div>
+            </div>
+            <div>
+              <span class="text-gray-500">Contact:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->owner->own_contactnum ?? '—' }}</div>
+            </div>
+            <div>
+              <span class="text-gray-500">Location:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->owner->own_location ?? '—' }}</div>
             </div>
           </div>
         </div>
       </div>
     </div>
   </div>
-  <script>
-    function openPetProfileModal(){ const m = document.getElementById('petProfileModal'); if(m){ m.classList.remove('hidden'); } }
-    function closePetProfileModal(){ const m = document.getElementById('petProfileModal'); if(m){ m.classList.add('hidden'); } }
-  </script>
 </div>
+
+<!-- Medical History Modal (History Only) -->
+<div id="medicalHistoryModal" class="fixed inset-0 bg-black/60 z-50 hidden">
+  <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closeMedicalHistoryModal()}">
+    <div class="bg-white rounded-xl shadow-2xl w-[900px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between px-4 py-3 border-b">
+        <h3 class="font-bold text-lg text-gray-800 flex items-center gap-2">
+          <i class="fas fa-history text-orange-600"></i> 
+          Complete Medical History - {{ $visit->pet->pet_name ?? 'Pet' }}
+        </h3>
+        <button type="button" onclick="closeMedicalHistoryModal()" class="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded-md"><i class="fas fa-times mr-1"></i>Close</button>
+      </div>
+      <div class="p-6">
+        <div class="space-y-4 max-h-[75vh] overflow-y-auto">
+          @forelse($petMedicalHistory as $record)
+            <div class="border-l-4 pl-4 py-3 {{ $record->diagnosis ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-gray-50' }} rounded-r-lg">
+              <div class="flex items-center justify-between mb-2">
+                <div class="font-semibold text-gray-800 text-base">
+                  {{ \Carbon\Carbon::parse($record->visit_date)->format('F j, Y') }}
+                </div>
+                @if(!empty($record->service_type))
+                  <span class="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded">{{ $record->service_type }}</span>
+                @endif
+              </div>
+              
+              @if($record->diagnosis)
+                <div class="mb-2">
+                  <span class="text-xs font-semibold text-gray-600">Diagnosis:</span>
+                  <div class="text-sm text-gray-800">{{ $record->diagnosis }}</div>
+                </div>
+              @endif
+
+              @if($record->treatment)
+                <div class="mb-2">
+                  <span class="text-xs font-semibold text-gray-600">Treatment:</span>
+                  <div class="text-sm text-gray-800">{{ $record->treatment }}</div>
+                </div>
+              @endif
+
+              @if($record->medication)
+                <div class="mb-2">
+                  <span class="text-xs font-semibold text-gray-600">Medication:</span>
+                  <div class="text-sm text-blue-700">{{ $record->medication }}</div>
+                </div>
+              @endif
+
+              @if(!$record->diagnosis && !$record->treatment)
+                <div class="text-sm text-gray-600 italic">Routine Visit</div>
+              @endif
+            </div>
+          @empty
+            <div class="text-center py-8">
+              <i class="fas fa-clipboard-list text-gray-300 text-5xl mb-3"></i>
+              <p class="text-gray-500 italic">No medical history on record.</p>
+            </div>
+          @endforelse
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function openPetProfileModal() { 
+    const m = document.getElementById('petProfileModal'); 
+    if(m){ m.classList.remove('hidden'); } 
+  }
+  
+  function closePetProfileModal() { 
+    const m = document.getElementById('petProfileModal'); 
+    if(m){ m.classList.add('hidden'); } 
+  }
+
+  function openMedicalHistoryModal() { 
+    const m = document.getElementById('medicalHistoryModal'); 
+    if(m){ m.classList.remove('hidden'); } 
+  }
+  
+  function closeMedicalHistoryModal() { 
+    const m = document.getElementById('medicalHistoryModal'); 
+    if(m){ m.classList.add('hidden'); } 
+  }
+</script>
 
 @include('modals.service_activity_modal', [
     'allPets' => $allPets, 
