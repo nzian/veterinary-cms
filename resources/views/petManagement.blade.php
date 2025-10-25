@@ -1923,13 +1923,20 @@ function showEnhancedPetView(data) {
     const pet = data.pet;
     const modal = document.getElementById('enhancedViewPetModal');
     
+    // Format weight and temperature with 2 decimal places
+    const formatNumber = (num) => num ? parseFloat(num).toFixed(2) : null;
+    
     document.getElementById('enhancedPetName').textContent = pet.pet_name;
     document.getElementById('enhancedPetBreed').textContent = pet.pet_species + ' - ' + pet.pet_breed;
     document.getElementById('enhancedPetAge').textContent = pet.pet_age;
     document.getElementById('enhancedPetGender').textContent = pet.pet_gender;
     document.getElementById('enhancedPetOwner').textContent = pet.owner ? pet.owner.own_name : 'N/A';
-    document.getElementById('enhancedPetWeight').textContent = pet.pet_weight ? pet.pet_weight + ' kg' : '-- kg';
-    document.getElementById('enhancedPetTemperature').textContent = pet.pet_temperature ? pet.pet_temperature + '°C' : '--°C';
+    
+    // Update weight and temperature with formatted values
+    const weight = formatNumber(pet.pet_weight);
+    const temperature = formatNumber(pet.pet_temperature);
+    document.getElementById('enhancedPetWeight').textContent = weight ? weight + ' kg' : '-- kg';
+    document.getElementById('enhancedPetTemperature').textContent = temperature ? temperature + '°C' : '--°C';
     
     if (pet.pet_photo) {
         document.getElementById('enhancedPetPhoto').src = '/storage/' + pet.pet_photo;
@@ -1971,14 +1978,20 @@ function showEnhancedPetView(data) {
 }
 
 function showSimplePetView(button) {
+    // Format weight and temperature with 2 decimal places
+    const formatNumber = (num) => num ? parseFloat(num).toFixed(2) : null;
+    
+    const weight = formatNumber(button.dataset.weight);
+    const temperature = formatNumber(button.dataset.temperature);
+    
     document.getElementById('viewPetName').innerText = button.dataset.name;
     document.getElementById('viewPetGender').innerText = button.dataset.gender;
     document.getElementById('viewPetBirthdate').innerText = button.dataset.birthdate;
     document.getElementById('viewPetAge').innerText = button.dataset.age;
     document.getElementById('viewPetSpecies').innerText = button.dataset.species;
     document.getElementById('viewPetBreed').innerText = button.dataset.breed;
-    document.getElementById('viewPetWeight').innerText = button.dataset.weight || 'N/A';
-    document.getElementById('viewPetTemperature').innerText = button.dataset.temperature || 'N/A';
+    document.getElementById('viewPetWeight').innerText = weight ? weight + ' kg' : '-- kg';
+    document.getElementById('viewPetTemperature').innerText = temperature ? temperature + '°C' : '--°C';
     document.getElementById('viewPetRegistration').innerText = button.dataset.registration;
     document.getElementById('viewPetOwner').innerText = button.dataset.owner;
 

@@ -46,6 +46,11 @@ class Visit extends Model
         return 'user_id';
     }
 
+    public function billing()
+    {
+        return $this->hasOne(Billing::class, 'visit_id', 'visit_id');
+    }
+
     public function groomingAgreement()
     {
         return $this->hasOne(GroomingAgreement::class, 'visit_id');

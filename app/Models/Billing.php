@@ -19,8 +19,9 @@ class Billing extends Model
     protected $fillable = [
         'bill_date',
         'ord_id',
-        'appoint_id',
-        'bill_status', // ✅ Now this column exists
+        'visit_id',
+        'bill_status',
+        'branch_id'
     ];
 
     // Add default values
@@ -39,14 +40,10 @@ class Billing extends Model
     }
 
 
-    public function appointment()
+    public function visit()
     {
-        return $this->belongsTo(Appointment::class, 'appoint_id');
+        return $this->belongsTo(Visit::class, 'visit_id', 'visit_id');
     }
-public function appoint()
-{
-    return $this->belongsTo(Appointment::class, 'appoint_id', 'appoint_id');
-}
 
     public function branch()
     {

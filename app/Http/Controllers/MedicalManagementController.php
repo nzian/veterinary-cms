@@ -154,13 +154,33 @@ class MedicalManagementController extends Controller
             'workflow_status' => ['nullable','string'],
         ]);
         
-        $visitModel = Visit::findOrFail($visitId);
+        $visitModel = Visit::with('pet')->findOrFail($visitId);
         $rr = $request->input('respiration_rate') ?: $request->input('respiratory_rate');
 
+        // Update visit record
         $visitModel->weight = $validated['weight'] ?? $visitModel->weight;
         $visitModel->temperature = $validated['temperature'] ?? $visitModel->temperature;
         $visitModel->workflow_status = $validated['workflow_status'] ?? $visitModel->workflow_status;
         $visitModel->save();
+
+        // Update pet's weight and temperature if they were provided
+        $vitalsUpdated = false;
+        if (isset($validated['weight']) || isset($validated['temperature'])) {
+            $pet = $visitModel->pet;
+            if ($pet) {
+                if (isset($validated['weight'])) {
+                    $pet->pet_weight = $validated['weight'];
+                    $vitalsUpdated = true;
+                }
+                if (isset($validated['temperature'])) {
+                    $pet->pet_temperature = $validated['temperature'];
+                    $vitalsUpdated = true;
+                }
+                if ($vitalsUpdated) {
+                    $pet->save();
+                }
+            }
+        }
         
         DB::table('tbl_checkup_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
@@ -172,7 +192,11 @@ class MedicalManagementController extends Controller
             ]
         );
         
-        return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'checkup'])->with('success', 'Consultation record saved successfully!');
+        $message = 'Consultation record saved successfully!';
+        if ($vitalsUpdated) {
+            $message .= ' Pet vital signs have been updated.';
+        }
+        return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'checkup'])->with('success', $message);
     }
     
     public function saveVaccination(Request $request, $visitId)

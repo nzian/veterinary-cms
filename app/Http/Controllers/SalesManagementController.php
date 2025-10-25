@@ -20,13 +20,13 @@ class SalesManagementController extends Controller
             $activeBranchId = $user->branch_id;
         }
 
-        // Filter billings by branch through appointment -> user relationship
+        // Filter billings by branch through visit -> user relationship
         $billings = Billing::with([
-            'appointment.pet.owner', 
-            'appointment.services',
-            'appointment.user.branch'
+            'visit.pet.owner', 
+            'visit.services',
+            'visit.user.branch'
         ])
-        ->whereHas('appointment.user', function($q) use ($activeBranchId) {
+        ->whereHas('visit.user', function($q) use ($activeBranchId) {
             $q->where('branch_id', $activeBranchId);
         })
         ->orderBy('bill_date', 'desc')
@@ -152,7 +152,7 @@ class SalesManagementController extends Controller
 
     public function showBilling($id)
     {
-        $billing = Billing::with(['appointment.pet.owner', 'appointment.services'])
+        $billing = Billing::with(['visit.pet.owner', 'visit.services'])
             ->findOrFail($id);
         
         return view('billing-details', compact('billing'));
