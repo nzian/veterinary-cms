@@ -360,6 +360,10 @@ class MedicalManagementController extends Controller
 
         DB::transaction(function () use ($validated, $userId, $request) {
             foreach ($validated['pet_ids'] as $petId) {
+                $pet = Pet::findOrFail($petId);
+                $pet->pet_weight = $request->input("weight.$petId") ?? $pet->pet_weight;
+                $pet->pet_temperature = $request->input("temperature.$petId") ?? $pet->pet_temperature;
+                $pet->save();
                 $data = [
                     'visit_date' => $validated['visit_date'], 'pet_id' => $petId, 'user_id' => $userId,
                     'weight' => $request->input("weight.$petId") ?? null, 'temperature' => $request->input("temperature.$petId") ?? null,
@@ -396,6 +400,11 @@ class MedicalManagementController extends Controller
             'weight' => 'nullable|numeric', 'temperature' => 'nullable|numeric', 'patient_type' => 'required|string|max:100',
             'visit_status' => 'nullable|string',
         ]);
+
+            $pet = Pet::findOrFail($validated['pet_id']);
+            $pet->pet_weight = $validated['weight'] ?? $pet->pet_weight;
+            $pet->pet_temperature = $validated['temperature'] ?? $pet->pet_temperature;
+            $pet->save();
 
         $visit->update($validated);
         if ($request->filled('visit_status')) {
