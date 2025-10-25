@@ -1088,7 +1088,7 @@ function openEditVisitModal(visitId, attending) {
         if (petSelect) petSelect.value = v.pet_id;
         if (weightInput) weightInput.value = v.weight ?? '';
         if (tempInput) tempInput.value = v.temperature ?? '';
-        if (typeSelect) typeSelect.value = v.patient_type ?? 'Outpatient';
+        if (typeSelect) typeSelect.value = capitalizeFirstLetter(v.patient_type) ?? 'Outpatient';
         if (statusSelect && v.visit_status) {
             statusSelect.value = v.visit_status;
         } else if (statusSelect && attending) {
@@ -1100,6 +1100,11 @@ function openEditVisitModal(visitId, attending) {
     })
     .catch(() => alert('Failed to load visit details.'));
 }
+function capitalizeFirstLetter(str) {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
 
 function closeEditVisitModal() {
     const modal = document.getElementById('editVisitModal');
