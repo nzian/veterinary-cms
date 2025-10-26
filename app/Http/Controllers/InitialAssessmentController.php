@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class InitialAssessment extends Model
+class InitialAssessmentController extends Model
 {
     protected $table = 'initial_assessments';
     

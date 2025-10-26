@@ -531,130 +531,189 @@ class PetManagementController extends Controller
         }
     }
 
-    public function healthCard($id)
-    {
-        try {
-            // Fetch pet details with owner and user (for context)
-            $pet = \App\Models\Pet::with('owner', 'user')->findOrFail($id);
-            
-            $userBranchId = optional($pet->user)->branch_id ?? optional(auth()->user())->branch_id; 
+   public function healthCard($id)
+{
+    try {
+        // Fetch pet details with owner and user
+        $pet = \App\Models\Pet::with('owner', 'user')->findOrFail($id);
+        
+        $userBranchId = optional($pet->user)->branch_id ?? optional(auth()->user())->branch_id; 
 
-            // 1. Fetch ALL Veterinarian users (for license lookup in one batch)
-            $veterinarians = \App\Models\User::where('branch_id', $userBranchId)
-                ->where('user_role', 'veterinarian')
-                ->get(['user_id', 'user_name', 'user_licenseNum']) 
-                ->keyBy('user_id'); // Key by user_id for direct access later
+        // Fetch all veterinarians for license lookup
+        $veterinarians = \App\Models\User::where('branch_id', $userBranchId)
+            ->where('user_role', 'veterinarian')
+            ->get(['user_id', 'user_name', 'user_licenseNum']) 
+            ->keyBy('user_id');
 
-            // Define service ID for Vaccination
-            $vaccinationServiceId = \App\Models\Service::where('serv_name', 'Vaccination')->value('serv_id'); 
+        // ===== VACCINATION RECORDS =====
+        $vaccinations = collect();
+        
+        // Strategy 1: Fetch from tbl_vaccination_record (Direct Service Records)
+        $vaccinationRecords = \DB::table('tbl_vaccination_record')
+            ->where('pet_id', $id)
+            ->orderBy('date_administered', 'asc')
+            ->get();
+        
+        foreach ($vaccinationRecords as $record) {
+            // Try to get the visit for veterinarian info
+            $visit = \App\Models\Visit::find($record->visit_id);
+            $vetUserId = optional($visit)->user_id;
+            $vetUser = $veterinarians->get($vetUserId);
             
-            // --- 2. Process Vaccination Records (Guaranteed Data Fetch) ---
-            
+            $vaccinations->push((object) [
+                'visit_date' => $record->date_administered ?? $record->created_at,
+                'product_description' => $record->remarks ?? 'Vaccination administered',
+                'vaccine_name' => $record->vaccine_name ?? 'N/A',
+                'manufacturer' => $record->manufacturer ?? '--',
+                'batch_number' => $record->batch_no ?? '--',
+                'follow_up_date' => $record->next_due_date,
+                'user_name' => $record->administered_by ?? optional($vetUser)->user_name ?? 'N/A',
+                'user_licenseNum' => optional($vetUser)->user_licenseNum ?? '--',
+            ]);
+        }
+        
+        // Strategy 2: Fetch from Appointments (for legacy data)
+        $vaccinationServiceNames = [
+            'Vaccination', 
+            'Vaccination - Kennel Cough',
+            'Vaccination - Kennel Cough (one dose)', 
+            'Vaccination - Anti Rabies',
+        ];
+        
+        $vaccinationServiceIds = \App\Models\Service::whereIn('serv_name', $vaccinationServiceNames)
+            ->orWhere('serv_type', 'LIKE', '%vaccination%')
+            ->pluck('serv_id')
+            ->toArray();
+        
+        if (!empty($vaccinationServiceIds)) {
             $vaccinationAppointments = \App\Models\Appointment::with([
-                'user', // Creator/Receptionist
-                'services' => function ($q) use ($vaccinationServiceId) {
-                    $q->where('tbl_appoint_serv.serv_id', $vaccinationServiceId)
+                'user',
+                'services' => function ($q) use ($vaccinationServiceIds) {
+                    $q->whereIn('tbl_appoint_serv.serv_id', $vaccinationServiceIds)
                       ->withPivot('prod_id', 'vet_user_id', 'vacc_next_dose', 'vacc_batch_no', 'vacc_notes');
                 }
             ])
             ->where('pet_id', $id)
-            ->whereIn('appoint_status', ['completed', 'arrived']) 
+            ->whereIn('appoint_status', ['completed', 'arrived'])
+            ->whereHas('services', function($q) use ($vaccinationServiceIds) {
+                $q->whereIn('tbl_appoint_serv.serv_id', $vaccinationServiceIds);
+            })
             ->orderBy('appoint_date', 'asc')
             ->get();
 
-            $vaccinations = collect();
-            
-            // --- 2A. Safely Pre-fetch all products required for vaccine names (FIX 1) ---
+            // Fetch products for vaccine names
             $productIds = $vaccinationAppointments->flatMap(function ($appt) {
-                // Use first() because the eager load was filtered to only include the vaccination service
-                $service = $appt->services->first();
-                
-                // Safely check for the pivot object and the prod_id field
-                $pivot = optional($service)->pivot;
-                
-                // Only return prod_id if the pivot object and the field exist
-                return optional($pivot)->prod_id ? [$pivot->prod_id] : [];
+                return $appt->services->pluck('pivot.prod_id')->filter();
             })->unique()->toArray();
 
             $products = \App\Models\Product::whereIn('prod_id', $productIds)->get()->keyBy('prod_id');
 
-            // --- 2B. Start mapping with robust safety checks (FIX 2) ---
             foreach ($vaccinationAppointments as $appointment) {
-                
                 $vaccinationService = $appointment->services->first();
+                $pivot = optional($vaccinationService)->pivot;
                 
-                // Use a defined variable for the pivot and check for its existence
-                $pivot = optional($vaccinationService)->pivot; 
-                
-                // Proceed only if the pivot data (the vaccination record) exists and has a product ID
-                if ($pivot && $pivot->prod_id) { 
+                if ($pivot) {
+                    $vetUserId = $pivot->vet_user_id;
+                    $vetUser = $veterinarians->get($vetUserId);
                     
-                    // --- VETERINARIAN LOOKUP ---
-                    $vetUserId = $pivot->vet_user_id; // Get Vet ID from the pivot
-                    $vetUser = $veterinarians->get($vetUserId); // Lookup Vet User
-                    
-                    $attendingVetName = optional($vetUser)->user_name ?? 'N/A (Vet Missing)';
-                    $license = optional($vetUser)->user_licenseNum ?? '--';
-                    
-                    // --- PRODUCT NAME LOOKUP ---
                     $vaccineProduct = $products->get($pivot->prod_id);
                     $vaccineProductName = optional($vaccineProduct)->prod_name;
                     
-                    // Medical History Fallback 
-                    $medicalRecord = \App\Models\MedicalHistory::where('pet_id', $id)
-                        ->where('visit_date', $appointment->appoint_date)
-                        ->first();
-                    $fallbackName = optional($medicalRecord)->treatment ?? 'Vaccine Details N/A';
-
-                    $vaccinations->push((object) [
-                        'visit_date' => $appointment->appoint_date,
-                        'product_description' => $pivot->vacc_notes ?? 'No notes recorded',
-                        'vaccine_name' => ($vaccineProductName !== null) 
-                                            ? $vaccineProductName 
-                                            : $fallbackName,
-                        'batch_number' => $pivot->vacc_batch_no ?? '--',
-                        'follow_up_date' => $pivot->vacc_next_dose, 
-                        
-                        // VETERINARIAN
-                        'user_name' => $attendingVetName,
-                        'user_licenseNum' => $license,
-                    ]);
+                    // Check if this vaccination is already in the collection (avoid duplicates)
+                    $exists = $vaccinations->contains(function($vacc) use ($appointment, $vaccineProductName) {
+                        return $vacc->visit_date == $appointment->appoint_date && 
+                               $vacc->vaccine_name == $vaccineProductName;
+                    });
+                    
+                    if (!$exists) {
+                        $vaccinations->push((object) [
+                            'visit_date' => $appointment->appoint_date,
+                            'product_description' => $pivot->vacc_notes ?? 'Vaccination record',
+                            'vaccine_name' => $vaccineProductName ?? 'Vaccine',
+                            'batch_number' => $pivot->vacc_batch_no ?? '--',
+                            'follow_up_date' => $pivot->vacc_next_dose,
+                            'user_name' => optional($vetUser)->user_name ?? optional($appointment->user)->user_name ?? 'N/A',
+                            'user_licenseNum' => optional($vetUser)->user_licenseNum ?? '--',
+                        ]);
+                    }
                 }
             }
-            
-            // --- 3. Process Deworming Records (FIX 3: Expanded Search) ---
-            $dewormingKeywords = ['deworm', 'heartworm', 'parasite', 'flea', 'tick', 'worm']; 
-            $deworming = \App\Models\MedicalHistory::where('pet_id', $id)
-                ->where(function($query) use ($dewormingKeywords) {
-                    // Group the OR conditions across multiple columns
-                    $query->where(function($q) use ($dewormingKeywords) {
-                        foreach ($dewormingKeywords as $keyword) {
-                            // Check multiple columns for the keyword
-                            $q->orWhere('treatment', 'LIKE', '%' . $keyword . '%');
-                            $q->orWhere('diagnosis', 'LIKE', '%' . $keyword . '%');
-                            $q->orWhere('medication', 'LIKE', '%' . $keyword . '%');
-                        }
-                    });
-                })
-                ->orderBy('visit_date', 'asc')
-                ->get()
-                ->take(14);
-            
-            // --- Fetch dynamic branch information --- 
-            $branches = \App\Models\Branch::all(); 
-            
-            $clinicInfo = [ 
-                'name' => 'Your Veterinary Clinic', 
-                'contact' => '0912-345-6789 / (088) 123-4567', 
-                'logo_url' => asset('images/pets2go.png'),  
-            ];
-
-            // Return the view for printing the card, passing the enriched data
-            return view('petHealthCard', compact('pet', 'vaccinations', 'deworming', 'clinicInfo', 'branches'));
-
-        } catch (\Exception $e) {
-            \Log::error('Health Card Generation Error: ' . $e->getMessage());
-            return back()->with('error', 'Failed to generate health card: ' . $e->getMessage());
         }
+        
+        // Sort vaccinations by date
+        $vaccinations = $vaccinations->sortBy('visit_date')->values();
+        
+        // ===== DEWORMING RECORDS =====
+        $deworming = collect();
+        
+        // Strategy 1: Fetch from tbl_deworming_record (Direct Service Records)
+        $dewormingRecords = \DB::table('tbl_deworming_record')
+            ->where('pet_id', $id)
+            ->orderBy('created_at', 'asc')
+            ->get();
+        
+        foreach ($dewormingRecords as $record) {
+            // Try to get the visit for weight and date info
+            $visit = \App\Models\Visit::find($record->visit_id);
+            
+            $deworming->push((object) [
+                'visit_date' => optional($visit)->visit_date ?? $record->created_at,
+                'weight' => optional($visit)->weight ?? null,
+                'due_date' => $record->next_due_date,
+                'treatment' => $record->dewormer_name . ($record->dosage ? ' (' . $record->dosage . ')' : ''),
+            ]);
+        }
+        
+        // Strategy 2: Fetch from Medical History (for legacy data)
+        $dewormingKeywords = ['deworm', 'heartworm', 'parasite', 'flea', 'tick', 'worm', 'anthelmintic'];
+        $dewormingMedical = \App\Models\MedicalHistory::where('pet_id', $id)
+            ->where(function($query) use ($dewormingKeywords) {
+                $query->where(function($q) use ($dewormingKeywords) {
+                    foreach ($dewormingKeywords as $keyword) {
+                        $q->orWhere('treatment', 'LIKE', '%' . $keyword . '%');
+                        $q->orWhere('diagnosis', 'LIKE', '%' . $keyword . '%');
+                        $q->orWhere('medication', 'LIKE', '%' . $keyword . '%');
+                        $q->orWhere('notes', 'LIKE', '%' . $keyword . '%');
+                    }
+                });
+            })
+            ->orderBy('visit_date', 'asc')
+            ->get();
+        
+        foreach ($dewormingMedical as $record) {
+            // Check if this deworming is already in the collection (avoid duplicates)
+            $exists = $deworming->contains(function($dw) use ($record) {
+                return $dw->visit_date == $record->visit_date;
+            });
+            
+            if (!$exists) {
+                $deworming->push((object) [
+                    'visit_date' => $record->visit_date,
+                    'weight' => $record->weight,
+                    'due_date' => $record->follow_up_date,
+                    'treatment' => $record->treatment ?? $record->medication ?? 'Deworming',
+                ]);
+            }
+        }
+        
+        // Sort deworming by date and limit to 14 records
+        $deworming = $deworming->sortBy('visit_date')->values()->take(14);
+        
+        // Fetch branch information
+        $branches = \App\Models\Branch::all(); 
+        
+        $clinicInfo = [ 
+            'name' => 'Your Veterinary Clinic', 
+            'contact' => '0912-345-6789 / (088) 123-4567', 
+            'logo_url' => asset('images/pets2go.png'),  
+        ];
+
+        return view('petHealthCard', compact('pet', 'vaccinations', 'deworming', 'clinicInfo', 'branches'));
+
+    } catch (\Exception $e) {
+        \Log::error('Health Card Generation Error: ' . $e->getMessage());
+        \Log::error('Stack trace: ' . $e->getTraceAsString());
+        return back()->with('error', 'Failed to generate health card: ' . $e->getMessage());
     }
+}
 }

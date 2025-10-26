@@ -123,42 +123,63 @@
                 {{-- **FIXED** Using record-panel and table-full-height classes --}}
                 <div class="record-panel"> 
                     <table class="w-full border-collapse text-xs table-full-height">
-                        <thead>
-                            <tr class="table-header-blue">
-                                <th class="border border-gray-400 p-1 text-center" style="width: 25%">DATE</th>
-                                <th class="border border-gray-400 p-1 text-center" style="width: 20%">WEIGHT</th>
-                                <th class="border border-gray-400 p-1 text-center" style="width: 55%">MANUFACTURER</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @php 
-                                $dewormingMaxRows = 10; // Fixed to 10 rows
-                                $dewormingDataCount = count($deworming); 
-                            @endphp
-                            
-                            {{-- Data loop --}}
-                            @foreach($deworming as $record)
-                                <tr>
-                                    <td class="border border-gray-400 px-1">{{ \Carbon\Carbon::parse($record->visit_date)->format('M d, Y') }}</td>
-                                    <td class="border border-gray-400 px-1">{{ $record->weight ?? '--' }} kg</td>
-                                    
-                                    {{-- Manufacturer/Sticker column --}}
-                                    <td class="border border-gray-400 px-1">
-                                        {{ Str::limit($record->treatment, 35) }}
-                                    </td>
-                                </tr>
-                            @endforeach
-                            
-                            {{-- Filler rows --}}
-                            @for($i = $dewormingDataCount; $i < $dewormingMaxRows; $i++)
-                                <tr>
-                                    <td class="border border-gray-400"></td>
-                                    <td class="border border-gray-400"></td>
-                                    <td class="border border-gray-400"></td>
-                                </tr>
-                            @endfor
-                        </tbody>
-                    </table>
+        <thead>
+            <tr class="table-header-blue">
+                <th class="border border-gray-400 p-1 text-center" style="width: 25%">DATE</th>
+                <th class="border border-gray-400 p-1 text-center" style="width: 25%">WEIGHT</th>
+                <th class="border border-gray-400 p-1 text-center" style="width: 25%">DUE DATE</th>
+                <th class="border border-gray-400 p-1 text-center" style="width: 45%">MANUFACTURER</th>
+            </tr>
+        </thead>
+        <tbody>
+            @php 
+                $dewormingMaxRows = 10; 
+                $dewormingDataCount = count($deworming); 
+            @endphp
+            
+            {{-- Data loop --}}
+            @foreach($deworming as $record)
+                <tr>
+                    {{-- Date Column --}}
+                    <td class="border border-gray-400 px-1">
+                        {{ \Carbon\Carbon::parse($record->visit_date)->format('M d, Y') }}
+                    </td>
+                    
+                    {{-- Weight Column --}}
+                    <td class="border border-gray-400 px-1 text-center">
+                        {{ $record->weight ? number_format($record->weight, 2) . ' kg' : '--' }}
+                    </td>
+                    
+                    {{-- Due Date Column --}}
+                    <td class="border border-gray-400 px-1 text-center">
+                        {{ $record->due_date ? \Carbon\Carbon::parse($record->due_date)->format('M d, Y') : '--' }}
+                    </td>
+                    
+                    {{-- Dewormer/Manufacturer Column --}}
+                    <td class="border border-gray-400 px-1">
+                        <p class="font-semibold leading-tight">
+                            {{ Str::limit($record->treatment, 40) }}
+                        </p>
+                        @if(isset($record->dosage) && $record->dosage)
+                            <p class="text-gray-600 leading-tight text-[10px]">
+                                Dose: {{ $record->dosage }}
+                            </p>
+                        @endif
+                    </td>
+                </tr>
+            @endforeach
+            
+            {{-- Filler rows --}}
+            @for($i = $dewormingDataCount; $i < $dewormingMaxRows; $i++)
+                <tr>
+                    <td class="border border-gray-400"></td>
+                    <td class="border border-gray-400"></td>
+                    <td class="border border-gray-400"></td>
+                    <td class="border border-gray-400"></td>
+                </tr>
+            @endfor
+        </tbody>
+    </table>
                 </div>
             </div>
 
@@ -301,7 +322,7 @@
                     <th class="border border-gray-400 p-1 text-center" style="width: 15%">DATE GIVEN</th>
                     
                     {{-- Updated Headers based on requirements --}}
-                    <th class="border border-gray-400 p-1 text-center" style="width: 25%">PRODUCT DESCRIPTION</th>
+                    <th class="border border-gray-400 p-1 text-center" style="width: 25%">AGAINST</th>
                     <th class="border border-gray-400 p-1 text-center" style="width: 30%">VACCINE NAME & BATCH #</th>
                     
                     <th class="border border-gray-400 p-1 text-center" style="width: 15%">DATE DUE</th>
@@ -323,10 +344,13 @@
                         <td class="border border-gray-400 px-1">{{ Str::limit($record->product_description, 30) }}</td>
                         
                         {{-- Mapped to Vaccine Name + Batch Number --}}
-                        <td class="border border-gray-400 px-1 text-xs">
-                            <p class="font-semibold leading-tight">{{ $record->vaccine_name ?? 'N/A' }}</p>
-                            <p class="text-gray-600 leading-tight">Batch: {{ $record->batch_number ?? '--' }}</p>
-                        </td>
+                       <td class="border border-gray-400 px-1 text-xs">
+    <p class="font-semibold leading-tight">{{ $record->vaccine_name ?? 'N/A' }}</p>
+    @if(isset($record->manufacturer) && $record->manufacturer !== '--')
+        <p class="text-gray-600 leading-tight text-[10px]">Mfr: {{ $record->manufacturer }}</p>
+    @endif
+    <p class="text-gray-600 leading-tight">Batch: {{ $record->batch_number ?? '--' }}</p>
+</td>
                         
                         <td class="border border-gray-400 px-1 font-bold color-orange-main">
                             {{ $record->follow_up_date ? \Carbon\Carbon::parse($record->follow_up_date)->format('M d, Y') : 'N/A' }}

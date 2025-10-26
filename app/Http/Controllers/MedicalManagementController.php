@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 use App\Services\NotificationService; 
 use App\Services\InventoryService; 
+use App\Models\InventoryHistory;
 
 class MedicalManagementController extends Controller
 {
@@ -221,6 +222,26 @@ class MedicalManagementController extends Controller
                 'remarks' => $validated['remarks'], 'updated_at' => now(),
             ]
         );
+
+         $vaccineName = $request->vaccine_name;
+    $vaccine = \App\Models\Product::where('prod_name', $vaccineName)
+        ->where('prod_category', 'Vaccines')
+        ->first();
+    
+    if ($vaccine && $vaccine->prod_stocks > 0) {
+        // Deduct 1 unit (or use $request->dose if it's a quantity)
+        $vaccine->decrement('prod_stocks', 1);
+        
+        // Optional: Log the usage in inventory history
+        \App\Models\InventoryHistory::create([
+            'prod_id' => $vaccine->prod_id,
+            'type' => 'service_usage',
+            'quantity' => -1,
+            'reference' => "Vaccination - Visit #{$visitId}",
+            'user_id' => auth()->id(),
+            'notes' => "Administered to " . ($visit->pet->pet_name ?? 'Pet')
+        ]);
+    }
         return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'vaccination'])->with('success', 'Vaccination recorded.');
     }
 
@@ -501,7 +522,7 @@ class MedicalManagementController extends Controller
     /**
      * Renders the service-specific blade for performing a visit.
      */
-    public function performVisit(Request $request, $id)
+   public function performVisit(Request $request, $id)
     {
         $visit = Visit::with(['pet.owner', 'user', 'services'])->findOrFail($id);
 
@@ -555,11 +576,20 @@ class MedicalManagementController extends Controller
         $lookups = $this->getBranchLookups(); 
 
         $viewName = 'visits.' . $blade;
+
+        $vaccines = \App\Models\Product::where('prod_category', 'Vaccines')
+            ->where('prod_stocks', '>', 0) // Only show vaccines in stock
+            ->orderBy('prod_name')
+            ->get();
+
+        // 🌟 NEW LOGIC: Fetch all registered veterinarians
+        $veterinarians = User::where('user_role', 'veterinarian')
+                            ->orderBy('user_name')
+                            ->get();
         
-        return view($viewName, array_merge(compact('visit', 'serviceData', 'petMedicalHistory', 'availableServices'), $lookups));
+        // Pass the new variable 'veterinarians' to the view
+        return view($viewName, array_merge(compact('visit', 'serviceData', 'petMedicalHistory', 'availableServices','vaccines', 'veterinarians'), $lookups));
     }
-
-
     // ==================== APPOINTMENT METHODS (Full Implementations) ====================
 
     public function storeAppointment(Request $request)
