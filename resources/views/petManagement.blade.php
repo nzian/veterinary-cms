@@ -1048,7 +1048,7 @@
                         </div>
                         <div class="bg-white p-3 rounded shadow">
                             <div class="text-2xl font-bold text-green-600" id="ownerStatsAppointments">0</div>
-                            <div class="text-sm text-gray-600">Appointments</div>
+                            <div class="text-sm text-gray-600">Visits</div>
                         </div>
                         <div class="bg-white p-3 rounded shadow">
                             <div class="text-2xl font-bold text-purple-600" id="ownerStatsMedical">0</div>
@@ -1073,7 +1073,7 @@
                     </button>
                     <button onclick="switchOwnerTab('appointments')" id="owner-appointments-tab" 
                         class="owner-tab-button py-2 px-1 border-b-2 font-medium text-sm">
-                        <i class="fas fa-calendar mr-2"></i>Appointments
+                        <i class="fas fa-calendar mr-2"></i>Visits
                     </button>
                      <button onclick="switchOwnerTab('purchases')" id="owner-purchases-tab" 
                 class="owner-tab-button py-2 px-1 border-b-2 font-medium text-sm">
@@ -1977,6 +1977,147 @@ function showEnhancedPetView(data) {
     modal.classList.remove('hidden');
 }
 
+    // --- Build visits tabs for service types (All / Checkup / Vaccination / Deworming / Grooming / Boarding / Diagnostic / Surgical / Emergency)
+    try {
+        const visits = data.visits || [];
+        const parent = document.getElementById('petMedicalHistoryList').parentNode;
+
+        // Remove existing tabs container if any
+        const existing = document.getElementById('petVisitsTabs');
+        if (existing) existing.remove();
+
+        const tabsContainer = document.createElement('div');
+        tabsContainer.id = 'petVisitsTabs';
+        tabsContainer.className = 'mt-6';
+
+        const tabNames = ['All','Checkup','Vaccination','Deworming','Grooming','Boarding','Diagnostic','Surgical','Emergency'];
+        const tabsBar = document.createElement('div');
+        tabsBar.className = 'flex gap-2 mb-3 flex-wrap';
+
+        const contentContainer = document.createElement('div');
+        contentContainer.id = 'petVisitsContent';
+
+        // helper to render visit card
+        function renderVisitCard(v) {
+            const svc = (v.services && v.services.length) ? v.services.map(s=>s.serv_name).join(', ') : (v.visit_service_type || 'General');
+            const date = v.visit_date || '';
+            const weight = v.weight ? (v.weight + ' kg') : '--';
+            const temp = v.temperature ? (v.temperature + '°C') : '--';
+            const patientType = v.patient_type || '--';
+            let initial = '';
+            if (v.checkup) {
+                initial += '<div class="text-sm text-gray-700"><strong>Initial assessment:</strong> ' + (v.checkup.findings || v.checkup.symptoms || '') + '</div>';
+            }
+            let presHtml = '';
+            if (v.prescriptions && v.prescriptions.length) {
+                presHtml = '<div class="mt-2 text-sm text-gray-700"><strong>Prescription:</strong> ' + v.prescriptions.map(p=> (p.medication || '') + (p.notes ? ' ('+p.notes+')' : '')).join('; ') + '</div>';
+            }
+            let followUp = '';
+            if (v.medical_history && v.medical_history.follow_up_date) {
+                followUp = '<div class="mt-2 text-sm text-gray-700"><strong>Follow-up:</strong> ' + v.medical_history.follow_up_date + '</div>';
+            } else if (v.vaccination && v.vaccination.next_due_date) {
+                followUp = '<div class="mt-2 text-sm text-gray-700"><strong>Follow-up:</strong> ' + v.vaccination.next_due_date + '</div>';
+            }
+
+                // service-specific details
+                let serviceDetails = '';
+                // Vaccination details
+                if (v.vaccination) {
+                    const vac = v.vaccination;
+                    serviceDetails += '<div class="mt-2 text-sm text-gray-700"><strong>Vaccination:</strong> ' + (vac.vaccine_name || vac.vaccine || vac.vaccine_name || 'Vaccine') + (vac.remarks ? ' — ' + vac.remarks : '') + '</div>';
+                    serviceDetails += '<div class="text-xs text-gray-500">Manufacturer: ' + (vac.manufacturer || '--') + ' • Batch: ' + (vac.batch_no || vac.batch_number || '--') + '</div>';
+                }
+                // Deworming details
+                if (v.deworming) {
+                    const dw = v.deworming;
+                    serviceDetails += '<div class="mt-2 text-sm text-gray-700"><strong>Deworming:</strong> ' + (dw.dewormer_name || dw.treatment || '--') + (dw.dosage ? ' ('+dw.dosage+')' : '') + '</div>';
+                }
+                // Grooming details
+                if (v.grooming) {
+                    const g = v.grooming;
+                    serviceDetails += '<div class="mt-2 text-sm text-gray-700"><strong>Grooming:</strong> ' + (g.grooming_notes || g.remarks || '--') + '</div>';
+                    if (g.assigned_groomer) serviceDetails += '<div class="text-xs text-gray-500">Groomer: ' + g.assigned_groomer + '</div>';
+                }
+                // Boarding details
+                if (v.boarding) {
+                    const b = v.boarding;
+                    serviceDetails += '<div class="mt-2 text-sm text-gray-700"><strong>Boarding:</strong> ' + (b.notes || b.boarding_notes || '--') + '</div>';
+                    serviceDetails += '<div class="text-xs text-gray-500">From: ' + (b.start_date || b.check_in || '--') + ' • To: ' + (b.end_date || b.check_out || '--') + '</div>';
+                }
+                // Diagnostic details
+                if (v.diagnostic) {
+                    const d = v.diagnostic;
+                    serviceDetails += '<div class="mt-2 text-sm text-gray-700"><strong>Diagnostic:</strong> ' + (d.test_name || d.test || '--') + '</div>';
+                    if (d.interpretation) serviceDetails += '<div class="text-xs text-gray-500">Interpretation: ' + d.interpretation + '</div>';
+                }
+                // Surgical details
+                if (v.surgical) {
+                    const s = v.surgical;
+                    serviceDetails += '<div class="mt-2 text-sm text-gray-700"><strong>Surgery:</strong> ' + (s.procedure || s.operation || '--') + '</div>';
+                    if (s.surgeon_name) serviceDetails += '<div class="text-xs text-gray-500">Surgeon: ' + s.surgeon_name + '</div>';
+                }
+                // Emergency details
+                if (v.emergency) {
+                    const e = v.emergency;
+                    serviceDetails += '<div class="mt-2 text-sm text-gray-700"><strong>Emergency:</strong> ' + (e.presenting_complaint || e.treatment || '--') + '</div>';
+                }
+
+                return `
+                    <div class="bg-white p-4 rounded-lg shadow border mb-3">
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="text-sm text-gray-600">${date}</div>
+                            <div class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${svc}</div>
+                        </div>
+                        <div class="text-sm text-gray-800 font-semibold">Weight: ${weight} • Temp: ${temp} • Type: ${patientType}</div>
+                        <div class="mt-2 text-sm text-gray-700">${initial || ''}</div>
+                        ${serviceDetails}
+                        ${presHtml}
+                        ${followUp}
+                    </div>`;
+        }
+
+        // Build tabs and default content
+        tabNames.forEach(function(tn, idx) {
+            const btn = document.createElement('button');
+            btn.className = 'px-3 py-1 border rounded text-sm bg-white';
+            btn.textContent = tn;
+            btn.dataset.tab = tn.toLowerCase();
+            btn.addEventListener('click', function() {
+                // highlight active
+                tabsBar.querySelectorAll('button').forEach(b=>b.classList.remove('bg-blue-600','text-white'));
+                this.classList.add('bg-blue-600','text-white');
+
+                // render content
+                const key = this.dataset.tab;
+                let filtered = [];
+                if (key === 'all') filtered = visits;
+                else if (key === 'checkup') filtered = visits.filter(v=> v.checkup || (v.services && v.services.some(s => s.serv_type && s.serv_type.toLowerCase().includes('check'))));
+                else filtered = visits.filter(v => (v.services && v.services.some(s => s.serv_type && s.serv_type.toLowerCase().includes(key))) || (v[key]));
+
+                // populate
+                contentContainer.innerHTML = '';
+                if (filtered.length === 0) {
+                    contentContainer.innerHTML = '<div class="text-center text-gray-500 py-8">No records found for '+tn+'.</div>';
+                } else {
+                    filtered.forEach(function(fv){ contentContainer.innerHTML += renderVisitCard(fv); });
+                }
+            });
+            if (idx === 0) {
+                btn.classList.add('bg-blue-600','text-white');
+            }
+            tabsBar.appendChild(btn);
+        });
+
+        tabsContainer.appendChild(tabsBar);
+        tabsContainer.appendChild(contentContainer);
+        parent.insertBefore(tabsContainer, document.getElementById('petMedicalHistoryList'));
+
+        // Trigger All tab click to render initial content
+        tabsBar.querySelector('button').click();
+    } catch (e) {
+        console.error('Error building visits tabs:', e);
+    }
+
 function showSimplePetView(button) {
     // Format weight and temperature with 2 decimal places
     const formatNumber = (num) => num ? parseFloat(num).toFixed(2) : null;
@@ -2082,7 +2223,7 @@ function displayEnhancedOwnerModal(data) {
     
     // Set stats
     document.getElementById('ownerStatsAnimals').textContent = data.stats.pets;
-    document.getElementById('ownerStatsAppointments').textContent = data.stats.appointments;
+    document.getElementById('ownerStatsAppointments').textContent = data.stats.visits;
     document.getElementById('ownerStatsMedical').textContent = data.stats.medicalRecords;
     document.getElementById('ownerStatsLastVisit').textContent = data.stats.lastVisit;
     
@@ -2113,16 +2254,20 @@ function displayEnhancedOwnerModal(data) {
     const appointmentsList = document.getElementById('ownerAppointmentsList');
     appointmentsList.innerHTML = ''; // Clear previous content
     
-    if (data.appointments && data.appointments.length > 0) {
-        data.appointments.forEach(function(appointment) {
+    if (data.visits && data.visits.length > 0) {
+        data.visits.forEach(function(visit) {
             // Determine color based on status
             let statusColor = 'bg-gray-100 text-gray-700';
-            if (appointment.status === 'completed') {
+            if (visit.status.toLowerCase() === 'completed') {
                 statusColor = 'bg-green-100 text-green-700';
-            } else if (appointment.status === 'pending') {
+            } else if (visit.status.toLowerCase() === 'arrived') {
                 statusColor = 'bg-yellow-100 text-yellow-700';
-            } else if (appointment.status === 'refer') {
+            } else if (visit.status.toLowerCase() === 'cancelled') {
                 statusColor = 'bg-red-100 text-red-700';
+            }
+            let speieces = '<i class="fas fa-cat" title="Cat"></i>';
+            if(visit.pet_species === 'Dog') {
+                speieces = '<i class="fas fa-dog" title="Dog"></i>';
             }
 
             const appointmentDiv = document.createElement('div');
@@ -2130,22 +2275,27 @@ function displayEnhancedOwnerModal(data) {
             
             appointmentDiv.innerHTML = `
                 <div class="flex justify-between items-center mb-2">
-                    <h4 class="font-semibold text-lg text-gray-800">${appointment.pet_name}</h4>
+                    <h4 class="font-semibold text-lg text-gray-800">${speieces} ${visit.pet_name}</h4>
                     <span class="text-xs font-medium px-2 py-1 rounded-full ${statusColor}">
-                        ${appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+                        ${visit.status.charAt(0).toUpperCase() + visit.status.slice(1)}
                     </span>
                 </div>
                 <div class="grid grid-cols-2 gap-2 text-sm text-gray-600">
-                    <p><i class="fas fa-calendar mr-2 text-blue-500"></i>${appointment.date} @ ${appointment.time}</p>
-                    <p><i class="fas fa-syringe mr-2 text-green-500"></i>${appointment.type || 'General Checkup'}</p>
-                    <p class="col-span-2"><i class="fas fa-user-md mr-2 text-purple-500"></i>Veterinarian: ${appointment.veterinarian}</p>
+                    <p><i class="fas fa-calendar mr-2 text-blue-500"></i>${visit.date}</p>
+                    <p><i class="fas fa-syringe mr-2 text-green-500"></i>${visit.type || 'General Checkup'}</p>
+                    <p> Weight: ${visit.weight || '--'}</p>
+                    <p> Temperature: ${visit.temperature || '--'}</p>
+                    <p> Patient Type : ${visit.patient_type || '--'} </p>
+                    <p> Service Type: ${visit.service_type || '--'} </p>
+                    <p> Workflow Status : ${visit.workflow_status || '--'} </p>
+                    <p class="col-span-2"><i class="fas fa-user-md mr-2 text-purple-500"></i>Veterinarian: ${visit.veterinarian || '--'}</p>
                 </div>
             `;
             
             appointmentsList.appendChild(appointmentDiv);
         });
     } else {
-        appointmentsList.innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fas fa-calendar-times text-3xl mb-2"></i><p>No appointments found for this owner.</p></div>';
+        appointmentsList.innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fas fa-calendar-times text-3xl mb-2"></i><p>No Visits found for this owner.</p></div>';
     }
 
     const purchasesList = document.getElementById('ownerPurchasesList');
@@ -2170,7 +2320,7 @@ function displayEnhancedOwnerModal(data) {
             dateSection.innerHTML = `
                 <div class="flex justify-between items-center bg-gray-50 p-2 rounded-t font-semibold text-sm">
                     <span><i class="fas fa-calendar-alt mr-2 text-gray-500"></i>${date}</span>
-                    <span>Total: $${transactionTotal.toFixed(2)}</span>
+                    <span>Total: ₱${transactionTotal.toFixed(2)}</span>
                 </div>
                 <ul class="divide-y divide-gray-100"></ul>
             `;
@@ -2182,9 +2332,9 @@ function displayEnhancedOwnerModal(data) {
                 li.innerHTML = `
                     <div>
                         <span class="font-medium">${item.product || 'N/A'}</span>
-                        <span class="text-xs text-gray-500 ml-2">(${item.quantity} x $${item.price.toFixed(2)})</span>
+                        <span class="text-xs text-gray-500 ml-2">(${item.quantity} x ₱${item.price.toFixed(2)})</span>
                     </div>
-                    <span class="font-semibold">$${(item.quantity * item.price).toFixed(2)}</span>
+                    <span class="font-semibold">₱${(item.quantity * item.price).toFixed(2)}</span>
                 `;
                 ul.appendChild(li);
             });

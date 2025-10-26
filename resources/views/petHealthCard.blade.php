@@ -322,7 +322,7 @@
                     <th class="border border-gray-400 p-1 text-center" style="width: 15%">DATE GIVEN</th>
                     
                     {{-- Updated Headers based on requirements --}}
-                    <th class="border border-gray-400 p-1 text-center" style="width: 25%">AGAINST</th>
+                    <th class="border border-gray-400 p-1 text-center" style="width: 25%">PRODUCT DESCRIPTION</th>
                     <th class="border border-gray-400 p-1 text-center" style="width: 30%">VACCINE NAME & BATCH #</th>
                     
                     <th class="border border-gray-400 p-1 text-center" style="width: 15%">DATE DUE</th>

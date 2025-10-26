@@ -23,8 +23,9 @@ return new class extends Migration
                   
             // Drop the appoint_id column if it exists
             if (Schema::hasColumn('tbl_bill', 'appoint_id')) {
+                 $table->dropColumn('appoint_id');
                 $table->dropForeign(['appoint_id']);
-                $table->dropColumn('appoint_id');
+               
             }
         });
     }

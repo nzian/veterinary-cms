@@ -175,7 +175,7 @@
                                 <td class="border px-4 py-2">{{ $visit->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $visit->weight ? number_format($visit->weight, 2) . ' kg' : 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $visit->temperature ? number_format($visit->temperature, 1) . ' °C' : 'N/A' }}</td>
-                                <td class="border px-4 py-2">{{ $visit->patient_type }}</td>
+                                <td class="border px-4 py-2">{{ is_object($visit->patient_type) && method_exists($visit->patient_type, 'value') ? $visit->patient_type->value : $visit->patient_type }}</td>
                                 <td class="border px-4 py-2">
                                     @php
                                         $__types = ($visit->services ? $visit->services->pluck('serv_type')->filter()->map(function($t){ return strtolower(trim($t)); })->unique()->values()->all() : []);
