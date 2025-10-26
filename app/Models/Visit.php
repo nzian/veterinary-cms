@@ -4,10 +4,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\BranchDataScope;
+use App\Enums\PatientType;
 
 
 class Visit extends Model
 {
+    use HasFactory;
     protected $fillable = [
         'visit_date',
         'pet_id',
@@ -24,6 +26,57 @@ class Visit extends Model
     public $incrementing = true;
     public $timestamps = false;
     protected $keyType = 'int';
+
+    // We'll handle patient_type normalization in accessors/mutators to
+    // tolerate different casings/values in the database (e.g. 'outpatient').
+    protected $casts = [
+        // keep other casts here if needed
+    ];
+
+    /**
+     * Accessor: return PatientType enum instance when possible, otherwise raw value.
+     */
+    public function getPatientTypeAttribute($value)
+    {
+        if (is_null($value)) {
+            return null;
+        }
+
+        try {
+            return PatientType::from($value);
+        } catch (\ValueError $e) {
+            // Try a normalized form (capitalize first letter)
+            $normalized = ucfirst(strtolower($value));
+            try {
+                return PatientType::from($normalized);
+            } catch (\ValueError $e) {
+                // Last resort: return raw string so views/controllers can handle it
+                return $value;
+            }
+        }
+    }
+
+    /**
+     * Mutator: accept enum instance or string; normalize to enum backing value when possible.
+     */
+    public function setPatientTypeAttribute($value)
+    {
+        if ($value instanceof PatientType) {
+            $this->attributes['patient_type'] = $value->value;
+            return;
+        }
+
+        $val = (string) $value;
+        foreach (PatientType::cases() as $case) {
+            if (strcasecmp($case->value, $val) === 0 || strcasecmp($case->name, $val) === 0) {
+                $this->attributes['patient_type'] = $case->value;
+                return;
+            }
+        }
+
+        // fallback to raw value
+        $this->attributes['patient_type'] = $val;
+    }
 
 
     public function services()

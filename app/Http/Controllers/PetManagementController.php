@@ -6,12 +6,15 @@ use Illuminate\Http\Request;
 use App\Models\Pet;
 use App\Models\Owner;
 use App\Models\MedicalHistory;
-use App\Models\Appointment;
+use App\Models\Visit;
 use App\Models\Order;
 use App\Models\Branch;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 use App\Traits\BranchFilterable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 
 class PetManagementController extends Controller
 {
@@ -108,7 +111,7 @@ class PetManagementController extends Controller
             ));
             
         } catch (\Exception $e) {
-            \Log::error('Pet Management Index Error: ' . $e->getMessage());
+            Log::error('Pet Management Index Error: ' . $e->getMessage());
             return back()->with('error', 'Failed to load data: ' . $e->getMessage());
         }
     }
@@ -121,39 +124,43 @@ class PetManagementController extends Controller
                 return response()->json(['error' => 'Owner not found'], 404);
             }
 
-            // Gather appointments across all owner's pets
+            // Gather visits across all owner's pets
             $petIds = $owner->pets->pluck('pet_id')->all();
-            $appointments = [];
+            $visits = [];
             $lastVisit = 'Never';
-            $appointmentsCount = 0;
+            $visitsCount = 0;
             
             if (!empty($petIds)) {
-                // Fetch appointments with 'user' (veterinarian/user) and 'pet' relationships
-                $appointmentsE = Appointment::with(['user', 'pet']) 
+                // Fetch visits with 'user' (veterinarian/user) and 'pet' relationships
+                $visitsE = Visit::with(['user', 'pet'])
                     ->whereIn('pet_id', $petIds)
-                    ->orderBy('appoint_date', 'desc')
-                    ->orderBy('appoint_time', 'desc')
+                    ->orderBy('visit_date', 'desc')
                     ->limit(50)
                     ->get();
-                    
-                $appointments = $appointmentsE->map(function ($a) {
+
+                $visits = $visitsE->map(function ($a) {
                     // Safely retrieve veterinarian name using optional helper
                     $veterinarianName = optional($a->user)->user_name ?? 'N/A';
                     
                     return [
-                        'id' => $a->appoint_id,
-                        'date' => Carbon::parse($a->appoint_date)->format('M d, Y'),
-                        'time' => Carbon::parse($a->appoint_time)->format('h:i A'), 
-                        'status' => $a->appoint_status,
-                        'type' => $a->appoint_type,
+                        'id' => $a->visit_id,
+                        'date' => Carbon::parse($a->visit_date)->format('M d, Y'),
+                        'status' => $a->visit_status,
+                        'type' => $a->visit_type,
                         'veterinarian' => $veterinarianName,
                         'pet_name' => optional($a->pet)->pet_name,
+                        'pet_species' => optional($a->pet)->pet_species,
+                        'weight' => $a->weight,
+                        'temperature' => $a->temperature,
+                        'patient_type' => $a->patient_type,
+                        'service_type' => $a->service_type,
+                        'workflow_status' => $a->workflow_status
                     ];
                 });
                 
-                $appointmentsCount = $appointmentsE->count();
-                if ($appointmentsE->first()) {
-                    $lastVisit = Carbon::parse($appointmentsE->first()->appoint_date)->format('M d, Y');
+                $visitsCount = $visitsE->count();
+                if ($visitsE->first()) {
+                    $lastVisit = Carbon::parse($visitsE->first()->visit_date)->format('M d, Y');
                 }
             }
 
@@ -205,17 +212,17 @@ class PetManagementController extends Controller
                         'pet_photo' => $p->pet_photo,
                     ];
                 }),
-                'appointments' => $appointments, 
+                'visits' => $visits, 
                 'purchases' => $purchases,
                 'stats' => [
                     'pets' => $owner->pets->count(),
-                    'appointments' => $appointmentsCount,
+                    'visits' => $visitsCount,
                     'medicalRecords' => $medicalCount,
                     'lastVisit' => $lastVisit,
                 ],
             ]);
         } catch (\Exception $e) {
-            \Log::error('getOwnerDetails Error: ' . $e->getMessage());
+            Log::error('getOwnerDetails Error: ' . $e->getMessage());
             return response()->json(['error' => 'Server error while fetching owner details.'], 500);
         }
     }
@@ -248,6 +255,75 @@ class PetManagementController extends Controller
             $visits = $medical->count();
             $lastVisit = $visits > 0 ? $medical->first()['visit_date'] : 'Never';
 
+            // --- Visits: gather visit-based records (services + service-specific tables) ---
+            $visitRecords = \App\Models\Visit::with('services')
+                ->where('pet_id', $pet->pet_id)
+                ->orderBy('visit_date', 'desc')
+                ->limit(50)
+                ->get();
+
+            $visitsDetailed = $visitRecords->map(function ($v) use ($pet) {
+                $visitDateStr = $v->visit_date;
+
+                // services on the visit
+                $services = $v->services->map(function ($s) {
+                    return [
+                        'serv_id' => $s->serv_id,
+                        'serv_name' => $s->serv_name,
+                        'serv_type' => $s->serv_type,
+                    ];
+                })->values()->toArray();
+
+                // service-specific records (if present)
+                $checkup = DB::table('tbl_checkup_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
+                $vaccination = DB::table('tbl_vaccination_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
+                $deworming = DB::table('tbl_deworming_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
+                $grooming = DB::table('tbl_grooming_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
+                $boarding = DB::table('tbl_boarding_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
+                $diagnostic = DB::table('tbl_diagnostic_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
+                $surgical = DB::table('tbl_surgical_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
+                $emergency = DB::table('tbl_emergency_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
+
+                // prescriptions matching visit date (if any)
+                $prescriptions = \App\Models\Prescription::where('pet_id', $pet->pet_id)
+                    ->whereDate('prescription_date', Carbon::parse($visitDateStr)->toDateString())
+                    ->get()
+                    ->map(function ($p) {
+                        return [
+                            'prescription_id' => $p->prescription_id,
+                            'prescription_date' => $p->prescription_date,
+                            'medication' => $p->medication,
+                            'notes' => $p->notes,
+                        ];
+                    })->values()->toArray();
+
+                // related medical history record for visit date
+                $medicalRecord = \App\Models\MedicalHistory::where('pet_id', $pet->pet_id)
+                    ->where('visit_date', $visitDateStr)
+                    ->first();
+
+                return [
+                    'visit_id' => $v->visit_id,
+                    'visit_date' => Carbon::parse($visitDateStr)->format('M d, Y'),
+                    'weight' => $v->weight,
+                    'temperature' => $v->temperature,
+                    'patient_type' => is_object($v->patient_type) && method_exists($v->patient_type, 'value') ? $v->patient_type->value : $v->patient_type,
+                    'workflow_status' => $v->workflow_status,
+                    'visit_service_type' => $v->visit_service_type,
+                    'services' => $services,
+                    'checkup' => $checkup ? (array) $checkup : null,
+                    'vaccination' => $vaccination ? (array) $vaccination : null,
+                    'deworming' => $deworming ? (array) $deworming : null,
+                    'grooming' => $grooming ? (array) $grooming : null,
+                    'boarding' => $boarding ? (array) $boarding : null,
+                    'diagnostic' => $diagnostic ? (array) $diagnostic : null,
+                    'surgical' => $surgical ? (array) $surgical : null,
+                    'emergency' => $emergency ? (array) $emergency : null,
+                    'prescriptions' => $prescriptions,
+                    'medical_history' => $medicalRecord ? $medicalRecord->toArray() : null,
+                ];
+            })->values();
+
             return response()->json([
                 'pet' => [
                     'pet_id' => $pet->pet_id,
@@ -265,10 +341,11 @@ class PetManagementController extends Controller
                     ] : null,
                 ],
                 'stats' => [
-                    'visits' => $visits,
+                    'visits' => $visitsDetailed->count(),
                     'lastVisit' => $lastVisit,
                 ],
                 'medicalHistory' => $medical,
+                'visits' => $visitsDetailed,
             ]);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Server error: ' . $e->getMessage()], 500);
@@ -353,7 +430,7 @@ class PetManagementController extends Controller
                 'pet_photo' => 'nullable|image|mimes:jpg,jpeg,png,gif|max:2048'
             ]);
 
-            $validated['user_id'] = auth()->id();
+            $validated['user_id'] = Auth::id();
 
             if ($request->hasFile('pet_photo')) {
                 $validated['pet_photo'] = $request->file('pet_photo')->store('pets', 'public');
@@ -439,7 +516,7 @@ class PetManagementController extends Controller
                 'own_location' => 'required|string|max:255'
             ]);
 
-            $validated['user_id'] = auth()->id();
+            $validated['user_id'] = Auth::id();
 
             Owner::create($validated);
             return back()->with('success', 'Pet Owner added successfully!');
@@ -490,7 +567,7 @@ class PetManagementController extends Controller
                 'notes' => 'nullable|string|max:1000'
             ]);
 
-            $validated['user_id'] = auth()->id();
+            $validated['user_id'] = Auth::id();
 
             MedicalHistory::create($validated);
             return back()->with('success', 'Medical history added successfully!');
@@ -537,7 +614,7 @@ class PetManagementController extends Controller
         // Fetch pet details with owner and user
         $pet = \App\Models\Pet::with('owner', 'user')->findOrFail($id);
         
-        $userBranchId = optional($pet->user)->branch_id ?? optional(auth()->user())->branch_id; 
+    $userBranchId = optional($pet->user)->branch_id ?? optional(Auth::user())->branch_id;
 
         // Fetch all veterinarians for license lookup
         $veterinarians = \App\Models\User::where('branch_id', $userBranchId)
@@ -549,7 +626,7 @@ class PetManagementController extends Controller
         $vaccinations = collect();
         
         // Strategy 1: Fetch from tbl_vaccination_record (Direct Service Records)
-        $vaccinationRecords = \DB::table('tbl_vaccination_record')
+        $vaccinationRecords = DB::table('tbl_vaccination_record')
             ->where('pet_id', $id)
             ->orderBy('date_administered', 'asc')
             ->get();
@@ -571,6 +648,7 @@ class PetManagementController extends Controller
                 'user_licenseNum' => optional($vetUser)->user_licenseNum ?? '--',
             ]);
         }
+
         
         // Strategy 2: Fetch from Appointments (for legacy data)
         $vaccinationServiceNames = [
@@ -611,24 +689,26 @@ class PetManagementController extends Controller
             foreach ($vaccinationAppointments as $appointment) {
                 $vaccinationService = $appointment->services->first();
                 $pivot = optional($vaccinationService)->pivot;
-                
                 if ($pivot) {
                     $vetUserId = $pivot->vet_user_id;
                     $vetUser = $veterinarians->get($vetUserId);
                     
                     $vaccineProduct = $products->get($pivot->prod_id);
-                    $vaccineProductName = optional($vaccineProduct)->prod_name;
-                    
+                    $vaccineProductName = optional($vaccineProduct)->prod_name ?? null;
+
+                    // Prefer explicit pivot notes/remarks over product description
+                    $productDescription = $pivot->vacc_notes ?? $pivot->vacc_description ?? optional($vaccineProduct)->prod_description ?? 'Vaccination record';
+
                     // Check if this vaccination is already in the collection (avoid duplicates)
                     $exists = $vaccinations->contains(function($vacc) use ($appointment, $vaccineProductName) {
                         return $vacc->visit_date == $appointment->appoint_date && 
                                $vacc->vaccine_name == $vaccineProductName;
                     });
-                    
+
                     if (!$exists) {
                         $vaccinations->push((object) [
                             'visit_date' => $appointment->appoint_date,
-                            'product_description' => $pivot->vacc_notes ?? 'Vaccination record',
+                            'product_description' => $productDescription,
                             'vaccine_name' => $vaccineProductName ?? 'Vaccine',
                             'batch_number' => $pivot->vacc_batch_no ?? '--',
                             'follow_up_date' => $pivot->vacc_next_dose,
@@ -647,7 +727,7 @@ class PetManagementController extends Controller
         $deworming = collect();
         
         // Strategy 1: Fetch from tbl_deworming_record (Direct Service Records)
-        $dewormingRecords = \DB::table('tbl_deworming_record')
+        $dewormingRecords = DB::table('tbl_deworming_record')
             ->where('pet_id', $id)
             ->orderBy('created_at', 'asc')
             ->get();
@@ -701,7 +781,7 @@ class PetManagementController extends Controller
         
         // Fetch branch information
         $branches = \App\Models\Branch::all(); 
-        
+
         $clinicInfo = [ 
             'name' => 'Your Veterinary Clinic', 
             'contact' => '0912-345-6789 / (088) 123-4567', 
@@ -711,8 +791,8 @@ class PetManagementController extends Controller
         return view('petHealthCard', compact('pet', 'vaccinations', 'deworming', 'clinicInfo', 'branches'));
 
     } catch (\Exception $e) {
-        \Log::error('Health Card Generation Error: ' . $e->getMessage());
-        \Log::error('Stack trace: ' . $e->getTraceAsString());
+        Log::error('Health Card Generation Error: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
         return back()->with('error', 'Failed to generate health card: ' . $e->getMessage());
     }
 }

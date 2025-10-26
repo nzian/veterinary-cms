@@ -20,10 +20,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use App\Services\NotificationService; 
 use App\Services\InventoryService; 
-use App\Models\InventoryHistory;
+use App\Models\InventoryHistory as InventoryHistoryModel;
 
 class MedicalManagementController extends Controller
 {
@@ -44,8 +45,8 @@ class MedicalManagementController extends Controller
 
     protected function getBranchLookups()
     {
-        $activeBranchId = auth()->user()->user_role !== 'superadmin' 
-            ? auth()->user()->branch_id 
+        $activeBranchId = Auth::user()->user_role !== 'superadmin' 
+            ? Auth::user()->branch_id 
             : session('active_branch_id');
             
         $branchUserIds = User::where('branch_id', $activeBranchId)->pluck('user_id')->toArray();
@@ -84,7 +85,7 @@ class MedicalManagementController extends Controller
         $perPage = $request->get('perPage', 10);
         $activeTab = $request->get('active_tab', 'visits'); 
         $activeBranchId = session('active_branch_id');
-        $user = auth()->user();
+    $user = Auth::user();
         
         if ($user->user_role !== 'superadmin') {
             $activeBranchId = $user->branch_id;
@@ -218,7 +219,7 @@ class MedicalManagementController extends Controller
                 'vaccine_name' => $validated['vaccine_name'],
                 'dose'=> $validated['dose'], 'manufacturer' => $validated['manufacturer'],
                 'batch_no' => $validated['batch_no'], 'date_administered' => $validated['date_administered'] ?: $visitModel->visit_date,
-                'next_due_date' => $validated['next_due_date'], 'administered_by' => $validated['administered_by'] ?? auth()->user()->user_name,
+                'next_due_date' => $validated['next_due_date'], 'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
                 'remarks' => $validated['remarks'], 'updated_at' => now(),
             ]
         );
@@ -233,12 +234,12 @@ class MedicalManagementController extends Controller
         $vaccine->decrement('prod_stocks', 1);
         
         // Optional: Log the usage in inventory history
-        \App\Models\InventoryHistory::create([
+    InventoryHistoryModel::create([
             'prod_id' => $vaccine->prod_id,
             'type' => 'service_usage',
             'quantity' => -1,
             'reference' => "Vaccination - Visit #{$visitId}",
-            'user_id' => auth()->id(),
+            'user_id' => Auth::id(),
             'notes' => "Administered to " . ($visit->pet->pet_name ?? 'Pet')
         ]);
     }
@@ -260,7 +261,7 @@ class MedicalManagementController extends Controller
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
             [
                 'dewormer_name' => $validated['dewormer_name'], 'dosage' => $validated['dosage'], 
-                'next_due_date' => $validated['next_due_date'], 'administered_by' => $validated['administered_by'] ?? auth()->user()->user_name,
+                'next_due_date' => $validated['next_due_date'], 'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
                 'remarks' => $validated['remarks'], 'updated_at' => now(),
             ]
         );
@@ -283,7 +284,7 @@ class MedicalManagementController extends Controller
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
             [
                 'service_package' => $validated['grooming_type'], 'add_ons' => $validated['additional_services'],
-                'groomer_name' => $validated['assigned_groomer'] ?? auth()->user()->user_name,
+                'groomer_name' => $validated['assigned_groomer'] ?? Auth::user()->user_name,
                 'start_time' => $validated['start_time'], 'end_time' => $validated['end_time'],
                 'status' => $validated['workflow_status'] ?? $visitModel->workflow_status, 'remarks' => $validated['instructions'],
                 'updated_at' => now(),
@@ -308,7 +309,7 @@ class MedicalManagementController extends Controller
             [
                 'check_in_date' => $validated['checkin'], 'check_out_date' => $validated['checkout'], 'room_no' => $validated['room'],
                 'feeding_schedule' => $validated['care_instructions'], 'daily_notes' => $validated['monitoring_notes'],
-                'status' => $validated['workflow_status'] ?? $visitModel->workflow_status, 'handled_by' => auth()->user()->user_name ?? null,
+                'status' => $validated['workflow_status'] ?? $visitModel->workflow_status, 'handled_by' => Auth::user()->user_name ?? null,
                 'updated_at' => now(),
             ]
         );
@@ -330,7 +331,7 @@ class MedicalManagementController extends Controller
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
             [
                 'test_type' => $validated['test_type'], 'results' => $validated['results_text'],
-                'remarks' => $validated['interpretation'], 'collected_by' => $validated['staff'] ?? auth()->user()->user_name,
+                'remarks' => $validated['interpretation'], 'collected_by' => $validated['staff'] ?? Auth::user()->user_name,
                 'date_completed' => $validated['test_datetime'] ? Carbon::parse($validated['test_datetime'])->toDateString() : now()->toDateString(),
                 'status' => $validated['workflow_status'] ?? $visitModel->workflow_status, 'updated_at' => now(),
             ]
@@ -385,7 +386,7 @@ class MedicalManagementController extends Controller
                 'case_type' => $validated['emergency_type'], 'arrival_condition' => $validated['triage_notes'],
                 'vital_signs' => $validated['vitals'], 'immediate_treatment' => $validated['immediate_intervention'] . "\n" . $validated['procedures'],
                 'medications_administered' => $validated['immediate_meds'], 'outcome' => $validated['outcome'],
-                'status' => $validated['workflow_status'] ?? $visitModel->workflow_status, 'attended_by' => $validated['attended_by'] ?? auth()->user()->user_name,
+                'status' => $validated['workflow_status'] ?? $visitModel->workflow_status, 'attended_by' => $validated['attended_by'] ?? Auth::user()->user_name,
                 'remarks' => $validated['triage_notes'], 'updated_at' => now(),
             ]
         );
@@ -401,7 +402,7 @@ class MedicalManagementController extends Controller
             'weight' => 'nullable', 'temperature' => 'nullable', 'patient_type' => 'required|string|max:100',
         ]);
 
-        $userId = auth()->id() ?? $request->input('user_id');
+    $userId = Auth::id() ?? $request->input('user_id');
 
         DB::transaction(function () use ($validated, $userId, $request) {
             foreach ($validated['pet_ids'] as $petId) {
@@ -600,7 +601,7 @@ class MedicalManagementController extends Controller
             'appoint_description' => 'nullable|string', 'services' => 'array', 'services.*' => 'exists:tbl_serv,serv_id',
         ]);
 
-        $validated['user_id'] = auth()->id() ?? $request->input('user_id');
+    $validated['user_id'] = Auth::id() ?? $request->input('user_id');
         $services = $validated['services'] ?? [];
         unset($validated['services']);
 
