@@ -35,6 +35,111 @@ class MedicalManagementController extends Controller
         $this->inventoryService = $inventoryService;
     }
 
+    // ==================== VISIT RECORDS ====================
+    public function listVisitRecords(Request $request)
+    {
+        try {
+            $query = DB::table('tbl_visit_record as vr')
+                ->join('tbl_pet as p', 'p.pet_id', '=', 'vr.pet_id')
+                ->leftJoin('tbl_own as o', 'o.own_id', '=', 'p.own_id')
+                ->select(
+                    'vr.visit_id', 'vr.visit_date', 'vr.patient_type', 'vr.weight', 'vr.temperature',
+                    'o.own_id', 'o.own_name',
+                    'p.pet_id', 'p.pet_name', 'p.pet_species'
+                )
+                ->orderByDesc('vr.visit_date')
+                ->orderByDesc('vr.visit_id');
+
+            $items = $query->get();
+            return response()->json(['data' => $items]);
+        } catch (\Exception $e) {
+            Log::error('listVisitRecords error: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to load visit records'], 500);
+        }
+    }
+
+    public function ownersWithPets()
+    {
+        try {
+            $owners = \App\Models\Owner::with(['pets' => function($q){
+                $q->select('pet_id','pet_name','pet_species','own_id');
+            }])->select('own_id','own_name','own_contactnum')->get();
+            return response()->json(['data' => $owners]);
+        } catch (\Exception $e) {
+            Log::error('ownersWithPets error: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to load owners'], 500);
+        }
+    }
+
+    public function storeVisitRecords(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'visit_date' => 'required|date',
+                'patient_type' => 'required|in:admission,outpatient,boarding',
+                'pet_ids' => 'required|array|min:1',
+                'pet_ids.*' => 'exists:tbl_pet,pet_id',
+                'weights' => 'array',
+                'temperatures' => 'array',
+            ]);
+
+            // Map pet_id -> user_id so we can persist branch ownership on the visit record
+            $petUserIds = DB::table('tbl_pet')
+                ->whereIn('pet_id', $validated['pet_ids'])
+                ->pluck('user_id', 'pet_id');
+
+            $now = now();
+            $rows = [];
+            foreach ($validated['pet_ids'] as $pid) {
+                $rows[] = [
+                    'visit_date' => $validated['visit_date'],
+                    'pet_id' => $pid,
+                    'user_id' => $petUserIds[$pid] ?? auth()->id(),
+                    'weight' => $request->input("weights.$pid") ?? null,
+                    'temperature' => $request->input("temperatures.$pid") ?? null,
+                    'patient_type' => $validated['patient_type'],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+            DB::table('tbl_visit_record')->insert($rows);
+            return response()->json(['success' => true]);
+        } catch (\Illuminate\Validation\ValidationException $ve) {
+            return response()->json(['error' => $ve->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error('storeVisitRecords error: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to save visit records'], 500);
+        }
+    }
+
+    public function updateVisitPatientType(Request $request, $id)
+    {
+        try {
+            $request->validate(['patient_type' => 'required|in:admission,outpatient,boarding']);
+            $updated = DB::table('tbl_visit_record')->where('visit_id', $id)
+                ->update(['patient_type' => $request->patient_type, 'updated_at' => now()]);
+            if (!$updated) return response()->json(['error' => 'Record not found'], 404);
+            return response()->json(['success' => true]);
+        } catch (\Illuminate\Validation\ValidationException $ve) {
+            return response()->json(['error' => $ve->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error('updateVisitPatientType error: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to update'], 500);
+        }
+    }
+
+    public function destroyVisitRecord($id)
+    {
+        try {
+            $deleted = DB::table('tbl_visit_record')->where('visit_id', $id)->delete();
+            if (!$deleted) return response()->json(['error' => 'Record not found'], 404);
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            Log::error('destroyVisitRecord error: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to delete'], 500);
+        }
+    }
+
     // 🎯 Define the explicit list of vaccination service names
     const VACCINATION_SERVICE_NAMES = [
         'Vaccination', 'Vaccination - Kennel Cough',

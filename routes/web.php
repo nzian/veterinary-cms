@@ -161,6 +161,13 @@ Route::put('appointments/{appointmentId}/record-vaccine-details', [MedicalManage
     Route::get('/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])->name('medical.appointments.show');
     Route::get('/medical-management/appointments/{id}/for-prescription', [MedicalManagementController::class, 'getAppointmentForPrescription'])
     ->name('medical.appointments.for-prescription');
+
+    // Visit Records endpoints (JSON APIs for Pet Management tab)
+    Route::get('/visit-records', [MedicalManagementController::class, 'listVisitRecords'])->name('visit-records.index');
+    Route::post('/visit-records', [MedicalManagementController::class, 'storeVisitRecords'])->name('visit-records.store');
+    Route::put('/visit-records/{id}/patient-type', [MedicalManagementController::class, 'updateVisitPatientType'])->name('visit-records.update-patient-type');
+    Route::delete('/visit-records/{id}', [MedicalManagementController::class, 'destroyVisitRecord'])->name('visit-records.destroy');
+    Route::get('/visit-records/owners-with-pets', [MedicalManagementController::class, 'ownersWithPets'])->name('visit-records.owners');
      Route::put('/medical-management/appointments/{id}', [YourController::class, 'update'])->name('medical.appointments.update');
     Route::get('/medical-management/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])
     ->name('medical.appointments.show');

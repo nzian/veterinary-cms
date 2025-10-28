@@ -26,6 +26,7 @@ class PetManagementController extends Controller
             // Get pagination parameters for all tabs
             $ownersPerPage = $request->get('ownersPerPage', 10);
             $medicalPerPage = $request->get('medicalPerPage', 10);
+            $visitPerPage = $request->get('visitPerPage', 10);
             
             // Determine pet pagination limit based on active tab
             $activeTab = $request->get('tab', 'owners');
@@ -98,6 +99,36 @@ class PetManagementController extends Controller
             $allOwners = Owner::whereIn('user_id', $branchUserIds)->get();
             $allPets = Pet::whereIn('user_id', $branchUserIds)->get();
             
+            // Build Visit Records (server-side for Visit Record tab)
+            $visitQuery = \DB::table('tbl_visit_record as vr')
+                ->leftJoin('tbl_pet as p', 'p.pet_id', '=', 'vr.pet_id')
+                ->leftJoin('tbl_own as o', 'o.own_id', '=', 'p.own_id')
+                ->select(
+                    'vr.visit_id', 'vr.visit_date', 'vr.patient_type', 'vr.weight', 'vr.temperature',
+                    'p.pet_id', 'p.pet_name', 'p.pet_species',
+                    'o.own_id', 'o.own_name'
+                )
+                ->orderByDesc('vr.visit_date')
+                ->orderByDesc('vr.visit_id');
+
+            if (!empty($branchUserIds)) {
+                // Use vr.user_id when available, otherwise fall back to p.user_id
+                $visitQuery->whereIn(\DB::raw('COALESCE(vr.user_id, p.user_id)'), $branchUserIds);
+            }
+
+            if ($visitPerPage === 'all') {
+                $visitAll = $visitQuery->get();
+                $visitRecords = new \Illuminate\Pagination\LengthAwarePaginator(
+                    $visitAll,
+                    $visitAll->count(),
+                    $visitAll->count(),
+                    1,
+                    ['path' => $request->url(), 'query' => $request->query()]
+                );
+            } else {
+                $visitRecords = $visitQuery->paginate((int)$visitPerPage, ['*'], 'visitPage');
+            }
+
             // Get active branch name
             $activeBranchName = $this->getActiveBranchName();
 
@@ -107,7 +138,8 @@ class PetManagementController extends Controller
                 'medicalHistories', 
                 'allOwners', 
                 'allPets',
-                'activeBranchName'
+                'activeBranchName',
+                'visitRecords'
             ));
             
         } catch (\Exception $e) {

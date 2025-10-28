@@ -321,7 +321,7 @@
                                 <th class="p-2 border">Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
+                       <tbody>
                             @foreach($services as $service)
                                 <tr>
                                     <td class="p-2 border">{{ $service->serv_name }}</td>
@@ -335,12 +335,24 @@
                                                 title="View Details">
                                                 <i class="fas fa-eye"></i>
                                             </button>
+                                            
+                                            {{-- ✅ NEW ADDITION: Dedicated button in the actions column --}}
+                                            @if(hasPermission('add_product', $can))
+                                            <button onclick="openAddProductModal('service_product_inline', {{ $service->serv_id }})"
+                                                class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 text-xs"
+                                                title="Add Consumable Product for Service">
+                                                <i class="fas fa-flask"></i>
+                                            </button>
+                                            @endif
+                                            {{-- END NEW ADDITION --}}
+
                                             <button
                                                 onclick="openManageProductsModal({{ $service->serv_id }}, '{{ addslashes($service->serv_name) }}')"
                                                 class="bg-indigo-500 text-white px-2 py-1 rounded hover:bg-indigo-600 text-xs"
-                                                title="Manage Products">
+                                                title="Manage Consumables">
                                                 <i class="fas fa-pills"></i>
                                             </button>
+                                            
                                             @if(hasPermission('edit_service', $can))
                                                 <button onclick="openEditModal('service', {{ json_encode($service) }})"
                                                     class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs">
@@ -2172,16 +2184,18 @@
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Service Type</label>
                     <select name="serv_type" class="border p-2 w-full rounded">
-                        <option value="">Select Service Type</option>
-                        <option value="Vaccination" ${data.serv_type === 'Vaccination' ? 'selected' : ''}>Vaccination</option>
-                        <option value="Deworming" ${data.serv_type === 'Deworming' ? 'selected' : ''}>Deworming</option>
-                        <option value="Grooming" ${data.serv_type === 'Grooming' ? 'selected' : ''}>Grooming</option>
-                        <option value="Emergency" ${data.serv_type === 'Emergency' ? 'selected' : ''}>Emergency</option>
-                        <option value="Check-up" ${data.serv_type === 'Check-up' ? 'selected' : ''}>Check-up/Consultation</option>
-                        <option value="Diagnostics" ${data.serv_type === 'Diagnostics' ? 'selected' : ''}>Diagnostics</option>
-                        <option value="Surgical" ${data.serv_type === 'Surgical' ? 'selected' : ''}>Surgical</option>
-                        <option value="Boarding" ${data.serv_type === 'Boarding' ? 'selected' : ''}>Boarding</option>
-                    </select>
+                        <option value="">Select Service Type</option>
+                        <option value="Preventive Care" ${data.serv_type === 'Preventive Care' ? 'selected' : ''}>Preventive Care</option>
+                        <option value="Diagnostic Services" ${data.serv_type === 'Diagnostic Services' ? 'selected' : ''}>Diagnostic Services</option>
+                        <option value="Surgical Services" ${data.serv_type === 'Surgical Services' ? 'selected' : ''}>Surgical Services</option>
+                        <option value="Emergency & Critical Care" ${data.serv_type === 'Emergency & Critical Care' ? 'selected' : ''}>Emergency & Critical Care</option>
+                        <option value="Reproductive & Breeding" ${data.serv_type === 'Reproductive & Breeding' ? 'selected' : ''}>Reproductive & Breeding</option>
+                        <option value="Grooming & Hygiene" ${data.serv_type === 'Grooming & Hygiene' ? 'selected' : ''}>Grooming & Hygiene</option>
+                        <option value="Wellness & Nutrition" ${data.serv_type === 'Wellness & Nutrition' ? 'selected' : ''}>Wellness & Nutrition</option>
+                        <option value="Additional Fees" ${data.serv_type === 'Additional Fees' ? 'selected' : ''}>Additional Fees</option>
+                        <option value="Other" ${data.serv_type === 'Other' ? 'selected' : ''}>Other</option>
+                        <option value="Boarding & Daycare" ${data.serv_type === 'Boarding & Daycare' ? 'selected' : ''}>Boarding & Daycare</option>
+                    </select>
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Price</label>
