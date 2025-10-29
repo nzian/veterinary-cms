@@ -63,7 +63,11 @@
 
         {{-- Billing Tab Content --}}
         <div id="billingContent" class="tab-content">
-            <div class="flex justify-between items-center mb-4">
+            <div class="flex justify-between items-center mb-4 gap-2 flex-wrap">
+                <div class="relative">
+                    <input type="search" id="billingSearch" placeholder="Search billing..." class="border border-gray-300 rounded px-3 py-2 text-sm pl-8">
+                    <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                </div>
             </div>
 
             {{-- Billing Table --}}
@@ -278,7 +282,11 @@
 
         {{-- Orders Tab Content --}}
         <div id="ordersContent" class="tab-content hidden">
-            <div class="flex justify-between items-center mb-4">
+            <div class="flex justify-between items-center mb-4 gap-2 flex-wrap">
+                <div class="relative">
+                    <input type="search" id="ordersSearch" placeholder="Search sales..." class="border border-gray-300 rounded px-3 py-2 text-sm pl-8">
+                    <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                </div>
                 <!--<div class="flex gap-2">
                     <button onclick="exportSales()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
                         Export CSV
@@ -970,5 +978,25 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Simple client-side table filters
+document.addEventListener('DOMContentLoaded', function(){
+    function setupFilter(inputId, tableSelector){
+        const input = document.getElementById(inputId);
+        const table = document.querySelector(tableSelector);
+        const tbody = table ? table.querySelector('tbody') : null;
+        if(!input || !tbody) return;
+        input.addEventListener('input', function(){
+            const q = this.value.toLowerCase();
+            tbody.querySelectorAll('tr').forEach(tr => {
+                const text = tr.textContent.toLowerCase();
+                tr.style.display = text.includes(q) ? '' : 'none';
+            });
+        });
+    }
+
+    // Use more specific selectors to avoid duplicate IDs inside modals
+    setupFilter('billingSearch', '#billingContent table.w-full');
+    setupFilter('ordersSearch', '#ordersContent table');
+});
 </script>
 @endsection

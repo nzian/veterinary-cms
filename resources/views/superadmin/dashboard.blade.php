@@ -53,216 +53,154 @@
         </div>
     </div>
 
-    <!-- Key Metrics - Mobile Responsive Grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
-        @php
-            $keyMetrics = [
-                [
-                    'label' => 'Total Branches',
-                    'value' => $totalBranches,
-                    'icon' => '🏢',
-                    'color' => 'from-blue-500 to-blue-600',
-                    'subtext' => $activeBranches . ' Active',
-                    'change' => '+' . $activeBranches
-                ],
-                [
-                    'label' => 'Total Revenue',
-                    'value' => '₱' . number_format($totalRevenue / 1000, 1) . 'k',
-                    'icon' => '💰',
-                    'color' => 'from-emerald-500 to-emerald-600',
-                    'subtext' => 'Today: ₱' . number_format($todayRevenue, 0),
-                    'change' => '+15%'
-                ],
-                [
-                    'label' => 'Total Staff',
-                    'value' => $totalStaff,
-                    'icon' => '👥',
-                    'color' => 'from-purple-500 to-purple-600',
-                    'subtext' => 'All branches',
-                    'change' => '+' . $totalStaff
-                ],
-                [
-                    'label' => 'Appointments',
-                    'value' => $branchStats['total_appointments'],
-                    'icon' => '📅',
-                    'color' => 'from-amber-500 to-amber-600',
-                    'subtext' => 'Today: ' . $branchStats['today_appointments'],
-                    'change' => '+12%'
-                ],
-            ];
-        @endphp
+   <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
+    @php
+        $keyMetrics = [
+            [
+                'label' => 'Total Branches',
+                'value' => $totalBranches,
+                'icon' => '🏢',
+                'color' => 'from-blue-500 to-blue-600',
+                'subtext' => $activeBranches . ' Active',
+                'change' => '+' . $activeBranches,
+                'route' => route('branch-management.index')
+            ],
+            [
+                'label' => 'Total Revenue',
+                'value' => '₱' . number_format($totalRevenue / 1000, 1) . 'k',
+                'icon' => '💰',
+                'color' => 'from-emerald-500 to-emerald-600',
+                'subtext' => 'Today: ₱' . number_format($todayRevenue, 0),
+                'change' => '+15%',
+                'route' => route('sales.index')
+            ],
+            [
+                'label' => 'Total Staff',
+                'value' => $totalStaff,
+                'icon' => '👥',
+                'color' => 'from-purple-500 to-purple-600',
+                'subtext' => 'All branches',
+                'change' => '+' . $totalStaff,
+                'route' => route('branch-user-management.index')
+            ],
+            [
+                'label' => 'Appointments',
+                'value' => $branchStats['total_appointments'],
+                'icon' => '📅',
+                'color' => 'from-amber-500 to-amber-600',
+                'subtext' => 'Today: ' . $branchStats['today_appointments'],
+                'change' => '+12%',
+                'route' => route('medical.index')
+            ],
+        ];
+    @endphp
 
-        @foreach ($keyMetrics as $metric)
-        <div class="block transform transition-all duration-300 hover:scale-105">
-            <div class="relative overflow-hidden bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 hover:shadow-xl transition-all duration-300 group cursor-pointer">
-                <div class="absolute inset-0 bg-gradient-to-br {{ $metric['color'] }} opacity-0 group-hover:opacity-10 transition-opacity"></div>
-                <div class="p-4 sm:p-6">
-                    <div class="flex items-center justify-between mb-3 sm:mb-4">
-                        <div class="text-xl sm:text-2xl group-hover:scale-110 transition-transform">{{ $metric['icon'] }}</div>
-                        <span class="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                            {{ $metric['change'] }}
-                        </span>
-                    </div>
-                    <div class="space-y-1">
-                        <p class="text-xs sm:text-sm font-medium text-gray-600 group-hover:text-gray-800 transition-colors">{{ $metric['label'] }}</p>
-                        <p class="text-xl sm:text-2xl font-bold text-gray-900 group-hover:text-[#f88e28] transition-colors">{{ $metric['value'] }}</p>
-                    </div>
-                    <div class="mt-2 sm:mt-3 text-xs text-gray-500">
-                        {{ $metric['subtext'] }}
-                    </div>
-                </div>
-            </div>
-        </div>
-        @endforeach
-    </div>
-    
-    <!-- Performance Indicators -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-        <!-- Revenue Distribution -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
-            <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-4">Revenue Distribution</h3>
-            <div class="space-y-3">
-                <div>
-                    <div class="flex justify-between text-sm mb-1">
-                        <span class="text-gray-600">Products Sales</span>
-                        <span class="font-semibold text-gray-900">45%</span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2">
-                        <div class="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full" style="width: 45%"></div>
-                    </div>
-                </div>
-                <div>
-                    <div class="flex justify-between text-sm mb-1">
-                        <span class="text-gray-600">Services</span>
-                        <span class="font-semibold text-gray-900">35%</span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2">
-                        <div class="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full" style="width: 35%"></div>
-                    </div>
-                </div>
-                <div>
-                    <div class="flex justify-between text-sm mb-1">
-                        <span class="text-gray-600">Appointments</span>
-                        <span class="font-semibold text-gray-900">20%</span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2">
-                        <div class="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full" style="width: 20%"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Branch Status -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
-            <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-4">Branch Status</h3>
-            <div class="space-y-4">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center">
-                        <div class="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
-                        <span class="text-sm text-gray-600">Active</span>
-                    </div>
-                    <span class="text-lg font-bold text-gray-900">{{ $activeBranches }}</span>
-                </div>
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center">
-                        <div class="w-3 h-3 bg-gray-400 rounded-full mr-3"></div>
-                        <span class="text-sm text-gray-600">Inactive</span>
-                    </div>
-                    <span class="text-lg font-bold text-gray-900">{{ $totalBranches - $activeBranches }}</span>
-                </div>
-                <div class="flex items-center justify-between pt-3 border-t">
-                    <span class="text-sm font-medium text-gray-700">Total</span>
-                    <span class="text-xl font-bold text-[#f88e28]">{{ $totalBranches }}</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Quick Stats Summary -->
-        <div class="bg-gradient-to-br from-[#f88e28] to-[#ff6b35] rounded-xl shadow-lg p-4 sm:p-6 text-white">
-            <h3 class="text-base sm:text-lg font-semibold mb-4">System Health</h3>
-            <div class="space-y-3">
-                <div class="flex items-center justify-between pb-3 border-b border-white/20">
-                    <span class="text-sm opacity-90">Uptime</span>
-                    <span class="text-lg font-bold">99.9%</span>
-                </div>
-                <div class="flex items-center justify-between pb-3 border-b border-white/20">
-                    <span class="text-sm opacity-90">Performance</span>
-                    <span class="text-lg font-bold">Excellent</span>
-                </div>
-                <div class="flex items-center justify-between">
-                    <span class="text-sm opacity-90">Status</span>
-                    <span class="inline-flex items-center px-2 py-1 bg-white/20 rounded-full text-xs font-semibold">
-                        <span class="w-2 h-2 bg-white rounded-full mr-2"></span>
-                        Operational
+    @foreach ($keyMetrics as $metric)
+    <a href="{{ $metric['route'] ?? '#' }}" 
+       class="block transform transition-all duration-300 hover:scale-105 cursor-pointer">
+        <div class="relative overflow-hidden bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 hover:shadow-xl transition-all duration-300 group">
+            <div class="absolute inset-0 bg-gradient-to-br {{ $metric['color'] }} opacity-0 group-hover:opacity-10 transition-opacity"></div>
+            <div class="p-4 sm:p-6">
+                <div class="flex items-center justify-between mb-3 sm:mb-4">
+                    <div class="text-xl sm:text-2xl group-hover:scale-110 transition-transform">{{ $metric['icon'] }}</div>
+                    <span class="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                        {{ $metric['change'] }}
                     </span>
                 </div>
+                <div class="space-y-1">
+                    <p class="text-xs sm:text-sm font-medium text-gray-600 group-hover:text-gray-800 transition-colors">{{ $metric['label'] }}</p>
+                    <p class="text-xl sm:text-2xl font-bold text-gray-900 group-hover:text-[#f88e28] transition-colors">{{ $metric['value'] }}</p>
+                </div>
+                <div class="mt-2 sm:mt-3 text-xs text-gray-500">
+                    {{ $metric['subtext'] }}
+                </div>
             </div>
+        </div>
+    </a>
+    @endforeach
+</div>
+   <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6 sm:mb-8">
+    
+    <div class="flex items-center justify-between mb-4">
+        
+        <div class="flex items-center gap-3">
+            <h3 class="text-base sm:text-lg font-semibold text-gray-900">Calendar & Notes</h3>
+            
+            {{-- Week Range Display: Aligned next to the title (updated by JS) --}}
+            <span id="currentWeekRange" class="text-sm font-semibold text-[#f88e28]"></span>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button id="prevWeek" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+            </button>
+            <button id="nextWeek" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                </svg>
+            </button>
         </div>
     </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6"> 
+        
+        {{-- REMOVED max-w-xs from this column to let it use the full 50% fluid width --}}
+        <div class="lg:col-span-1 lg:pr-6 lg:border-r border-gray-200">
+            
+            {{-- REMOVED: The max-w-xs mx-auto inner div for full fluidity --}}
 
-    <!-- Mini Calendar with Notes -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6 sm:mb-8">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-base sm:text-lg font-semibold text-gray-900">Calendar & Notes</h3>
-            <div class="flex items-center gap-2">
-                <button id="prevMonth" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-                    </svg>
-                </button>
-                <span id="currentMonth" class="text-sm font-semibold text-gray-700 min-w-[120px] text-center"></span>
-                <button id="nextMonth" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                    </svg>
-                </button>
+            <div class="grid grid-cols-7 gap-2 mb-3"> 
+                {{-- REVERTED TO ABBREVIATIONS for proper spacing in a 50% column --}}
+                <div class="text-center text-sm font-semibold text-gray-600 py-2">Sun</div>
+                <div class="text-center text-sm font-semibold text-gray-600 py-2">Mon</div>
+                <div class="text-center text-sm font-semibold text-gray-600 py-2">Tue</div>
+                <div class="text-center text-sm font-semibold text-gray-600 py-2">Wed</div>
+                <div class="text-center text-sm font-semibold text-gray-600 py-2">Thu</div>
+                <div class="text-center text-sm font-semibold text-gray-600 py-2">Fri</div>
+                <div class="text-center text-sm font-semibold text-gray-600 py-2">Sat</div>
             </div>
+            
+            <div id="calendarDays" class="grid grid-cols-7 gap-2">
+                </div>
+
         </div>
         
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <!-- Calendar -->
-            <div class="lg:col-span-2">
-                <div class="grid grid-cols-7 gap-1 mb-2">
-                    <div class="text-center text-xs font-semibold text-gray-600 py-2">Sun</div>
-                    <div class="text-center text-xs font-semibold text-gray-600 py-2">Mon</div>
-                    <div class="text-center text-xs font-semibold text-gray-600 py-2">Tue</div>
-                    <div class="text-center text-xs font-semibold text-gray-600 py-2">Wed</div>
-                    <div class="text-center text-xs font-semibold text-gray-600 py-2">Thu</div>
-                    <div class="text-center text-xs font-semibold text-gray-600 py-2">Fri</div>
-                    <div class="text-center text-xs font-semibold text-gray-600 py-2">Sat</div>
-                </div>
-                <div id="calendarDays" class="grid grid-cols-7 gap-1">
-                    <!-- Calendar days will be generated here -->
+        <div class="lg:col-span-1 lg:pl-6">
+            <h4 class="text-base font-semibold text-gray-900 mb-3">
+                Notes for <span id="selectedDate" class="text-[#f88e28]"></span>
+            </h4>
+            
+            <div id="notesList" class="space-y-2 mb-4 max-h-64 overflow-y-auto">
+                <p class="text-sm text-gray-500">Select a date to view notes</p>
+            </div>
+            
+            <div id="addNoteSection" class="hidden">
+                <textarea 
+                    id="noteInput" 
+                    rows="4" 
+                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f88e28] focus:border-transparent" 
+                    placeholder="Add a note..."></textarea>
+                <div class="flex gap-2 mt-3">
+                    <button id="saveNote" class="flex-1 px-4 py-2 bg-[#f88e28] text-white text-sm font-medium rounded-lg hover:bg-[#e67e22] transition-colors">
+                        Save Note
+                    </button>
+                    <button id="cancelNote" class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">
+                        Cancel
+                    </button>
                 </div>
             </div>
             
-            <!-- Notes Section -->
-            <div class="border-l border-gray-200 pl-4">
-                <h4 class="text-sm font-semibold text-gray-900 mb-3">Notes for <span id="selectedDate"></span></h4>
-                <div id="notesList" class="space-y-2 mb-4 max-h-48 overflow-y-auto">
-                    <p class="text-xs text-gray-500">Select a date to view notes</p>
-                </div>
-                <div id="addNoteSection" class="hidden">
-                    <textarea 
-                        id="noteInput" 
-                        rows="3" 
-                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f88e28] focus:border-transparent" 
-                        placeholder="Add a note..."></textarea>
-                    <div class="flex gap-2 mt-2">
-                        <button id="saveNote" class="flex-1 px-3 py-2 bg-[#f88e28] text-white text-sm font-medium rounded-lg hover:bg-[#e67e22] transition-colors">
-                            Save
-                        </button>
-                        <button id="cancelNote" class="px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-                <button id="addNoteBtn" class="w-full px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">
-                    + Add Note
-                </button>
-            </div>
+            <button id="addNoteBtn" class="w-full h-12 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                Add Note
+            </button>
         </div>
     </div>
+</div>
 
     <!-- Charts Section -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
@@ -376,221 +314,607 @@
         </div>
     </div>
 
-    <!-- Recent Activity -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <!-- Recent Orders -->
-        <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200">
-            <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
-                <h3 class="text-base sm:text-lg font-semibold text-gray-900">Recent Orders</h3>
-            </div>
-            <div class="p-4 space-y-3">
-                @foreach($recentOrders as $order)
-                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                    <div class="flex items-center">
-                        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white mr-3">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
-                            </svg>
-                        </div>
-                        <div>
-                            <p class="font-semibold text-sm text-gray-900">#{{ $order->ord_id }}</p>
-                            <p class="text-xs text-gray-500">{{ $order->user->branch->branch_name ?? 'N/A' }}</p>
-                        </div>
-                    </div>
-                    <div class="text-right">
-                        <p class="font-bold text-sm text-[#f88e28]">₱{{ number_format($order->ord_total, 2) }}</p>
-                        <p class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($order->ord_date)->format('M d') }}</p>
-                    </div>
-                </div>
-                @endforeach
-            </div>
+    <!-- Equipment Overview Table -->
+    <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 mb-6 sm:mb-8">
+        <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+            <h3 class="text-base sm:text-lg font-semibold text-gray-900">Equipment Overview</h3>
         </div>
+        <div class="overflow-x-auto">
+            <table class="w-full min-w-[800px]">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Equipment Name</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Condition</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    @php
+                        $equipment = \App\Models\Equipment::with('branch')->get();
+                    @endphp
+                    @forelse($equipment as $item)
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 sm:px-6 py-3 sm:py-4">
+                            <p class="text-sm font-semibold text-gray-900">{{ $item->branch->branch_name ?? 'N/A' }}</p>
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-900 font-medium">
+                            {{ $item->equipment_name }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
+                            {{ $item->equipment_category ?? 'General' }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4">
+                            <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full 
+                                {{ $item->equipment_quantity > 5 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' }}">
+                                {{ $item->equipment_quantity }}
+                            </span>
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4">
+                            <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full 
+                                {{ $item->equipment_quantity > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
+                                {{ $item->equipment_quantity > 0 ? 'Available' : 'Out of Stock' }}
+                            </span>
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4">
+                            <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                Excellent
+                            </span>
+                        </td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="6" class="px-4 sm:px-6 py-8 text-center text-gray-500">
+                            No equipment found
+                        </td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
 
-        <!-- Recent Appointments -->
-        <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200">
-            <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
-                <h3 class="text-base sm:text-lg font-semibold text-gray-900">Recent Appointments</h3>
-            </div>
-            <div class="p-4 space-y-3">
-                @foreach($recentAppointments as $appointment)
-                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                    <div class="flex items-center">
-                        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-white mr-3">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                            </svg>
-                        </div>
-                        <div>
-                            <p class="font-semibold text-sm text-gray-900">{{ $appointment->pet->pet_name ?? 'N/A' }}</p>
-                            <p class="text-xs text-gray-500">{{ $appointment->pet->owner->own_name ?? 'N/A' }}</p>
-                        </div>
-                    </div>
-                    <div class="text-right">
-                        <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full 
-                            {{ $appointment->appoint_status == 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' }}">
-                            {{ ucfirst($appointment->appoint_status) }}
-                        </span>
-                        <p class="text-xs text-gray-500 mt-1">{{ \Carbon\Carbon::parse($appointment->appoint_date)->format('M d') }}</p>
-                    </div>
-                </div>
-                @endforeach
-            </div>
+    <!-- Recent Activity -->
+    <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 mb-6 sm:mb-8">
+        <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+            <h3 class="text-base sm:text-lg font-semibold text-gray-900">Recent Orders</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full min-w-[800px]">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    @foreach($recentOrders as $order)
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 sm:px-6 py-3 sm:py-4">
+                            <p class="text-sm font-semibold text-gray-900">#{{ $order->ord_id }}</p>
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
+                            {{ $order->user->branch->branch_name ?? 'N/A' }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">
+                            {{ $order->product->prod_name ?? 'Multiple Items' }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
+                            {{ \Carbon\Carbon::parse($order->ord_date)->format('M d, Y') }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-sm font-bold text-[#f88e28]">
+                            ₱{{ number_format($order->ord_total, 2) }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4">
+                            <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                                Completed
+                            </span>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Recent Appointments -->
+    <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 mb-6 sm:mb-8">
+        <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+            <h3 class="text-base sm:text-lg font-semibold text-gray-900">Recent Appointments</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full min-w-[800px]">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    @foreach($recentAppointments as $appointment)
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 sm:px-6 py-3 sm:py-4">
+                            <p class="text-sm font-semibold text-gray-900">{{ $appointment->pet->pet_name ?? 'N/A' }}</p>
+                            <p class="text-xs text-gray-500">{{ $appointment->pet->pet_species ?? '' }}</p>
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
+                            {{ $appointment->pet->owner->own_name ?? 'N/A' }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
+                            {{ $appointment->user->branch->branch_name ?? 'N/A' }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
+                            {{ \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y') }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4">
+                            <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                {{ $appointment->appoint_type ?? 'Check-up' }}
+                            </span>
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4">
+                            <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full 
+                                {{ $appointment->appoint_status == 'completed' ? 'bg-green-100 text-green-800' : 
+                                   ($appointment->appoint_status == 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                                   'bg-gray-100 text-gray-800') }}">
+                                {{ ucfirst($appointment->appoint_status) }}
+                            </span>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Recent Referrals -->
+    <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 mb-6 sm:mb-8">
+        <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+            <h3 class="text-base sm:text-lg font-semibold text-gray-900">Recent Referrals</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full min-w-[800px]">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From Branch</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To Branch</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    @php
+                        $recentReferrals = \App\Models\Referral::with(['appointment.pet.owner', 'refToBranch', 'refByBranch'])
+                            ->orderBy('ref_date', 'desc')
+                            ->limit(10)
+                            ->get();
+                    @endphp
+                    @forelse($recentReferrals as $referral)
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 sm:px-6 py-3 sm:py-4">
+                            <p class="text-sm font-semibold text-gray-900">{{ $referral->appointment->pet->pet_name ?? 'N/A' }}</p>
+                            <p class="text-xs text-gray-500">{{ $referral->appointment->pet->owner->own_name ?? 'N/A' }}</p>
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
+                            {{ $referral->refByBranch?->branch_name ?? 'N/A' }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
+                            {{ $referral->refToBranch?->branch_name ?? 'N/A' }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
+                            {{ \Carbon\Carbon::parse($referral->ref_date)->format('M d, Y') }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-700">
+                            {{ \Illuminate\Support\Str::limit($referral->ref_description, 50) }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4">
+                            <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                                {{ ucfirst($referral->ref_status ?? 'Pending') }}
+                            </span>
+                        </td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="6" class="px-4 sm:px-6 py-8 text-center text-gray-500">
+                            No recent referrals
+                        </td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- User Activity Logs -->
+    <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 mb-6 sm:mb-8">
+        <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+            <h3 class="text-base sm:text-lg font-semibold text-gray-900">User Activity Logs</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full min-w-[800px]">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Activity</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
+                        <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    @php
+                        // Get recent user activities (orders and appointments)
+                        $userActivities = collect();
+                        
+                        // Add recent orders as activities
+                        foreach($recentOrders as $order) {
+                            $userActivities->push([
+                                'user_name' => $order->user->user_name ?? 'Unknown',
+                                'branch_name' => $order->user->branch->branch_name ?? 'N/A',
+                                'user_role' => $order->user->user_role ?? 'N/A',
+                                'activity' => 'Created order #' . $order->ord_id,
+                                'timestamp' => $order->ord_date,
+                                'type' => 'order'
+                            ]);
+                        }
+                        
+                        // Add recent appointments as activities
+                        foreach($recentAppointments as $appointment) {
+                            $userActivities->push([
+                                'user_name' => $appointment->user->user_name ?? 'Unknown',
+                                'branch_name' => $appointment->user->branch->branch_name ?? 'N/A',
+                                'user_role' => $appointment->user->user_role ?? 'N/A',
+                                'activity' => 'Scheduled appointment for ' . ($appointment->pet->pet_name ?? 'Unknown'),
+                                'timestamp' => $appointment->appoint_date,
+                                'type' => 'appointment'
+                            ]);
+                        }
+                        
+                        // Sort by timestamp descending
+                        $userActivities = $userActivities->sortByDesc('timestamp')->take(10);
+                    @endphp
+                    
+                    @forelse($userActivities as $activity)
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 sm:px-6 py-3 sm:py-4">
+                            <p class="text-sm font-semibold text-gray-900">{{ $activity['user_name'] }}</p>
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
+                            {{ $activity['branch_name'] }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4">
+                            <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full 
+                                {{ strtolower($activity['user_role']) == 'veterinarian' ? 'bg-blue-100 text-blue-800' : 
+                                   (strtolower($activity['user_role']) == 'receptionist' ? 'bg-green-100 text-green-800' : 
+                                   'bg-purple-100 text-purple-800') }}">
+                                {{ ucfirst($activity['user_role']) }}
+                            </span>
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-700">
+                            {{ $activity['activity'] }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
+                            {{ \Carbon\Carbon::parse($activity['timestamp'])->format('M d, Y h:i A') }}
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4">
+                            <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full 
+                                {{ $activity['type'] == 'order' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
+                                {{ ucfirst($activity['type']) }}
+                            </span>
+                        </td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="6" class="px-4 sm:px-6 py-8 text-center text-gray-500">
+                            No recent activity
+                        </td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
     </div>
 
 </div>
 
-@push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-    // Mini Calendar with Notes
-    let currentDate = new Date();
-    let selectedDateStr = null;
-    let notes = JSON.parse(localStorage.getItem('calendarNotes') || '{}');
+// ====================================================================
+// CALENDAR APPLICATION LOGIC (Self-Contained)
+// ====================================================================
+// ====================================================================
+var CalendarApp = {
+    currentDate: new Date(),
+    currentWeekStart: null, // Tracks the start date (Sunday) of the current week
+    selectedDate: null,
+    notes: {},
+    
+    init: function() {
+        // 1. Load notes from localStorage (kept)
+        var stored = localStorage.getItem('calendarNotes');
+        if (stored) {
+            try {
+                this.notes = JSON.parse(stored);
+            } catch(e) {
+                this.notes = {};
+            }
+        }
+        
+        if (!document.getElementById('calendarDays')) return;
 
-    function renderCalendar() {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
+        // 2. Initialize to the start of the current week (Sunday)
+        this.calculateCurrentWeekStart(this.currentDate);
         
-        document.getElementById('currentMonth').textContent = 
-            currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+        // 3. Set default selected date to today
+        this.selectedDate = this.formatDate(this.currentDate);
         
-        const firstDay = new Date(year, month, 1).getDay();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const today = new Date();
+        // 4. Bind events (using the new Week IDs)
+        this.bindEvents();
         
-        let html = '';
-        let day = 1;
+        // 5. Render initial state
+        this.renderCalendar();
+        this.updateSelectedDateDisplay(this.selectedDate);
+        this.renderNotes(this.selectedDate); 
+    },
+
+    // Calculates the Sunday of the week containing the given date
+    calculateCurrentWeekStart: function(date) {
+        var day = date.getDay(); // 0 for Sunday, 6 for Saturday
+        var diff = date.getDate() - day;
+        this.currentWeekStart = new Date(date.setDate(diff));
+        this.currentWeekStart.setHours(0, 0, 0, 0); // Reset time for clean calculations
+    },
+
+    // --- NAVIGATION FUNCTIONS (UPDATED FOR WEEK) ---
+    previousWeek: function() {
+        this.currentWeekStart.setDate(this.currentWeekStart.getDate() - 7);
+        this.renderCalendar();
+    },
+    
+    nextWeek: function() {
+        this.currentWeekStart.setDate(this.currentWeekStart.getDate() + 7);
+        this.renderCalendar();
+    },
+
+    // --- RENDERING FUNCTIONS (UPDATED TO SHOW ONLY ONE ROW) ---
+    renderCalendar: function() {
+        var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         
-        // Generate calendar grid
-        for (let i = 0; i < 6; i++) {
-            for (let j = 0; j < 7; j++) {
-                if (i === 0 && j < firstDay) {
-                    html += '<div class="aspect-square"></div>';
-                } else if (day > daysInMonth) {
-                    html += '<div class="aspect-square"></div>';
-                } else {
-                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-                    const hasNotes = notes[dateStr] && notes[dateStr].length > 0;
-                    
-                    html += `
-                        <div class="aspect-square p-1">
-                            <button 
-                                onclick="selectDate('${dateStr}')" 
-                                class="w-full h-full rounded-lg text-sm font-medium transition-all hover:bg-gray-100
-                                ${isToday ? 'bg-[#f88e28] text-white hover:bg-[#e67e22]' : 'text-gray-700'}
-                                ${hasNotes ? 'ring-2 ring-[#f88e28] ring-opacity-50' : ''}
-                                ${selectedDateStr === dateStr ? 'ring-2 ring-[#f88e28]' : ''}">
-                                ${day}
-                                ${hasNotes ? '<div class="w-1 h-1 bg-[#f88e28] rounded-full mx-auto mt-0.5"></div>' : ''}
-                            </button>
-                        </div>
-                    `;
-                    day++;
+        var current = new Date(this.currentWeekStart);
+        var html = '';
+        var todayFormatted = this.formatDate(new Date());
+
+        // Calculate and update week range display
+        var start = new Date(this.currentWeekStart);
+        var end = new Date(this.currentWeekStart);
+        end.setDate(end.getDate() + 6);
+        
+        var currentWeekEl = document.getElementById('currentWeekRange');
+        if (currentWeekEl) {
+            // Display the week range (e.g., "Oct 12 - Oct 18, 2025")
+            currentWeekEl.textContent = 
+                monthNames[start.getMonth()] + ' ' + start.getDate() + ' - ' + 
+                monthNames[end.getMonth()] + ' ' + end.getDate() + ', ' + end.getFullYear();
+        }
+
+        // Loop through exactly 7 days
+        for (var i = 0; i < 7; i++) {
+            var dateStr = this.formatDate(current);
+            
+            // Coloring logic (re-using your original logic)
+            var isToday = (dateStr === todayFormatted);
+            var isSelected = (this.selectedDate === dateStr);
+            var hasNotes = this.notes[dateStr] && this.notes[dateStr].length > 0;
+            
+            var baseClass = 'text-gray-700 hover:bg-gray-100';
+            var ringClass = '';
+            
+            if (isSelected) {
+                baseClass = 'bg-blue-500 text-white shadow-lg shadow-blue-500/50 hover:bg-blue-600 transition-all';
+                ringClass = 'ring-2 ring-offset-2 ring-blue-500'; 
+            } else if (isToday) {
+                baseClass = 'bg-[#f88e28] text-white hover:bg-[#e67e22]';
+            }
+            
+            if (hasNotes && !isSelected) { 
+                 ringClass = 'ring-2 ring-[#f88e28] ring-opacity-50';
+            }
+
+            // Note indicator dot
+            var noteDot = '';
+            if (hasNotes) {
+                var dotColor = isSelected || isToday ? 'bg-white' : 'bg-[#f88e28]';
+                noteDot = '<div class="w-1.5 h-1.5 ' + dotColor + ' rounded-full mx-auto mt-1"></div>';
+            }
+            
+            html += '<div class="aspect-square p-1">' +
+                    '<button type="button" onclick="CalendarApp.selectDate(\'' + dateStr + '\')" ' +
+                    'class="w-full h-full rounded-lg text-sm font-medium transition-all ' + 
+                    baseClass + ' ' + ringClass + '">' +
+                    '<div class="flex flex-col items-center justify-center h-full">' +
+                    '<span>' + current.getDate() + '</span>' + noteDot +
+                    '</div></button></div>';
+
+            // Move to the next day
+            current.setDate(current.getDate() + 1);
+        }
+        
+        var calendarDaysEl = document.getElementById('calendarDays');
+        if (calendarDaysEl) {
+            calendarDaysEl.innerHTML = html;
+        }
+    },
+    
+    // --- BINDING FUNCTIONS (UPDATED TO USE WEEK IDs) ---
+    bindEvents: function() {
+        var self = this;
+        // NOTE: Changed IDs from prev/nextMonth to prev/nextWeek
+        var prevBtn = document.getElementById('prevWeek');
+        var nextBtn = document.getElementById('nextWeek');
+        var addBtn = document.getElementById('addNoteBtn');
+        var saveBtn = document.getElementById('saveNote');
+        var cancelBtn = document.getElementById('cancelNote');
+        
+        if (prevBtn) { prevBtn.onclick = function(e) { e.preventDefault(); self.previousWeek(); }; }
+        if (nextBtn) { nextBtn.onclick = function(e) { e.preventDefault(); self.nextWeek(); }; }
+        
+        if (addBtn) {
+            addBtn.onclick = function(e) {
+                e.preventDefault();
+                if (!self.selectedDate) {
+                    alert('Please select a date first');
+                    return;
                 }
-            }
-            if (day > daysInMonth) break;
+                self.showNoteForm();
+            };
         }
         
-        document.getElementById('calendarDays').innerHTML = html;
-    }
-
-    function selectDate(dateStr) {
-        selectedDateStr = dateStr;
-        const date = new Date(dateStr + 'T00:00:00');
-        document.getElementById('selectedDate').textContent = 
-            date.toLocaleDateString('default', { month: 'short', day: 'numeric', year: 'numeric' });
+        if (saveBtn) { saveBtn.onclick = function(e) { e.preventDefault(); self.saveNote(); }; }
+        if (cancelBtn) { cancelBtn.onclick = function(e) { e.preventDefault(); self.hideNoteForm(); }; }
+    },
+    
+    // --- UTILITY/NOTE FUNCTIONS (Kept or simplified) ---
+    formatDate: function(date) {
+        var y = date.getFullYear();
+        var m = this.pad(date.getMonth() + 1);
+        var d = this.pad(date.getDate());
+        return y + '-' + m + '-' + d;
+    },
+    
+    updateSelectedDateDisplay: function(dateStr) {
+        var parts = dateStr.split('-');
+        // Note: Month is 0-indexed in JS, so subtract 1
+        var date = new Date(parts[0], parts[1] - 1, parts[2]); 
+        var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        var formatted = monthNames[date.getMonth()] + ' ' + date.getDate() + ', ' + date.getFullYear();
         
-        renderNotes(dateStr);
-        renderCalendar();
-    }
-
-    function renderNotes(dateStr) {
-        const notesList = document.getElementById('notesList');
-        const dateNotes = notes[dateStr] || [];
-        
-        if (dateNotes.length === 0) {
-            notesList.innerHTML = '<p class="text-xs text-gray-500">No notes for this date</p>';
-        } else {
-            notesList.innerHTML = dateNotes.map((note, index) => `
-                <div class="p-2 bg-gray-50 rounded-lg group relative">
-                    <p class="text-xs text-gray-700 pr-6">${note}</p>
-                    <button 
-                        onclick="deleteNote('${dateStr}', ${index})" 
-                        class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
-                </div>
-            `).join('');
+        var selectedDateEl = document.getElementById('selectedDate');
+        if (selectedDateEl) {
+            selectedDateEl.textContent = formatted;
         }
-    }
+    },
+    
+    // ... (rest of the note functions: showNoteForm, hideNoteForm, selectDate, 
+    // renderNotes, saveNote, deleteNote, escapeHtml, pad are the same as before) ...
 
-    function deleteNote(dateStr, index) {
-        if (confirm('Delete this note?')) {
-            notes[dateStr].splice(index, 1);
-            if (notes[dateStr].length === 0) {
-                delete notes[dateStr];
-            }
-            localStorage.setItem('calendarNotes', JSON.stringify(notes));
-            renderNotes(dateStr);
-            renderCalendar();
-        }
-    }
-
-    // Calendar controls
-    document.getElementById('prevMonth').addEventListener('click', () => {
-        currentDate.setMonth(currentDate.getMonth() - 1);
-        renderCalendar();
-    });
-
-    document.getElementById('nextMonth').addEventListener('click', () => {
-        currentDate.setMonth(currentDate.getMonth() + 1);
-        renderCalendar();
-    });
-
-    document.getElementById('addNoteBtn').addEventListener('click', () => {
-        if (!selectedDateStr) {
-            alert('Please select a date first');
-            return;
-        }
+    showNoteForm: function() {
         document.getElementById('addNoteSection').classList.remove('hidden');
         document.getElementById('addNoteBtn').classList.add('hidden');
         document.getElementById('noteInput').focus();
-    });
-
-    document.getElementById('saveNote').addEventListener('click', () => {
-        const noteText = document.getElementById('noteInput').value.trim();
-        if (noteText) {
-            if (!notes[selectedDateStr]) {
-                notes[selectedDateStr] = [];
-            }
-            notes[selectedDateStr].push(noteText);
-            localStorage.setItem('calendarNotes', JSON.stringify(notes));
-            document.getElementById('noteInput').value = '';
-            renderNotes(selectedDateStr);
-            renderCalendar();
-            document.getElementById('addNoteSection').classList.add('hidden');
-            document.getElementById('addNoteBtn').classList.remove('hidden');
-        }
-    });
-
-    document.getElementById('cancelNote').addEventListener('click', () => {
+    },
+    
+    hideNoteForm: function() {
         document.getElementById('noteInput').value = '';
         document.getElementById('addNoteSection').classList.add('hidden');
         document.getElementById('addNoteBtn').classList.remove('hidden');
-    });
+    },
 
-    // Make selectDate and deleteNote available globally
-    window.selectDate = selectDate;
-    window.deleteNote = deleteNote;
+    selectDate: function(dateStr) {
+        this.selectedDate = dateStr;
+        this.updateSelectedDateDisplay(dateStr);
+        this.hideNoteForm();
+        this.renderNotes(dateStr);
+        this.renderCalendar();
+    },
 
-    // Initialize calendar
-    renderCalendar();
+    renderNotes: function(dateStr) {
+        var notesListEl = document.getElementById('notesList');
+        if (!notesListEl) return;
+        
+        var dateNotes = this.notes[dateStr] || [];
+        
+        if (dateNotes.length === 0) {
+            notesListEl.innerHTML = '<p class="text-sm text-gray-500">No notes for this date</p>';
+        } else {
+            var html = '';
+            for (var i = 0; i < dateNotes.length; i++) {
+                html += '<div class="p-3 bg-gray-50 rounded-lg group relative hover:bg-gray-100 transition-colors mb-2">' +
+                         '<p class="text-sm text-gray-700 pr-8 break-words">' + this.escapeHtml(dateNotes[i]) + '</p>' +
+                         '<button type="button" onclick="CalendarApp.deleteNote(\'' + dateStr + '\', ' + i + ')" ' +
+                         'class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity">' +
+                         '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+                         '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>' +
+                         '</svg></button></div>';
+            }
+            notesListEl.innerHTML = html;
+        }
+    },
 
-    // Chart Options
+    saveNote: function() {
+        var noteInput = document.getElementById('noteInput');
+        if (!noteInput || !this.selectedDate) {
+             alert('Please select a date and enter a note.');
+             return;
+        }
+        
+        var noteText = noteInput.value.trim();
+        if (!noteText) {
+            alert('Please enter a note');
+            return;
+        }
+        
+        if (!this.notes[this.selectedDate]) {
+            this.notes[this.selectedDate] = [];
+        }
+        
+        this.notes[this.selectedDate].push(noteText);
+        
+        localStorage.setItem('calendarNotes', JSON.stringify(this.notes));
+        
+        this.renderNotes(this.selectedDate);
+        this.renderCalendar();
+        this.hideNoteForm();
+    },
+
+    deleteNote: function(dateStr, index) {
+        if (!confirm('Delete this note?')) { return; }
+        
+        if (this.notes[dateStr]) {
+            this.notes[dateStr].splice(index, 1);
+            
+            if (this.notes[dateStr].length === 0) {
+                delete this.notes[dateStr];
+            }
+            
+            localStorage.setItem('calendarNotes', JSON.stringify(this.notes));
+            this.renderNotes(dateStr);
+            this.renderCalendar();
+        }
+    },
+
+    escapeHtml: function(text) {
+        var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    },
+    
+    pad: function(num) {
+        return (num < 10) ? '0' + num : num.toString();
+    }
+};
+// ====================================================================
+// INITIALIZATION AND CHART.JS CODE
+// Wrap everything in DOMContentLoaded to ensure elements exist.
+// ====================================================================
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // 1. Initialize Calendar
+    if (typeof CalendarApp !== 'undefined') {
+        CalendarApp.init();
+    }
+
+    // 2. Chart Options
     const chartOptions = {
         responsive: true,
         maintainAspectRatio: false,
@@ -626,7 +950,7 @@
         }
     };
 
-    // Revenue Chart
+    // 3. Revenue Chart
     new Chart(document.getElementById('revenueChart'), {
         type: 'line',
         data: {
@@ -659,7 +983,7 @@
         }
     });
 
-    // Weekly Chart
+    // 4. Weekly Chart
     new Chart(document.getElementById('weeklyChart'), {
         type: 'bar',
         data: {
@@ -684,235 +1008,6 @@
             }
         }
     });
-
-    // Appointments Trend Chart
-    new Chart(document.getElementById('appointmentsChart'), {
-        type: 'line',
-        data: {
-            labels: {!! json_encode($months ?? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']) !!},
-            datasets: [{
-                label: 'Appointments',
-                data: [45, 52, 48, 65, 70, 68, 75, 80, 72, 85, 78, 82],
-                borderColor: '#F59E0B',
-                backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                tension: 0.4,
-                fill: true,
-                borderWidth: 3,
-                pointBackgroundColor: '#F59E0B',
-                pointBorderColor: '#fff',
-                pointBorderWidth: 2,
-                pointRadius: 4
-            }]
-        },
-        options: chartOptions
-    });
-
-    // Branch Comparison Chart
-    new Chart(document.getElementById('branchComparisonChart'), {
-        type: 'bar',
-        data: {
-            labels: {!! json_encode($topBranches->pluck('branch_name')->take(5)) !!},
-            datasets: [{
-                label: 'Services',
-                data: {!! json_encode($branchPerformance->take(5)->pluck('services_count')) !!},
-                backgroundColor: '#3B82F6',
-                borderRadius: 6
-            }, {
-                label: 'Products',
-                data: {!! json_encode($branchPerformance->take(5)->pluck('products_count')) !!},
-                backgroundColor: '#10B981',
-                borderRadius: 6
-            }]
-        },
-        options: {
-            ...chartOptions,
-            plugins: {
-                ...chartOptions.plugins,
-                legend: { display: true, position: 'bottom' }
-            },
-            scales: {
-                ...chartOptions.scales,
-                y: {
-                    ...chartOptions.scales.y,
-                    ticks: {
-                        ...chartOptions.scales.y.ticks,
-                        callback: value => value
-                    }
-                }
-            }
-        }
-    });
-
-    // Staff Distribution Pie Chart
-    new Chart(document.getElementById('staffPieChart'), {
-        type: 'doughnut',
-        data: {
-            labels: {!! json_encode($topBranches->pluck('branch_name')->take(5)) !!},
-            datasets: [{
-                data: {!! json_encode($branchPerformance->take(5)->pluck('staff_count')) !!},
-                backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'],
-                borderWidth: 2,
-                borderColor: '#fff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'bottom',
-                    labels: {
-                        padding: 10,
-                        font: { size: 10 }
-                    }
-                }
-            }
-        }
-    });
-
-    // Revenue Source Chart
-    new Chart(document.getElementById('revenueSourceChart'), {
-        type: 'doughnut',
-        data: {
-            labels: ['Services', 'Products', 'Appointments'],
-            datasets: [{
-                data: [45, 35, 20],
-                backgroundColor: ['#10B981', '#3B82F6', '#F59E0B'],
-                borderWidth: 2,
-                borderColor: '#fff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'bottom',
-                    labels: {
-                        padding: 10,
-                        font: { size: 10 }
-                    }
-                }
-            }
-        }
-    });
-
-    // Pet Types Chart
-    new Chart(document.getElementById('petTypesChart'), {
-        type: 'doughnut',
-        data: {
-            labels: ['Dogs', 'Cats', 'Birds', 'Others'],
-            datasets: [{
-                data: [45, 30, 15, 10],
-                backgroundColor: ['#F59E0B', '#8B5CF6', '#06B6D4', '#EC4899'],
-                borderWidth: 2,
-                borderColor: '#fff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'bottom',
-                    labels: {
-                        padding: 10,
-                        font: { size: 10 }
-                    }
-                }
-            }
-        }
-    });
-
-    // Growth Rate Chart
-    new Chart(document.getElementById('growthChart'), {
-        type: 'line',
-        data: {
-            labels: {!! json_encode($months ?? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']) !!},
-            datasets: [{
-                label: 'Growth %',
-                data: [5, 8, 12, 10, 15, 18, 14, 20, 17, 22, 19, 25],
-                borderColor: '#10B981',
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                tension: 0.4,
-                fill: true,
-                borderWidth: 3,
-                pointBackgroundColor: '#10B981',
-                pointBorderColor: '#fff',
-                pointBorderWidth: 2,
-                pointRadius: 4
-            }]
-        },
-        options: {
-            ...chartOptions,
-            scales: {
-                ...chartOptions.scales,
-                y: {
-                    ...chartOptions.scales.y,
-                    ticks: {
-                        ...chartOptions.scales.y.ticks,
-                        callback: value => value + '%'
-                    }
-                }
-            }
-        }
-    });
-
-    // Customer Activity Chart
-    new Chart(document.getElementById('customerChart'), {
-        type: 'bar',
-        data: {
-            labels: {!! json_encode($months ?? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']) !!},
-            datasets: [{
-                label: 'Active Owners',
-                data: [120, 145, 160, 175, 190, 200, 185, 210, 195, 220, 205, 230],
-                backgroundColor: '#8B5CF6',
-                borderRadius: 8,
-                borderSkipped: false
-            }]
-        },
-        options: {
-            ...chartOptions,
-            scales: {
-                ...chartOptions.scales,
-                y: {
-                    ...chartOptions.scales.y,
-                    ticks: {
-                        ...chartOptions.scales.y.ticks,
-                        callback: value => value
-                    }
-                }
-            }
-        }
-    });
+});
 </script>
-@endpushgetElementById('weeklyChart'), {
-        type: 'bar',
-        data: {
-            labels: {!! json_encode($dates ?? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) !!},
-            datasets: (() => {
-                const data = {!! json_encode($last7DaysRevenue ?? []) !!};
-                const colors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
-                return Object.keys(data).map((branch, i) => ({
-                    label: branch,
-                    data: data[branch],
-                    backgroundColor: colors[i % colors.length],
-                    borderRadius: 8,
-                    borderSkipped: false
-                }));
-            })()
-        },
-        options: {
-            ...chartOptions,
-            plugins: {
-                ...chartOptions.plugins,
-                legend: { display: true, position: 'bottom' }
-            }
-        }
-    });
-</script>
-@endpush
 @endsection

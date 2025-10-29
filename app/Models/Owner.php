@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\BranchDataScope;
 use App\Models\Pet;
 use App\Models\Branch;
 
 class Owner extends Model
 {
+    use HasFactory, BranchDataScope;
     protected $table = 'tbl_own'; // ✅ ensure it points to the correct table
     protected $primaryKey = 'own_id';
     public $timestamps = false;
@@ -34,4 +37,8 @@ class Owner extends Model
 {
     return $this->belongsTo(User::class, 'user_id', 'user_id');
 }
+public function getBranchIdColumn()
+    {
+        return 'user_id'; // We filter Pet records based on the user_id that created them
+    }
 }

@@ -8,6 +8,7 @@ use App\Models\Equipment;
 use App\Models\Appointment;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class NotificationService
 {
@@ -25,7 +26,9 @@ class NotificationService
                     $this->getLoginAlerts($user),
                     $this->getStockLevelAlerts($user),
                     $this->getProductExpirationAlerts($user),
-                    $this->getEquipmentStatusAlerts($user)
+                    $this->getEquipmentStatusAlerts($user),
+                    $this->getArrivedAppointments($user),
+                    $this->getRescheduledAppointments($user)
                 );
                 break;
 
@@ -39,7 +42,8 @@ class NotificationService
             case 'receptionist':
                 $notifications = array_merge(
                     $this->getStockLevelAlerts($user),
-                    $this->getProductExpirationAlerts($user)
+                    $this->getProductExpirationAlerts($user),
+                    $this->getArrivedAppointments($user)
                 );
                 break;
         }
@@ -60,28 +64,34 @@ class NotificationService
         $alerts = [];
         
         try {
+            // Get the active branch ID (for super admin in branch mode)
+            $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            
             // Get users who logged in within the last 24 hours
-            $recentLogins = User::where('last_login_at', '>=', Carbon::now()->subDay())
+            $recentLogins = User::where('updated_at', '>=', Carbon::now()->subDay())
                 ->where('user_id', '!=', $user->user_id)
-                ->where('branch_id', $user->branch_id)
-                ->orderBy('last_login_at', 'desc')
+                ->when($activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->where('branch_id', $activeBranchId);
+                })
+                ->orderBy('updated_at', 'desc')
+                ->limit(10)
                 ->get();
 
             foreach ($recentLogins as $login) {
                 $alerts[] = [
-                    'id' => 'login_' . $login->user_id . '_' . strtotime($login->last_login_at),
+                    'id' => 'login_' . $login->user_id . '_' . strtotime($login->updated_at),
                     'type' => 'login_alert',
                     'icon' => 'fa-user-circle',
                     'color' => 'blue',
                     'title' => 'User Login',
-                    'message' => ucfirst($login->user_role) . ' "' . ($login->name ?? 'User') . '" logged in',
-                    'timestamp' => $login->last_login_at,
-                    'route' => route('dashboard-index'), // Your actual route
-                    'is_read' => $this->isNotificationRead('login_' . $login->user_id . '_' . strtotime($login->last_login_at))
+                    'message' => ucfirst($login->user_role) . ' "' . ($login->user_name ?? 'User') . '" logged in',
+                    'timestamp' => $login->updated_at,
+                    'route' => route('dashboard-index'),
+                    'is_read' => $this->isNotificationRead('login_' . $login->user_id . '_' . strtotime($login->updated_at))
                 ];
             }
         } catch (\Exception $e) {
-            // Handle error silently
+            Log::error('Login alerts error: ' . $e->getMessage());
         }
 
         return $alerts;
@@ -95,8 +105,12 @@ class NotificationService
         $alerts = [];
         
         try {
-            $lowStockProducts = Product::where('branch_id', $user->branch_id)
-                ->whereRaw('prod_stocks <= prod_min_stock')
+            // Get the active branch ID
+            $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            
+            // Low stock products (using prod_reorderlevel)
+            $lowStockProducts = Product::where('branch_id', $activeBranchId)
+                ->whereColumn('prod_stocks', '<=', 'prod_reorderlevel')
                 ->where('prod_stocks', '>', 0)
                 ->get();
 
@@ -107,16 +121,16 @@ class NotificationService
                     'icon' => 'fa-box',
                     'color' => 'orange',
                     'title' => 'Low Stock Alert',
-                    'message' => $product->prod_name . ' has only ' . $product->prod_stocks . ' items left (Min: ' . $product->prod_min_stock . ')',
+                    'message' => $product->prod_name . ' has only ' . $product->prod_stocks . ' items left (Reorder level: ' . $product->prod_reorderlevel . ')',
                     'timestamp' => $product->updated_at,
-                    'route' => route('prodservequip.index') . '?tab=products', // Your actual route
+                    'route' => route('prodservequip.index') . '?tab=products',
                     'is_read' => $this->isNotificationRead('stock_' . $product->prod_id)
                 ];
             }
 
             // Out of stock products
-            $outOfStockProducts = Product::where('branch_id', $user->branch_id)
-                ->where('prod_stocks', 0)
+            $outOfStockProducts = Product::where('branch_id', $activeBranchId)
+                ->where('prod_stocks', '=', 0)
                 ->get();
 
             foreach ($outOfStockProducts as $product) {
@@ -128,12 +142,12 @@ class NotificationService
                     'title' => 'Out of Stock',
                     'message' => $product->prod_name . ' is out of stock!',
                     'timestamp' => $product->updated_at,
-                    'route' => route('prodservequip.index') . '?tab=products', // Your actual route
+                    'route' => route('prodservequip.index') . '?tab=products',
                     'is_read' => $this->isNotificationRead('outofstock_' . $product->prod_id)
                 ];
             }
         } catch (\Exception $e) {
-            // Handle error silently
+            Log::error('Stock alerts error: ' . $e->getMessage());
         }
 
         return $alerts;
@@ -142,58 +156,76 @@ class NotificationService
     /**
      * Get product expiration alerts (expiring within 30 days)
      */
+   
+    /**
+     * Get product expiration alerts (expiring within 30 days)
+     */
     private function getProductExpirationAlerts($user)
     {
         $alerts = [];
         
         try {
+            // Get the active branch ID
+            $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            
             $thirtyDaysFromNow = Carbon::now()->addDays(30);
             
-            $expiringProducts = Product::where('branch_id', $user->branch_id)
-                ->whereNotNull('prod_expiration')
-                ->where('prod_expiration', '<=', $thirtyDaysFromNow)
-                ->where('prod_expiration', '>=', Carbon::now())
-                ->orderBy('prod_expiration', 'asc')
+            // --- FIXED QUERY FOR EXPIRING PRODUCTS ---
+            $expiringProducts = Product::where('branch_id', $activeBranchId)
+                ->where(function($query) use ($thirtyDaysFromNow) {
+                    // Check for products with an expiration date that falls in the next 30 days
+                    $query->whereNotNull('prod_expiry')
+                          ->where('prod_expiry', '<=', $thirtyDaysFromNow)
+                          ->where('prod_expiry', '>=', Carbon::now());
+                })
+                // Sort only by the existing column
+                ->orderBy('prod_expiry', 'ASC')
                 ->get();
 
             foreach ($expiringProducts as $product) {
-                $daysUntilExpiry = Carbon::now()->diffInDays($product->prod_expiration);
-                $isUrgent = $daysUntilExpiry <= 7;
+                // We know $product->prod_expiry is not null here due to the query filter
+                $expiryDate = $product->prod_expiry;
+                if ($expiryDate) {
+                    $daysUntilExpiry = Carbon::now()->diffInDays($expiryDate);
+                    $isUrgent = $daysUntilExpiry <= 7;
 
-                $alerts[] = [
-                    'id' => 'expiry_' . $product->prod_id,
-                    'type' => 'expiration_alert',
-                    'icon' => 'fa-calendar-times',
-                    'color' => $isUrgent ? 'red' : 'yellow',
-                    'title' => $isUrgent ? 'Urgent: Product Expiring Soon' : 'Product Expiration Warning',
-                    'message' => $product->prod_name . ' expires in ' . $daysUntilExpiry . ' days (' . Carbon::parse($product->prod_expiration)->format('M d, Y') . ')',
-                    'timestamp' => $product->updated_at,
-                    'route' => route('prodservequip.index') . '?tab=products', // Your actual route
-                    'is_read' => $this->isNotificationRead('expiry_' . $product->prod_id)
-                ];
+                    $alerts[] = [
+                        'id' => 'expiry_' . $product->prod_id,
+                        'type' => 'expiration_alert',
+                        'icon' => 'fa-calendar-times',
+                        'color' => $isUrgent ? 'red' : 'yellow',
+                        'title' => $isUrgent ? 'Urgent: Product Expiring Soon' : 'Product Expiration Warning',
+                        'message' => $product->prod_name . ' expires in ' . $daysUntilExpiry . ' days (' . Carbon::parse($expiryDate)->format('M d, Y') . ')',
+                        'timestamp' => $product->updated_at,
+                        'route' => route('prodservequip.index') . '?tab=products',
+                        'is_read' => $this->isNotificationRead('expiry_' . $product->prod_id)
+                    ];
+                }
             }
 
-            // Expired products
-            $expiredProducts = Product::where('branch_id', $user->branch_id)
-                ->whereNotNull('prod_expiration')
-                ->where('prod_expiration', '<', Carbon::now())
+            // --- FIXED QUERY FOR EXPIRED PRODUCTS ---
+            $expiredProducts = Product::where('branch_id', $activeBranchId)
+                ->whereNotNull('prod_expiry') // Only check products that *can* expire
+                ->where('prod_expiry', '<', Carbon::now())
                 ->get();
 
             foreach ($expiredProducts as $product) {
+                $expiryDate = $product->prod_expiry;
                 $alerts[] = [
                     'id' => 'expired_' . $product->prod_id,
                     'type' => 'expiration_alert',
                     'icon' => 'fa-ban',
                     'color' => 'red',
                     'title' => 'Product Expired',
-                    'message' => $product->prod_name . ' has expired! Remove from inventory immediately.',
-                    'timestamp' => $product->prod_expiration,
-                    'route' => route('prodservequip.index') . '?tab=products', // Your actual route
+                    'message' => $product->prod_name . ' has expired! Update inventory immediately.',
+                    'timestamp' => $expiryDate,
+                    'route' => route('prodservequip.index') . '?tab=products',
                     'is_read' => $this->isNotificationRead('expired_' . $product->prod_id)
                 ];
             }
         } catch (\Exception $e) {
-            // Handle error silently
+            // Log the fixed query error message
+            Log::error('Expiration alerts error: ' . $e->getMessage()); 
         }
 
         return $alerts;
@@ -207,26 +239,49 @@ class NotificationService
         $alerts = [];
         
         try {
-            // Equipment needing attention (not operational)
-            $equipmentNeedingAttention = Equipment::where('branch_id', $user->branch_id)
-                ->where('equip_status', '!=', 'Operational')
+            // Get the active branch ID
+            $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            
+            // Equipment with low quantity (less than 5)
+            $lowEquipment = Equipment::where('branch_id', $activeBranchId)
+                ->where('equipment_quantity', '<', 5)
+                ->where('equipment_quantity', '>', 0)
                 ->get();
 
-            foreach ($equipmentNeedingAttention as $equipment) {
+            foreach ($lowEquipment as $equipment) {
                 $alerts[] = [
-                    'id' => 'equipment_' . $equipment->equip_id,
+                    'id' => 'equipment_low_' . $equipment->equipment_id,
                     'type' => 'equipment_alert',
                     'icon' => 'fa-tools',
-                    'color' => 'purple',
-                    'title' => 'Equipment Status Alert',
-                    'message' => $equipment->equip_name . ' status: ' . $equipment->equip_status,
+                    'color' => 'orange',
+                    'title' => 'Equipment Low Quantity',
+                    'message' => $equipment->equipment_name . ' has only ' . $equipment->equipment_quantity . ' units left',
                     'timestamp' => $equipment->updated_at,
-                    'route' => route('prodservequip.index') . '?tab=equipment', // Your actual route
-                    'is_read' => $this->isNotificationRead('equipment_' . $equipment->equip_id)
+                    'route' => route('prodservequip.index') . '?tab=equipment',
+                    'is_read' => $this->isNotificationRead('equipment_low_' . $equipment->equipment_id)
+                ];
+            }
+
+            // Out of stock equipment
+            $outOfStockEquipment = Equipment::where('branch_id', $activeBranchId)
+                ->where('equipment_quantity', '=', 0)
+                ->get();
+
+            foreach ($outOfStockEquipment as $equipment) {
+                $alerts[] = [
+                    'id' => 'equipment_out_' . $equipment->equipment_id,
+                    'type' => 'equipment_alert',
+                    'icon' => 'fa-exclamation-triangle',
+                    'color' => 'red',
+                    'title' => 'Equipment Out of Stock',
+                    'message' => $equipment->equipment_name . ' is out of stock!',
+                    'timestamp' => $equipment->updated_at,
+                    'route' => route('prodservequip.index') . '?tab=equipment',
+                    'is_read' => $this->isNotificationRead('equipment_out_' . $equipment->equipment_id)
                 ];
             }
         } catch (\Exception $e) {
-            // Handle error silently
+            Log::error('Equipment alerts error: ' . $e->getMessage());
         }
 
         return $alerts;
@@ -240,27 +295,32 @@ class NotificationService
         $alerts = [];
         
         try {
-            $rescheduledAppointments = Appointment::where('branch_id', $user->branch_id)
-                ->where('appt_status', 'Rescheduled')
+            // Get the active branch ID
+            $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            
+            $rescheduledAppointments = Appointment::whereHas('user', function($query) use ($activeBranchId) {
+                    $query->where('branch_id', $activeBranchId);
+                })
+                ->where('appoint_status', 'rescheduled')
                 ->where('updated_at', '>=', Carbon::now()->subDays(7))
-                ->orderBy('appt_date', 'asc')
+                ->orderBy('appoint_date', 'asc')
                 ->get();
 
             foreach ($rescheduledAppointments as $appointment) {
                 $alerts[] = [
-                    'id' => 'reschedule_' . $appointment->appt_id,
+                    'id' => 'reschedule_' . $appointment->appoint_id,
                     'type' => 'reschedule_alert',
                     'icon' => 'fa-calendar-alt',
                     'color' => 'blue',
                     'title' => 'Appointment Rescheduled',
-                    'message' => 'Appointment #' . $appointment->appt_id . ' rescheduled to ' . Carbon::parse($appointment->appt_date)->format('M d, Y g:i A'),
+                    'message' => 'Appointment for ' . ($appointment->pet->pet_name ?? 'Pet') . ' rescheduled to ' . Carbon::parse($appointment->appoint_date)->format('M d, Y') . ' at ' . $appointment->appoint_time,
                     'timestamp' => $appointment->updated_at,
-                    'route' => route('medical.index') . '?active_tab=appointments', // Your actual route
-                    'is_read' => $this->isNotificationRead('reschedule_' . $appointment->appt_id)
+                    'route' => route('medical.index') . '?active_tab=appointments',
+                    'is_read' => $this->isNotificationRead('reschedule_' . $appointment->appoint_id)
                 ];
             }
         } catch (\Exception $e) {
-            // Handle error silently
+            Log::error('Rescheduled appointments error: ' . $e->getMessage());
         }
 
         return $alerts;
@@ -274,27 +334,36 @@ class NotificationService
         $alerts = [];
         
         try {
-            $arrivedAppointments = Appointment::where('branch_id', $user->branch_id)
-                ->where('appt_status', 'Arrived')
-                ->whereDate('appt_date', Carbon::today())
+            // Get the active branch ID
+            $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            
+            $arrivedAppointments = Appointment::with(['pet.owner'])
+                ->whereHas('user', function($query) use ($activeBranchId) {
+                    $query->where('branch_id', $activeBranchId);
+                })
+                ->where('appoint_status', 'arrived')
+                ->whereDate('appoint_date', Carbon::today())
                 ->orderBy('updated_at', 'desc')
                 ->get();
 
             foreach ($arrivedAppointments as $appointment) {
+                $petName = $appointment->pet->pet_name ?? 'Unknown Pet';
+                $ownerName = $appointment->pet->owner->own_name ?? 'Unknown Owner';
+                
                 $alerts[] = [
-                    'id' => 'arrived_' . $appointment->appt_id,
+                    'id' => 'arrived_' . $appointment->appoint_id,
                     'type' => 'arrived_alert',
                     'icon' => 'fa-check-circle',
                     'color' => 'green',
                     'title' => 'Patient Arrived',
-                    'message' => 'Appointment #' . $appointment->appt_id . ' - Patient has arrived',
+                    'message' => $petName . ' (Owner: ' . $ownerName . ') has arrived for their appointment',
                     'timestamp' => $appointment->updated_at,
-                    'route' => route('medical.index') . '?active_tab=appointments', // Your actual route
-                    'is_read' => $this->isNotificationRead('arrived_' . $appointment->appt_id)
+                    'route' => route('medical.index') . '?active_tab=appointments',
+                    'is_read' => $this->isNotificationRead('arrived_' . $appointment->appoint_id)
                 ];
             }
         } catch (\Exception $e) {
-            // Handle error silently
+            Log::error('Arrived appointments error: ' . $e->getMessage());
         }
 
         return $alerts;
@@ -343,47 +412,15 @@ class NotificationService
         return count($unreadNotifications);
     }
 
+    /**
+     * Notify when appointment status changes to arrived
+     */
     public function notifyAppointmentArrived(Appointment $appointment)
     {
-        $alerts = [];
-
-        try {
-            // Notify all vets and receptionists in the branch
-            $usersToNotify = User::where('branch_id', $appointment->branch_id)
-                ->whereIn('user_role', ['Veterinarian', 'Receptionist'])
-                ->get();
-
-            foreach ($usersToNotify as $user) {
-                $alerts[] = [
-                    'id' => 'arrived_' . $appointment->appt_id,
-                    'type' => 'arrived_alert',
-                    'icon' => 'fa-check-circle',
-                    'color' => 'green',
-                    'title' => 'Patient Arrived',
-                    'message' => 'Appointment #' . $appointment->appt_id . ' - Patient has arrived',
-                    'timestamp' => now(),
-                    'route' => route('medical.index') . '?active_tab=appointments',
-                    'is_read' => false
-                ];
-            }
-
-            // Optionally: store these in session or database for later retrieval
-            // Here we append to session-based notifications
-            $readNotifications = session('read_notifications', []);
-            foreach ($alerts as $alert) {
-                if (!in_array($alert['id'], $readNotifications)) {
-                    $notifications = session('notifications', []);
-                    $notifications[] = $alert;
-                    session(['notifications' => $notifications]);
-                }
-            }
-
-        } catch (\Exception $e) {
-            \Log::error('Error notifying appointment arrival: ' . $e->getMessage());
-        }
-
-        return $alerts;
+        // This method is called when appointment status changes to 'arrived'
+        // The notifications will automatically appear for vets and receptionists
+        // when they refresh or check their notifications
+        
+        Log::info('Appointment arrived notification triggered for appointment: ' . $appointment->appoint_id);
     }
-
-    
 }

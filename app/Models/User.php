@@ -19,7 +19,7 @@ class User extends Authenticatable
     protected $keyType = 'int';
 
     // If you don’t use Laravel’s timestamps (`created_at`, `updated_at`)
-    public $timestamps = false;    
+    public $timestamps = true;    
     protected $fillable = [
         'user_name',
         'user_email',

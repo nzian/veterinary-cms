@@ -1,13 +1,16 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\BranchController;
+use App\Http\Controllers\ConsultationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\PetManagementController;
 use App\Http\Controllers\BranchManagementController;
 use App\Http\Controllers\SalesManagementController;
+use App\Http\Controllers\ActivityController;
+use App\Http\Controllers\GroomingAgreementController;
+use App\Http\Controllers\InitialAssessmentController;
 
 
 Route::get('/', function () {
@@ -51,9 +54,6 @@ use App\Http\Controllers\AdminController;
 Route::get('/admin', [AdminController::class, 'AdminBoard']);
 Route::get('/dashboard', [dashboardController::class, 'index'])->name('dashboard-index');
 
-//Route::get('/select-branch', [BranchController::class, 'select'])->name('select-branch');
-//Route::get('/user-management', [UserManagementController::class, 'index'])->name('userManagement.index');
-
 // POS Routes
 use App\Http\Controllers\POSController;
 Route::get('/pos', [POSController::class, 'index'])->name('pos');
@@ -76,43 +76,83 @@ Route::get('/sales/daily', [OrderController::class, 'dailySales'])->name('sales.
 Route::middleware(['auth', 'isSuperAdmin'])->group(function () {
     Route::get('/superadmin/dashboard', [DashboardController::class, 'superAdminDashboard'])->name('superadmin.dashboard');
 });
+Route::middleware(['auth'])->group(function () {
+    // Consultation routes
+    Route::resource('consultations', ConsultationController::class)->only(['index', 'show', 'edit', 'update', 'destroy']);
+    Route::post('consultations', [ConsultationController::class, 'store'])->name('consultations.store');
+    Route::get('consultations/{consultation}/view', [ConsultationController::class, 'view'])->name('consultation.view');
+    Route::get('consultations/{consultation}/export', [ConsultationController::class, 'export'])->name('consultation.export');
+    Route::get('visits/{visit}/consultation/create', [ConsultationController::class, 'show'])->name('consultation.create');
+});
+Route::get('/medical-management/pets/details', [MedicalManagementController::class, 'getPetDetails'])->name('medical.pets.details');
 
-
+// Route for the new health card print function
+Route::get('/pet-management/pet/{id}/health-card', [PetManagementController::class, 'healthCard'])->name('pet-management.healthCard');
 use App\Http\Controllers\ProdServEquipController;
+Route::get('/services/inventory-overview', [ProdServEquipController::class, 'getServiceInventoryOverview'])
+    ->name('services.inventory-overview');
+// Service-Product Management Routes
+Route::get('/services/{service}/products', [ProdServEquipController::class, 'getServiceProducts'])
+    ->name('services.products.get');
+Route::post('/services/{service}/products', [ProdServEquipController::class, 'updateServiceProducts'])
+    ->name('services.products.update');
+Route::get('/products/{product}/service-usage', [ProdServEquipController::class, 'getProductServiceUsage'])
+    ->name('products.service-usage');
+// Service-Product Management Routes
+Route::get('/services/{service}/products', [ProdServEquipController::class, 'getServiceProducts'])->name('services.products.get');
+Route::post('/services/{service}/products', [ProdServEquipController::class, 'updateServiceProducts'])->name('services.products.update');
+Route::get('/prodservequip', [ProdServEquipController::class, 'index'])->name('prodServEquip.index');
 Route::get('/prodservequip', [ProdServEquipController::class, 'index'])->name('prodservequip.index');
-// Product routes
-Route::get('/product', [ProdServEquipController::class, 'index'])->name('product-index');
-Route::post('/products', [ProdServEquipController::class, 'storeProduct'])->name('products.store');
-Route::put('/products/{id}', [ProdServEquipController::class, 'updateProduct'])->name('products.update');
-Route::delete('/products/{id}', [ProdServEquipController::class, 'deleteProduct'])->name('products.destroy');
-Route::get('/products/search', [ProdServEquipController::class, 'searchProducts'])->name('products.search');
-Route::get('/products/{id}/view', [ProdServEquipController::class, 'viewProduct'])->name('products.view');
-// Service routes
-Route::get('/services', [ProdServEquipController::class, 'index'])->name('services-index');
-Route::post('/services', [ProdServEquipController::class, 'storeService'])->name('services.store');
-Route::put('/services/{id}', [ProdServEquipController::class, 'updateService'])->name('services.update');
-Route::delete('/services/{id}', [ProdServEquipController::class, 'deleteService'])->name('services.destroy');
-Route::get('/services/{id}/view', [ProdServEquipController::class, 'viewService']);
-Route::get('/services/{id}/history', [ProdServEquipController::class, 'viewServiceHistory']);
+// routes/web.php
 
-// Equipment routes
-Route::post('/equipment', [ProdServEquipController::class, 'storeEquipment'])->name('equipment.store');
-Route::put('/equipment/{id}', [ProdServEquipController::class, 'updateEquipment'])->name('equipment.update');
-Route::delete('/equipment/{id}', [ProdServEquipController::class, 'deleteEquipment'])->name('equipment.destroy');
-Route::get('/equipment/{id}/view', [ProdServEquipController::class, 'viewEquipment']);
+// This single route definition will handle the 'prodServEquip.index' route
+Route::resource('prod-serv-equip', App\Http\Controllers\ProdServEquipController::class)->names([
+    'index' => 'prodServEquip.index',
+    //'store' => 'products.store', // Assuming you use this for products store
+    // ... add other necessary route names if needed
+]);
 
-// Inventory route
-Route::put('/inventory/{id}', [ProdServEquipController::class, 'updateInventory'])->name('inventory.update');
-Route::get('/inventory/{id}/history', [ProdServEquipController::class, 'viewInventoryHistory'])->name('inventory.history');
-Route::put('/inventory/update-stock/{id}', [ProdServEquipController::class, 'updateStock'])->name('inventory.updateStock');
-Route::put('/inventory/update-damage/{id}', [ProdServEquipController::class, 'updateDamage'])->name('inventory.updateDamage');
-Route::get('/equipment/{id}/history', [ProdServEquipController::class, 'viewEquipmentHistory']);
+// Other routes (make sure to define these too!)
+Route::post('/services/{serviceId}/products', [App\Http\Controllers\ProdServEquipController::class, 'updateServiceProducts']);
+Route::get('/services/{serviceId}/products', [App\Http\Controllers\ProdServEquipController::class, 'getServiceProducts']);
+Route::get('/services/inventory-overview', [App\Http\Controllers\ProdServEquipController::class, 'getServiceInventoryOverview']);
+Route::get('/products/{id}/service-usage', [App\Http\Controllers\ProdServEquipController::class, 'getProductServiceUsage']);
+Route::get('/products/{id}/view', [App\Http\Controllers\ProdServEquipController::class, 'viewProduct']);
+Route::get('/services/{id}/view', [App\Http\Controllers\ProdServEquipController::class, 'viewService']);
+Route::get('/equipment/{id}/view', [App\Http\Controllers\ProdServEquipController::class, 'viewEquipment']);
+Route::get('/inventory/{id}/history', [App\Http\Controllers\ProdServEquipController::class, 'viewInventoryHistory']);
+
+// Explicitly name the store/update/delete routes for clarity, or update the Route::resource above:
+Route::post('products', [App\Http\Controllers\ProdServEquipController::class, 'storeProduct'])->name('products.store');
+Route::put('products/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateProduct'])->name('products.update');
+Route::delete('products/{id}', [App\Http\Controllers\ProdServEquipController::class, 'deleteProduct'])->name('products.destroy');
+
+Route::post('services', [App\Http\Controllers\ProdServEquipController::class, 'storeService'])->name('services.store');
+Route::put('services/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateService'])->name('services.update');
+Route::delete('services/{id}', [App\Http\Controllers\ProdServEquipController::class, 'deleteService'])->name('services.destroy');
+
+Route::post('equipment', [App\Http\Controllers\ProdServEquipController::class, 'storeEquipment'])->name('equipment.store');
+Route::put('equipment/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateEquipment'])->name('equipment.update');
+Route::delete('equipment/{id}', [App\Http\Controllers\ProdServEquipController::class, 'deleteEquipment'])->name('equipment.destroy');
+
+Route::put('inventory/update-stock/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateStock'])->name('inventory.updateStock');
+Route::put('inventory/update-damage/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateDamage'])->name('inventory.updateDamage');
+
+Route::put('/equipment/{id}/update-status', [App\Http\Controllers\ProdServEquipController::class, 'updateEquipmentStatus'])->name('equipment.updateStatus');
+
+Route::get('medical-management/services/{serviceId}/products', [ProdServEquipController::class, 'getServiceProductsForVaccination'])->name('medical.services.products');
+
+// Route to save the specific vaccine details to the pivot table
 
 use App\Http\Controllers\MedicalManagementController;
 Route::prefix('medical-management')->group(function () {
     Route::get('/', [MedicalManagementController::class, 'index'])->name('medical.index');
-    
-    // Appointment routes
+Route::put('appointments/{appointmentId}/record-vaccine-details', [MedicalManagementController::class, 'recordVaccineDetails'])
+        ->name('appointments.record-vaccine-details');
+
+    // 2. Route for AJAX fetching products (used in the modal)
+    Route::get('services/{serviceId}/products', [MedicalManagementController::class, 'getServiceProductsForVaccination'])
+        ->name('services.products'); // Appointment routes
     Route::post('/appointments', [MedicalManagementController::class, 'storeAppointment'])->name('medical.appointments.store'); 
     Route::put('/appointments/{appointment}', [MedicalManagementController::class, 'updateAppointment'])->name('medical.appointments.update');
     Route::delete('/appointments/{id}', [MedicalManagementController::class, 'destroyAppointment'])->name('medical.appointments.destroy');
@@ -121,6 +161,13 @@ Route::prefix('medical-management')->group(function () {
     Route::get('/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])->name('medical.appointments.show');
     Route::get('/medical-management/appointments/{id}/for-prescription', [MedicalManagementController::class, 'getAppointmentForPrescription'])
     ->name('medical.appointments.for-prescription');
+
+    // Visit Records endpoints (JSON APIs for Pet Management tab)
+    Route::get('/visit-records', [MedicalManagementController::class, 'listVisitRecords'])->name('visit-records.index');
+    Route::post('/visit-records', [MedicalManagementController::class, 'storeVisitRecords'])->name('visit-records.store');
+    Route::put('/visit-records/{id}/patient-type', [MedicalManagementController::class, 'updateVisitPatientType'])->name('visit-records.update-patient-type');
+    Route::delete('/visit-records/{id}', [MedicalManagementController::class, 'destroyVisitRecord'])->name('visit-records.destroy');
+    Route::get('/visit-records/owners-with-pets', [MedicalManagementController::class, 'ownersWithPets'])->name('visit-records.owners');
      Route::put('/medical-management/appointments/{id}', [YourController::class, 'update'])->name('medical.appointments.update');
     Route::get('/medical-management/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])
     ->name('medical.appointments.show');
@@ -143,21 +190,52 @@ Route::prefix('medical-management')->group(function () {
     Route::put('/referrals/{id}', [MedicalManagementController::class, 'updateReferral'])->name('medical.referrals.update');
     Route::get('/referrals/{id}', [MedicalManagementController::class, 'showReferral'])->name('medical.referrals.show');
     Route::delete('/referrals/{id}', [MedicalManagementController::class, 'destroyReferral'])->name('medical.referrals.destroy');
+
+Route::prefix('visits')->group(function () {
+    Route::get('/{visitId}/workspace', [VisitWorkspaceController::class, 'index'])
+        ->name('visits.workspace');
+    
+    Route::post('/{visitId}/save', [VisitWorkspaceController::class, 'saveService'])
+        ->name('visits.save.service');
+    
+    Route::post('/{visitId}/complete', [VisitWorkspaceController::class, 'completeVisit'])
+        ->name('visits.complete');
 });
+    // Visits CRUD
+    Route::post('/visits', [MedicalManagementController::class, 'storeVisit'])->name('medical.visits.store');
+    Route::put('/visits/{visit}', [MedicalManagementController::class, 'updateVisit'])->name('medical.visits.update');
+    Route::delete('/visits/{id}', [MedicalManagementController::class, 'destroyVisit'])->name('medical.visits.destroy');
+    Route::get('/visits/{id}', [MedicalManagementController::class, 'showVisit'])->name('medical.visits.show');
+
+    // Service Saves
+    Route::post('/visits/{visit}/consultation', [MedicalManagementController::class, 'saveConsultation'])->name('medical.visits.consultation.save');
+    Route::post('/visits/{visit}/vaccination', [MedicalManagementController::class, 'saveVaccination'])->name('medical.visits.vaccination.save');
+    Route::post('/visits/{visit}/deworming', [MedicalManagementController::class, 'saveDeworming'])->name('medical.visits.deworming.save');
+    Route::post('/visits/{visit}/grooming', [MedicalManagementController::class, 'saveGrooming'])->name('medical.visits.grooming.save');
+    Route::post('/visits/{visit}/boarding', [MedicalManagementController::class, 'saveBoarding'])->name('medical.visits.boarding.save');
+    Route::post('/visits/{visit}/diagnostic', [MedicalManagementController::class, 'saveDiagnostic'])->name('medical.visits.diagnostic.save');
+    Route::post('/visits/{visit}/surgical', [MedicalManagementController::class, 'saveSurgical'])->name('medical.visits.surgical.save');
+    Route::post('/visits/{visit}/emergency', [MedicalManagementController::class, 'saveEmergency'])->name('medical.visits.emergency.save');
+    Route::post('/visits/{visit}/agreement', [GroomingAgreementController::class, 'store'])->name('medical.visits.grooming.agreement.store');
+});
+
+// Restore Attend/Perform Visit route so the Visits table Attend link works
+Route::get('/medical-management/visits/{id}/perform', [MedicalManagementController::class, 'performVisit'])->name('medical.visits.perform');
+Route::patch('/medical-management/visits/{id}/workflow', [MedicalManagementController::class, 'updateWorkflowStatus'])->name('medical.visits.workflow');
 
 
 
 // Branch
 
-Route::get('/branch', [BranchController::class, 'index'])->name('branch-index');
-Route::get('/branches', [BranchController::class, 'index'])->name('branches-index');
-Route::post('/branches', [BranchController::class, 'store'])->name('branches.store');
-Route::put('/branches/{id}', [BranchController::class, 'update'])->name('branch-update');
-Route::get('/branches/{id}', [BranchController::class, 'show'])->name('branches.show');
-Route::delete('/branches/{id}', [BranchController::class, 'destroy'])->name('branches-destroy');
+Route::get('/branch', [BranchManagementController::class, 'index'])->name('branch-index');
+Route::get('/branches', [BranchManagementController::class, 'index'])->name('branches-index');
+Route::post('/branches', [BranchManagementController::class, 'storeBranch'])->name('branches.store');
+Route::put('/branches/{id}', [BranchManagementController::class, 'updateBranch'])->name('branch-update');
+Route::get('/branches/{id}', [BranchManagementController::class, 'show'])->name('branches.show');
+Route::delete('/branches/{id}', [BranchManagementController::class, 'destroyBranch'])->name('branches-destroy');
 
 
-Route::get('/branch/switch/{id}', [BranchController::class, 'switch'])->name('branch.switch');
+Route::get('/branch/switch/{id}', [BranchManagementController::class, 'switch'])->name('branch.switch');
 Route::get('/switch-branch/{id}', function ($id) {
     Session::put('selected_branch_id', $id);
     return redirect()->back();
@@ -302,7 +380,49 @@ Route::prefix('branch-user-management')->name('branch-user-management.')->group(
 
 });
 
-Route::post('/user-management/add-to-branch', [BranchManagementController::class, 'addUserToBranch'])->name('userManagement.addToBranch');
+
+
+Route::middleware(['auth'])->group(function () {
+    
+    // Main Dashboard Route (handles routing based on role and branch mode)
+    Route::get('/dashboard', [DashboardController::class, 'index'])
+        ->name('dashboard-index');
+    
+    // Super Admin Dashboard (Global View - All Branches)
+    Route::get('/superadmin/dashboard', [SuperAdminDashboardController::class, 'index'])
+        ->name('superadmin.dashboard');
+    
+    // Super Admin Branch Detail View
+    Route::get('/superadmin/branch/{branchId}', [SuperAdminDashboardController::class, 'showBranch'])
+        ->name('superadmin.branch.show');
+    
+    // Branch Management Routes
+    Route::get('/branch-management', [BranchManagementController::class, 'index'])
+        ->name('branch-management.index');
+    
+    // Branch Switching Routes
+    Route::get('/branch/switch/{id}', [BranchManagementController::class, 'switchBranch'])
+        ->name('branch.switch');
+    
+    Route::get('/branch/clear', [BranchManagementController::class, 'clearBranch'])
+        ->name('branch.clear');
+    
+    // Your other routes...
+});
+
+Route::middleware(['auth'])->group(function () {
+    // Branch Management
+    Route::get('/branch-management', [BranchManagementController::class, 'index'])
+        ->name('branch-management.index');
+    
+    // Branch switching routes
+    Route::get('/branch/switch/{id}', [BranchManagementController::class, 'switchBranch'])
+        ->name('branch.switch');
+    
+    Route::get('/branch/clear', [BranchManagementController::class, 'clearBranch'])
+        ->name('branch.clear');
+    
+    Route::post('/user-management/add-to-branch', [BranchManagementController::class, 'addUserToBranch'])->name('userManagement.addToBranch');
 Route::get('/branches/{id}/complete-data', [BranchManagementController::class, 'getCompleteData']);
 
 Route::get('/branch-management', [BranchManagementController::class, 'index'])->name('branch-management.index');
@@ -313,6 +433,9 @@ Route::get('/branches/{id}/complete-data', [BranchManagementController::class, '
 Route::post('/user-management', [BranchManagementController::class, 'storeUser'])->name('userManagement.store');
 Route::put('/user-management/{id}', [BranchManagementController::class, 'updateUser'])->name('userManagement.update');
 Route::delete('/user-management/{id}', [BranchManagementController::class, 'destroyUser'])->name('userManagement.destroy');
+
+});
+
 
 // Sales Management Routes
 Route::get('/sales-management', [SalesManagementController::class, 'index'])->name('sales.index');
@@ -332,8 +455,21 @@ use App\Http\Controllers\NotificationController;
 Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
 Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllRead');
 
-Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'index'])->name('global.search');
-Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'redirect'])->name('global.search');
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'getNotifications'])->name('notifications.get');
+    Route::post('/notifications/mark-all-as-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAll');
+    Route::post('/notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead'])->name('notifications.mark');
+});
+
+
+use App\Http\Controllers\GlobalSearchController;
+// Replace your existing global search route with this:
+Route::get('/global-search', [GlobalSearchController::class, 'search'])
+    ->name('global.search')
+    ->middleware('auth');
+//Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'index'])->name('global.search');
+//Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'redirect'])->name('global.search');
 
 use App\Http\Controllers\SuperAdminDashboardController;
 
@@ -345,3 +481,21 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/superadmin/branch/{branchId}', [SuperAdminDashboardController::class, 'showBranch'])
         ->name('superadmin.branch.show');
 });
+
+Route::controller(ActivityController::class)->group(function () {
+    
+    // 1. Sidebar Route (INDEX)
+    // Route name: activities.index | URL: /activities-index
+    Route::get('/activities-index', 'index')->name('activities.index'); 
+    
+    // 2. Dynamic View Route (ATTEND)
+    // Route name: activities.attend | URL: /activities/{id}
+    Route::get('/activities/{id}', 'attendVisit')->name('activities.attend');
+
+    // 3. Dynamic Save Route (SAVE)
+    // Route name: activities.save | URL: /activities/{visitId}/save/{activityKey}
+    Route::post('/activities/{visitId}/save/{activityKey}', 'handleActivitySave')->name('activities.save');
+});
+
+Route::post('/medical/initial-assessments', [InitialAssessmentController::class, 'store'])
+    ->name('medical.initial_assessments.store');

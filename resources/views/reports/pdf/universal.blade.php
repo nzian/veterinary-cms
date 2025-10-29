@@ -700,8 +700,6 @@
     <!-- Footer -->
     <div class="footer">
         Generated on {{ date('F d, Y h:i A') }} | Pets2GO Veterinary Clinic<br>
-        For inquiries, please contact your assigned branch.
-        Page <span class="page-number"></span> of <span class="page-total"></span>
     </div>
 </body>
 </html>

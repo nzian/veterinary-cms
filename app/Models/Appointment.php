@@ -1,17 +1,18 @@
 <?php
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Traits\BranchDataScope;
 use Illuminate\Database\Eloquent\Model;
-
-
 
 class Appointment extends Model
 {
+    use HasFactory, BranchDataScope;
     protected $table = 'tbl_appoint';
      protected $primaryKey = 'appoint_id'; 
     public $incrementing = true; 
     protected $keyType = 'int';
-    public $timestamps = false;
+    public $timestamps = true;
 
 protected $casts = [
     'change_history' => 'array',
@@ -32,15 +33,35 @@ protected $casts = [
         'tbl_pet_pet_id',
     ];
 
+
+    // Inside Appointment Model
+
+public function services()
+{
+    return $this->belongsToMany(
+        \App\Models\Service::class, 
+        'tbl_appoint_serv', 
+        'appoint_id', 
+        'serv_id'
+    )
+        ->using(\App\Models\AppointServ::class)
+        // KEEP ONLY THE PIVOT FIELDS HERE
+        ->withPivot([
+            'prod_id',
+            'vet_user_id',
+            'vacc_next_dose',
+            'vacc_batch_no',
+            'vacc_notes'
+        ]); 
+        // !!! REMOVE ->with('product') here !!!
+}
+
+    
     public function pet()
 {
     return $this->belongsTo(Pet::class, 'pet_id', 'pet_id'); // ✅ correct reference
 }
-public function service()
-{
-    return $this->belongsTo(Service::class, 'serv_id', 'serv_id');
-}
-
+//public function service(){return $this->belongsTo(Service::class, 'serv_id', 'serv_id');}
 
     public function referral()
 {
@@ -71,12 +92,9 @@ public function products()
     return $this->hasMany(Order::class, 'appoint_id', 'appoint_id');
 }
 
-// Appointment.php
-// In Appointment model
-public function services()
-{
-    return $this->belongsToMany(Service::class, 'tbl_appoint_serv', 'appoint_id', 'serv_id');
-}
-
+public function getBranchIdColumn()
+    {
+        return 'user_id'; // We filter Pet records based on the user_id that created them
+    }
 
 }

@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-
+use App\Traits\BranchDataScope;
 class Prescription extends Model
 {
+    use HasFactory, BranchDataScope;
+    use BranchDataScope;
     protected $table = 'tbl_prescription'; // make sure your table name is correct
     protected $primaryKey = 'prescription_id';
     protected $fillable = ['pet_id', 'prescription_date', 'medication', 'notes',  'user_id', 'branch_id', 'differential_diagnosis'];
@@ -35,5 +38,10 @@ public function getVeterinarianAttribute()
     }
     return null;
 }
+
+public function getBranchIdColumn()
+    {
+        return 'user_id'; // We filter Pet records based on the user_id that created them
+    }
 
 }

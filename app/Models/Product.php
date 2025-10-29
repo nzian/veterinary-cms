@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\BranchDataScope;
 
 class Product extends Model
 {
+    use HasFactory, BranchDataScope;
     protected $table = 'tbl_prod';
    protected $primaryKey = 'prod_id'; 
    public $timestamps = false;
@@ -24,6 +27,23 @@ class Product extends Model
         'branch_id',
     ];
 
+    public function services()
+    {
+        return $this->belongsToMany(
+            Service::class,
+            'tbl_service_products',
+            'prod_id',
+            'serv_id'
+        )->withPivot('quantity_used', 'is_billable')
+         ->withTimestamps();
+    }
+
+    public function serviceProducts()
+    {
+        return $this->hasMany(ServiceProduct::class, 'prod_id', 'prod_id');
+    }
+
+
     public function orders()
     {
         return $this->belongsToMany(Order::class, 'tbl_ord_has_tbl_prod', 'tbl_prod_prod_id', 'tbl_ord_ord_id');
@@ -32,5 +52,9 @@ class Product extends Model
 {
     return $this->belongsTo(Branch::class, 'branch_id');
 }
+public function getBranchIdColumn()
+    {
+        return 'user_id'; // We filter Pet records based on the user_id that created them
+    }
 
 }
