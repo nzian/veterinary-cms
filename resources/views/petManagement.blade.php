@@ -73,14 +73,14 @@
                 <h2 class="font-bold text-xl">Pets</h2>
                 </button>
                 <!--<button onclick="switchTab('medical')" id="medical-tab" 
-              <!--  <button onclick="switchTab('medical')" id="medical-tab" 
+              <button onclick="switchTab('medical')" id="medical-tab" 
                     class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'medical' ? 'active' : '' }}">
                 <h2 class="font-bold text-xl">Medical History</h2>
                 </button>
                  <button onclick="switchTab('health-card')" id="health-card-tab" 
             class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'health-card' ? 'active' : '' }}">
             <h2 class="font-bold text-xl">Pet Health Card</h2>
-        </button>-->
+        </button>
                 <button onclick="switchTab('visit-record')" id="visit-record-tab" 
                     class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'visit-record' ? 'active' : '' }}">
                     <h2 class="font-bold text-xl">Visit Record</h2>
@@ -394,7 +394,7 @@
             </div>
         </div>
 
-        {{-- Medical History Tab Content (Now Third) --}}
+      <!--  {{-- Medical History Tab Content (Now Third) --}}
         <div id="medical-content" class="tab-content {{ request('tab') != 'medical' ? 'hidden' : '' }}">
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
@@ -600,8 +600,72 @@
             </div>
         </div>
         {{-- END CORRECTED TAB CONTENT --}}
-    </div> 
+    </div> -->
     
+    <script>
+    document.addEventListener('DOMContentLoaded', function(){
+        function persistKey(tab){ return `pm_search_${tab}`; }
+        function setPersist(tab, val){ try{ localStorage.setItem(persistKey(tab), val); }catch(e){} }
+        function getPersist(tab){ try{ return localStorage.getItem(persistKey(tab)) || ''; }catch(e){ return ''; } }
+
+        function filterBody(tbody, q){
+            const needle = String(q || '').toLowerCase();
+            tbody.querySelectorAll('tr').forEach(tr => {
+                const text = tr.textContent.toLowerCase();
+                tr.style.display = !needle || text.includes(needle) ? '' : 'none';
+            });
+        }
+
+        function setupFilter({inputId, tableSelector, tab, perPageSelectId, formSelector}){
+            const input = document.getElementById(inputId);
+            const table = document.querySelector(tableSelector);
+            const tbody = table ? table.querySelector('tbody') : null;
+            const sel = document.getElementById(perPageSelectId);
+            const form = formSelector ? document.querySelector(formSelector) : (sel ? sel.form : null);
+            if(!input || !tbody) return;
+
+            const last = getPersist(tab);
+            if(last){
+                input.value = last;
+                if (sel && sel.value !== 'all') {
+                    sel.value = 'all';
+                    if (form) form.submit();
+                    return;
+                }
+                filterBody(tbody, last);
+            }
+
+            input.addEventListener('input', function(){
+                const q = this.value.trim();
+                setPersist(tab, q);
+                if (q && sel && sel.value !== 'all') {
+                    sel.value = 'all';
+                    if (form) form.submit();
+                    return;
+                }
+                if (!tbody) return;
+                filterBody(tbody, q);
+            });
+        }
+
+        // Owners
+        setupFilter({
+            inputId: 'ownersSearch',
+            tableSelector: '#owners-content table',
+            tab: 'owners',
+            perPageSelectId: 'ownersPerPage',
+            formSelector: '#owners-content form[action]'
+        });
+        // Pets
+        setupFilter({
+            inputId: 'petsSearch',
+            tableSelector: '#pets-content table',
+            tab: 'pets',
+            perPageSelectId: 'perPage',
+            formSelector: '#pets-content form[action]'
+        });
+    });
+    </script>
     
 
     
