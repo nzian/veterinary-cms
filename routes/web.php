@@ -11,6 +11,8 @@ use App\Http\Controllers\SalesManagementController;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\GroomingAgreementController;
 use App\Http\Controllers\InitialAssessmentController;
+use App\Http\Controllers\BranchUserManagementController;
+use App\http\Controllers\CareContinuityController;
 
 
 Route::get('/', function () {
@@ -159,8 +161,12 @@ Route::put('appointments/{appointmentId}/record-vaccine-details', [MedicalManage
     Route::get('/appointments/{id}/details', [MedicalManagementController::class, 'getAppointmentDetails'])->name('medical.appointments.details');
     Route::get('/appointments/{id}', [MedicalManagementController::class, 'showAppointment'])->name('medical.appointments.show');
     Route::get('/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])->name('medical.appointments.show');
-    Route::get('/medical-management/appointments/{id}/for-prescription', [MedicalManagementController::class, 'getAppointmentForPrescription'])
-    ->name('medical.appointments.for-prescription');
+    Route::post('/medical-management/prescriptions', [MedicalManagementController::class, 'storePrescription']);
+
+    //Route::get('/medical-management/prescriptions', [MedicalManagementController::class, 'prescriptions']);
+Route::get('/medical-management/prescriptions', [MedicalManagementController::class, 'index'])
+    ->name('medical.prescriptions.index');
+
 
     // Visit Records endpoints (JSON APIs for Pet Management tab)
     Route::get('/visit-records', [MedicalManagementController::class, 'listVisitRecords'])->name('visit-records.index');
@@ -499,3 +505,25 @@ Route::controller(ActivityController::class)->group(function () {
 
 Route::post('/medical/initial-assessments', [InitialAssessmentController::class, 'store'])
     ->name('medical.initial_assessments.store');
+
+
+
+// Care Continuity Management Routes
+Route::prefix('care-continuity')->name('care-continuity.')->group(function () {
+    Route::get('/', [CareContinuityController::class, 'index'])->name('index');
+    
+    // Follow-up Appointments
+    Route::post('/appointments/store', [CareContinuityController::class, 'storeFollowUpAppointment'])->name('appointments.store');
+    Route::put('/appointments/{id}', [CareContinuityController::class, 'updateFollowUpAppointment'])->name('appointments.update');
+    Route::delete('/appointments/{id}', [CareContinuityController::class, 'destroyFollowUpAppointment'])->name('appointments.destroy');
+    
+    // Prescriptions
+    Route::post('/prescriptions/store', [CareContinuityController::class, 'storeFollowUpPrescription'])->name('prescriptions.store');
+    Route::get('/prescriptions/{id}', [CareContinuityController::class, 'showPrescription'])->name('prescriptions.show');
+    Route::delete('/prescriptions/{id}', [CareContinuityController::class, 'destroyPrescription'])->name('prescriptions.destroy');
+    
+    // Referrals
+    Route::post('/referrals/store', [CareContinuityController::class, 'storeReferral'])->name('referrals.store');
+    Route::get('/referrals/{id}', [CareContinuityController::class, 'showReferral'])->name('referrals.show');
+    Route::delete('/referrals/{id}', [CareContinuityController::class, 'destroyReferral'])->name('referrals.destroy');
+});

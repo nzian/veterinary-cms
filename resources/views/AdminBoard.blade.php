@@ -434,6 +434,7 @@
                 ['route' => 'dashboard-index', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
                 ['route' => 'pet-management.index', 'icon' => 'fa-paw', 'label' => 'Pet Management'],
                 ['route' => 'medical.index', 'icon' => 'fa-stethoscope', 'label' => 'Visit & Service Management'],
+                ['route' => 'care-continuity.index', 'icon' => 'fa-heartbeat', 'label' => 'Care Continuity Management'],
                 ['route' => 'branch-reports.index', 'icon' => 'fa-chart-line', 'label' => 'Branch Reports'],
               ],
               'receptionist' => [
@@ -441,6 +442,7 @@
                 ['route' => 'prodservequip.index', 'icon' => 'fa-boxes', 'label' => 'Inventory Management'],
                 ['route' => 'pet-management.index', 'icon' => 'fa-paw', 'label' => 'Pet Management'],
                 ['route' => 'medical.index', 'icon' => 'fa-stethoscope', 'label' => 'Visit & Service Management'],
+                ['route' => 'care-continuity.index', 'icon' => 'fa-heartbeat', 'label' => 'Care Continuity Management'],
                 ['route' => 'sales.index', 'icon' => 'fa-cash-register', 'label' => 'Sales Management'],
                 ['route' => 'branch-reports.index', 'icon' => 'fa-chart-line', 'label' => 'Branch Reports'],
               ],

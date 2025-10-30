@@ -45,7 +45,7 @@
                 <form id="activityAppointmentForm" action="{{ route('medical.appointments.store') }}" method="POST" class="space-y-4 border border-blue-200 p-4 rounded-lg bg-blue-50">
                     @csrf
                     <input type="hidden" name="pet_id" id="activity_appoint_pet_id">
-                    <input type="hidden" name="appoint_status" value="pending">
+                    <input type="hidden" name="appoint_status" value="Scheduled">
                     <input type="hidden" name="active_tab" value="visits">
                     
                     <div class="grid grid-cols-2 gap-4">
