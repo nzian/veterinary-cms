@@ -12,7 +12,7 @@ use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\GroomingAgreementController;
 use App\Http\Controllers\InitialAssessmentController;
 use App\Http\Controllers\BranchUserManagementController;
-use App\http\Controllers\CareContinuityController;
+use App\Http\Controllers\CareContinuityController;
 use App\Http\Controllers\MedicalManagementController;
 //Register
 use App\Http\Controllers\RegisterController;
