@@ -109,9 +109,10 @@
                     <i class="fas fa-user mr-2 text-[#ff8c42]"></i>Select Customer
                 </label>
                 <select id="petOwner" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#ff8c42] focus:border-transparent transition-all duration-300 bg-white shadow-sm">
-                    @foreach ($owners as $owner)
+                   @foreach ($owners as $owner)
                         <option value="{{ $owner->own_id }}">{{ $owner->own_name }}</option>
                     @endforeach
+
                 </select>
             </div>
         </div>
@@ -427,7 +428,7 @@ document.addEventListener("DOMContentLoaded", function () {
             return d.toLocaleDateString('en-US', options).replace(',', '') + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
         }
 
-        // Build the items section (equivalent to the @foreach loop)
+       
         const itemsSection = transactionData.items.map(item => `
             <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px;">
                 <div style="flex: 1;">

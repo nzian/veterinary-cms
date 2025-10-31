@@ -13,11 +13,6 @@ use Illuminate\Support\Facades\Log;
 
 class POSController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware('auth');
-    }
-
     /**
      * Display the POS view with products and owners.
      */
