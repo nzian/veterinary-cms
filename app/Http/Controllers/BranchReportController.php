@@ -13,13 +13,17 @@ use App\Models\Owner;
 use App\Models\Referral;
 use App\Models\Appointment;
 use Carbon\Carbon;
-use PDF; 
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Auth;
 // Import Str if you use it for truncation, but since the PDF view formats raw data, 
 // we might not need it in the controller for single record details.
 
 class BranchReportController extends Controller
 {
-    // ... (index function remains unchanged)
+    public function __construct()
+    {
+        $this->middleware('auth');
+    }
     public function index(Request $request)
     {
         $user = auth()->user();

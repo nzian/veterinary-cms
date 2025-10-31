@@ -19,6 +19,11 @@ use Illuminate\Support\Facades\Auth;
 class PetManagementController extends Controller
 {
     use BranchFilterable;
+    
+    public function __construct()
+    {
+        $this->middleware('auth');
+    }
 
     public function index(Request $request)
     {

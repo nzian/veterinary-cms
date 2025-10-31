@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\Branch;
 use App\Models\Service;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Equipment;
 use App\Models\Order;
 use App\Models\Appointment;
@@ -24,6 +25,7 @@ class ProdServEquipController extends Controller
 
     public function __construct(InventoryService $inventoryService)
     {
+        $this->middleware('auth');
         $this->inventoryService = $inventoryService;
     }
 

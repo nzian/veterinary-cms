@@ -17,6 +17,10 @@ use Carbon\Carbon;
 
 class CareContinuityController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('auth');
+    }
     /**
      * Display the Care Continuity Management page
      */
@@ -25,6 +29,9 @@ class CareContinuityController extends Controller
         $activeTab = $request->get('active_tab', 'appointments');
         $activeBranchId = session('active_branch_id');
         $user = Auth::user();
+        if($user === null){
+            return redirect()->route('login');
+        }
         
         if ($user->user_role !== 'superadmin') {
             $activeBranchId = $user->branch_id;
@@ -96,6 +103,9 @@ class CareContinuityController extends Controller
      */
     public function storeFollowUpAppointment(Request $request)
     {
+        if(Auth::user() === null){
+            return redirect()->route('login');
+        }
         $validated = $request->validate([
             'pet_id' => 'required|exists:tbl_pet,pet_id',
             'appoint_date' => 'required|date',
@@ -153,6 +163,9 @@ class CareContinuityController extends Controller
      */
     public function storeFollowUpPrescription(Request $request)
     {
+        if(Auth::user() === null){
+            return redirect()->route('login');
+        }
         try {
             $request->validate([
                 'pet_id' => 'required|exists:tbl_pet,pet_id',

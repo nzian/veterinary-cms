@@ -9,6 +9,7 @@ use App\Models\Appointment;
 use App\Models\Product;
 use App\Models\Service;
 use App\Models\Branch;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Equipment;
 use App\Models\Prescription;
 use App\Models\Referral;
@@ -17,6 +18,11 @@ use Illuminate\Support\Facades\Schema;
 
 class GlobalSearchController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('auth');
+    }
+
     public function search(Request $request)
     {
         $query = $request->input('search');
