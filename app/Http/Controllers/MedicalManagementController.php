@@ -32,6 +32,7 @@ class MedicalManagementController extends Controller
 
     public function __construct(InventoryService $inventoryService)
     {
+        $this->middleware('auth');
         $this->inventoryService = $inventoryService;
     }
 
