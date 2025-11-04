@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Branch;
 use App\Models\Product;
 use App\Models\Service;
@@ -20,6 +21,11 @@ use App\Traits\BranchFilterable;
 class DashboardController extends Controller
 {
     use BranchFilterable;
+
+    public function __construct()
+    {
+        $this->middleware('auth');
+    }
 
     public function index()
     {

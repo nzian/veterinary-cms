@@ -12,19 +12,35 @@ use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\GroomingAgreementController;
 use App\Http\Controllers\InitialAssessmentController;
 use App\Http\Controllers\BranchUserManagementController;
-use App\http\Controllers\CareContinuityController;
+use App\Http\Controllers\CareContinuityController;
+use App\Http\Controllers\MedicalManagementController;
+//Register
+use App\Http\Controllers\RegisterController;
+use App\Http\Controllers\LoginController;
+// Reset Pass
+use App\Http\Controllers\PasswordResetController;
+//Layout
+use App\Http\Controllers\AdminController;
 
+// POS Routes
+use App\Http\Controllers\POSController;
+use App\Http\Controllers\ProdServEquipController;
+use App\Http\Controllers\BranchReportController;
+use App\Http\Controllers\SMSSettingsController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\GlobalSearchController;
+
+use App\Http\Controllers\SuperAdminDashboardController;
 
 Route::get('/', function () {
     return redirect('/login');
 });
-//Register
-use App\Http\Controllers\RegisterController;
+
 Route::get('/register', [RegisterController::class, 'showRegistrationForm'])->name('register');
 Route::post('/register', [RegisterController::class, 'register'])->name('register.submit');
 
 // Login 
-use App\Http\Controllers\LoginController;
+
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
@@ -46,18 +62,15 @@ Route::middleware(['auth'])->group(function () {
 });
 
 
-// Reset Pass
-use App\Http\Controllers\PasswordResetController;
+
 Route::get('/reset-password', [PasswordResetController::class, 'showResetForm'])->name('password.reset');
 Route::post('/reset-password', [PasswordResetController::class, 'update'])->name('password.update');
 
-//Layout
-use App\Http\Controllers\AdminController;
+
 Route::get('/admin', [AdminController::class, 'AdminBoard']);
 Route::get('/dashboard', [dashboardController::class, 'index'])->name('dashboard-index');
 
-// POS Routes
-use App\Http\Controllers\POSController;
+
 Route::get('/pos', [POSController::class, 'index'])->name('pos');
 Route::post('/pos', [POSController::class, 'store'])->name('pos.store'); 
 Route::post('/pos/pay-billing/{billingId}', [POSController::class, 'payBilling'])->name('pos.pay-billing'); // Pay existing bills
@@ -90,7 +103,7 @@ Route::get('/medical-management/pets/details', [MedicalManagementController::cla
 
 // Route for the new health card print function
 Route::get('/pet-management/pet/{id}/health-card', [PetManagementController::class, 'healthCard'])->name('pet-management.healthCard');
-use App\Http\Controllers\ProdServEquipController;
+
 Route::get('/services/inventory-overview', [ProdServEquipController::class, 'getServiceInventoryOverview'])
     ->name('services.inventory-overview');
 // Service-Product Management Routes
@@ -146,7 +159,7 @@ Route::get('medical-management/services/{serviceId}/products', [ProdServEquipCon
 
 // Route to save the specific vaccine details to the pivot table
 
-use App\Http\Controllers\MedicalManagementController;
+
 Route::prefix('medical-management')->group(function () {
     Route::get('/', [MedicalManagementController::class, 'index'])->name('medical.index');
 Route::put('appointments/{appointmentId}/record-vaccine-details', [MedicalManagementController::class, 'recordVaccineDetails'])
@@ -161,11 +174,12 @@ Route::put('appointments/{appointmentId}/record-vaccine-details', [MedicalManage
     Route::get('/appointments/{id}/details', [MedicalManagementController::class, 'getAppointmentDetails'])->name('medical.appointments.details');
     Route::get('/appointments/{id}', [MedicalManagementController::class, 'showAppointment'])->name('medical.appointments.show');
     Route::get('/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])->name('medical.appointments.show');
+    Route::get('prescriptions', [MedicalManagementController::class, 'index'])
+    ->name('medical.prescriptions.index');
     Route::post('/medical-management/prescriptions', [MedicalManagementController::class, 'storePrescription']);
 
     //Route::get('/medical-management/prescriptions', [MedicalManagementController::class, 'prescriptions']);
-Route::get('/medical-management/prescriptions', [MedicalManagementController::class, 'index'])
-    ->name('medical.prescriptions.index');
+
 
 
     // Visit Records endpoints (JSON APIs for Pet Management tab)
@@ -297,7 +311,7 @@ Route::get('/reports/{reportType}/{recordId}/pdf', [ReportController::class, 'vi
 Route::get('/reports/{reportType}/{recordId}/pdf', [ReportController::class, 'generatePDF'])
     ->name('reports.pdf');
 
-use App\Http\Controllers\BranchReportController;
+
 Route::middleware(['auth'])->group(function() {
     Route::get('/branch-reports', [BranchReportController::class, 'index'])
         ->name('branch-reports.index');
@@ -451,13 +465,13 @@ Route::get('/sales/transaction/{id}', [SalesManagementController::class, 'showTr
 Route::get('/sales/print-transaction/{id}', [SalesManagementController::class, 'printTransaction'])->name('sales.printTransaction');
 Route::get('/sales/export', [SalesManagementController::class, 'export'])->name('sales.export');
 
-use App\Http\Controllers\SMSSettingsController;
+
 Route::get('/sms-settings', [SMSSettingsController::class, 'index'])->name('sms-settings.index');
 Route::put('/sms-settings', [SMSSettingsController::class, 'update'])->name('sms-settings.update');
 Route::post('/sms-settings/test', [SMSSettingsController::class, 'testSMS'])->name('sms-settings.test');
 
 
-use App\Http\Controllers\NotificationController;
+
 Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
 Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllRead');
 
@@ -469,7 +483,7 @@ Route::middleware(['auth'])->group(function () {
 });
 
 
-use App\Http\Controllers\GlobalSearchController;
+
 // Replace your existing global search route with this:
 Route::get('/global-search', [GlobalSearchController::class, 'search'])
     ->name('global.search')
@@ -477,7 +491,7 @@ Route::get('/global-search', [GlobalSearchController::class, 'search'])
 //Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'index'])->name('global.search');
 //Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'redirect'])->name('global.search');
 
-use App\Http\Controllers\SuperAdminDashboardController;
+
 
 // Super Admin Routes
 Route::middleware(['auth'])->group(function () {

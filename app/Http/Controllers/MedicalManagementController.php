@@ -32,6 +32,7 @@ class MedicalManagementController extends Controller
 
     public function __construct(InventoryService $inventoryService)
     {
+        $this->middleware('auth');
         $this->inventoryService = $inventoryService;
     }
 
@@ -892,12 +893,75 @@ class MedicalManagementController extends Controller
 
     public function storePrescription(Request $request)
     {
+        DB::beginTransaction();
+        Log::info('storePrescription called with data: ', $request->all());
         try {
-            $request->validate(['pet_id' => 'required|exists:tbl_pet,pet_id', 'prescription_date' => 'required|date']);
-            // ... (Original Store Logic)
+            $request->validate([
+                'pet_id' => 'required|exists:tbl_pet,pet_id',
+                'prescription_date' => 'required|date',
+                'medications_json' => 'required|json',
+                'differential_diagnosis' => 'nullable|string',
+                'notes' => 'nullable|string'
+            ]);
+
+            $medications = json_decode($request->medications_json, true);
+            if (empty($medications)) {
+                throw new \Exception('At least one medication is required');
+            }
+
+            // Get branch_id from session if in branch mode, otherwise get it from the authenticated user
+            $branchId = null;
+            if (session('branch_mode') === 'active' && session('active_branch_id')) {
+                $branchId = session('active_branch_id');
+            } else {
+                $user = Auth::user();
+                if ($user && $user->branch_id) {
+                    $branchId = $user->branch_id;
+                }
+            }
+
+            if (!$branchId) {
+                throw new \Exception('No branch associated with this prescription');
+            }
+
+            // Create the prescription record
+            $prescription = new Prescription();
+            $prescription->pet_id = $request->pet_id;
+            $prescription->prescription_date = $request->prescription_date;
+            $prescription->medication = $request->medications_json; // Store the JSON string directly
+            $prescription->differential_diagnosis = $request->differential_diagnosis;
+            $prescription->notes = $request->notes;
+            $prescription->user_id = Auth::id(); // Track who created the prescription
+            $prescription->branch_id = $branchId; // Set the branch_id
+            
+            if (!$prescription->save()) {
+                throw new \Exception('Failed to save prescription record');
+            }
+
+            // Process each medication and deduct from inventory
+            foreach ($medications as $med) {
+                if (!empty($med['product_id'])) {
+                    // Deduct from inventory if a product was selected (not manual entry)
+                    $this->inventoryService->deductFromInventory(
+                        $med['product_id'],
+                        1, // Default quantity of 1
+                        'Prescription #' . $prescription->prescription_id,
+                        'Prescription'
+                    );
+                }
+            }
+
+            // If we got here, everything succeeded
+            DB::commit();
+            
             $activeTab = $request->input('active_tab', 'prescriptions');
-            return redirect()->route('medical.index', ['active_tab' => $activeTab])->with('success', 'Prescription created successfully!');
-        } catch (\Exception $e) { return back()->with('error', 'Error creating prescription: ' . $e->getMessage()); }
+            return redirect()->route('medical.index', ['active_tab' => $activeTab])
+                ->with('success', 'Prescription created successfully!');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error creating prescription: ' . $e->getMessage());
+            return back()->with('error', 'Error creating prescription: ' . $e->getMessage());
+        }
     }
 
     public function editPrescription($id)
