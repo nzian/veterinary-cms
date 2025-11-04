@@ -19,20 +19,30 @@
                     <div class="text-xs text-gray-500">Weight: {{ $visit->weight ? number_format($visit->weight, 2).' kg' : '—' }} • Temp: {{ $visit->temperature ? number_format($visit->temperature, 1).' °C' : '—' }}</div>
                     <div class="mt-3 inline-flex items-center gap-2 text-indigo-600 text-sm font-medium">View Full Profile <i class="fas fa-arrow-right"></i></div>
                 </div>
-                <div class="bg-white rounded-xl shadow-sm border p-4 cursor-pointer hover:shadow-md transition" onclick="openMedicalHistoryModal()">
-                    <div class="font-semibold text-gray-900 mb-2">Recent Medical History</div>
-                    <div class="space-y-2 max-h-40 overflow-y-auto text-xs">
-                        @forelse($petMedicalHistory as $record)
-                            <div class="border-l-2 pl-2 {{ $record->diagnosis ? 'border-red-400' : 'border-gray-300' }}">
-                                <div class="font-medium">{{ \Carbon\Carbon::parse($record->visit_date)->format('M j, Y') }}</div>
-                                <div class="text-gray-700 truncate">{{ $record->diagnosis ?? $record->treatment ?? 'Routine Visit' }}</div>
-                            </div>
-                        @empty
-                            <p class="text-gray-500 italic">No history</p>
-                        @endforelse
+               <div class="bg-white rounded-xl shadow-sm border p-4 cursor-pointer hover:shadow-md transition" onclick="openVisitHistoryModal()">
+        <div class="font-semibold text-gray-900 mb-2">Recent Visit History</div>
+        <div class="space-y-2 max-h-40 overflow-y-auto text-xs">
+            @forelse($petMedicalHistory as $record)
+                @php 
+                    $status = strtolower($record->visit_status ?? 'pending');
+                    $border = $status === 'completed' ? 'border-green-400' : ($status === 'arrived' ? 'border-blue-400' : 'border-gray-300');
+                @endphp
+                <div class="border-l-2 pl-2 {{ $border }}">
+                    <div class="font-medium flex justify-between items-center">
+                        {{ \Carbon\Carbon::parse($record->visit_date)->format('M j, Y') }}
+                        <span class="text-xs font-semibold px-1 py-0.5 rounded 
+                            {{ $status === 'completed' ? 'bg-green-100 text-green-700' : ($status === 'arrived' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700') }}">
+                            {{ ucfirst($status) }}
+                        </span>
                     </div>
-                    <div class="mt-3 inline-flex items-center gap-2 text-indigo-600 text-sm font-medium">View Full History <i class="fas fa-arrow-right"></i></div>
+                    <div class="text-gray-700 truncate" title="{{ $record->service_summary }}">{{ $record->service_summary ?? 'General Visit' }}</div>
                 </div>
+            @empty
+                <p class="text-gray-500 italic">No previous service records found.</p>
+            @endforelse
+        </div>
+        <div class="mt-3 inline-flex items-center gap-2 text-indigo-600 text-sm font-medium">View Full Service History <i class="fas fa-arrow-right"></i></div>
+    </div>
             </div>
 
             {{-- Row 3+: Main Content (full width) --}}

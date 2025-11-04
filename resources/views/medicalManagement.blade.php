@@ -963,7 +963,7 @@
             </div>
         </div>
 
-        @php
+       @php
             $__petsPayload = [];
             foreach (($filteredPets ?? []) as $__p) {
                 $__petsPayload[] = [

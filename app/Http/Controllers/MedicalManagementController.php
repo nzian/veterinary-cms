@@ -146,6 +146,76 @@ class MedicalManagementController extends Controller
         'Vaccination - Kennel Cough (one dose)', 'Vaccination - Anti Rabies',
     ];
 
+
+    public function storeGroomingAgreement(Request $request, $visitId)
+{
+    // 1. Validation
+    $request->validate([
+        'signature_data' => 'required|string', // Base64 image data
+        'signer_name' => 'required|string|max:255',
+        'color_markings' => 'nullable|string|max:500',
+        'history_before' => 'nullable|string|max:1000',
+        'history_after' => 'nullable|string|max:1000',
+        'checkbox_acknowledge' => 'required|in:1',
+    ]);
+
+    // 2. Find Visit
+    $visit = Visit::findOrFail($visitId);
+
+    // 3. Process and Save Signature Image
+    try {
+        $base64Image = $request->input('signature_data');
+        // Remove data URI scheme (e.g., 'data:image/png;base64,')
+        $image_data = substr($base64Image, strpos($base64Image, ',') + 1);
+        $image_data = base64_decode($image_data);
+        
+        $fileName = 'grooming_signatures/' . $visitId . '_' . time() . '.png';
+        
+        // Save the file to public storage
+        Storage::disk('public')->put($fileName, $image_data);
+
+    } catch (\Exception $e) {
+        \Log::error('Signature save failed: ' . $e->getMessage());
+        return back()->with('error', 'Failed to save signature: ' . $e->getMessage());
+    }
+
+    // 4. Create and Save Grooming Agreement Record
+    try {
+        DB::beginTransaction();
+
+        // Use updateOrCreate in case it was accidentally submitted before
+        $agreement = GroomingAgreement::updateOrCreate(
+            ['visit_id' => $visitId], // Check if agreement already exists for this visit
+            [
+                'pet_id' => $visit->pet_id,
+                'signer_name' => $request->signer_name,
+                'signature_path' => $fileName, // Store the public path
+                'color_markings' => $request->color_markings,
+                'history_before' => $request->history_before,
+                'history_after' => $request->history_after,
+                'signed_at' => Carbon::now(),
+                // Add any other required fields (e.g., user_id)
+            ]
+        );
+        
+        // OPTIONAL: Update the main visit record status if necessary (e.g., from PENDING_AGREEMENT to IN_PROGRESS)
+        $visit->update(['workflow_status' => 'IN_PROGRESS']); // Example update
+        
+        DB::commit();
+        
+        return back()->with('success', 'Grooming Agreement signed and saved successfully!')->with('tab', 'grooming');
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        \Log::error('Grooming Agreement save failed: ' . $e->getMessage() . ' Trace: ' . $e->getTraceAsString());
+        // Clean up saved file if DB fails
+        if (isset($fileName)) {
+            Storage::disk('public')->delete($fileName);
+        }
+        return back()->with('error', 'Database error: Agreement could not be finalized.')->with('tab', 'grooming');
+    }
+}
+
     // ==================== LOOKUP & HELPER METHODS ====================
 
     protected function getBranchLookups()
@@ -265,13 +335,17 @@ class MedicalManagementController extends Controller
         $rr = $request->input('respiration_rate') ?: $request->input('respiratory_rate');
 
         // Update visit record
+        $vitalsUpdated = false;
         $visitModel->weight = $validated['weight'] ?? $visitModel->weight;
         $visitModel->temperature = $validated['temperature'] ?? $visitModel->temperature;
-        $visitModel->workflow_status = $validated['workflow_status'] ?? $visitModel->workflow_status;
+        
+        // 🌟 NEW: Set Status to Completed
+        $visitModel->visit_status = 'completed';
+        $visitModel->workflow_status = 'Completed';
+        
         $visitModel->save();
 
         // Update pet's weight and temperature if they were provided
-        $vitalsUpdated = false;
         if (isset($validated['weight']) || isset($validated['temperature'])) {
             $pet = $visitModel->pet;
             if ($pet) {
@@ -295,15 +369,14 @@ class MedicalManagementController extends Controller
                 'weight' => $validated['weight'], 'temperature' => $validated['temperature'],
                 'heart_rate' => $validated['heart_rate'], 'respiration_rate' => $rr,
                 'symptoms' => $validated['physical_findings'], 'findings' => $validated['diagnosis'],
-                'treatment_plan' => $validated['recommendations'], 'updated_at' => now(),
+                
             ]
         );
         
-        $message = 'Consultation record saved successfully!';
-        if ($vitalsUpdated) {
-            $message .= ' Pet vital signs have been updated.';
-        }
-        return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'checkup'])->with('success', $message);
+        $message = 'Consultation record saved and visit status marked **Completed**.';
+
+        // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
+        return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', $message);
     }
     
     public function saveVaccination(Request $request, $visitId)
@@ -314,8 +387,12 @@ class MedicalManagementController extends Controller
             'administered_by' => ['nullable','string'], 'remarks' => ['nullable','string'], 'workflow_status' => ['nullable','string'],
         ]);
         
-        $visitModel = Visit::findOrFail($visitId);
-        $visitModel->workflow_status = $validated['workflow_status'] ?? $visitModel->workflow_status;
+        $visitModel = Visit::with('pet')->findOrFail($visitId);
+        
+        // 🌟 NEW: Set Status to Completed
+        $visitModel->visit_status = 'completed';
+        $visitModel->workflow_status = 'Completed';
+
         $visitModel->save();
         
         DB::table('tbl_vaccination_record')->updateOrInsert(
@@ -329,26 +406,28 @@ class MedicalManagementController extends Controller
             ]
         );
 
-         $vaccineName = $request->vaccine_name;
-    $vaccine = \App\Models\Product::where('prod_name', $vaccineName)
-        ->where('prod_category', 'Vaccines')
-        ->first();
-    
-    if ($vaccine && $vaccine->prod_stocks > 0) {
-        // Deduct 1 unit (or use $request->dose if it's a quantity)
-        $vaccine->decrement('prod_stocks', 1);
+        $vaccineName = $request->vaccine_name;
+        $vaccine = \App\Models\Product::where('prod_name', $vaccineName)
+            ->where('prod_category', 'Vaccines')
+            ->first();
         
-        // Optional: Log the usage in inventory history
-    InventoryHistoryModel::create([
-            'prod_id' => $vaccine->prod_id,
-            'type' => 'service_usage',
-            'quantity' => -1,
-            'reference' => "Vaccination - Visit #{$visitId}",
-            'user_id' => Auth::id(),
-            'notes' => "Administered to " . ($visit->pet->pet_name ?? 'Pet')
-        ]);
-    }
-        return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'vaccination'])->with('success', 'Vaccination recorded.');
+        if ($vaccine && $vaccine->prod_stocks > 0) {
+            // Deduct 1 unit (or use $request->dose if it's a quantity)
+            $vaccine->decrement('prod_stocks', 1);
+            
+            // Optional: Log the usage in inventory history
+        InventoryHistoryModel::create([
+                'prod_id' => $vaccine->prod_id,
+                'type' => 'service_usage',
+                'quantity' => -1,
+                'reference' => "Vaccination - Visit #{$visitId}",
+                'user_id' => Auth::id(),
+                'notes' => "Administered to " . ($visitModel->pet->pet_name ?? 'Pet')
+            ]);
+        }
+        
+        // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
+        return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', 'Vaccination recorded and visit status marked **Completed**.');
     }
 
     public function saveDeworming(Request $request, $visitId)
@@ -359,7 +438,11 @@ class MedicalManagementController extends Controller
         ]);
         
         $visitModel = Visit::findOrFail($visitId);
-        $visitModel->workflow_status = $validated['workflow_status'] ?? $visitModel->workflow_status;
+        
+        // 🌟 NEW: Set Status to Completed
+        $visitModel->visit_status = 'completed';
+        $visitModel->workflow_status = 'Completed';
+        
         $visitModel->save();
         
         DB::table('tbl_deworming_record')->updateOrInsert(
@@ -370,7 +453,8 @@ class MedicalManagementController extends Controller
                 'remarks' => $validated['remarks'], 'updated_at' => now(),
             ]
         );
-        return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'deworming'])->with('success', 'Deworming recorded.');
+        // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
+        return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', 'Deworming recorded and visit status marked **Completed**.');
     }
     
     public function saveGrooming(Request $request, $visitId)
@@ -381,8 +465,19 @@ class MedicalManagementController extends Controller
             'assigned_groomer' => ['nullable','string'], 'workflow_status' => ['nullable','string'],
         ]);
         
-        $visitModel = Visit::findOrFail($visitId);
-        $visitModel->workflow_status = $validated['workflow_status'] ?? $visitModel->workflow_status;
+        $visitModel = Visit::with('groomingAgreement')->findOrFail($visitId);
+
+        // Check if agreement is signed before marking as complete
+        if (!$visitModel->groomingAgreement) {
+            // If the agreement isn't signed, we prevent marking as 'Completed'
+            return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'grooming'])
+                ->with('error', 'Grooming service record saved, but **Agreement must be signed** before setting status to Completed.');
+        }
+
+        // 🌟 NEW: Set Status to Completed (only if agreement is present/not checked above)
+        $visitModel->visit_status = 'completed';
+        $visitModel->workflow_status = 'Completed';
+        
         $visitModel->save();
         
         DB::table('tbl_grooming_record')->updateOrInsert(
@@ -391,11 +486,12 @@ class MedicalManagementController extends Controller
                 'service_package' => $validated['grooming_type'], 'add_ons' => $validated['additional_services'],
                 'groomer_name' => $validated['assigned_groomer'] ?? Auth::user()->user_name,
                 'start_time' => $validated['start_time'], 'end_time' => $validated['end_time'],
-                'status' => $validated['workflow_status'] ?? $visitModel->workflow_status, 'remarks' => $validated['instructions'],
+                'status' => 'Completed', 'remarks' => $validated['instructions'],
                 'updated_at' => now(),
             ]
         );
-        return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'grooming'])->with('success', 'Grooming record saved.');
+        // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
+        return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', 'Grooming record saved and visit status marked **Completed**.');
     }
 
     public function saveBoarding(Request $request, $visitId)
@@ -406,7 +502,11 @@ class MedicalManagementController extends Controller
         ]);
         
         $visitModel = Visit::findOrFail($visitId);
-        $visitModel->workflow_status = $validated['workflow_status'] ?? $visitModel->workflow_status;
+        
+        // 🌟 NEW: Set Status to Completed
+        $visitModel->visit_status = 'completed';
+        $visitModel->workflow_status = 'Checked Out'; // Boarding uses Checked Out as final status
+        
         $visitModel->save();
         
         DB::table('tbl_boarding_record')->updateOrInsert(
@@ -414,11 +514,12 @@ class MedicalManagementController extends Controller
             [
                 'check_in_date' => $validated['checkin'], 'check_out_date' => $validated['checkout'], 'room_no' => $validated['room'],
                 'feeding_schedule' => $validated['care_instructions'], 'daily_notes' => $validated['monitoring_notes'],
-                'status' => $validated['workflow_status'] ?? $visitModel->workflow_status, 'handled_by' => Auth::user()->user_name ?? null,
+                'status' => 'Checked Out', 'handled_by' => Auth::user()->user_name ?? null,
                 'updated_at' => now(),
             ]
         );
-        return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'boarding'])->with('success', 'Boarding saved.');
+        // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
+        return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', 'Boarding record saved and visit status marked **Completed** (Checked Out).');
     }
 
     public function saveDiagnostic(Request $request, $visitId)
@@ -429,7 +530,11 @@ class MedicalManagementController extends Controller
         ]);
         
         $visitModel = Visit::findOrFail($visitId);
-        $visitModel->workflow_status = $validated['workflow_status'] ?? $visitModel->workflow_status;
+        
+        // 🌟 NEW: Set Status to Completed
+        $visitModel->visit_status = 'completed';
+        $visitModel->workflow_status = 'Completed';
+        
         $visitModel->save();
         
         DB::table('tbl_diagnostic_record')->updateOrInsert(
@@ -438,10 +543,11 @@ class MedicalManagementController extends Controller
                 'test_type' => $validated['test_type'], 'results' => $validated['results_text'],
                 'remarks' => $validated['interpretation'], 'collected_by' => $validated['staff'] ?? Auth::user()->user_name,
                 'date_completed' => $validated['test_datetime'] ? Carbon::parse($validated['test_datetime'])->toDateString() : now()->toDateString(),
-                'status' => $validated['workflow_status'] ?? $visitModel->workflow_status, 'updated_at' => now(),
+                'status' => 'Completed', 'updated_at' => now(),
             ]
         );
-        return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'diagnostic'])->with('success', 'Diagnostic recorded.');
+        // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
+        return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', 'Diagnostic record saved and visit status marked **Completed**.');
     }
 
     public function saveSurgical(Request $request, $visitId)
@@ -454,7 +560,11 @@ class MedicalManagementController extends Controller
         ]);
         
         $visitModel = Visit::findOrFail($visitId);
-        $visitModel->workflow_status = $validated['workflow_status'] ?? $visitModel->workflow_status;
+        
+        // 🌟 NEW: Set Status to Completed
+        $visitModel->visit_status = 'completed';
+        $visitModel->workflow_status = 'Completed';
+        
         $visitModel->save();
         
         DB::table('tbl_surgical_record')->updateOrInsert(
@@ -466,10 +576,11 @@ class MedicalManagementController extends Controller
                 'surgeon' => $validated['staff'], 'anesthesia_used' => $validated['anesthesia'],
                 'findings' => $validated['checklist'], 
                 'post_op_instructions' => $validated['post_op_notes'] . "\nMedications: " . $validated['medications_used'],
-                'status' => $validated['workflow_status'] ?? $visitModel->workflow_status, 'updated_at' => now(),
+                'status' => 'Completed', 'updated_at' => now(),
             ]
         );
-        return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'surgical'])->with('success', 'Surgical record saved.');
+        // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
+        return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', 'Surgical record saved and visit status marked **Completed**.');
     }
 
     public function saveEmergency(Request $request, $visitId)
@@ -482,7 +593,11 @@ class MedicalManagementController extends Controller
         ]);
         
         $visitModel = Visit::findOrFail($visitId);
-        $visitModel->workflow_status = $validated['workflow_status'] ?? $visitModel->workflow_status;
+        
+        // 🌟 NEW: Set Status to Completed
+        $visitModel->visit_status = 'completed';
+        $visitModel->workflow_status = 'Completed';
+        
         $visitModel->save();
         
         DB::table('tbl_emergency_record')->updateOrInsert(
@@ -491,11 +606,12 @@ class MedicalManagementController extends Controller
                 'case_type' => $validated['emergency_type'], 'arrival_condition' => $validated['triage_notes'],
                 'vital_signs' => $validated['vitals'], 'immediate_treatment' => $validated['immediate_intervention'] . "\n" . $validated['procedures'],
                 'medications_administered' => $validated['immediate_meds'], 'outcome' => $validated['outcome'],
-                'status' => $validated['workflow_status'] ?? $visitModel->workflow_status, 'attended_by' => $validated['attended_by'] ?? Auth::user()->user_name,
+                'status' => 'Completed', 'attended_by' => $validated['attended_by'] ?? Auth::user()->user_name,
                 'remarks' => $validated['triage_notes'], 'updated_at' => now(),
             ]
         );
-        return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'emergency'])->with('success', 'Emergency record saved.');
+        // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
+        return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', 'Emergency record saved and visit status marked **Completed**.');
     }
 
     // ==================== VISIT CRUD (Fixed) ====================
@@ -669,11 +785,28 @@ class MedicalManagementController extends Controller
             }
         }
 
-        $petMedicalHistory = MedicalHistory::where('pet_id', $visit->pet_id)
-            ->orderBy('visit_date', 'desc')
-            ->select('visit_date', 'diagnosis', 'treatment', 'medication')
-            ->limit(5)
-            ->get();
+        $petMedicalHistory = Visit::where('pet_id', $visit->pet_id)
+    ->where('visit_id', '!=', $id) // Exclude the current visit ID
+    ->with('services') // Load related services for type display
+    ->orderBy('visit_date', 'desc')
+    ->limit(10) // Fetch up to 10 past visits
+    ->get()
+    ->map(function ($v) {
+        // Aggregate service types into a readable string
+        $v->service_summary = $v->services->pluck('serv_name')->implode(', ');
+        
+        // Optional: Attempt to fetch and include initial assessment/diagnosis for context
+        // If you have a one-to-one relationship named 'initialAssessment' on Visit model:
+        if ($v->initialAssessment) {
+            $v->summary_diagnosis = $v->initialAssessment->symptoms ?? $v->initialAssessment->diagnosis ?? 'Assessed';
+        } elseif ($v->visit_service_type) {
+             $v->summary_diagnosis = $v->visit_service_type; // Fallback to recorded type
+        } else {
+            $v->summary_diagnosis = 'General Visit';
+        }
+
+        return $v;
+    });
             
         $availableServices = Service::where('serv_type', 'LIKE', '%' . $serviceType . '%') 
             ->orderBy('serv_name')

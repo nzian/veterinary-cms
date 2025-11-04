@@ -260,129 +260,240 @@ class PetManagementController extends Controller
     }
 
     public function getPetDetails($id)
-    {
-        try {
-            $pet = Pet::with(['owner'])->find($id);
-            if (!$pet) {
-                return response()->json(['error' => 'Pet not found'], 404);
-            }
+{
+    try {
+        $pet = Pet::with(['owner'])->find($id);
+        if (!$pet) {
+            return response()->json(['error' => 'Pet not found'], 404);
+        }
 
-            $medical = MedicalHistory::where('pet_id', $pet->pet_id)
-                ->orderBy('visit_date', 'desc')
-                ->limit(30)
-                ->get()
-                ->map(function ($m) {
-                    return [
-                        'id' => $m->id,
-                        'visit_date' => Carbon::parse($m->visit_date)->format('M d, Y'),
-                        'diagnosis' => $m->diagnosis,
-                        'treatment' => $m->treatment,
-                        'medication' => $m->medication,
-                        'veterinarian_name' => $m->veterinarian_name,
-                        'weight' => $m->weight,
-                        'temperature' => $m->temperature,
-                    ];
-                });
+        // Get all veterinarians for license lookup
+        $userBranchId = optional($pet->user)->branch_id ?? optional(Auth::user())->branch_id;
+        $veterinarians = \App\Models\User::where('branch_id', $userBranchId)
+            ->where('user_role', 'veterinarian')
+            ->get(['user_id', 'user_name', 'user_licenseNum']) 
+            ->keyBy('user_id');
 
-            $visits = $medical->count();
-            $lastVisit = $visits > 0 ? $medical->first()['visit_date'] : 'Never';
+        // Fetch all visits for this pet with relationships
+        $visitRecords = \App\Models\Visit::with([
+            'services',
+            'user',
+            'initialAssessment'
+        ])
+        ->where('pet_id', $pet->pet_id)
+        ->orderBy('visit_date', 'desc')
+        ->limit(50)
+        ->get();
 
-            // --- Visits: gather visit-based records (services + service-specific tables) ---
-            $visitRecords = \App\Models\Visit::with('services')
+        // Build comprehensive visit data with service-specific details
+        $visitsDetailed = $visitRecords->map(function ($v) use ($pet, $veterinarians) {
+            $visitDateStr = $v->visit_date;
+
+            // Get services on the visit
+            $services = $v->services->map(function ($s) {
+                return [
+                    'serv_id' => $s->serv_id,
+                    'serv_name' => $s->serv_name,
+                    'serv_type' => $s->serv_type,
+                ];
+            })->values()->toArray();
+
+            // Get veterinarian info
+            $vetUserId = $v->user_id;
+            $vetUser = $veterinarians->get($vetUserId);
+
+            // Fetch service-specific records
+            $checkup = DB::table('tbl_checkup_record')
+                ->where('visit_id', $v->visit_id)
                 ->where('pet_id', $pet->pet_id)
-                ->orderBy('visit_date', 'desc')
-                ->limit(50)
-                ->get();
+                ->first();
 
-            $visitsDetailed = $visitRecords->map(function ($v) use ($pet) {
-                $visitDateStr = $v->visit_date;
+            $vaccination = DB::table('tbl_vaccination_record')
+                ->where('visit_id', $v->visit_id)
+                ->where('pet_id', $pet->pet_id)
+                ->first();
 
-                // services on the visit
-                $services = $v->services->map(function ($s) {
+            $deworming = DB::table('tbl_deworming_record')
+                ->where('visit_id', $v->visit_id)
+                ->where('pet_id', $pet->pet_id)
+                ->first();
+
+            $grooming = DB::table('tbl_grooming_record')
+                ->where('visit_id', $v->visit_id)
+                ->where('pet_id', $pet->pet_id)
+                ->first();
+
+            $boarding = DB::table('tbl_boarding_record')
+                ->where('visit_id', $v->visit_id)
+                ->where('pet_id', $pet->pet_id)
+                ->first();
+
+            $diagnostic = DB::table('tbl_diagnostic_record')
+                ->where('visit_id', $v->visit_id)
+                ->where('pet_id', $pet->pet_id)
+                ->first();
+
+            $surgical = DB::table('tbl_surgical_record')
+                ->where('visit_id', $v->visit_id)
+                ->where('pet_id', $pet->pet_id)
+                ->first();
+
+            $emergency = DB::table('tbl_emergency_record')
+                ->where('visit_id', $v->visit_id)
+                ->where('pet_id', $pet->pet_id)
+                ->first();
+
+            // Get prescriptions for this visit date
+            $prescriptions = \App\Models\Prescription::where('pet_id', $pet->pet_id)
+                ->whereDate('prescription_date', Carbon::parse($visitDateStr)->toDateString())
+                ->get()
+                ->map(function ($p) {
+                    $medications = json_decode($p->medication, true) ?? [];
                     return [
-                        'serv_id' => $s->serv_id,
-                        'serv_name' => $s->serv_name,
-                        'serv_type' => $s->serv_type,
+                        'prescription_id' => $p->prescription_id,
+                        'prescription_date' => $p->prescription_date,
+                        'medications' => $medications,
+                        'differential_diagnosis' => $p->differential_diagnosis,
+                        'notes' => $p->notes,
                     ];
                 })->values()->toArray();
 
-                // service-specific records (if present)
-                $checkup = DB::table('tbl_checkup_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
-                $vaccination = DB::table('tbl_vaccination_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
-                $deworming = DB::table('tbl_deworming_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
-                $grooming = DB::table('tbl_grooming_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
-                $boarding = DB::table('tbl_boarding_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
-                $diagnostic = DB::table('tbl_diagnostic_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
-                $surgical = DB::table('tbl_surgical_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
-                $emergency = DB::table('tbl_emergency_record')->where('visit_id', $v->visit_id)->where('pet_id', $pet->pet_id)->first();
+            // Get referrals for this visit
+            $referrals = \App\Models\Referral::with(['refToBranch', 'refByBranch'])
+                ->whereHas('appointment', function($q) use ($pet, $visitDateStr) {
+                    $q->where('pet_id', $pet->pet_id)
+                      ->whereDate('appoint_date', Carbon::parse($visitDateStr)->toDateString());
+                })
+                ->get()
+                ->map(function ($r) {
+                    return [
+                        'ref_id' => $r->ref_id,
+                        'ref_date' => $r->ref_date,
+                        'ref_to_branch' => optional($r->refToBranch)->branch_name,
+                        'ref_by_branch' => optional($r->refByBranch)->branch_name,
+                        'ref_description' => $r->ref_description,
+                        'medical_history' => $r->medical_history,
+                        'tests_conducted' => $r->tests_conducted,
+                        'medications_given' => $r->medications_given,
+                    ];
+                })->values()->toArray();
 
-                // prescriptions matching visit date (if any)
-                $prescriptions = \App\Models\Prescription::where('pet_id', $pet->pet_id)
-                    ->whereDate('prescription_date', Carbon::parse($visitDateStr)->toDateString())
-                    ->get()
-                    ->map(function ($p) {
-                        return [
-                            'prescription_id' => $p->prescription_id,
-                            'prescription_date' => $p->prescription_date,
-                            'medication' => $p->medication,
-                            'notes' => $p->notes,
-                        ];
-                    })->values()->toArray();
-
-                // related medical history record for visit date
-                $medicalRecord = \App\Models\MedicalHistory::where('pet_id', $pet->pet_id)
-                    ->where('visit_date', $visitDateStr)
-                    ->first();
-
-                return [
-                    'visit_id' => $v->visit_id,
-                    'visit_date' => Carbon::parse($visitDateStr)->format('M d, Y'),
-                    'weight' => $v->weight,
-                    'temperature' => $v->temperature,
-                    'patient_type' => is_object($v->patient_type) && method_exists($v->patient_type, 'value') ? $v->patient_type->value : $v->patient_type,
-                    'workflow_status' => $v->workflow_status,
-                    'visit_service_type' => $v->visit_service_type,
-                    'services' => $services,
-                    'checkup' => $checkup ? (array) $checkup : null,
-                    'vaccination' => $vaccination ? (array) $vaccination : null,
-                    'deworming' => $deworming ? (array) $deworming : null,
-                    'grooming' => $grooming ? (array) $grooming : null,
-                    'boarding' => $boarding ? (array) $boarding : null,
-                    'diagnostic' => $diagnostic ? (array) $diagnostic : null,
-                    'surgical' => $surgical ? (array) $surgical : null,
-                    'emergency' => $emergency ? (array) $emergency : null,
-                    'prescriptions' => $prescriptions,
-                    'medical_history' => $medicalRecord ? $medicalRecord->toArray() : null,
+            // Get initial assessment
+            $initialAssessment = null;
+            if ($v->initialAssessment) {
+                $ia = $v->initialAssessment;
+                $initialAssessment = [
+                    'is_sick' => $ia->is_sick,
+                    'been_treated' => $ia->been_treated,
+                    'table_food' => $ia->table_food,
+                    'feeding_frequency' => $ia->feeding_frequency,
+                    'heartworm_preventative' => $ia->heartworm_preventative,
+                    'injury_accident' => $ia->injury_accident,
+                    'allergies' => $ia->allergies,
+                    'surgery_past_30' => $ia->surgery_past_30,
+                    'current_meds' => $ia->current_meds,
+                    'appetite_normal' => $ia->appetite_normal,
+                    'diarrhoea' => $ia->diarrhoea,
+                    'vomiting' => $ia->vomiting,
+                    'drinking_unusual' => $ia->drinking_unusual,
+                    'weakness' => $ia->weakness,
+                    'gagging' => $ia->gagging,
+                    'coughing' => $ia->coughing,
+                    'sneezing' => $ia->sneezing,
+                    'scratching' => $ia->scratching,
+                    'shaking_head' => $ia->shaking_head,
+                    'urinating_unusual' => $ia->urinating_unusual,
+                    'limping' => $ia->limping,
+                    'scooting' => $ia->scooting,
+                    'seizures' => $ia->seizures,
+                    'bad_breath' => $ia->bad_breath,
+                    'discharge' => $ia->discharge,
+                    'ate_this_morning' => $ia->ate_this_morning,
                 ];
-            })->values();
+            }
 
-            return response()->json([
-                'pet' => [
-                    'pet_id' => $pet->pet_id,
-                    'pet_name' => $pet->pet_name,
-                    'pet_species' => $pet->pet_species,
-                    'pet_breed' => $pet->pet_breed,
-                    'pet_age' => $pet->pet_age,
-                    'pet_gender' => $pet->pet_gender,
-                    'pet_photo' => $pet->pet_photo,
-                    'pet_weight' => $pet->pet_weight,
-                    'pet_temperature' => $pet->pet_temperature,
-                    'owner' => $pet->owner ? [
-                        'own_id' => $pet->owner->own_id,
-                        'own_name' => $pet->owner->own_name,
-                    ] : null,
+            // Get grooming agreement if exists
+            $groomingAgreement = null;
+            if ($grooming) {
+                $agreement = DB::table('grooming_agreements')
+                    ->where('visit_id', $v->visit_id)
+                    ->first();
+                
+                if ($agreement) {
+                    $groomingAgreement = [
+                        'signer_name' => $agreement->signer_name,
+                        'signed_at' => $agreement->signed_at,
+                        'color_markings' => $agreement->color_markings,
+                        'history_before' => $agreement->history_before,
+                        'history_after' => $agreement->history_after,
+                    ];
+                }
+            }
+
+            return [
+                'visit_id' => $v->visit_id,
+                'visit_date' => Carbon::parse($visitDateStr)->format('M d, Y'),
+                'weight' => $v->weight,
+                'temperature' => $v->temperature,
+                'patient_type' => is_object($v->patient_type) && method_exists($v->patient_type, 'value') 
+                    ? $v->patient_type->value 
+                    : $v->patient_type,
+                'workflow_status' => $v->workflow_status,
+                'visit_status' => $v->visit_status,
+                'visit_service_type' => $v->visit_service_type,
+                'veterinarian' => [
+                    'name' => optional($vetUser)->user_name ?? optional($v->user)->user_name ?? 'N/A',
+                    'license' => optional($vetUser)->user_licenseNum ?? 'N/A',
                 ],
-                'stats' => [
-                    'visits' => $visitsDetailed->count(),
-                    'lastVisit' => $lastVisit,
-                ],
-                'medicalHistory' => $medical,
-                'visits' => $visitsDetailed,
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Server error: ' . $e->getMessage()], 500);
-        }
+                'services' => $services,
+                'checkup' => $checkup ? (array) $checkup : null,
+                'vaccination' => $vaccination ? (array) $vaccination : null,
+                'deworming' => $deworming ? (array) $deworming : null,
+                'grooming' => $grooming ? (array) $grooming : null,
+                'grooming_agreement' => $groomingAgreement,
+                'boarding' => $boarding ? (array) $boarding : null,
+                'diagnostic' => $diagnostic ? (array) $diagnostic : null,
+                'surgical' => $surgical ? (array) $surgical : null,
+                'emergency' => $emergency ? (array) $emergency : null,
+                'prescriptions' => $prescriptions,
+                'referrals' => $referrals,
+                'initial_assessment' => $initialAssessment,
+            ];
+        })->values();
+
+        // Calculate statistics
+        $stats = [
+            'visits' => $visitsDetailed->count(),
+            'lastVisit' => $visitsDetailed->first()['visit_date'] ?? 'Never',
+        ];
+
+        return response()->json([
+            'pet' => [
+                'pet_id' => $pet->pet_id,
+                'pet_name' => $pet->pet_name,
+                'pet_species' => $pet->pet_species,
+                'pet_breed' => $pet->pet_breed,
+                'pet_age' => $pet->pet_age,
+                'pet_gender' => $pet->pet_gender,
+                'pet_photo' => $pet->pet_photo,
+                'pet_weight' => $pet->pet_weight,
+                'pet_temperature' => $pet->pet_temperature,
+                'pet_birthdate' => $pet->pet_birthdate,
+                'owner' => $pet->owner ? [
+                    'own_id' => $pet->owner->own_id,
+                    'own_name' => $pet->owner->own_name,
+                    'own_contactnum' => $pet->owner->own_contactnum,
+                    'own_location' => $pet->owner->own_location,
+                ] : null,
+            ],
+            'stats' => $stats,
+            'visits' => $visitsDetailed,
+        ]);
+    } catch (\Exception $e) {
+        Log::error('getPetDetails error: ' . $e->getMessage());
+        return response()->json(['error' => 'Server error: ' . $e->getMessage()], 500);
     }
+}
 
     public function getMedicalDetails($id)
     {

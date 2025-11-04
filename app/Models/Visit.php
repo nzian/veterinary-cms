@@ -108,4 +108,9 @@ class Visit extends Model
     {
         return $this->hasOne(GroomingAgreement::class, 'visit_id');
     }
+
+    public function initialAssessment()
+{
+    return $this->hasOne(\App\Models\InitialAssessment::class, 'visit_id', 'visit_id');
+}
 }
