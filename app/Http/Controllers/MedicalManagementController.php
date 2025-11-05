@@ -1138,6 +1138,7 @@ class MedicalManagementController extends Controller
 
     public function storePrescription(Request $request)
     {
+        //dd('storePrescription called');
         DB::beginTransaction();
         Log::info('storePrescription called with data: ', $request->all());
         try {
@@ -1191,7 +1192,7 @@ class MedicalManagementController extends Controller
                         $med['product_id'],
                         1, // Default quantity of 1
                         'Prescription #' . $prescription->prescription_id,
-                        'Prescription'
+                        'service_usage'
                     );
                 }
             }

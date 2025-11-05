@@ -46,12 +46,12 @@ class InventoryService
 
             // Record the transaction
             $transaction = new InventoryTransaction();
-            $transaction->product_id = $productId;
+            $transaction->prod_id = $productId;
             $transaction->transaction_type = $type;
-            $transaction->quantity = $quantity;
+            $transaction->quantity_change = -1 * $quantity;
             $transaction->reference = $reference;
-            $transaction->transaction_date = now();
-            $transaction->user_id = Auth::id();
+           // $transaction->transaction_date = now();
+            $transaction->performed_by = Auth::id();
             $transaction->save();
 
             DB::commit();
