@@ -279,22 +279,154 @@ class PetManagementController extends Controller
             ->get(['user_id', 'user_name', 'user_licenseNum']) 
             ->keyBy('user_id');
 
-        // Fetch all visits for this pet with relationships
+        // Eager-load only existing Eloquent relationships on Visit, then batch-fetch
+        // the service-specific records (these are stored in separate tables) in
+        // grouped queries to avoid N+1 issues without requiring new models.
         $visitRecords = \App\Models\Visit::with([
             'services',
             'user',
-            'initialAssessment'
+            'initialAssessment',
+            'groomingAgreement'
         ])
         ->where('pet_id', $pet->pet_id)
         ->orderBy('visit_date', 'desc')
         ->limit(50)
         ->get();
 
+        // Collect vet_user_id values from appointment-service pivots (if any)
+        $pivotVetIds = $visitRecords->flatMap(function ($v) {
+            return $v->services->pluck('pivot.vet_user_id')->filter();
+        })->unique()->values()->all();
+
+        // If there are vet ids referenced by pivots that are not yet in our
+        // $veterinarians collection (which was scoped by branch + role), fetch
+        // these users and merge them in. This ensures we can resolve pivot
+        // vet_user_id even if they were not in the initial branch-limited set.
+        if (!empty($pivotVetIds)) {
+            $missing = array_diff($pivotVetIds, $veterinarians->keys()->all());
+            if (!empty($missing)) {
+                $extraVets = \App\Models\User::whereIn('user_id', $missing)
+                    ->get(['user_id', 'user_name', 'user_licenseNum'])
+                    ->keyBy('user_id');
+
+                // Merge fetched vets (preserve original keys)
+                $veterinarians = $veterinarians->merge($extraVets);
+            }
+        }
+
+        // Prepare visit ids and visit dates for batch queries
+        $visitIds = $visitRecords->pluck('visit_id')->filter()->values()->all();
+        $visitDates = $visitRecords->pluck('visit_date')
+            ->map(function($d){ return Carbon::parse($d)->toDateString(); })
+            ->unique()
+            ->values()
+            ->all();
+
+        // Batch fetch service-specific records and group by visit_id
+        $checkupsByVisit = collect();
+        $vaccinationsByVisit = collect();
+        $dewormingByVisit = collect();
+        $groomingByVisit = collect();
+        $boardingByVisit = collect();
+        $diagnosticByVisit = collect();
+        $surgicalByVisit = collect();
+        $emergencyByVisit = collect();
+
+        if (!empty($visitIds)) {
+            $checkups = DB::table('tbl_checkup_record')
+                ->whereIn('visit_id', $visitIds)
+                ->where('pet_id', $pet->pet_id)
+                ->get()->groupBy('visit_id');
+
+            $vaccinations = DB::table('tbl_vaccination_record')
+                ->whereIn('visit_id', $visitIds)
+                ->where('pet_id', $pet->pet_id)
+                ->get()->groupBy('visit_id');
+
+            $deworming = DB::table('tbl_deworming_record')
+                ->whereIn('visit_id', $visitIds)
+                ->where('pet_id', $pet->pet_id)
+                ->get()->groupBy('visit_id');
+
+            $groomings = DB::table('tbl_grooming_record')
+                ->whereIn('visit_id', $visitIds)
+                ->where('pet_id', $pet->pet_id)
+                ->get()->groupBy('visit_id');
+
+            $boardings = DB::table('tbl_boarding_record')
+                ->whereIn('visit_id', $visitIds)
+                ->where('pet_id', $pet->pet_id)
+                ->get()->groupBy('visit_id');
+
+            $diagnostics = DB::table('tbl_diagnostic_record')
+                ->whereIn('visit_id', $visitIds)
+                ->where('pet_id', $pet->pet_id)
+                ->get()->groupBy('visit_id');
+
+            $surgicals = DB::table('tbl_surgical_record')
+                ->whereIn('visit_id', $visitIds)
+                ->where('pet_id', $pet->pet_id)
+                ->get()->groupBy('visit_id');
+
+            $emergencies = DB::table('tbl_emergency_record')
+                ->whereIn('visit_id', $visitIds)
+                ->where('pet_id', $pet->pet_id)
+                ->get()->groupBy('visit_id');
+
+            $checkupsByVisit = collect($checkups);
+            $vaccinationsByVisit = collect($vaccinations);
+            $dewormingByVisit = collect($deworming);
+            $groomingByVisit = collect($groomings);
+            $boardingByVisit = collect($boardings);
+            $diagnosticByVisit = collect($diagnostics);
+            $surgicalByVisit = collect($surgicals);
+            $emergencyByVisit = collect($emergencies);
+        }
+
+        // Batch fetch prescriptions for this pet that match any of the visit dates
+        $prescriptionsByDate = collect();
+        if (!empty($visitDates)) {
+            $presE = \App\Models\Prescription::where('pet_id', $pet->pet_id)
+                ->whereIn(DB::raw('DATE(prescription_date)'), $visitDates)
+                ->get()
+                ->groupBy(function($p){ return Carbon::parse($p->prescription_date)->toDateString(); });
+
+            $prescriptionsByDate = collect($presE);
+        }
+
+        // Batch fetch referrals whose appointment dates match visit dates and group by date
+        $referralsByDate = collect();
+        if (!empty($visitDates)) {
+            $refs = \App\Models\Referral::with(['refToBranch','refByBranch'])
+                ->whereHas('appointment', function($q) use ($pet, $visitDates) {
+                    $q->where('pet_id', $pet->pet_id)
+                      ->whereIn(DB::raw('DATE(appoint_date)'), $visitDates);
+                })->get()
+                ->groupBy(function($r) {
+                    return optional($r->appointment)->appoint_date ? Carbon::parse($r->appointment->appoint_date)->toDateString() : null;
+                });
+
+            $referralsByDate = collect($refs);
+        }
+
         // Build comprehensive visit data with service-specific details
-        $visitsDetailed = $visitRecords->map(function ($v) use ($pet, $veterinarians) {
+        $visitsDetailed = $visitRecords->map(function ($v) use (
+            $pet,
+            $veterinarians,
+            $checkupsByVisit,
+            $vaccinationsByVisit,
+            $dewormingByVisit,
+            $groomingByVisit,
+            $boardingByVisit,
+            $diagnosticByVisit,
+            $surgicalByVisit,
+            $emergencyByVisit,
+            $prescriptionsByDate,
+            $referralsByDate
+        ) {
             $visitDateStr = $v->visit_date;
 
-            // Get services on the visit
+            // Get services on the visit (already eager loaded)
             $services = $v->services->map(function ($s) {
                 return [
                     'serv_id' => $s->serv_id,
@@ -303,57 +435,114 @@ class PetManagementController extends Controller
                 ];
             })->values()->toArray();
 
-            // Get veterinarian info
-            $vetUserId = $v->user_id;
-            $vetUser = $veterinarians->get($vetUserId);
+            // Use our batch-fetched maps for service records (needed by vet resolution)
+            $checkup = $checkupsByVisit->has($v->visit_id) ? (array)$checkupsByVisit->get($v->visit_id)->first() : null;
+            $vaccination = $vaccinationsByVisit->has($v->visit_id) ? (array)$vaccinationsByVisit->get($v->visit_id)->first() : null;
+            $deworming = $dewormingByVisit->has($v->visit_id) ? (array)$dewormingByVisit->get($v->visit_id)->first() : null;
+            $grooming = $groomingByVisit->has($v->visit_id) ? (array)$groomingByVisit->get($v->visit_id)->first() : null;
+            $boarding = $boardingByVisit->has($v->visit_id) ? (array)$boardingByVisit->get($v->visit_id)->first() : null;
+            $diagnostic = $diagnosticByVisit->has($v->visit_id) ? (array)$diagnosticByVisit->get($v->visit_id)->first() : null;
+            $surgical = $surgicalByVisit->has($v->visit_id) ? (array)$surgicalByVisit->get($v->visit_id)->first() : null;
+            $emergency = $emergencyByVisit->has($v->visit_id) ? (array)$emergencyByVisit->get($v->visit_id)->first() : null;
 
-            // Fetch service-specific records
-            $checkup = DB::table('tbl_checkup_record')
-                ->where('visit_id', $v->visit_id)
-                ->where('pet_id', $pet->pet_id)
-                ->first();
+            // Determine veterinarian with priority:
+            // 1) vet_user_id from appointment-service pivot (most reliable)
+            // 2) vet_user_id from service-specific record tables (if present)
+            // 3) administered_by free-text on service-specific record (as displayed name)
+            // 4) fallback to visit.user_id ONLY if that user is actually a veterinarian
+            $resolvedVet = null;
+            $resolvedLicense = null;
 
-            $vaccination = DB::table('tbl_vaccination_record')
-                ->where('visit_id', $v->visit_id)
-                ->where('pet_id', $pet->pet_id)
-                ->first();
+            // 1) Check pivots on visit->services for vet_user_id
+            $pivotVetId = $v->services->pluck('pivot.vet_user_id')->filter()->first();
+            if ($pivotVetId) {
+                $pivotVet = $veterinarians->get($pivotVetId);
+                if ($pivotVet) {
+                    $resolvedVet = $pivotVet->user_name;
+                    $resolvedLicense = $pivotVet->user_licenseNum ?? 'N/A';
+                }
+            }
 
-            $deworming = DB::table('tbl_deworming_record')
-                ->where('visit_id', $v->visit_id)
-                ->where('pet_id', $pet->pet_id)
-                ->first();
+            // Helper to inspect a service record array for a vet id or administered_by
+            $inspectRecordForVet = function ($record) use ($veterinarians) {
+                if (empty($record) || !is_array($record)) return [null, null, null];
 
-            $grooming = DB::table('tbl_grooming_record')
-                ->where('visit_id', $v->visit_id)
-                ->where('pet_id', $pet->pet_id)
-                ->first();
+                // prefer numeric vet_user_id
+                if (!empty($record['vet_user_id'])) {
+                    $u = $veterinarians->get($record['vet_user_id']);
+                    if ($u) return [$u->user_name, $u->user_licenseNum ?? 'N/A', $record['vet_user_id']];
+                }
 
-            $boarding = DB::table('tbl_boarding_record')
-                ->where('visit_id', $v->visit_id)
-                ->where('pet_id', $pet->pet_id)
-                ->first();
+                // fall back to administered_by free text
+                if (!empty($record['administered_by'])) {
+                    return [$record['administered_by'], null, null];
+                }
 
-            $diagnostic = DB::table('tbl_diagnostic_record')
-                ->where('visit_id', $v->visit_id)
-                ->where('pet_id', $pet->pet_id)
-                ->first();
+                return [null, null, null];
+            };
 
-            $surgical = DB::table('tbl_surgical_record')
-                ->where('visit_id', $v->visit_id)
-                ->where('pet_id', $pet->pet_id)
-                ->first();
+            // 2) Check service-specific records (they were cast to arrays earlier)
+            if (!$resolvedVet) {
+                foreach ([$vaccination, $checkup, $deworming, $grooming, $boarding, $diagnostic, $surgical, $emergency] as $rec) {
+                    $rec = is_object($rec) ? (array)$rec : (array)$rec;
+                    if (empty($rec)) continue;
+                    list($name, $lic, $uid) = $inspectRecordForVet($rec);
+                    if ($name) {
+                        $resolvedVet = $name;
+                        $resolvedLicense = $lic ?? 'N/A';
+                        break;
+                    }
+                }
+            }
 
-            $emergency = DB::table('tbl_emergency_record')
-                ->where('visit_id', $v->visit_id)
-                ->where('pet_id', $pet->pet_id)
-                ->first();
+            // 3) Final fallback: use visit.user_id only if that user is in our veterinarians list
+            if (!$resolvedVet) {
+                $visitVetUser = $veterinarians->get($v->user_id);
+                if ($visitVetUser) {
+                    $resolvedVet = $visitVetUser->user_name;
+                    $resolvedLicense = $visitVetUser->user_licenseNum ?? 'N/A';
+                } else {
+                    // as extra safety, if the eager loaded visit->user has role info
+                    // we still avoid showing non-veterinarian name. Use 'N/A'.
+                    $resolvedVet = null;
+                    $resolvedLicense = null;
+                }
+            }
 
-            // Get prescriptions for this visit date
-            $prescriptions = \App\Models\Prescription::where('pet_id', $pet->pet_id)
-                ->whereDate('prescription_date', Carbon::parse($visitDateStr)->toDateString())
-                ->get()
-                ->map(function ($p) {
-                    $medications = json_decode($p->medication, true) ?? [];
+            // Use our batch-fetched maps for service records
+            $checkup = $checkupsByVisit->has($v->visit_id) ? (array)$checkupsByVisit->get($v->visit_id)->first() : null;
+            $vaccination = $vaccinationsByVisit->has($v->visit_id) ? (array)$vaccinationsByVisit->get($v->visit_id)->first() : null;
+            $deworming = $dewormingByVisit->has($v->visit_id) ? (array)$dewormingByVisit->get($v->visit_id)->first() : null;
+            $grooming = $groomingByVisit->has($v->visit_id) ? (array)$groomingByVisit->get($v->visit_id)->first() : null;
+            $boarding = $boardingByVisit->has($v->visit_id) ? (array)$boardingByVisit->get($v->visit_id)->first() : null;
+            $diagnostic = $diagnosticByVisit->has($v->visit_id) ? (array)$diagnosticByVisit->get($v->visit_id)->first() : null;
+            $surgical = $surgicalByVisit->has($v->visit_id) ? (array)$surgicalByVisit->get($v->visit_id)->first() : null;
+            $emergency = $emergencyByVisit->has($v->visit_id) ? (array)$emergencyByVisit->get($v->visit_id)->first() : null;
+
+            // Prescriptions grouped by visit date (date string 'Y-m-d')
+            $dateKey = Carbon::parse($visitDateStr)->toDateString();
+            $prescriptions = [];
+            if ($prescriptionsByDate->has($dateKey)) {
+                $prescriptions = $prescriptionsByDate->get($dateKey)->map(function ($p) {
+                    $raw = json_decode($p->medication, true) ?? [];
+                    $medications = collect($raw)->map(function ($m) {
+                        if (!is_array($m)) {
+                            return [
+                                'product_id' => null,
+                                'name' => (string) $m,
+                                'dosage' => null,
+                                'instructions' => (string) $m,
+                            ];
+                        }
+
+                        return [
+                            'product_id' => $m['product_id'] ?? null,
+                            'name' => $m['product_name'] ?? $m['name'] ?? null,
+                            'dosage' => $m['instructions'] ?? $m['dosage'] ?? null,
+                            'instructions' => $m['instructions'] ?? $m['dosage'] ?? null,
+                        ];
+                    })->values()->toArray();
+
                     return [
                         'prescription_id' => $p->prescription_id,
                         'prescription_date' => $p->prescription_date,
@@ -362,15 +551,12 @@ class PetManagementController extends Controller
                         'notes' => $p->notes,
                     ];
                 })->values()->toArray();
+            }
 
-            // Get referrals for this visit
-            $referrals = \App\Models\Referral::with(['refToBranch', 'refByBranch'])
-                ->whereHas('appointment', function($q) use ($pet, $visitDateStr) {
-                    $q->where('pet_id', $pet->pet_id)
-                      ->whereDate('appoint_date', Carbon::parse($visitDateStr)->toDateString());
-                })
-                ->get()
-                ->map(function ($r) {
+            // Referrals grouped by appointment date (matching visit date)
+            $referrals = [];
+            if ($referralsByDate->has($dateKey)) {
+                $referrals = $referralsByDate->get($dateKey)->map(function ($r) {
                     return [
                         'ref_id' => $r->ref_id,
                         'ref_date' => $r->ref_date,
@@ -382,6 +568,7 @@ class PetManagementController extends Controller
                         'medications_given' => $r->medications_given,
                     ];
                 })->values()->toArray();
+            }
 
             // Get initial assessment
             $initialAssessment = null;
@@ -447,8 +634,8 @@ class PetManagementController extends Controller
                 'visit_status' => $v->visit_status,
                 'visit_service_type' => $v->visit_service_type,
                 'veterinarian' => [
-                    'name' => optional($vetUser)->user_name ?? optional($v->user)->user_name ?? 'N/A',
-                    'license' => optional($vetUser)->user_licenseNum ?? 'N/A',
+                    'name' => $resolvedVet ?? 'N/A',
+                    'license' => $resolvedLicense ?? 'N/A',
                 ],
                 'services' => $services,
                 'checkup' => $checkup ? (array) $checkup : null,

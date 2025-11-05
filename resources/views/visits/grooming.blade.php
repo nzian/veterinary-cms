@@ -1,3 +1,138 @@
+@extends('AdminBoard')
+
+@section('content')
+<div class="min-h-screen bg-gradient-to-br from-rose-50 to-pink-50 p-4 sm:p-6">
+  <div class="max-w-7xl mx-auto space-y-6">
+    <div class="flex items-center justify-between bg-white p-4 rounded-xl shadow-sm border">
+      <h2 class="text-3xl font-bold text-gray-800">Grooming Services Workspace</h2>
+      <a href="{{ route('medical.index', ['tab' => 'grooming']) }}" class="px-4 py-2 bg-gray-200 border-2 border-gray-300 rounded-lg hover:bg-gray-300 font-medium">← Back</a>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-4">
+      <div class="font-semibold text-gray-900 mb-1">{{ $visit->pet->pet_name ?? 'Pet' }} <span class="text-gray-500">({{ $visit->pet->pet_species ?? '—' }})</span></div>
+      <div class="text-sm text-gray-700">Owner: <span class="font-medium">{{ $visit->pet->owner->own_name ?? '—' }}</span></div>
+      <div class="mt-3 inline-flex items-center gap-2">
+        <button onclick="openAgreementModal()" class="px-4 py-2 bg-orange-500 text-white rounded-lg">Open Grooming Agreement</button>
+        <button onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_id ?? 'N/A' }}', 'Grooming')" class="px-4 py-2 bg-indigo-600 text-white rounded-lg">Service Actions</button>
+      </div>
+    </div>
+  </div>
+
+    {{-- Service Record Form --}}
+    <div class="max-w-7xl mx-auto mt-6">
+      <div class="bg-white rounded-xl shadow-sm border p-6">
+        <form id="groomingServiceForm" action="{{ route('medical.visits.grooming.update', $visit->visit_id) }}" method="POST" class="space-y-6">
+          @csrf
+          @method('PUT')
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-4">
+              <h3 class="text-lg font-semibold text-gray-900">General Assessment</h3>
+              
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Coat Condition</label>
+                <select name="coat_condition" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                  <option value="">Select condition...</option>
+                  @php
+                    $currentCondition = old('coat_condition', $visit->services->first()?->pivot?->coat_condition ?? '');
+                  @endphp
+                  <option value="excellent" {{ $currentCondition == 'excellent' ? 'selected' : '' }}>Excellent</option>
+                  <option value="good" {{ $currentCondition == 'good' ? 'selected' : '' }}>Good</option>
+                  <option value="fair" {{ $currentCondition == 'fair' ? 'selected' : '' }}>Fair</option>
+                  <option value="poor" {{ $currentCondition == 'poor' ? 'selected' : '' }}>Poor</option>
+                </select>
+                @error('coat_condition')
+                  <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                @enderror
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Skin Issues</label>
+                <div class="mt-2 space-y-2">
+                  @php
+                    $currentIssues = old('skin_issues', $visit->services->first()?->pivot?->skin_issues ?? []);
+                    if (!is_array($currentIssues)) {
+                        $currentIssues = json_decode($currentIssues, true) ?? [];
+                    }
+                  @endphp
+                  <div class="flex items-start">
+                    <input type="checkbox" name="skin_issues[]" value="matting" class="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      {{ in_array('matting', $currentIssues) ? 'checked' : '' }}>
+                    <label class="ml-2 block text-sm text-gray-900">Matting</label>
+                  </div>
+                  <div class="flex items-start">
+                    <input type="checkbox" name="skin_issues[]" value="dandruff" class="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      {{ in_array('dandruff', $currentIssues) ? 'checked' : '' }}>
+                    <label class="ml-2 block text-sm text-gray-900">Dandruff</label>
+                  </div>
+                  <div class="flex items-start">
+                    <input type="checkbox" name="skin_issues[]" value="fleas" class="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      {{ in_array('fleas', $currentIssues) ? 'checked' : '' }}>
+                    <label class="ml-2 block text-sm text-gray-900">Fleas</label>
+                  </div>
+                </div>
+                @error('skin_issues')
+                  <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                @enderror
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <h3 class="text-lg font-semibold text-gray-900">Service Details</h3>
+              
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Services Performed</label>
+                <div class="mt-2 space-y-2" id="servicesCheckboxGroup">
+                  @php
+                    // Normalize selected services to an array of IDs for repopulation
+                    $selectedServices = old('services');
+                    if (is_null($selectedServices)) {
+                        // If visit->services relation is loaded or exists, pluck the primary key (serv_id)
+                        $selectedServices = isset($visit) && method_exists($visit, 'services')
+                            ? ($visit->services->pluck('serv_id')->toArray() ?? [])
+                            : [];
+                    }
+                  @endphp
+                  @foreach($services ?? [] as $service)
+                    <div class="flex items-start">
+                      <input type="checkbox" name="services[]" value="{{ $service->serv_id ?? $service->id }}" class="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        {{ in_array(($service->serv_id ?? $service->id), (array) $selectedServices) ? 'checked' : '' }}>
+                      <label class="ml-2 block text-sm text-gray-900">{{ $service->serv_name ?? $service->name }}</label>
+                    </div>
+                  @endforeach
+                </div>
+
+                {{-- Client-side inline error (hidden by default) --}}
+                <p id="servicesClientError" class="mt-1 text-sm text-red-600 hidden">Please select at least one service.</p>
+
+                {{-- Server-side validation error --}}
+                @error('services')
+                  <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                @enderror
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Notes</label>
+                <textarea name="notes" rows="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ old('notes', $visit->services->first()?->pivot?->notes ?? '') }}</textarea>
+                @error('notes')
+                  <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                @enderror
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end space-x-3 pt-5">
+            <button type="button" onclick="window.history.back()" class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+              Cancel
+            </button>
+            <button type="submit" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+              Save Record
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+</div>
+
 {{-- Grooming Agreement Modal (CRITICAL: Full HTML and JS required for interaction) --}}
 <div id="groomingAgreementModal" class="hidden fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-70">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto p-6 relative">
@@ -159,6 +294,15 @@
     'allProducts' => $allProducts,
 ])
 
+<form id="agreement-form-data" action="{{ route('medical.visits.grooming.agreement.store', $visit->visit_id) }}" method="POST" style="display:none;">
+    @csrf
+    <input type="hidden" id="signature_data" name="signature_data">
+    <input type="hidden" id="signer_name_hidden" name="signer_name">
+    <input type="hidden" id="history_before_hidden" name="history_before">
+    <input type="hidden" id="history_after_hidden" name="history_after">
+    <input type="hidden" id="color_markings_hidden" name="color_markings">
+</form>
+
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
 <script>
@@ -269,6 +413,34 @@
                 finalSubmitForm.submit(); 
             });
         }
+
+    // --- Client-side validation for grooming services ---
+    const groomingForm = document.getElementById('groomingServiceForm');
+    if (groomingForm) {
+      groomingForm.addEventListener('submit', function(e) {
+        const checked = document.querySelectorAll('input[name="services[]"]:checked');
+        const clientErr = document.getElementById('servicesClientError');
+        if (checked.length === 0) {
+          e.preventDefault();
+          if (clientErr) {
+            clientErr.classList.remove('hidden');
+            // If server rendered an error, prefer that message; otherwise use default
+            try {
+              const serverMsg = `{!! $errors->first('services') ? e('\'' . addslashes($errors->first('services')) . '\'') : '' !!}`;
+            } catch (ex) {
+              // ignore blade interpolation issues in JS fallback
+            }
+            clientErr.textContent = '{{ $errors->first('services', 'Please select at least one service.') }}';
+          }
+          // Scroll to the services area so user sees the error
+          const target = document.getElementById('servicesCheckboxGroup');
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return false;
+        } else if (clientErr) {
+          clientErr.classList.add('hidden');
+        }
+      });
+    }
     });
 </script>
 @endpush
