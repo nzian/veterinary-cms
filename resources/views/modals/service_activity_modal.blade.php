@@ -574,9 +574,11 @@
         // Finalize data
         document.getElementById('activity_medications_json').value = JSON.stringify(medications);
         form.action = "{{ route('medical.prescriptions.store') }}"; // Set the correct submission route
+        form.method = 'POST';
         
         // Submit the form
         const submitBtn = form.querySelector('button[type="submit"]');
+
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Saving...';
         
