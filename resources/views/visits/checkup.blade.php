@@ -70,18 +70,21 @@
                         </h3>
                         <div class="space-y-4">
                             <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (kg) <span class="text-red-500">*</span></label>
-                                    <input type="number" step="0.01" name="weight" value="{{ old('weight', $__checkup['weight'] ?? '') }}"
-                                           class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                                           placeholder="Enter weight" required>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Temperature (°C) <span class="text-red-500">*</span></label>
-                                    <input type="number" step="0.1" name="temperature" value="{{ old('temperature', $__checkup['temperature'] ?? '') }}"
-                                           class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                                           placeholder="Enter temperature" required>
-                                </div>
+                               <div>
+    <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (kg) <span class="text-red-500">*</span></label>
+    <input type="number" step="0.01" name="weight" 
+           value="{{ old('weight', $visit->weight ?? '') }}"
+           class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+           placeholder="Enter weight" required>
+</div>
+
+<div>
+    <label class="block text-sm font-semibold text-gray-700 mb-1">Temperature (°C) <span class="text-red-500">*</span></label>
+    <input type="number" step="0.1" name="temperature" 
+           value="{{ old('temperature', $visit->temperature ?? '') }}"
+           class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+           placeholder="Enter temperature" required>
+</div>
                                 <div>
                                     <label class="block text-sm font-semibold text-gray-700 mb-1">Heart Rate (bpm)</label>
                                     <input type="number" name="heart_rate" value="{{ old('heart_rate', $__checkup['heart_rate'] ?? '') }}"

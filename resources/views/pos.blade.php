@@ -743,10 +743,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 modal.classList.add("hidden");
             }
         });
-    });
+        });
 
-    updateTotals(); // Initial update
-});
-</script>
-@endpush
-@endsection
+        updateTotals(); // Initial update
+    });
+    </script>
+    @endpush
+    @endsection

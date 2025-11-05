@@ -287,7 +287,6 @@
                                         <button type="button" onclick="openInitialAssessment({{ $c->visit_id }}, {{ $c->pet_id }}, '{{ $c->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
-                                        <button type="button" onclick="advanceWorkflow({{ $c->visit_id }}, this, 'check-up')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
                             </tr>
@@ -367,7 +366,6 @@
                                         <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
-                                        <button type="button" onclick="advanceWorkflow({{ $d->visit_id }}, this, 'deworming')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
                             </tr>
@@ -447,7 +445,6 @@
                                         <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
-                                        <button type="button" onclick="advanceWorkflow({{ $d->visit_id }}, this)" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
                             </tr>
@@ -527,7 +524,6 @@
                                         <button type="button" onclick="openInitialAssessment({{ $s->visit_id }}, {{ $s->pet_id }}, '{{ $s->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
-                                        <button type="button" onclick="advanceWorkflow({{ $s->visit_id }}, this, 'surgical')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
                             </tr>
@@ -604,7 +600,6 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $e->visit_id]) }}?type=emergency" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="advanceWorkflow({{ $e->visit_id }}, this, 'emergency')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
                             </tr>
@@ -681,7 +676,6 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $v->visit_id]) }}?type=vaccination" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="advanceWorkflow({{ $v->visit_id }}, this, 'vaccination')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
                             </tr>
@@ -758,7 +752,7 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $g->visit_id]) }}?type=grooming" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="advanceWorkflow({{ $g->visit_id }}, this, 'grooming')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
+                                       
                                     </div>
                                 </td>
                             </tr>
@@ -835,7 +829,7 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $b->visit_id]) }}?type=boarding" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="advanceWorkflow({{ $b->visit_id }}, this, 'boarding')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
+                                       
                                     </div>
                                 </td>
                             </tr>
@@ -1144,7 +1138,6 @@ async function advanceWorkflow(visitId, btn, type){
     }
 }
 
-// Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     setupCSRF();
     
@@ -1168,6 +1161,64 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch { return []; }
     })();
 
+    // 🛑 SERVICE PAIRING RULES (Cannot Be Paired With)
+    const servicePairingRules = {
+        'surgical': ['grooming', 'vaccination', 'deworming', 'boarding'],
+        'emergency': ['check up', 'grooming', 'vaccination', 'deworming', 'surgical', 'boarding'],
+        'vaccination': ['surgical', 'grooming'],
+        'boarding': ['surgical', 'emergency'],
+        'diagnostics': ['grooming', 'deworming'],
+        'deworming': ['vaccination'],
+        // Explicitly allowed pairings are handled by NOT listing them here.
+        // E.g., Check-up not listed means it can be paired with anything not listed in other rules.
+    };
+
+    function updateServicePairing(serviceGroupElement) {
+        const checkboxes = serviceGroupElement.querySelectorAll('input[type="checkbox"]');
+        const selectedServices = Array.from(checkboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+
+        checkboxes.forEach(cb => {
+            const service = cb.value;
+            let shouldBeDisabled = false;
+
+            // Check if any *selected* service makes the *current* service incompatible
+            for (const selected of selectedServices) {
+                // Check if the current service is in the restricted list of an *already selected* service
+                if (selected in servicePairingRules && servicePairingRules[selected].includes(service)) {
+                    shouldBeDisabled = true;
+                    break;
+                }
+                // Check for reverse restriction (if the current service restricts the selected one)
+                // This is generally covered by checking both services' rules, but explicit check adds robustness
+                if (service !== selected && service in servicePairingRules && servicePairingRules[service].includes(selected)) {
+                     // Only disable the currently unselected service if the conflict is with a *currently selected* service
+                     // If the service is ALREADY selected, we only disable new conflicting services.
+                    if (!cb.checked) {
+                        shouldBeDisabled = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!cb.checked) {
+                // Disable if it conflicts with any currently selected service
+                if (shouldBeDisabled) {
+                    cb.disabled = true;
+                    cb.title = `Cannot be paired with selected services: ${selectedServices.join(', ')}`;
+                } else {
+                    cb.disabled = false;
+                    cb.title = '';
+                }
+            } else {
+                // Selected services should never disable themselves
+                cb.disabled = false; 
+                cb.title = '';
+            }
+        });
+    }
+
     function renderOwnerPets(ownerId) {
         const container = document.getElementById('add_owner_pets_container');
         if (!container) return;
@@ -1179,11 +1230,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         container.innerHTML = pets.map(p => {
-            // Fixed serv_type options
+            // Fixed serv_type options (normalized to lowercase)
             const fixedTypes = ['boarding','check up','deworming','diagnostics','emergency','grooming','surgical','vaccination'];
             const serviceCheckboxes = fixedTypes.map(type => `
                 <label class='inline-flex items-center mr-3 mb-1'>
-                    <input type="checkbox" name="service_type[${p.pet_id}][]" value="${type}" class="service-checkbox mr-1"> ${type}
+                    <input type="checkbox" name="service_type[${p.pet_id}][]" value="${type}" class="service-checkbox mr-1"> ${capitalizeFirstLetter(type)}
                 </label>
             `).join('');
             
@@ -1220,16 +1271,30 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>`;
         }).join('');
 
-        // Auto-check the pet when any service type is selected
+        // Add event listeners for pairing logic and auto-check
         const groups = container.querySelectorAll('[data-service-group]');
         groups.forEach(g => {
             const pet = g.getAttribute('data-service-group');
             const petBox = container.querySelector(`input.pet-check[data-pet="${pet}"]`);
-            g.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            
+            const serviceCheckboxes = g.querySelectorAll('input[type="checkbox"]');
+
+            serviceCheckboxes.forEach(cb => {
+                // 1. Service Pairing Logic
                 cb.addEventListener('change', () => {
-                    if (cb.checked && petBox && !petBox.checked) petBox.checked = true;
+                    updateServicePairing(g);
+                });
+
+                // 2. Auto-check the pet logic
+                cb.addEventListener('change', () => {
+                    if (cb.checked && petBox && !petBox.checked) {
+                        petBox.checked = true;
+                    }
                 });
             });
+
+            // Initial run of the pairing logic
+            updateServicePairing(g);
         });
     }
 

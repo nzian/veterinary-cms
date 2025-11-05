@@ -39,55 +39,156 @@ class MedicalManagementController extends Controller
         $this->inventoryService = $inventoryService;
     }
 
-    /**
-     * Update the grooming service record
-     */
-    public function updateGroomingService(Request $request, $visitId)
+    
+    private function getSchedulingRules()
     {
-        $messages = [
-            'services.required' => 'Please select at least one service.',
-            'services.min' => 'Please select at least one service.',
+        return [
+            'vaccination' => [
+                '5-in-1' => ['species' => 'Dog', 'shots' => 4, 'interval_days' => 14], 
+                'Kennel Cough' => ['species' => 'Dog', 'shots' => 2, 'interval_days' => 14],
+                'Rabies-Dog' => ['species' => 'Dog', 'shots' => 1, 'interval_days' => 365],
+                '4-in-1' => ['species' => 'Cat', 'shots' => 3, 'interval_days' => 21],
+                'Rabies-Cat' => ['species' => 'Cat', 'shots' => 1, 'interval_days' => 365],
+            ],
+            'deworming' => [
+                'Deworming' => ['species' => 'Dog/Cat', 'shots' => 4, 'interval_days' => 14],
+                'Monthly Deworm' => ['species' => 'Dog/Cat', 'shots' => 999, 'interval_days' => 30],
+            ]
         ];
+    }
 
-        $request->validate([
-            'coat_condition' => 'required|in:excellent,good,fair,poor',
-            'skin_issues' => 'array',
-            'skin_issues.*' => 'in:matting,dandruff,fleas',
-            // Require at least one service to be selected
-            'services' => 'required|array|min:1',
-            'services.*' => 'exists:tbl_serv,serv_id',
-            'notes' => 'nullable|string|max:1000',
-        ], $messages);
+    /**
+     * Calculates the next schedule, handling dose count and switches.
+     */
+    private function calculateNextSchedule($serviceType, $productName, $petId)
+    {
+        $rules = $this->getSchedulingRules();
+        $ruleSet = $rules[$serviceType] ?? null;
+        if (!$ruleSet) { return null; }
 
-        DB::beginTransaction();
-        try {
-            $visit = Visit::with(['services', 'pet.owner'])->findOrFail($visitId);
+        $pet = Pet::select('pet_species')->find($petId);
+        $species = $pet->pet_species ?? 'Dog'; 
+        
+        $historyTable = $serviceType === 'vaccination' ? 'tbl_vaccination_record' : 'tbl_deworming_record';
+        $nameField = $serviceType === 'vaccination' ? 'vaccine_name' : 'dewormer_name';
+        $dateField = $serviceType === 'vaccination' ? 'date_administered' : 'created_at';
+        
+        $lookupName = $productName;
+        if (str_contains(strtolower($productName), 'rabies')) {
+            $lookupName = 'Rabies-' . $species;
+        }
+
+        // --- Determine Rule and Current Dose ---
+        $isMonthlyDeworm = strtolower($productName) === 'monthly deworm';
+
+        if (strtolower($productName) === 'deworming' || $isMonthlyDeworm) {
+            $initialDosesCount = DB::table($historyTable)
+                ->where('pet_id', $petId)
+                ->where('dewormer_name', 'Deworming')
+                ->count();
             
-            // Sync services with pivot data
-            $syncData = [];
-            foreach ($request->services as $serviceId) {
-                $syncData[$serviceId] = [
-                    'coat_condition' => $request->coat_condition,
-                    'skin_issues' => json_encode($request->skin_issues),
-                    'notes' => $request->notes
-                ];
+            if ($initialDosesCount >= 4) {
+                $lookupName = 'Monthly Deworm';
+                // Count the number of monthly doses administered specifically
+                $doseCount = DB::table($historyTable)
+                    ->where('pet_id', $petId)
+                    ->where($nameField, 'Monthly Deworm')
+                    ->count();
+            } else {
+                $lookupName = 'Deworming';
+                $doseCount = $initialDosesCount;
             }
-            
-            $visit->services()->sync($syncData);
-            
+        } else {
+            // Standard Vaccination logic
+            $doseCount = DB::table($historyTable)
+                ->where('pet_id', $petId)
+                ->where($nameField, $productName)
+                ->count();
+        }
+        
+        $rule = $ruleSet[$lookupName] ?? null;
+        if (!$rule) { return null; }
+        
+        $currentDose = $doseCount;
+        $nextDose = $currentDose + 1;
+        
+        // --- End of Series Check ---
+        if ($currentDose >= $rule['shots'] && $rule['shots'] !== 999) {
+            return null;
+        }
+        
+        // --- Calculate Dates and Final Type ---
+        $lastRecord = DB::table($historyTable)
+            ->where('pet_id', $petId)
+            ->where($nameField, $productName)
+            ->orderByDesc($dateField)
+            ->first();
+        
+        $startDate = $lastRecord ? Carbon::parse($lastRecord->$dateField) : Carbon::now();
+        $nextDueDate = $startDate->copy()->addDays($rule['interval_days']);
+
+        $isMaintenance = $lookupName === 'Monthly Deworm';
+        $appointTypePrefix = $serviceType === 'vaccination' ? 'Vaccination' : 'Deworming';
+
+        $finalDoseDisplay = $isMaintenance ? 'Maintenance' : "Dose {$nextDose}";
+        $productNameDisplay = $isMaintenance ? 'Monthly Deworming' : $productName;
+        
+        $nextAppointType = "{$appointTypePrefix} Follow-up for {$productNameDisplay} ({$finalDoseDisplay})";
+
+        return [
+            'next_due_date' => $nextDueDate->toDateString(),
+            'next_appoint_type' => $nextAppointType,
+            'new_dose' => $nextDose
+        ];
+    }
+
+    /**
+     * Creates the follow-up appointment and links the service.
+     */
+    private function autoScheduleFollowUp(Visit $visitModel, $appointType, $nextDueDate, $serviceName, $newDose)
+    {
+        $pet = $visitModel->pet;
+        $owner = $pet->owner ?? null;
+        $ownerContact = $owner->own_contactnum ?? 'N/A';
+        
+        $genericServiceName = str_contains($appointType, 'Vaccination') ? 'Vaccination' : 'Deworming';
+        $service = Service::where('serv_name', $genericServiceName)->first(); 
+        $serviceId = $service->serv_id ?? null;
+        
+        try {
+            DB::beginTransaction();
+
+            // 1. Create the Appointment
+            $appointment = Appointment::create([ 
+                'appoint_date' => $nextDueDate,
+                'appoint_time' => '10:00:00', // Default follow-up time
+                'appoint_status' => 'Scheduled',
+                'appoint_type' => $appointType, 
+                'appoint_description' => "Auto-scheduled follow-up for {$serviceName} (Dose {$newDose}) for {$pet->pet_name}.",
+                'pet_id' => $visitModel->pet_id,
+                'user_id' => $visitModel->user_id, 
+                'appoint_contactNum' => $ownerContact,
+            ]);
+
+            // 2. Link Appointment to Service (tbl_appoint_serv) - critical for filtering
+            if ($serviceId && Schema::hasTable('tbl_appoint_serv')) {
+                DB::table('tbl_appoint_serv')->insert([
+                    'appoint_id' => $appointment->appoint_id,
+                    'serv_id' => $serviceId,
+                    'created_at' => Carbon::now(),
+                    'updated_at' => Carbon::now(),
+                ]);
+            } else {
+                 Log::warning("Auto-schedule: Appointment {$appointment->appoint_id} created, but failed to link service ID {$serviceId}.");
+            }
+
             DB::commit();
-            
-            return redirect()
-                ->route('medical.visits.grooming.show', $visitId)
-                ->with('success', 'Grooming service record updated successfully');
-                
+
+            Log::info("AUTO-SCHEDULED: Appointment {$appointment->appoint_id} for {$pet->pet_name} on {$nextDueDate}.");
+
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error updating grooming service: ' . $e->getMessage());
-            
-            return back()
-                ->withInput()
-                ->with('error', 'Failed to update grooming service record. Please try again.');
+            Log::error('Auto-scheduling FAILED: ' . $e->getMessage() . ' Trace: ' . $e->getTraceAsString());
         }
     }
 
@@ -443,36 +544,39 @@ class MedicalManagementController extends Controller
             'administered_by' => ['nullable','string'], 'remarks' => ['nullable','string'], 'workflow_status' => ['nullable','string'],
         ]);
         
-        $visitModel = Visit::with('pet')->findOrFail($visitId);
+        $visitModel = Visit::with('pet.owner')->findOrFail($visitId);
         
-        // 🌟 NEW: Set Status to Completed
+        // 1. Update Visit Status
         $visitModel->visit_status = 'completed';
         $visitModel->workflow_status = 'Completed';
-
         $visitModel->save();
         
-        DB::table('tbl_vaccination_record')->updateOrInsert(
-            ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
-            [
-                'vaccine_name' => $validated['vaccine_name'],
-                'dose'=> $validated['dose'], 'manufacturer' => $validated['manufacturer'],
-                'batch_no' => $validated['batch_no'], 'date_administered' => $validated['date_administered'] ?: $visitModel->visit_date,
-                'next_due_date' => $validated['next_due_date'], 'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
-                'remarks' => $validated['remarks'], 'updated_at' => now(),
-            ]
-        );
+        // 2. Save Vaccination Record 
+        $dateAdministered = $validated['date_administered'] ?: $visitModel->visit_date;
+        
+        DB::table('tbl_vaccination_record')->insert([
+            'visit_id' => $visitModel->visit_id, 
+            'pet_id' => $visitModel->pet_id,
+            'vaccine_name' => $validated['vaccine_name'],
+            'dose'=> $validated['dose'], 
+            'manufacturer' => $validated['manufacturer'],
+            'batch_no' => $validated['batch_no'], 
+            'date_administered' => $dateAdministered,
+            'next_due_date' => $validated['next_due_date'], 
+            'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
+            'remarks' => $validated['remarks'], 
+            'created_at' => now(), 
+            'updated_at' => now(),
+        ]);
 
-        $vaccineName = $request->vaccine_name;
-        $vaccine = \App\Models\Product::where('prod_name', $vaccineName)
+        // 3. Deduct Inventory 
+        $vaccine = Product::where('prod_name', $request->vaccine_name)
             ->where('prod_category', 'Vaccines')
             ->first();
         
         if ($vaccine && $vaccine->prod_stocks > 0) {
-            // Deduct 1 unit (or use $request->dose if it's a quantity)
             $vaccine->decrement('prod_stocks', 1);
-            
-            // Optional: Log the usage in inventory history
-        InventoryHistoryModel::create([
+            InventoryHistoryModel::create([
                 'prod_id' => $vaccine->prod_id,
                 'type' => 'service_usage',
                 'quantity' => -1,
@@ -481,9 +585,25 @@ class MedicalManagementController extends Controller
                 'notes' => "Administered to " . ($visitModel->pet->pet_name ?? 'Pet')
             ]);
         }
+
+        // 4. AUTO-SCHEDULING LOGIC
+        $schedule = $this->calculateNextSchedule('vaccination', $validated['vaccine_name'], $visitModel->pet_id);
         
-        // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
-        return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', 'Vaccination recorded and visit status marked **Completed**.');
+        if ($schedule) {
+            $this->autoScheduleFollowUp(
+                $visitModel, 
+                $schedule['next_appoint_type'], 
+                $schedule['next_due_date'], 
+                $validated['vaccine_name'],
+                $schedule['new_dose'] 
+            );
+            $successMessage = 'Vaccination recorded and visit status marked **Completed**. Next appointment auto-scheduled for **' . Carbon::parse($schedule['next_due_date'])->format('F j, Y') . '**.';
+        } else {
+             $successMessage = 'Vaccination recorded and visit status marked **Completed**. All required doses completed, no further follow-up scheduled.';
+        }
+        
+        // 5. Redirect to Appointments tab 
+        return redirect()->route('medical.index', ['active_tab' => 'appointments'])->with('success', $successMessage);
     }
 
     public function saveDeworming(Request $request, $visitId)
@@ -493,24 +613,94 @@ class MedicalManagementController extends Controller
             'administered_by' => ['nullable','string'], 'remarks' => ['nullable','string'], 'workflow_status' => ['nullable','string'],
         ]);
         
-        $visitModel = Visit::findOrFail($visitId);
+        $visitModel = Visit::with('pet.owner')->findOrFail($visitId);
         
-        // 🌟 NEW: Set Status to Completed
+        // 1. Update Visit Status
         $visitModel->visit_status = 'completed';
         $visitModel->workflow_status = 'Completed';
-        
         $visitModel->save();
         
-        DB::table('tbl_deworming_record')->updateOrInsert(
-            ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
-            [
-                'dewormer_name' => $validated['dewormer_name'], 'dosage' => $validated['dosage'], 
-                'next_due_date' => $validated['next_due_date'], 'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
-                'remarks' => $validated['remarks'], 'updated_at' => now(),
-            ]
-        );
-        // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
-        return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', 'Deworming recorded and visit status marked **Completed**.');
+        // 2. Save Deworming Record
+        DB::table('tbl_deworming_record')->insert([
+            'visit_id' => $visitModel->visit_id, 
+            'pet_id' => $visitModel->pet_id,
+            'dewormer_name' => $validated['dewormer_name'], 
+            'dosage' => $validated['dosage'], 
+            'next_due_date' => $validated['next_due_date'], 
+            'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
+            'remarks' => $validated['remarks'], 
+            'created_at' => now(), 
+            'updated_at' => now(),
+        ]);
+
+        // 3. AUTO-SCHEDULING LOGIC
+        $currentDewormName = $validated['dewormer_name']; 
+        $schedule = $this->calculateNextSchedule('deworming', $currentDewormName, $visitModel->pet_id);
+        
+        if ($schedule) {
+            $this->autoScheduleFollowUp(
+                $visitModel, 
+                $schedule['next_appoint_type'], 
+                $schedule['next_due_date'], 
+                $currentDewormName,
+                $schedule['new_dose'] 
+            );
+            
+            $nextScheduleName = str_contains($schedule['next_appoint_type'], 'Monthly') ? 'Monthly Deworming' : 'Deworming';
+            $successMessage = 'Deworming recorded and visit status marked **Completed**. Next appointment auto-scheduled for **' . Carbon::parse($schedule['next_due_date'])->format('F j, Y') . '**.';
+        } else {
+             $successMessage = 'Deworming recorded and visit status marked **Completed**. Maintenance schedule established or completed.';
+        }
+        
+        // 4. Redirect to Appointments tab
+        return redirect()->route('medical.index', ['active_tab' => 'appointments'])->with('success', $successMessage);
+    }
+    
+    public function updateGroomingService(Request $request, $visitId)
+    {
+        $messages = [
+            'services.required' => 'Please select at least one service.',
+            'services.min' => 'Please select at least one service.',
+        ];
+
+        $request->validate([
+            'coat_condition' => 'required|in:excellent,good,fair,poor',
+            'skin_issues' => 'array',
+            'skin_issues.*' => 'in:matting,dandruff,fleas',
+            'services' => 'required|array|min:1',
+            'services.*' => 'exists:tbl_serv,serv_id',
+            'notes' => 'nullable|string|max:1000',
+        ], $messages);
+
+        DB::beginTransaction();
+        try {
+            $visit = Visit::with(['services', 'pet.owner'])->findOrFail($visitId);
+            
+            $syncData = [];
+            foreach ($request->services as $serviceId) {
+                $syncData[$serviceId] = [
+                    'coat_condition' => $request->coat_condition,
+                    'skin_issues' => json_encode($request->skin_issues),
+                    'notes' => $request->notes
+                ];
+            }
+            
+            $visit->services()->sync($syncData);
+            
+            DB::commit();
+            
+            return redirect()
+                ->route('medical.visits.grooming.show', $visitId)
+                ->with('success', 'Grooming service record updated successfully');
+                
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error updating grooming service: ' . $e->getMessage());
+            
+            return back()
+                ->withInput()
+                ->with('error', 'Failed to update grooming service record. Please try again.');
+        }
     }
     
     public function saveGrooming(Request $request, $visitId)
