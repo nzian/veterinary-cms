@@ -237,6 +237,8 @@ Route::prefix('visits')->group(function () {
     Route::post('/visits/{visit}/surgical', [MedicalManagementController::class, 'saveSurgical'])->name('medical.visits.surgical.save');
     Route::post('/visits/{visit}/emergency', [MedicalManagementController::class, 'saveEmergency'])->name('medical.visits.emergency.save');
     Route::post('/visits/{visit}/agreement', [GroomingAgreementController::class, 'store'])->name('medical.visits.grooming.agreement.store');
+    Route::put('/visits/{visit}/grooming', [MedicalManagementController::class, 'updateGroomingService'])
+    ->name('medical.visits.grooming.update');
 });
 
 // Restore Attend/Perform Visit route so the Visits table Attend link works

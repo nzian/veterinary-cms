@@ -81,7 +81,10 @@ class Visit extends Model
 
     public function services()
     {
-        return $this->belongsToMany(Service::class, 'tbl_visit_service', 'visit_id', 'serv_id')->withTimestamps();
+        return $this->belongsToMany(Service::class, 'tbl_visit_service', 'visit_id', 'serv_id')
+                    ->using(VisitService::class)
+                    ->withPivot(['coat_condition', 'skin_issues', 'notes'])
+                    ->withTimestamps();
     }
 
     public function pet()

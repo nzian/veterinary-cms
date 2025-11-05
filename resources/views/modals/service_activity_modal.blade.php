@@ -1,3 +1,6 @@
+{{-- Toast Container --}}
+<div id="toastContainer" class="toast-container"></div>
+
 <div id="serviceActivityModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
     {{-- MODAL CONTAINER: Added max-h-[95vh] and overflow-y-auto --}}
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto p-6">
@@ -86,7 +89,7 @@
             {{-- Initial Assessment Tab Content --}}
             <div id="activity_initial_content" class="activity-tab-content hidden space-y-4">
                 <h4 class="text-lg font-semibold text-indigo-600">Initial Assessment</h4>
-                <form id="activityInitialAssessmentForm" onsubmit="return handleInitialAssessmentSubmit(event)" class="space-y-4 border border-indigo-200 p-4 rounded-lg bg-indigo-50">
+                <form id="activityInitialAssessmentForm" action="{{ route('medical.initial_assessments.store') }}" method="POST" onsubmit="return handleInitialAssessmentSubmit(event)" class="space-y-4 border border-indigo-200 p-4 rounded-lg bg-indigo-50">
                     @csrf
                     <input type="hidden" name="pet_id" id="activity_initial_pet_id" value="{{ $visit->pet_id ?? '' }}">
                     <input type="hidden" name="visit_id" id="activity_initial_visit_id" value="{{ $visit->visit_id ?? '' }}">
@@ -580,7 +583,35 @@
         form.submit();
     }
 
-    function handleInitialAssessmentSubmit(e) {
+    // Toast notification function
+function showToast(type, message) {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast-notification ${type === 'success' ? 'toast-success' : 'toast-error'}`;
+    
+    // Create toast content with icon
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+    toast.innerHTML = `
+        <div class="flex items-center">
+            <i class="fas ${icon} mr-2"></i>
+            <span>${message}</span>
+        </div>
+    `;
+
+    container.appendChild(toast);
+
+    // Remove toast after 3 seconds with fade out animation
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.5s ease-out forwards';
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.remove();
+            }
+        }, 500);
+    }, 3000);
+}
+
+function handleInitialAssessmentSubmit(e) {
     e.preventDefault();
     const form = e.target;
     const formData = new FormData(form);
@@ -606,11 +637,10 @@
             // Show success message
             showToast('success', data.message || 'Initial assessment saved successfully!');
             
-            // Close the modal or reset form
+            // Close the modal after a delay
             setTimeout(() => {
-                const modal = document.getElementById('activityModal');
-                if (modal) modal.classList.add('hidden');
-            }, 1500);
+                closeActivityModal();
+            }, 2000);
         } else {
             throw new Error(data.message || 'Failed to save initial assessment');
         }

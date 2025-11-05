@@ -8,6 +8,8 @@ use App\Models\Referral;
 use App\Models\Pet;
 use App\Models\Service;
 use App\Models\Owner;
+use App\Models\GroomingAgreement;
+use Illuminate\Support\Facades\Storage;
 use App\Models\Branch;
 use App\Models\User;
 use App\Models\Product; 
@@ -16,6 +18,7 @@ use App\Models\Visit;
 use App\Models\Equipment; 
 use App\Models\MedicalHistory; 
 use App\Models\Bill; 
+use App\Models\AppointServ;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +37,58 @@ class MedicalManagementController extends Controller
     {
         $this->middleware('auth');
         $this->inventoryService = $inventoryService;
+    }
+
+    /**
+     * Update the grooming service record
+     */
+    public function updateGroomingService(Request $request, $visitId)
+    {
+        $messages = [
+            'services.required' => 'Please select at least one service.',
+            'services.min' => 'Please select at least one service.',
+        ];
+
+        $request->validate([
+            'coat_condition' => 'required|in:excellent,good,fair,poor',
+            'skin_issues' => 'array',
+            'skin_issues.*' => 'in:matting,dandruff,fleas',
+            // Require at least one service to be selected
+            'services' => 'required|array|min:1',
+            'services.*' => 'exists:tbl_serv,serv_id',
+            'notes' => 'nullable|string|max:1000',
+        ], $messages);
+
+        DB::beginTransaction();
+        try {
+            $visit = Visit::with(['services', 'pet.owner'])->findOrFail($visitId);
+            
+            // Sync services with pivot data
+            $syncData = [];
+            foreach ($request->services as $serviceId) {
+                $syncData[$serviceId] = [
+                    'coat_condition' => $request->coat_condition,
+                    'skin_issues' => json_encode($request->skin_issues),
+                    'notes' => $request->notes
+                ];
+            }
+            
+            $visit->services()->sync($syncData);
+            
+            DB::commit();
+            
+            return redirect()
+                ->route('medical.visits.grooming.show', $visitId)
+                ->with('success', 'Grooming service record updated successfully');
+                
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error updating grooming service: ' . $e->getMessage());
+            
+            return back()
+                ->withInput()
+                ->with('error', 'Failed to update grooming service record. Please try again.');
+        }
     }
 
     // ==================== VISIT RECORDS ====================
