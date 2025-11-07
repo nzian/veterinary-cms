@@ -529,7 +529,7 @@ Route::prefix('care-continuity')->name('care-continuity.')->group(function () {
     Route::get('/', [CareContinuityController::class, 'index'])->name('index');
     
     // Follow-up Appointments
-    Route::post('/appointments/store', [CareContinuityController::class, 'storeFollowUpAppointment'])->name('appointments.store');
+    Route::post('/appointments/store', [CareContinuityController::class, 'storeFollowUpAppointment'])->name('care.appointments.store');
     Route::put('/appointments/{id}', [CareContinuityController::class, 'updateFollowUpAppointment'])->name('appointments.update');
     Route::delete('/appointments/{id}', [CareContinuityController::class, 'destroyFollowUpAppointment'])->name('appointments.destroy');
     
