@@ -17,11 +17,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 class ProdServEquipController extends Controller
 {
 
-    protected $inventoryService;
+     protected $inventoryService;
 
     public function __construct(InventoryService $inventoryService)
     {
@@ -32,59 +33,30 @@ class ProdServEquipController extends Controller
     // Helper to get redirect tab value
     protected function getRedirectTab(Request $request, $default = 'products')
     {
-        // Check for 'tab' hidden field submitted via POST or 'tab' query param
         return $request->input('tab', $default); 
     }
-    
-    public function index(Request $request)
-{
-    $activeBranchId = session('active_branch_id');
-    $user = auth()->user();
 
-    // If not superadmin, force their branch
-    if ($user->user_role !== 'superadmin') {
-        $activeBranchId = $user->branch_id;
+    /**
+     * Record inventory transaction for audit trail
+     */
+    private function recordInventoryTransaction($productId, $type, $quantityChange, $reference = null, $notes = null, $appointmentId = null, $serviceId = null)
+    {
+        try {
+            InventoryTransaction::create([
+                'prod_id' => $productId,
+                'transaction_type' => $type,
+                'quantity_change' => $quantityChange,
+                'reference' => $reference,
+                'notes' => $notes,
+                'appoint_id' => $appointmentId,
+                'serv_id' => $serviceId,
+                'performed_by' => auth()->id(),
+                'created_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error("Failed to record inventory transaction: " . $e->getMessage());
+        }
     }
-
-    // Pagination handling
-    $productsPerPage = $request->get('productsPerPage', 10);
-    $servicesPerPage = $request->get('servicesPerPage', 10);
-    $equipmentPerPage = $request->get('equipmentPerPage', 10);
-
-    $productsPerPage = $productsPerPage === 'all' ? PHP_INT_MAX : (int)$productsPerPage;
-    $servicesPerPage = $servicesPerPage === 'all' ? PHP_INT_MAX : (int)$servicesPerPage;
-    $equipmentPerPage = $equipmentPerPage === 'all' ? PHP_INT_MAX : (int)$equipmentPerPage;
-
-    // Products
-    $products = Product::with('branch')
-        ->when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
-            $query->where('branch_id', $activeBranchId);
-        })
-        ->paginate($productsPerPage, ['*'], 'productsPage')
-        ->appends($request->except('productsPage'));
-
-    // Services
-    $services = Service::when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
-            $query->where('branch_id', $activeBranchId);
-        })
-        ->paginate($servicesPerPage, ['*'], 'servicesPage')
-        ->appends($request->except('servicesPage'));
-
-    // Equipment
-    $equipment = Equipment::when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
-            $query->where('branch_id', $activeBranchId);
-        })
-        ->paginate($equipmentPerPage, ['*'], 'equipmentPage')
-        ->appends($request->except('equipmentPage'));
-
-    $branches = Branch::all();
-
-    $allProducts = Product::select('prod_id', 'prod_name', 'prod_stocks', 'prod_category')
-            ->orderBy('prod_name')
-            ->get();
-
-    return view('prodServEquip', compact('products', 'branches', 'services', 'equipment','allProducts'));
-}
 
     public function getServiceProducts($serviceId)
     {
@@ -127,10 +99,8 @@ class ProdServEquipController extends Controller
 
             DB::beginTransaction();
 
-            // Delete existing service products
             ServiceProduct::where('serv_id', $serviceId)->delete();
 
-            // Create new service products
             foreach ($validated['products'] as $productData) {
                 ServiceProduct::create([
                     'serv_id' => $serviceId,
@@ -154,215 +124,197 @@ class ProdServEquipController extends Controller
             ], 500);
         }
     }
-    
 
-    // -------------------- PRODUCT VIEW DETAILS --------------------
     public function viewProduct($id)
-{
-    try {
-        $product = Product::with('branch')->findOrFail($id);
-        
-        // Get REAL sales data from orders
-        $salesData = DB::table('tbl_ord')
-            ->where('prod_id', $id)
-            ->selectRaw('
-                COUNT(*) as total_orders,
-                COALESCE(SUM(ord_quantity), 0) as total_quantity_sold,
-                COALESCE(SUM(ord_quantity * ?), 0) as total_revenue,
-                COALESCE(AVG(ord_quantity * ?), 0) as average_order_value
-            ', [$product->prod_price, $product->prod_price])
-            ->first();
+    {
+        try {
+            $product = Product::with('branch')->findOrFail($id);
+            
+            $salesData = DB::table('tbl_ord')
+                ->where('prod_id', $id)
+                ->selectRaw('
+                    COUNT(*) as total_orders,
+                    COALESCE(SUM(ord_quantity), 0) as total_quantity_sold,
+                    COALESCE(SUM(ord_quantity * ?), 0) as total_revenue,
+                    COALESCE(AVG(ord_quantity * ?), 0) as average_order_value
+                ', [$product->prod_price, $product->prod_price])
+                ->first();
 
-        // Get REAL monthly sales trend (last 6 months)
-        $monthlySales = DB::table('tbl_ord')
-            ->where('prod_id', $id)
-            ->where('ord_date', '>=', Carbon::now()->subMonths(6))
-            ->selectRaw('
-                YEAR(ord_date) as year,
-                MONTH(ord_date) as month,
-                SUM(ord_quantity) as quantity,
-                SUM(ord_quantity * ?) as revenue
-            ', [$product->prod_price])
-            ->groupBy(DB::raw('YEAR(ord_date)'), DB::raw('MONTH(ord_date)'))
-            ->orderBy('year', 'desc')
-            ->orderBy('month', 'desc')
-            ->get();
+            $monthlySales = DB::table('tbl_ord')
+                ->where('prod_id', $id)
+                ->where('ord_date', '>=', Carbon::now()->subMonths(6))
+                ->selectRaw('
+                    YEAR(ord_date) as year,
+                    MONTH(ord_date) as month,
+                    SUM(ord_quantity) as quantity,
+                    SUM(ord_quantity * ?) as revenue
+                ', [$product->prod_price])
+                ->groupBy(DB::raw('YEAR(ord_date)'), DB::raw('MONTH(ord_date)'))
+                ->orderBy('year', 'desc')
+                ->orderBy('month', 'desc')
+                ->get();
 
-        // Get REAL recent orders with user information
-        $recentOrders = DB::table('tbl_ord')
-            ->leftJoin('tbl_user', 'tbl_ord.user_id', '=', 'tbl_user.user_id')
-            ->leftJoin('tbl_own', 'tbl_ord.own_id', '=', 'tbl_own.own_id')
-            ->where('tbl_ord.prod_id', $id)
-            ->select(
-                'tbl_ord.ord_id',
-                'tbl_ord.ord_quantity',
-                'tbl_ord.ord_date',
-                'tbl_ord.bill_id',
-                'tbl_user.user_name',
-                'tbl_own.own_name as customer_name'
-            )
-            ->orderBy('tbl_ord.ord_date', 'desc')
-            ->limit(10)
-            ->get()
-            ->map(function($order) use ($product) {
-                return (object)[
-                    'ord_quantity' => $order->ord_quantity,
-                    'ord_total' => $order->ord_quantity * $product->prod_price,
-                    'ord_date' => $order->ord_date,
-                    'user_name' => $order->user_name ?? 'System',
-                    'customer_name' => $order->customer_name ?? 'Walk-in Customer',
-                    'source' => $order->bill_id ? 'Billing #' . $order->bill_id : 'Direct Sale'
-                ];
-            });
+            $recentOrders = DB::table('tbl_ord')
+                ->leftJoin('tbl_user', 'tbl_ord.user_id', '=', 'tbl_user.user_id')
+                ->leftJoin('tbl_own', 'tbl_ord.own_id', '=', 'tbl_own.own_id')
+                ->where('tbl_ord.prod_id', $id)
+                ->select(
+                    'tbl_ord.ord_id',
+                    'tbl_ord.ord_quantity',
+                    'tbl_ord.ord_date',
+                    'tbl_ord.bill_id',
+                    'tbl_user.user_name',
+                    'tbl_own.own_name as customer_name'
+                )
+                ->orderBy('tbl_ord.ord_date', 'desc')
+                ->limit(10)
+                ->get()
+                ->map(function($order) use ($product) {
+                    return (object)[
+                        'ord_quantity' => $order->ord_quantity,
+                        'ord_total' => $order->ord_quantity * $product->prod_price,
+                        'ord_date' => $order->ord_date,
+                        'user_name' => $order->user_name ?? 'System',
+                        'customer_name' => $order->customer_name ?? 'Walk-in Customer',
+                        'source' => $order->bill_id ? 'Billing #' . $order->bill_id : 'Direct Sale'
+                    ];
+                });
 
-        // Stock alerts
-        $stockAlert = null;
-        if ($product->prod_reorderlevel && $product->prod_stocks <= $product->prod_reorderlevel) {
-            $stockAlert = 'low_stock';
+            $stockAlert = null;
+            if ($product->prod_reorderlevel && $product->prod_stocks <= $product->prod_reorderlevel) {
+                $stockAlert = 'low_stock';
+            }
+
+            $profitData = [
+                'total_revenue' => $salesData->total_revenue ?? 0,
+                'profit_margin_percentage' => 0
+            ];
+
+            return response()->json([
+                'product' => $product,
+                'sales_data' => $salesData,
+                'monthly_sales' => $monthlySales,
+                'recent_orders' => $recentOrders,
+                'stock_alert' => $stockAlert,
+                'profit_data' => $profitData
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to fetch product details: ' . $e->getMessage()], 500);
         }
-
-        // Calculate profit data
-        $profitData = [
-            'total_revenue' => $salesData->total_revenue ?? 0,
-            'profit_margin_percentage' => 0
-        ];
-
-        return response()->json([
-            'product' => $product,
-            'sales_data' => $salesData,
-            'monthly_sales' => $monthlySales,
-            'recent_orders' => $recentOrders,
-            'stock_alert' => $stockAlert,
-            'profit_data' => $profitData
-        ]);
-    } catch (\Exception $e) {
-        return response()->json(['error' => 'Failed to fetch product details: ' . $e->getMessage()], 500);
     }
-}
 
-    // -------------------- SERVICE VIEW DETAILS --------------------
     public function viewService($id)
-{
-    try {
-        $service = Service::with('branch')->findOrFail($id);
-        
-        // Get appointments that used this service
-        $appointments = DB::table('tbl_appoint')
-            ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
-            ->where('tbl_appoint_serv.serv_id', $id)
-            ->pluck('tbl_appoint.appoint_id');
+    {
+        try {
+            $service = Service::with('branch')->findOrFail($id);
+            
+            $appointments = DB::table('tbl_appoint')
+                ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
+                ->where('tbl_appoint_serv.serv_id', $id)
+                ->pluck('tbl_appoint.appoint_id');
 
-        $revenueData = (object)[
-            'total_bookings' => $appointments->count(),
-            'total_revenue' => $appointments->count() * $service->serv_price,
-            'average_booking_value' => $service->serv_price
-        ];
+            $revenueData = (object)[
+                'total_bookings' => $appointments->count(),
+                'total_revenue' => $appointments->count() * $service->serv_price,
+                'average_booking_value' => $service->serv_price
+            ];
 
-        // Get REAL monthly revenue trend (last 6 months)
-        $monthlyRevenue = DB::table('tbl_appoint')
-            ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
-            ->where('tbl_appoint_serv.serv_id', $id)
-            ->where('tbl_appoint.appoint_date', '>=', Carbon::now()->subMonths(6))
-            ->selectRaw('
-                YEAR(tbl_appoint.appoint_date) as year,
-                MONTH(tbl_appoint.appoint_date) as month,
-                COUNT(DISTINCT tbl_appoint.appoint_id) as bookings,
-                COUNT(DISTINCT tbl_appoint.appoint_id) * ? as revenue
-            ', [$service->serv_price])
-            ->groupBy(DB::raw('YEAR(tbl_appoint.appoint_date)'), DB::raw('MONTH(tbl_appoint.appoint_date)'))
-            ->orderBy('year', 'desc')
-            ->orderBy('month', 'desc')
-            ->get();
+            $monthlyRevenue = DB::table('tbl_appoint')
+                ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
+                ->where('tbl_appoint_serv.serv_id', $id)
+                ->where('tbl_appoint.appoint_date', '>=', Carbon::now()->subMonths(6))
+                ->selectRaw('
+                    YEAR(tbl_appoint.appoint_date) as year,
+                    MONTH(tbl_appoint.appoint_date) as month,
+                    COUNT(DISTINCT tbl_appoint.appoint_id) as bookings,
+                    COUNT(DISTINCT tbl_appoint.appoint_id) * ? as revenue
+                ', [$service->serv_price])
+                ->groupBy(DB::raw('YEAR(tbl_appoint.appoint_date)'), DB::raw('MONTH(tbl_appoint.appoint_date)'))
+                ->orderBy('year', 'desc')
+                ->orderBy('month', 'desc')
+                ->get();
 
-        // Get REAL recent appointments with full details
-        $recentAppointments = DB::table('tbl_appoint')
-            ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
-            ->leftJoin('tbl_pet', 'tbl_appoint.pet_id', '=', 'tbl_pet.pet_id')
-            ->leftJoin('tbl_own', 'tbl_pet.own_id', '=', 'tbl_own.own_id')
-            ->leftJoin('tbl_user', 'tbl_appoint.user_id', '=', 'tbl_user.user_id')
-            ->where('tbl_appoint_serv.serv_id', $id)
-            ->select(
-                'tbl_appoint.appoint_id',
-                'tbl_appoint.appoint_date',
-                'tbl_appoint.appoint_time',
-                'tbl_appoint.appoint_status',
-                'tbl_appoint.appoint_type',
-                'tbl_pet.pet_name',
-                'tbl_pet.pet_species',
-                'tbl_own.own_name',
-                'tbl_own.own_contactnum',
-                'tbl_user.user_name'
-            )
-            ->orderBy('tbl_appoint.appoint_date', 'desc')
-            ->limit(10)
-            ->get();
+            $recentAppointments = DB::table('tbl_appoint')
+                ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
+                ->leftJoin('tbl_pet', 'tbl_appoint.pet_id', '=', 'tbl_pet.pet_id')
+                ->leftJoin('tbl_own', 'tbl_pet.own_id', '=', 'tbl_own.own_id')
+                ->leftJoin('tbl_user', 'tbl_appoint.user_id', '=', 'tbl_user.user_id')
+                ->where('tbl_appoint_serv.serv_id', $id)
+                ->select(
+                    'tbl_appoint.appoint_id',
+                    'tbl_appoint.appoint_date',
+                    'tbl_appoint.appoint_time',
+                    'tbl_appoint.appoint_status',
+                    'tbl_appoint.appoint_type',
+                    'tbl_pet.pet_name',
+                    'tbl_pet.pet_species',
+                    'tbl_own.own_name',
+                    'tbl_own.own_contactnum',
+                    'tbl_user.user_name'
+                )
+                ->orderBy('tbl_appoint.appoint_date', 'desc')
+                ->limit(10)
+                ->get();
 
-        // Service utilization by appointment status (REAL DATA)
-        $utilizationData = DB::table('tbl_appoint')
-            ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
-            ->where('tbl_appoint_serv.serv_id', $id)
-            ->selectRaw('
-                tbl_appoint.appoint_status,
-                COUNT(*) as count
-            ')
-            ->groupBy('tbl_appoint.appoint_status')
-            ->get();
+            $utilizationData = DB::table('tbl_appoint')
+                ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
+                ->where('tbl_appoint_serv.serv_id', $id)
+                ->selectRaw('
+                    tbl_appoint.appoint_status,
+                    COUNT(*) as count
+                ')
+                ->groupBy('tbl_appoint.appoint_status')
+                ->get();
 
-        // Peak booking times analysis (REAL DATA)
-        $peakTimes = DB::table('tbl_appoint')
-            ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
-            ->where('tbl_appoint_serv.serv_id', $id)
-            ->selectRaw('
-                HOUR(tbl_appoint.appoint_time) as hour,
-                COUNT(*) as bookings
-            ')
-            ->groupBy(DB::raw('HOUR(tbl_appoint.appoint_time)'))
-            ->orderBy('bookings', 'desc')
-            ->limit(5)
-            ->get();
+            $peakTimes = DB::table('tbl_appoint')
+                ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
+                ->where('tbl_appoint_serv.serv_id', $id)
+                ->selectRaw('
+                    HOUR(tbl_appoint.appoint_time) as hour,
+                    COUNT(*) as bookings
+                ')
+                ->groupBy(DB::raw('HOUR(tbl_appoint.appoint_time)'))
+                ->orderBy('bookings', 'desc')
+                ->limit(5)
+                ->get();
 
-        // Appointment type distribution
-        $appointmentTypes = DB::table('tbl_appoint')
-            ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
-            ->where('tbl_appoint_serv.serv_id', $id)
-            ->selectRaw('
-                tbl_appoint.appoint_type,
-                COUNT(*) as count
-            ')
-            ->groupBy('tbl_appoint.appoint_type')
-            ->get();
+            $appointmentTypes = DB::table('tbl_appoint')
+                ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
+                ->where('tbl_appoint_serv.serv_id', $id)
+                ->selectRaw('
+                    tbl_appoint.appoint_type,
+                    COUNT(*) as count
+                ')
+                ->groupBy('tbl_appoint.appoint_type')
+                ->get();
 
-        return response()->json([
-            'service' => $service,
-            'revenue_data' => $revenueData,
-            'monthly_revenue' => $monthlyRevenue,
-            'recent_appointments' => $recentAppointments,
-            'utilization_data' => $utilizationData,
-            'peak_times' => $peakTimes,
-            'appointment_types' => $appointmentTypes
-        ]);
-    } catch (\Exception $e) {
-        return response()->json(['error' => 'Failed to fetch service details: ' . $e->getMessage()], 500);
+            return response()->json([
+                'service' => $service,
+                'revenue_data' => $revenueData,
+                'monthly_revenue' => $monthlyRevenue,
+                'recent_appointments' => $recentAppointments,
+                'utilization_data' => $utilizationData,
+                'peak_times' => $peakTimes,
+                'appointment_types' => $appointmentTypes
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to fetch service details: ' . $e->getMessage()], 500);
+        }
     }
-}
 
-    // -------------------- EQUIPMENT VIEW DETAILS --------------------
     public function viewEquipment($id)
     {
         try {
             $equipment = Equipment::findOrFail($id);
             
-            // Equipment usage tracking
             $usageData = [
                 'total_quantity' => $equipment->equipment_quantity,
-                // The available quantity should logically exclude items marked 'In Use', 'Under Maintenance', or 'Out of Service'
                 'available_quantity' => $equipment->equipment_quantity, 
                 'in_use_quantity' => 0, 
                 'maintenance_quantity' => 0,
-                'branch' => $equipment->branch->branch_name ?? 'N/A' // Use the branch relationship
+                'branch' => $equipment->branch->branch_name ?? 'N/A'
             ];
 
-            // Availability status determination based on DB value
             $availabilityStatus = strtolower($equipment->equipment_status ?? 'Available');
             if ($equipment->equipment_quantity == 0) {
                 $availabilityStatus = 'none';
@@ -370,7 +322,6 @@ class ProdServEquipController extends Controller
                  $availabilityStatus = 'unavailable';
             }
 
-            // Mock data for other details
             $usageHistory = collect([
                 [
                     'date' => Carbon::now()->subDays(1)->toISOString(),
@@ -388,7 +339,6 @@ class ProdServEquipController extends Controller
                 ],
             ]);
 
-            // Equipment condition tracking (mocked based on total quantity)
             $conditionData = [
                 'excellent' => intval($equipment->equipment_quantity * 0.8),
                 'good' => intval($equipment->equipment_quantity * 0.15),
@@ -409,56 +359,527 @@ class ProdServEquipController extends Controller
         }
     }
 
-    // -------------------- INVENTORY HISTORY VIEW --------------------
-    public function viewInventoryHistory($id)
+    public function index(Request $request)
+    {
+        $activeBranchId = session('active_branch_id');
+        $user = auth()->user();
+
+        if ($user->user_role !== 'superadmin') {
+            $activeBranchId = $user->branch_id;
+        }
+
+        $productsPerPage = $request->get('productsPerPage', 10);
+        $servicesPerPage = $request->get('servicesPerPage', 10);
+        $equipmentPerPage = $request->get('equipmentPerPage', 10);
+
+        $productsPerPage = $productsPerPage === 'all' ? PHP_INT_MAX : (int)$productsPerPage;
+        $servicesPerPage = $servicesPerPage === 'all' ? PHP_INT_MAX : (int)$servicesPerPage;
+        $equipmentPerPage = $equipmentPerPage === 'all' ? PHP_INT_MAX : (int)$equipmentPerPage;
+
+        $products = Product::with('branch')
+            ->when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
+                $query->where('branch_id', $activeBranchId);
+            })
+            ->paginate($productsPerPage, ['*'], 'productsPage')
+            ->appends($request->except('productsPage'));
+
+        $services = Service::when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
+                $query->where('branch_id', $activeBranchId);
+            })
+            ->paginate($servicesPerPage, ['*'], 'servicesPage')
+            ->appends($request->except('servicesPage'));
+
+        $equipment = Equipment::when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
+                $query->where('branch_id', $activeBranchId);
+            })
+            ->paginate($equipmentPerPage, ['*'], 'equipmentPage')
+            ->appends($request->except('equipmentPage'));
+
+        $branches = Branch::all();
+
+        $allProducts = Product::select('prod_id', 'prod_name', 'prod_stocks', 'prod_category')
+                ->orderBy('prod_name')
+                ->get();
+
+        return view('prodServEquip', compact('products', 'branches', 'services', 'equipment','allProducts'));
+    }
+
+    // -------------------- PRODUCT METHODS --------------------
+    public function storeProduct(Request $request)
+    {
+        $validated = $request->validate([
+            'prod_name' => 'required|string|max:255',
+            'prod_category' => 'nullable|string|max:255',
+            'prod_description' => 'required|string|max:1000',
+            'prod_price' => 'required|numeric|min:0',
+            'prod_stocks' => 'nullable|integer|min:0',
+            'prod_reorderlevel' => 'nullable|integer|min:0',
+            'branch_id' => 'nullable|exists:tbl_branch,branch_id',
+            'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'prod_expiry' => 'nullable|date',
+            'tab' => 'nullable|string|in:products,services,equipment'
+        ]);
+
+        if ($request->hasFile('prod_image')) {
+            $validated['prod_image'] = $request->file('prod_image')->store('products', 'public');
+        }
+
+        DB::beginTransaction();
+        try {
+            $product = Product::create($validated);
+
+            // Record initial stock as inventory transaction
+            if (isset($validated['prod_stocks']) && $validated['prod_stocks'] > 0) {
+                $this->recordInventoryTransaction(
+                    $product->prod_id,
+                    'restock',
+                    $validated['prod_stocks'],
+                    'Initial Stock',
+                    'Product created with initial stock'
+                );
+            }
+
+            DB::commit();
+            $redirectTab = $this->getRedirectTab($request, 'products');
+            return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Product added successfully!');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Failed to add product: ' . $e->getMessage());
+        }
+    }
+
+    public function updateProduct(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'prod_name' => 'required|string|max:255',
+            'prod_category' => 'nullable|string|max:255',
+            'prod_description' => 'required|string|max:1000',
+            'prod_price' => 'required|numeric|min:0',
+            'prod_reorderlevel' => 'nullable|integer|min:0',
+            'branch_id' => 'nullable|exists:tbl_branch,branch_id',
+            'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'tab' => 'nullable|string|in:products,services,equipment'
+        ]);
+
+        $product = Product::findOrFail($id);
+
+        if ($request->hasFile('prod_image')) {
+            if ($product->prod_image) {
+                Storage::disk('public')->delete($product->prod_image);
+            }
+            $validated['prod_image'] = $request->file('prod_image')->store('products', 'public');
+        }
+
+        $product->update($validated);
+
+        $redirectTab = $this->getRedirectTab($request, 'products');
+        return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Product updated successfully!');
+    }
+
+    public function deleteProduct($id, Request $request)
+    {
+        $product = Product::findOrFail($id);
+        
+        if ($product->prod_image) {
+            Storage::disk('public')->delete($product->prod_image);
+        }
+        
+        // Record deletion in inventory transactions
+        $this->recordInventoryTransaction(
+            $product->prod_id,
+            'adjustment',
+            -($product->prod_stocks ?? 0),
+            'Product Deletion',
+            "Product '{$product->prod_name}' was deleted from inventory"
+        );
+        
+        $product->delete();
+
+        $redirectTab = $this->getRedirectTab($request, 'products');
+        return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Product deleted successfully!');
+    }
+
+    // -------------------- INVENTORY UPDATE METHODS (UPDATED) --------------------
+    
+    /**
+     * ✅ UPDATED: Update stock with automatic inventory transaction recording
+     */
+    public function updateStock(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'add_stock' => 'required|integer|min:1',
+            'new_expiry' => 'required|date',
+            'reorder_level' => 'nullable|integer|min:0',
+            'notes' => 'nullable|string',
+            'tab' => 'nullable|string|in:products,services,equipment'
+        ]);
+
+        $product = Product::findOrFail($id);
+        
+        DB::beginTransaction();
+        try {
+            $oldStock = $product->prod_stocks ?? 0;
+            $addedStock = $validated['add_stock'];
+            
+            // Update product stock
+            $product->prod_stocks = $oldStock + $addedStock;
+            $product->prod_expiry = $validated['new_expiry'];
+            
+            if (isset($validated['reorder_level'])) {
+                $product->prod_reorderlevel = $validated['reorder_level'];
+            }
+            
+            $product->save();
+            
+            // ✅ Record the restock transaction
+            $this->recordInventoryTransaction(
+                $product->prod_id,
+                'restock',
+                $addedStock,
+                'Manual Stock Update',
+                $validated['notes'] ?? "Stock increased from {$oldStock} to {$product->prod_stocks}. New expiry: {$validated['new_expiry']}"
+            );
+            
+            DB::commit();
+            
+            $redirectTab = $this->getRedirectTab($request, 'products');
+            return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])
+                ->with('success', "Stock updated successfully! Added {$addedStock} units.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Failed to update stock: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * ✅ UPDATED: Update damage/pullout with AUTOMATIC STOCK DEDUCTION and transaction recording
+     */
+    public function updateDamage(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'damaged_qty' => 'nullable|integer|min:0',
+            'pullout_qty' => 'nullable|integer|min:0',
+            'reason' => 'nullable|string',
+            'tab' => 'nullable|string|in:products,services,equipment'
+        ]);
+
+        $product = Product::findOrFail($id);
+        
+        DB::beginTransaction();
+        try {
+            $oldDamaged = $product->prod_damaged ?? 0;
+            $oldPullout = $product->prod_pullout ?? 0;
+            $oldStock = $product->prod_stocks ?? 0;
+            
+            $newDamaged = $validated['damaged_qty'] ?? 0;
+            $newPullout = $validated['pullout_qty'] ?? 0;
+            
+            // Calculate the DIFFERENCE (how many NEW damaged/pullout items)
+            $damagedDiff = $newDamaged - $oldDamaged;
+            $pulloutDiff = $newPullout - $oldPullout;
+            
+            $totalDeduction = $damagedDiff + $pulloutDiff;
+            
+            // ✅ VALIDATE: Ensure we have enough stock to deduct
+            if ($totalDeduction > $oldStock) {
+                DB::rollBack();
+                return redirect()->back()->with('error', "Insufficient stock! Cannot deduct {$totalDeduction} units. Current stock: {$oldStock}");
+            }
+            
+            // ✅ UPDATE: Deduct from stock automatically
+            if ($totalDeduction > 0) {
+                $product->prod_stocks = $oldStock - $totalDeduction;
+            }
+            
+            // Update damaged and pullout quantities
+            $product->prod_damaged = $newDamaged;
+            $product->prod_pullout = $newPullout;
+            
+            $product->save();
+            
+            // ✅ RECORD TRANSACTIONS for damaged items
+            if ($damagedDiff > 0) {
+                $this->recordInventoryTransaction(
+                    $product->prod_id,
+                    'damage',
+                    -$damagedDiff,
+                    'Damaged Items',
+                    $validated['reason'] ?? "Marked {$damagedDiff} units as damaged. Total damaged: {$newDamaged}"
+                );
+            }
+            
+            // ✅ RECORD TRANSACTIONS for pullout items
+            if ($pulloutDiff != 0) {  // Changed to check for any difference, not just positive
+                $this->recordInventoryTransaction(
+                    $product->prod_id,
+                    'pullout',
+                    -$pulloutDiff,
+                    'Pullout Items',
+                    $validated['reason'] ?? "Pulled out {$pulloutDiff} units for quality control. Total pullout: {$newPullout}"
+                );
+            }
+            
+            DB::commit();
+            
+            $message = "Updated successfully! ";
+            if ($totalDeduction > 0) {
+                $message .= "Deducted {$totalDeduction} units from stock (Damaged: {$damagedDiff}, Pullout: {$pulloutDiff}). New stock: {$product->prod_stocks}";
+            }
+            
+            $redirectTab = $this->getRedirectTab($request, 'products');
+            return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])
+                ->with('success', $message);
+                
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Failed to update: ' . $e->getMessage());
+        }
+    }
+
+    // -------------------- INVENTORY HISTORY VIEW (UPDATED) --------------------
+    
+    /**
+     * ✅ UPDATED: View comprehensive inventory history from transactions table
+     */
+   public function viewInventoryHistory($id)
 {
     try {
         $product = Product::findOrFail($id);
         
-        // Get REAL stock movement history from orders (sales)
-        $salesHistory = DB::table('tbl_ord')
-            ->leftJoin('tbl_user', 'tbl_ord.user_id', '=', 'tbl_user.user_id')
-            ->leftJoin('tbl_own', 'tbl_ord.own_id', '=', 'tbl_own.own_id')
-            ->where('tbl_ord.prod_id', $id)
-            ->select(
-                'tbl_ord.ord_date as date',
-                DB::raw("'sale' as type"),
-                DB::raw('-(tbl_ord.ord_quantity) as quantity'),
-                DB::raw("CONCAT('Order #', tbl_ord.ord_id) as reference"),
-                'tbl_user.user_name as user',
-                DB::raw("CASE 
-                    WHEN tbl_ord.bill_id IS NOT NULL THEN CONCAT('Billing Payment #', tbl_ord.bill_id)
-                    ELSE 'Direct Sale via POS'
-                END as notes")
-            )
-            ->orderBy('tbl_ord.ord_date', 'desc')
-            ->limit(50)
-            ->get();
+        // Check if InventoryTransaction table exists and has data
+        $transactionsTableExists = Schema::hasTable('tbl_inventory_transactions');
+        $hasTransactions = false;
+        if ($transactionsTableExists) {
+            $hasTransactions = DB::table('tbl_inventory_transactions')
+                ->where('prod_id', $id)
+                ->whereIn('transaction_type', ['sale', 'restock', 'damage', 'pullout', 'service_usage'])
+                ->exists();
+        }
+        
+        if ($transactionsTableExists && $hasTransactions) {
+            // ✅ Get inventory transactions from the dedicated table
+            $hasUserIdCol = Schema::hasColumn('tbl_inventory_transactions', 'user_id');
+            $hasPerformedByCol = Schema::hasColumn('tbl_inventory_transactions', 'performed_by');
+            $hasServIdCol = Schema::hasColumn('tbl_inventory_transactions', 'serv_id');
 
-        // Convert to array format
-        $stockHistory = $salesHistory->map(function($movement) {
-            return [
-                'date' => $movement->date,
-                'type' => $movement->type,
-                'quantity' => $movement->quantity,
-                'reference' => $movement->reference,
-                'user' => $movement->user ?? 'System',
-                'notes' => $movement->notes
+            $query = DB::table('tbl_inventory_transactions as it');
+            // Prefer performed_by if it exists, otherwise fallback to user_id if present
+            if ($hasPerformedByCol) {
+                $query->leftJoin('tbl_user as u', 'it.performed_by', '=', 'u.user_id');
+            } elseif ($hasUserIdCol) {
+                $query->leftJoin('tbl_user as u', 'it.user_id', '=', 'u.user_id');
+            }
+            if ($hasServIdCol) {
+                $query->leftJoin('tbl_serv as s', 'it.serv_id', '=', 's.serv_id');
+            }
+
+            $selects = [
+                'it.created_at',
+                'it.transaction_type',
+                'it.quantity_change',
+                'it.reference',
+                'it.notes',
+                'it.appoint_id',
+                'it.serv_id',
             ];
-        })->toArray();
+            if ($hasPerformedByCol) {
+                $selects[] = 'it.performed_by';
+            } else {
+                $selects[] = DB::raw('NULL as performed_by');
+            }
+            // Add conditional projections for names when joins are not present
+            if ($hasPerformedByCol || $hasUserIdCol) {
+                $selects[] = 'u.user_name';
+            } else {
+                $selects[] = DB::raw('NULL as user_name');
+            }
+            if ($hasServIdCol) {
+                $selects[] = 's.serv_name';
+            } else {
+                $selects[] = DB::raw('NULL as serv_name');
+            }
 
-        // Calculate damage analysis
-        $totalSold = DB::table('tbl_ord')
-            ->where('prod_id', $id)
-            ->sum('ord_quantity');
+            $stockHistory = collect(
+                $query
+                    ->where('it.prod_id', $id)
+                    ->select($selects)
+                    ->orderBy('it.created_at', 'desc')
+                    ->get()
+            )
+                ->map(function($trans) {
+                    $reference = $trans->reference ?? 'N/A';
+                    $type = $trans->transaction_type;
+                    $quantity = $trans->quantity_change;
+                    $notes = $trans->notes ?? 'No notes';
+                    
+                    // Format type for display
+                    $displayType = ucfirst($type);
+                    
+                    // Build detailed reference and notes
+                    if ($trans->appoint_id) {
+                        $reference .= " (Appointment #{$trans->appoint_id})";
+                    }
+                    if ($trans->serv_id && $trans->serv_name) {
+                        $reference .= " - {$trans->serv_name}";
+                    }
+                    
+                    // Special handling for pullout transactions
+                    if ($type === 'pullout') {
+                        $notes = "Pulled out " . abs($quantity) . " units. " . $notes;
+                    }
+                    
+                    return [
+                        'date' => $trans->created_at,
+                        'type' => $displayType,
+                        'quantity' => $quantity,
+                        'reference' => $reference,
+                        'user' => ($trans->user_name ?? null) ? $trans->user_name : (($trans->performed_by ?? null) ? ('User #'.$trans->performed_by) : 'System'),
+                        'notes' => $notes
+                    ];
+                });
+        } else {
+            // Fallback: Get stock history primarily from orders table
+            $orders = collect(DB::table('tbl_ord')
+                ->leftJoin('tbl_user', 'tbl_ord.user_id', '=', 'tbl_user.user_id')
+                ->where('tbl_ord.prod_id', $id)
+                ->select(
+                    'tbl_ord.ord_date as created_at',
+                    DB::raw("'sale' as transaction_type"),
+                    DB::raw('-(tbl_ord.ord_quantity) as quantity_change'),
+                    DB::raw("CONCAT('Order #', tbl_ord.ord_id) as reference"),
+                    'tbl_user.user_name',
+                    DB::raw("CASE 
+                        WHEN tbl_ord.bill_id IS NOT NULL THEN CONCAT('Billing Payment #', tbl_ord.bill_id)
+                        ELSE 'Direct Sale via POS'
+                    END as notes")
+                )
+                ->orderBy('tbl_ord.ord_date', 'desc')
+                ->get())
+                ->map(function($trans) {
+                    return [
+                        'date' => $trans->created_at,
+                        'type' => $trans->transaction_type,
+                        'quantity' => $trans->quantity_change,
+                        'reference' => $trans->reference,
+                        'user' => $trans->user_name ?? 'System',
+                        'notes' => $trans->notes
+                    ];
+                });
 
-        $damageAnalysis = [
-            'total_damaged' => $product->prod_damaged ?? 0,
-            'total_pullout' => $product->prod_pullout ?? 0,
-            'total_sold' => $totalSold ?? 0,
-            'damage_percentage' => ($totalSold + ($product->prod_damaged ?? 0)) > 0 ? 
-                round((($product->prod_damaged ?? 0) / ($totalSold + ($product->prod_damaged ?? 0))) * 100, 2) : 0
-        ];
+            // Add synthetic entries for damage and pullout based on product fields so history isn't empty
+            $synthetic = collect();
+            if (($product->prod_damaged ?? 0) > 0) {
+                $synthetic->push([
+                    'date' => $product->updated_at ?? now(),
+                    'type' => 'damage',
+                    'quantity' => -abs($product->prod_damaged),
+                    'reference' => 'Damaged Items (summary)',
+                    'user' => 'System',
+                    'notes' => 'Total damaged recorded on product record'
+                ]);
+            }
+            if (($product->prod_pullout ?? 0) > 0) {
+                $synthetic->push([
+                    'date' => $product->updated_at ?? now(),
+                    'type' => 'pullout',
+                    'quantity' => -abs($product->prod_pullout),
+                    'reference' => 'Pull-out Items (summary)',
+                    'user' => 'System',
+                    'notes' => 'Total pull-out recorded on product record'
+                ]);
+            }
+
+            $stockHistory = $synthetic->concat($orders);
+        }
+
+        // Get service usage data
+        $servicesUsing = ServiceProduct::where('prod_id', $id)
+            ->with('service')
+            ->get()
+            ->map(function($sp) {
+                return [
+                    'service_id' => $sp->serv_id,
+                    'service_name' => $sp->service->serv_name ?? 'Unknown',
+                    'service_type' => $sp->service->serv_type ?? 'N/A',
+                    'quantity_used' => $sp->quantity_used,
+                ];
+            });
+        
+        // Get recent service usage transactions
+        $recentServiceUsage = [];
+        if ($transactionsTableExists && $hasTransactions) {
+            $recentServiceUsage = collect(DB::table('tbl_inventory_transactions as it')
+                ->leftJoin('tbl_serv as s', 'it.serv_id', '=', 's.serv_id')
+                ->leftJoin('tbl_appoint as a', 'it.appoint_id', '=', 'a.appoint_id')
+                ->leftJoin('tbl_pet as p', 'a.pet_id', '=', 'p.pet_id')
+                ->leftJoin('tbl_own as o', 'p.own_id', '=', 'o.own_id')
+                ->where('it.prod_id', $id)
+                ->where('it.transaction_type', 'service_usage')
+                ->select(
+                    'it.created_at',
+                    's.serv_name',
+                    'it.appoint_id',
+                    'p.pet_name',
+                    'o.own_name',
+                    'it.quantity_change',
+                    'it.reference'
+                )
+                ->orderBy('it.created_at', 'desc')
+                ->limit(20)
+                ->get())
+                ->map(function($trans) {
+                    return [
+                        'date' => Carbon::parse($trans->created_at)->format('M d, Y H:i'),
+                        'service_name' => $trans->serv_name ?? 'N/A',
+                        'appointment_id' => $trans->appoint_id,
+                        'pet_name' => $trans->pet_name ?? 'N/A',
+                        'owner_name' => $trans->own_name ?? 'N/A',
+                        'quantity_used' => abs($trans->quantity_change),
+                        'reference' => $trans->reference ?? 'N/A',
+                    ];
+                });
+        }
+        
+        // Calculate totals
+        if ($transactionsTableExists && $hasTransactions) {
+            $totalUsedInServices = abs(DB::table('tbl_inventory_transactions')
+                ->where('prod_id', $id)
+                ->where('transaction_type', 'service_usage')
+                ->sum('quantity_change'));
+
+            $damageAnalysis = [
+                'total_damaged' => abs(DB::table('tbl_inventory_transactions')
+                    ->where('prod_id', $id)
+                    ->where('transaction_type', 'damage')
+                    ->sum('quantity_change')),
+                'total_pullout' => abs(DB::table('tbl_inventory_transactions')
+                    ->where('prod_id', $id)
+                    ->where('transaction_type', 'pullout')
+                    ->sum('quantity_change')),
+                'total_sold' => abs(DB::table('tbl_inventory_transactions')
+                    ->where('prod_id', $id)
+                    ->where('transaction_type', 'sale')
+                    ->sum('quantity_change')),
+                'total_restocked' => DB::table('tbl_inventory_transactions')
+                    ->where('prod_id', $id)
+                    ->where('transaction_type', 'restock')
+                    ->sum('quantity_change'),
+            ];
+        } else {
+            $totalUsedInServices = 0;
+            $totalSold = DB::table('tbl_ord')->where('prod_id', $id)->sum('ord_quantity');
+            
+            $damageAnalysis = [
+                'total_damaged' => $product->prod_damaged ?? 0,
+                'total_pullout' => $product->prod_pullout ?? 0,
+                'total_sold' => $totalSold ?? 0,
+                'total_restocked' => 0,
+            ];
+        }
+
+        $totalMovement = $damageAnalysis['total_damaged'] + $damageAnalysis['total_sold'];
+        $damageAnalysis['damage_percentage'] = $totalMovement > 0 ? 
+            round(($damageAnalysis['total_damaged'] / $totalMovement) * 100, 2) : 0;
 
         // Expiry tracking
         $expiryData = [
@@ -479,17 +900,26 @@ class ProdServEquipController extends Controller
             }
         }
 
-        // Calculate average daily usage from last 30 days
-        $averageDailyUsage = DB::table('tbl_ord')
-            ->where('prod_id', $id)
-            ->where('ord_date', '>=', Carbon::now()->subDays(30))
-            ->selectRaw('COALESCE(SUM(ord_quantity) / 30, 0) as avg_usage')
-            ->first();
+        // Calculate average daily usage
+        $thirtyDaysAgo = Carbon::now()->subDays(30);
+        
+        if ($transactionsTableExists && $hasTransactions) {
+            $averageDailyUsage = abs(DB::table('tbl_inventory_transactions')
+                ->where('prod_id', $id)
+                ->whereIn('transaction_type', ['sale', 'service_usage'])
+                ->where('created_at', '>=', $thirtyDaysAgo)
+                ->sum('quantity_change')) / 30;
+        } else {
+            $averageDailyUsage = DB::table('tbl_ord')
+                ->where('prod_id', $id)
+                ->where('ord_date', '>=', $thirtyDaysAgo)
+                ->sum('ord_quantity') / 30;
+        }
 
         $stockAnalytics = [
             'current_stock' => $product->prod_stocks ?? 0,
             'reorder_level' => $product->prod_reorderlevel ?? 0,
-            'average_daily_usage' => round($averageDailyUsage->avg_usage ?? 0, 2),
+            'average_daily_usage' => round($averageDailyUsage, 2),
             'days_until_reorder' => 0
         ];
 
@@ -497,100 +927,29 @@ class ProdServEquipController extends Controller
             $stockAnalytics['days_until_reorder'] = intval(($product->prod_stocks - $product->prod_reorderlevel) / $stockAnalytics['average_daily_usage']);
         }
 
-        // Sales by month (last 6 months)
-        $monthlySales = DB::table('tbl_ord')
-            ->where('prod_id', $id)
-            ->where('ord_date', '>=', Carbon::now()->subMonths(6))
-            ->selectRaw('
-                DATE_FORMAT(ord_date, "%Y-%m") as month,
-                SUM(ord_quantity) as quantity_sold
-            ')
-            ->groupBy(DB::raw('DATE_FORMAT(ord_date, "%Y-%m")'))
-            ->orderBy('month', 'desc')
-            ->get();
-
         return response()->json([
             'product' => $product,
             'stock_history' => $stockHistory,
             'damage_analysis' => $damageAnalysis,
             'expiry_data' => $expiryData,
             'stock_analytics' => $stockAnalytics,
-            'monthly_sales' => $monthlySales
+            'services_using_product' => $servicesUsing,
+            'recent_service_usage' => $recentServiceUsage,
+            'total_used_in_services' => $totalUsedInServices
         ]);
     } catch (\Exception $e) {
-        return response()->json(['error' => 'Failed to fetch inventory history: ' . $e->getMessage()], 500);
+        \Log::error("Inventory History Error: " . $e->getMessage());
+        \Log::error("Stack trace: " . $e->getTraceAsString());
+        
+        return response()->json([
+            'error' => 'Failed to fetch inventory history',
+            'message' => $e->getMessage(),
+            'debug_info' => config('app.debug') ? $e->getTraceAsString() : null
+        ], 500);
     }
 }
-
 
     // -------------------- PRODUCT METHODS --------------------
-    public function storeProduct(Request $request)
-{
-    $validated = $request->validate([
-        'prod_name' => 'required|string|max:255',
-        'prod_category' => 'nullable|string|max:255',
-        'prod_description' => 'required|string|max:1000',
-        'prod_price' => 'required|numeric|min:0',
-        'prod_stocks' => 'nullable|integer|min:0',
-        'prod_reorderlevel' => 'nullable|integer|min:0',
-        'branch_id' => 'nullable|exists:tbl_branch,branch_id',
-        'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        'tab' => 'nullable|string|in:products,services,equipment'
-    ]);
-
-    if ($request->hasFile('prod_image')) {
-        $validated['prod_image'] = $request->file('prod_image')->store('products', 'public');
-    }
-
-    Product::create($validated);
-
-    $redirectTab = $this->getRedirectTab($request, 'products');
-    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Product added successfully!');
-}
-
-    public function updateProduct(Request $request, $id)
-{
-    $validated = $request->validate([
-        'prod_name' => 'required|string|max:255',
-        'prod_category' => 'nullable|string|max:255',
-        'prod_description' => 'required|string|max:1000',
-        'prod_price' => 'required|numeric|min:0',
-        'prod_stocks' => 'nullable|integer|min:0',
-        'prod_reorderlevel' => 'nullable|integer|min:0',
-        'branch_id' => 'nullable|exists:tbl_branch,branch_id',
-        'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        'tab' => 'nullable|string|in:products,services,equipment'
-    ]);
-
-    $product = Product::findOrFail($id);
-
-    if ($request->hasFile('prod_image')) {
-        if ($product->prod_image) {
-            Storage::disk('public')->delete($product->prod_image);
-        }
-        $validated['prod_image'] = $request->file('prod_image')->store('products', 'public');
-    }
-
-    $product->update($validated);
-
-    $redirectTab = $this->getRedirectTab($request, 'products');
-    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Product updated successfully!');
-}
-
-    public function deleteProduct($id, Request $request) // Inject Request for tab persistence
-{
-    $product = Product::findOrFail($id);
-    
-    if ($product->prod_image) {
-        Storage::disk('public')->delete($product->prod_image);
-    }
-    
-    $product->delete();
-
-    $redirectTab = $this->getRedirectTab($request, 'products');
-    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Product deleted successfully!');
-}
-
 
     public function updateInventory(Request $request, $id)
     {
@@ -742,57 +1101,6 @@ class ProdServEquipController extends Controller
         $redirectTab = $this->getRedirectTab($request, 'equipment');
         return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Equipment status updated successfully!');
     }
-
-    // -------------------- INVENTORY UPDATE METHODS --------------------
-public function updateStock(Request $request, $id)
-{
-    $validated = $request->validate([
-        'add_stock' => 'required|integer|min:1',
-        'new_expiry' => 'required|date',
-        'reorder_level' => 'nullable|integer|min:0',
-        'notes' => 'nullable|string',
-        'tab' => 'nullable|string|in:products,services,equipment' // Added tab for redirect
-    ]);
-
-    $product = Product::findOrFail($id);
-    
-    $product->prod_stocks = ($product->prod_stocks ?? 0) + $validated['add_stock'];
-    $product->prod_expiry = $validated['new_expiry'];
-    
-    if (isset($validated['reorder_level'])) {
-        $product->prod_reorderlevel = $validated['reorder_level'];
-    }
-    
-    $product->save();
-    
-    $redirectTab = $this->getRedirectTab($request, 'products');
-    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Stock updated successfully!');
-}
-
-public function updateDamage(Request $request, $id)
-{
-    $validated = $request->validate([
-        'damaged_qty' => 'nullable|integer|min:0',
-        'pullout_qty' => 'nullable|integer|min:0',
-        'reason' => 'nullable|string',
-        'tab' => 'nullable|string|in:products,services,equipment' // Added tab for redirect
-    ]);
-
-    $product = Product::findOrFail($id);
-    
-    if (isset($validated['damaged_qty'])) {
-        $product->prod_damaged = $validated['damaged_qty'];
-    }
-    
-    if (isset($validated['pullout_qty'])) {
-        $product->prod_pullout = $validated['pullout_qty'];
-    }
-    
-    $product->save();
-    
-    $redirectTab = $this->getRedirectTab($request, 'products');
-    return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Damage/Pull-out updated successfully!');
-}
 
 public function getProductServiceUsage($productId)
 {

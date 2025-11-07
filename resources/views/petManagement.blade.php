@@ -338,12 +338,6 @@
                <i class="fa-solid fa-notes-medical"></i>
             </button>
         @endif
-
-            <a href="{{ route('pet-management.healthCard', ['id' => $pet->pet_id]) }}" target="_blank"
-                                        class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs">
-                                        <i class="fas fa-print"></i> 
-                                    </a>
-
         @if(hasPermission('delete_pet', $can))
             <form action="{{ route('pet-management.destroyPet', $pet->pet_id) }}" method="POST"
                 onsubmit="return confirm('Are you sure you want to delete this pet?');" class="inline">

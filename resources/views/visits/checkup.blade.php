@@ -2,6 +2,7 @@
 
 @section('content')
 <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4 sm:p-6">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <div class="max-w-7xl mx-auto space-y-6">
         <div class="flex items-center justify-between bg-white p-4 rounded-xl shadow-sm border">
             <h2 class="text-3xl font-bold text-gray-800">Consultation Workspace</h2>
@@ -37,7 +38,32 @@
             </div>
         </div>
 
-        {{-- Row 3+: Main Content (full width) --}}
+        {{--- ADDED ROW 3: Separate Action Buttons (Ordered as requested) ---}}
+        <div class="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap gap-4 justify-between sm:justify-start">
+            <button type="button" 
+                    onclick="openInitialAssessmentModal('{{ $visit->pet_id }}', '{{ $visit->visit_id }}')"
+                    class="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 font-semibold shadow-md transition text-sm">
+                <i class="fas fa-notes-medical"></i> **Initial Assessment**
+            </button>
+            <button type="button" 
+                    onclick="openPrescriptionModal('{{ $visit->pet_id }}')"
+                    class="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold shadow-md transition text-sm">
+                <i class="fas fa-prescription"></i> **Prescription**
+            </button>
+            <button type="button" 
+                    onclick="openAppointmentModal('{{ $visit->pet_id }}', 'Follow-up Consultation')"
+                    class="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold shadow-md transition text-sm">
+                <i class="fas fa-calendar-plus"></i> **Set Appointment**
+            </button>
+            <button type="button" 
+                    onclick="openReferralModal('{{ $visit->visit_id }}')"
+                    class="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-semibold shadow-md transition text-sm">
+                <i class="fas fa-share"></i> **Referral**
+            </button>
+        </div>
+        {{--- END ADDED ROW 3 ---}}
+
+        {{-- Row 4+: Main Content (full width) --}}
         <div class="space-y-6">
 
             @php
@@ -73,37 +99,37 @@
                                <div>
     <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (kg) <span class="text-red-500">*</span></label>
     <input type="number" step="0.01" name="weight" 
-           value="{{ old('weight', $visit->weight ?? '') }}"
-           class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-           placeholder="Enter weight" required>
+            value="{{ old('weight', $visit->weight ?? '') }}"
+            class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+            placeholder="Enter weight" required>
 </div>
 
 <div>
     <label class="block text-sm font-semibold text-gray-700 mb-1">Temperature (°C) <span class="text-red-500">*</span></label>
     <input type="number" step="0.1" name="temperature" 
-           value="{{ old('temperature', $visit->temperature ?? '') }}"
-           class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-           placeholder="Enter temperature" required>
+            value="{{ old('temperature', $visit->temperature ?? '') }}"
+            class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+            placeholder="Enter temperature" required>
 </div>
                                 <div>
                                     <label class="block text-sm font-semibold text-gray-700 mb-1">Heart Rate (bpm)</label>
                                     <input type="number" name="heart_rate" value="{{ old('heart_rate', $__checkup['heart_rate'] ?? '') }}"
-                                           class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                                           placeholder="Enter heart rate">
+                                            class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                                            placeholder="Enter heart rate">
                                 </div>
                                 <div>
                                     <label class="block text-sm font-semibold text-gray-700 mb-1">Respiratory Rate (breaths/min)</label>
                                     <input type="number" name="respiration_rate" value="{{ old('respiration_rate', $__checkup['respiration_rate'] ?? '') }}"
-                                           class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                                           placeholder="Enter respiratory rate">
+                                            class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                                            placeholder="Enter respiratory rate">
                                 </div>
                             </div>
                             <div>
                                 <label class="block text-sm font-semibold text-gray-700 mb-1">Physical Findings / Symptoms</label>
                                 <textarea name="physical_findings" 
-                                          class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                                          rows="5"
-                                          placeholder="Observations from physical exam: coat, eyes, lymph nodes, gait, etc.">{{ old('physical_findings', $__checkup['physical_findings'] ?? '') }}</textarea>
+                                            class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                                            rows="5"
+                                            placeholder="Observations from physical exam: coat, eyes, lymph nodes, gait, etc.">{{ old('physical_findings', $__checkup['physical_findings'] ?? '') }}</textarea>
                             </div>
                         </div>
                     </div>
@@ -115,10 +141,10 @@
                         </h3>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Diagnosis / Clinical Impression <span class="text-red-500">*</span></label>
                         <textarea name="diagnosis" 
-                                  class="w-full p-4 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
-                                  rows="15" 
-                                  placeholder="Primary diagnosis, differential diagnoses, rule-outs..."
-                                  required>{{ old('diagnosis', $__checkup['diagnosis'] ?? '') }}</textarea>
+                                     class="w-full p-4 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+                                     rows="15" 
+                                     placeholder="Primary diagnosis, differential diagnoses, rule-outs..."
+                                     required>{{ old('diagnosis', $__checkup['diagnosis'] ?? '') }}</textarea>
                     </div>
                 </div>
 
@@ -135,12 +161,6 @@
                                 class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-semibold shadow-md transition flex items-center gap-2">
                             <i class="fas fa-tooth"></i> Charts
                         </button>
-                        
-                        <button type="button" 
-                                onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_id ?? 'N/A' }}', 'Consultation')"
-                                class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold shadow-md transition flex items-center gap-2">
-                            <i class="fas fa-tasks"></i> Service Actions
-                        </button>
                     </div>
                     
                     <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
@@ -152,20 +172,194 @@
     </div>
 </div>
 
-<!-- Examination Form Modal -->
-<div id="examFormModal" class="fixed inset-0 bg-black/60 z-50 hidden">
-  <div class="w-full h-full flex items-center justify-center p-4" onclick="backdropCloseExam(event)">
-    <div class="bg-white rounded-xl shadow-2xl w-[1100px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
-      <div class="flex items-center justify-between px-4 py-3 border-b">
-        <h3 class="font-bold text-lg text-gray-800">Comprehensive Examination Form</h3>
-        <button type="button" onclick="closeExamForm()" class="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded-md"><i class="fas fa-times mr-1"></i>Close</button>
-      </div>
-      <div id="examModalBody" class="p-4"></div>
+{{-- 1. Initial Assessment Modal --}}
+<div id="initialAssessmentModal" class="fixed inset-0 bg-black/60 z-50 hidden">
+    <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closeInitialAssessmentModal()}">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto p-6" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-6 border-b pb-3 sticky top-0 bg-white z-10">
+                <h3 class="text-2xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-notes-medical mr-2 text-indigo-600"></i> Initial Assessment
+                </h3>
+                <button onclick="closeInitialAssessmentModal()" class="text-gray-500 hover:text-gray-700 text-xl"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="initialAssessmentForm" action="{{ route('medical.initial_assessments.store') }}" method="POST" onsubmit="return handleInitialAssessmentSubmit(event)" class="space-y-4 border border-indigo-200 p-4 rounded-lg bg-indigo-50">
+                @csrf
+                <input type="hidden" name="pet_id" id="initial_pet_id" value="{{ $visit->pet_id ?? '' }}">
+                <input type="hidden" name="visit_id" id="initial_visit_id" value="{{ $visit->visit_id ?? '' }}">
+                <input type="hidden" name="active_tab" value="visits">
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm border border-gray-300 bg-white">
+                        <tbody>
+                            {{-- Full Initial Assessment Table Content --}}
+                            <tr class="border-b"><td class="p-3 align-top w-1/3"><label class="font-medium">Is your pet sick?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="is_sick" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="is_sick" value="No"> <span>No</span></label></div></td><td class="p-3 align-top w-1/3"><label class="font-medium">Has your pet been treated recently?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="been_treated" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="been_treated" value="No"> <span>No</span></label></div></td><td class="p-3 align-top w-1/3"><label class="font-medium">Does your pet get table food/human food?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="table_food" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="table_food" value="No"> <span>No</span></label></div></td></tr>
+                            <tr class="border-b"><td class="p-3 align-top"><label class="font-medium">How many times per day do you feed?</label><div class="flex flex-wrap gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="feeding_frequency" value="Once"> <span>Once</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="feeding_frequency" value="Twice"> <span>Twice</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="feeding_frequency" value="Thrice"> <span>Thrice</span></label></div></td><td class="p-3 align-top"><label class="font-medium">Is your pet on heartworm preventative?</label><div class="flex gap-4 mt-2 flex-wrap"><label class="inline-flex items-center gap-2"><input type="radio" name="heartworm_preventative" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="heartworm_preventative" value="No"> <span>No</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="heartworm_preventative" value="No Idea"> <span>No Idea</span></label></div></td><td class="p-3 align-top"><label class="font-medium">Any injury or accident in the past 30 days?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="injury_accident" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="injury_accident" value="No"> <span>No</span></label></div></td></tr>
+                            <tr class="border-b"><td class="p-3 align-top"><label class="font-medium">Allergic To Any Medications/Vaccines?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="allergies" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="allergies" value="No"> <span>No</span></label></div></td><td class="p-3 align-top"><label class="font-medium">Had any surgery for the past 30 days?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="surgery_past_30" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="surgery_past_30" value="No"> <span>No</span></label></div></td><td class="p-3 align-top"><label class="font-medium">Currently on any medications/vitamins/OTC?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="current_meds" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="current_meds" value="No"> <span>No</span></label></div></td></tr>
+                            <tr class="border-b"><td class="p-3 align-top"><label class="font-medium">Appetite Normal?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="appetite_normal" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="appetite_normal" value="No"> <span>No</span></label></div></td><td class="p-3 align-top"><label class="font-medium">Diarrhoea</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="diarrhoea" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="diarrhoea" value="No"> <span>No</span></label></div></td><td class="p-3 align-top"><label class="font-medium">Vomiting</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="vomiting" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="vomiting" value="No"> <span>No</span></label></div></td></tr>
+                            <tr class="border-b"><td class="p-3 align-top"><label class="font-medium">Drinking more or less water than usual?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="drinking_unusual" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="drinking_unusual" value="No"> <span>No</span></label></div></td><td class="p-3 align-top"><label class="font-medium">Weakness?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="weakness" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="weakness" value="No"> <span>No</span></label></div></td><td class="p-3 align-top"><label class="font-medium">Gagging?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="gagging" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="gagging" value="No"> <span>No</span></label></div></td></tr>
+                            <tr class="border-b"><td class="p-3 align-top"><label class="font-medium">Coughing?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="coughing" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="coughing" value="No"> <span>No</span></label></div></td><td class="p-3 align-top"><label class="font-medium">Sneezing?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="sneezing" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="sneezing" value="No"> <span>No</span></label></div></td><td class="p-3 align-top"><label class="font-medium">Scratching?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="scratching" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="scratching" value="No"> <span>No</span></label></div></td></tr>
+                            <tr class="border-b"><td class="p-3 align-top"><label class="font-medium">Shaking Head?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="shaking_head" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="shaking_head" value="No"> <span>No</span></label></div></td><td class="p-3 align-top"><label class="font-medium">Urinating more or less than usual?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="urinating_unusual" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="urinating_unusual" value="No"> <span>No</span></label></div></td><td class="p-3 align-top"><label class="font-medium">Limping? Which Leg?</label><div class="flex flex-wrap gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="limping" value="None"> <span>None</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="limping" value="Front Left"> <span>Front Left</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="limping" value="Front Right"> <span>Front Right</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="limping" value="Back Left"> <span>Back Left</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="limping" value="Back Right"> <span>Back Right</span></label></div></td></tr>
+                            <tr class="border-b"><td class="p-3 align-top"><label class="font-medium">Scooting?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="scooting" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="scooting" value="No"> <span>No</span></label></div></td><td class="p-3 align-top"><label class="font-medium">History of seizures?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="seizures" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="seizures" value="No"> <span>No</span></label></div></td><td class="p-3 align-top"><label class="font-medium">Unusually Bad Breath?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="bad_breath" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="bad_breath" value="No"> <span>No</span></label></div></td></tr>
+                            <tr><td class="p-3 align-top"><label class="font-medium">Unusual Discharge?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="discharge" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="discharge" value="No"> <span>No</span></label></div></td><td class="p-3 align-top"><label class="font-medium">Did the pet eat this morning?</label><div class="flex gap-4 mt-2"><label class="inline-flex items-center gap-2"><input type="radio" name="ate_this_morning" value="Yes"> <span>Yes</span></label><label class="inline-flex items-center gap-2"><input type="radio" name="ate_this_morning" value="No"> <span>No</span></label></div></td><td class="p-3 align-top"></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="flex justify-end">
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">
+                        <i class="fas fa-save mr-1"></i> Save Assessment
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
-  </div>
 </div>
 
-<!-- Pet Profile Modal (Photo + Pet & Owner Info Only) -->
+{{-- 2. Prescription Modal --}}
+<div id="prescriptionModal" class="fixed inset-0 bg-black/60 z-50 hidden">
+    <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closePrescriptionModal()}">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto p-6" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-6 border-b pb-3 sticky top-0 bg-white z-10">
+                <h3 class="text-2xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-prescription mr-2 text-green-600"></i> Add New Prescription
+                </h3>
+                <button onclick="closePrescriptionModal()" class="text-gray-500 hover:text-gray-700 text-xl"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="prescriptionForm" onsubmit="return handlePrescriptionSubmit(event)" class="space-y-4 border border-green-200 p-4 rounded-lg bg-green-50">
+                @csrf
+                <input type="hidden" name="pet_id" id="prescription_pet_id">
+                <input type="hidden" name="medications_json" id="medications_json">
+                <input type="hidden" name="active_tab" value="visits">
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Prescription Date</label>
+                    <input type="date" name="prescription_date" value="{{ \Carbon\Carbon::now()->format('Y-m-d') }}" class="w-full border border-gray-300 p-2 rounded-lg" required>
+                </div>
+
+                <div id="medicationContainer" class="space-y-3">
+                    {{-- Medication fields added by JS --}}
+                </div>
+                <button type="button" onclick="addMedicationField()" class="bg-indigo-500 text-white px-3 py-1 rounded text-sm hover:bg-indigo-600">
+                    <i class="fas fa-plus"></i> Add Medication
+                </button>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Diagnosis / Reason</label>
+                    <textarea name="differential_diagnosis" rows="2" class="w-full border border-gray-300 p-2 rounded-lg" placeholder="Diagnosis for this prescription"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">General Notes</label>
+                    <textarea name="notes" rows="2" class="w-full border border-gray-300 p-2 rounded-lg" placeholder="Dietary instructions, follow-up recommendations"></textarea>
+                </div>
+
+                <div class="flex justify-end">
+                    <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold">
+                        <i class="fas fa-save mr-1"></i> Save Prescription
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- 3. Appointment Modal --}}
+<div id="appointmentModal" class="fixed inset-0 bg-black/60 z-50 hidden">
+    <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closeAppointmentModal()}">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[95vh] overflow-y-auto p-6" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-6 border-b pb-3 sticky top-0 bg-white z-10">
+                <h3 class="text-2xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-calendar-plus mr-2 text-blue-600"></i> Set Follow-up Appointment
+                </h3>
+                <button onclick="closeAppointmentModal()" class="text-gray-500 hover:text-gray-700 text-xl"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="appointmentForm" action="{{ route('medical.appointments.store') }}" method="POST" class="space-y-4 border border-blue-200 p-4 rounded-lg bg-blue-50">
+                @csrf
+                <input type="hidden" name="pet_id" id="appoint_pet_id">
+                <input type="hidden" name="appoint_status" value="Scheduled">
+                <input type="hidden" name="active_tab" value="visits">
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Follow-up Type</label>
+                        <select name="appoint_type" id="appoint_type" class="w-full border border-gray-300 p-2 rounded-lg" required>
+                            <option value="Follow-up">General Follow-up</option>
+                            <option value="Vaccination Follow-up">Vaccination Follow-up</option>
+                            <option value="Deworming Follow-up">Deworming Follow-up</option>
+                            <option value="Post-Surgical Recheck">Post-Surgical Recheck</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Date</label>
+                        <input type="date" name="appoint_date" value="{{ \Carbon\Carbon::now()->format('Y-m-d') }}" class="w-full border border-gray-300 p-2 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Time</label>
+                        <select name="appoint_time" class="w-full border border-gray-300 p-2 rounded-lg" required>
+                            @foreach (['09:00:00','10:00:00','11:00:00','13:00:00','14:00:00','15:00:00','16:00:00'] as $time)
+                                <option value="{{ $time }}">{{ \Carbon\Carbon::parse($time)->format('h:i A') }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Description</label>
+                        <textarea name="appoint_description" rows="2" class="w-full border border-gray-300 p-2 rounded-lg" placeholder="Reason for follow-up"></textarea>
+                    </div>
+                </div>
+                <div class="flex justify-end">
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+                        <i class="fas fa-calendar-alt mr-1"></i> Create Appointment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- 4. Referral Modal --}}
+<div id="referralModal" class="fixed inset-0 bg-black/60 z-50 hidden">
+    <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closeReferralModal()}">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[95vh] overflow-y-auto p-6" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-6 border-b pb-3 sticky top-0 bg-white z-10">
+                <h3 class="text-2xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-share mr-2 text-red-600"></i> Create New Referral
+                </h3>
+                <button onclick="closeReferralModal()" class="text-gray-500 hover:text-gray-700 text-xl"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="referralForm" action="{{ route('medical.referrals.store') }}" method="POST" class="space-y-4 border border-red-200 p-4 rounded-lg bg-red-50">
+                @csrf
+                <input type="hidden" name="appointment_id" id="referral_appoint_id" value="{{ $visit->visit_id ?? '' }}">
+                <input type="hidden" name="active_tab" value="visits">
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Referral Date</label>
+                        <input type="date" name="ref_date" value="{{ \Carbon\Carbon::now()->format('Y-m-d') }}" class="w-full border border-gray-300 p-2 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Refer To Branch</label>
+                        <select name="ref_to" class="w-full border border-gray-300 p-2 rounded-lg" required>
+                            <option value="">Select Branch</option>
+                            @foreach($allBranches as $branch)
+                                <option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Reason for Referral</label>
+                    <textarea name="ref_description" rows="3" class="w-full border border-gray-300 p-2 rounded-lg" placeholder="Detailed reason for referring the pet" required></textarea>
+                </div>
+                <div class="flex justify-end">
+                    <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold">
+                        <i class="fas fa-share mr-1"></i> Submit Referral
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div id="petProfileModal" class="fixed inset-0 bg-black/60 z-50 hidden">
   <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closePetProfileModal()}">
     <div class="bg-white rounded-xl shadow-2xl w-[600px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
@@ -174,10 +368,9 @@
         <button type="button" onclick="closePetProfileModal()" class="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded-md"><i class="fas fa-times mr-1"></i>Close</button>
       </div>
       <div class="p-6 space-y-4">
-        <!-- Pet Photo -->
         <div class="w-full rounded-lg border bg-gray-50 flex items-center justify-center overflow-hidden">
           @if(!empty($visit->pet->pet_photo))
-            <img src="{{ asset('storage/'.$visit->pet->pet_photo) }}" alt="{{ $visit->pet->pet_name ?? 'Pet' }}" class="w-full h-80 object-cover"/>
+            <img src="{{ asset('storage/'.$visit->pet->pet_photo) }}" alt="{{ $visit->pet->pet_name }}" class="w-full h-80 object-cover"/>
           @else
             <div class="h-80 w-full flex items-center justify-center text-gray-400 text-lg">
               <i class="fas fa-paw text-6xl"></i>
@@ -185,7 +378,6 @@
           @endif
         </div>
 
-        <!-- Pet Information -->
         <div class="bg-white rounded-lg border p-4">
           <div class="font-semibold text-gray-800 text-lg mb-3 flex items-center gap-2">
             <i class="fas fa-dog text-blue-600"></i> Pet Information
@@ -222,7 +414,6 @@
           </div>
         </div>
 
-        <!-- Owner Information -->
         <div class="bg-white rounded-lg border p-4">
           <div class="font-semibold text-gray-800 text-lg mb-3 flex items-center gap-2">
             <i class="fas fa-user text-green-600"></i> Owner Information
@@ -247,7 +438,6 @@
   </div>
 </div>
 
-<!-- Medical History Modal (History Only) -->
 <div id="medicalHistoryModal" class="fixed inset-0 bg-black/60 z-50 hidden">
   <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closeMedicalHistoryModal()}">
     <div class="bg-white rounded-xl shadow-2xl w-[900px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
@@ -308,102 +498,307 @@
   </div>
 </div>
 
-<!-- Charts Modal: dental grade + species-specific chart -->
-<div id="chartsModal" class="fixed inset-0 bg-black/60 z-50 hidden">
-  <div class="w-full h-full flex items-center justify-center p-4" onclick="backdropCloseCharts(event)">
-    <div class="bg-white rounded-xl shadow-2xl w-[1000px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
-      <div class="flex items-center justify-between px-4 py-3 border-b">
-        <h3 class="font-bold text-lg text-gray-800">Dental & Species Charts</h3>
-        <button type="button" onclick="closeChartsModal()" class="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded-md"><i class="fas fa-times mr-1"></i>Close</button>
-      </div>
-      <div class="p-4 space-y-6">
-        <div>
-          <h4 class="font-semibold text-gray-700 mb-2">Dental Grade</h4>
-          <img src="{{ asset('images/dentalGrade.png') }}" alt="Dental Grade Chart" class="w-full max-h-[600px] object-contain border rounded" />
-        </div>
-        @php($species = strtolower($visit->pet->pet_species ?? ''))
-        @if(str_contains($species, 'dog'))
-          <div>
-            <h4 class="font-semibold text-gray-700 mb-2">Canine Chart</h4>
-            <img src="{{ asset('images/Canine.png') }}" alt="Canine Chart" class="w-full max-h-[600px] object-contain border rounded" />
-          </div>
-        @elseif(str_contains($species, 'cat'))
-          <div>
-            <h4 class="font-semibold text-gray-700 mb-2">Feline Chart</h4>
-            <img src="{{ asset('images/Feline.png') }}" alt="Feline Chart" class="w-full max-h-[600px] object-contain border rounded" />
-          </div>
-        @endif
-      </div>
-    </div>
-  </div>
-</div>
-
 <script>
-  // Exam Form Modal Functions
-  function openExamForm(){
-    const modal = document.getElementById('examFormModal');
-    const body = document.getElementById('examModalBody');
-    const section = document.getElementById('exam-section');
-    if (body && section) {
-      body.innerHTML = '';
-      body.appendChild(section);
+    // Global Data
+    let availablePrescriptionProducts = @json($allProducts);
+    let activityMedicationCounter = 0;
+    
+    // --- General Modals ---
+    function openPetProfileModal() { 
+        document.getElementById('petProfileModal').classList.remove('hidden'); 
     }
-    modal.classList.remove('hidden');
-  }
-  
-  function closeExamForm(){
-    const modal = document.getElementById('examFormModal');
-    const placeholder = document.getElementById('examSectionPlaceholder');
-    const section = document.getElementById('exam-section');
-    if (placeholder && section) {
-      placeholder.insertAdjacentElement('afterend', section);
+    function closePetProfileModal() { 
+        document.getElementById('petProfileModal').classList.add('hidden'); 
     }
-    modal.classList.add('hidden');
-  }
-  
-  function backdropCloseExam(e){
-    if (e.target && e.target.id === 'examFormModal') closeExamForm();
-  }
+    function openMedicalHistoryModal() { 
+        document.getElementById('medicalHistoryModal').classList.remove('hidden'); 
+    }
+    function closeMedicalHistoryModal() { 
+        document.getElementById('medicalHistoryModal').classList.add('hidden'); 
+    }
+    
+    // --- Action Modals ---
+    
+    function openInitialAssessmentModal(petId, visitId) {
+        document.getElementById('initial_pet_id').value = petId;
+        document.getElementById('initial_visit_id').value = visitId;
+        document.getElementById('initialAssessmentModal').classList.remove('hidden');
+    }
+    function closeInitialAssessmentModal() {
+        document.getElementById('initialAssessmentModal').classList.add('hidden');
+    }
 
-  // Pet Profile Modal Functions
-  function openPetProfileModal() { 
-    const m = document.getElementById('petProfileModal'); 
-    if(m){ m.classList.remove('hidden'); } 
-  }
-  
-  function closePetProfileModal() { 
-    const m = document.getElementById('petProfileModal'); 
-    if(m){ m.classList.add('hidden'); } 
-  }
+    function openPrescriptionModal(petId) {
+        document.getElementById('prescription_pet_id').value = petId;
+        document.getElementById('prescriptionForm').reset();
+        document.getElementById('medicationContainer').innerHTML = '';
+        activityMedicationCounter = 0;
+        addMedicationField(); 
+        document.getElementById('prescriptionModal').classList.remove('hidden');
+    }
+    function closePrescriptionModal() {
+        document.getElementById('prescriptionModal').classList.add('hidden');
+    }
 
-  // Medical History Modal Functions
-  function openMedicalHistoryModal() { 
-    const m = document.getElementById('medicalHistoryModal'); 
-    if(m){ m.classList.remove('hidden'); } 
-  }
-  
-  function closeMedicalHistoryModal() { 
-    const m = document.getElementById('medicalHistoryModal'); 
-    if(m){ m.classList.add('hidden'); } 
-  }
+    function openAppointmentModal(petId, defaultType) {
+        document.getElementById('appoint_pet_id').value = petId;
+        document.getElementById('appointmentForm').reset(); 
+        document.getElementById('appoint_type').value = defaultType; 
+        document.getElementById('appointmentModal').classList.remove('hidden');
+    }
+    function closeAppointmentModal() {
+        document.getElementById('appointmentModal').classList.add('hidden');
+    }
+    
+    function openReferralModal(visitId) {
+        document.getElementById('referral_appoint_id').value = visitId;
+        document.getElementById('referralForm').reset();
+        document.getElementById('referralModal').classList.remove('hidden');
+    }
+    function closeReferralModal() {
+        document.getElementById('referralModal').classList.add('hidden');
+    }
 
-  // Charts Modal Functions
-  function openChartsModal(){
-    document.getElementById('chartsModal').classList.remove('hidden');
-  }
-  
-  function closeChartsModal(){
-    document.getElementById('chartsModal').classList.add('hidden');
-  }
-  
-  function backdropCloseCharts(e){
-    if (e.target && e.target.id === 'chartsModal') closeChartsModal();
-  }
+    // --- Prescription/Assessment Submission Logic ---
+    // NOTE: This logic needs to be present on every page using these modals.
+
+    function addMedicationField() {
+        const container = document.getElementById('medicationContainer');
+        const fieldId = ++activityMedicationCounter;
+        
+        const fieldHtml = `
+            <div class="medication-field border border-gray-300 p-3 rounded-lg bg-white" data-field-id="${fieldId}">
+                <div class="flex justify-between items-center mb-3">
+                    <h4 class="text-sm font-medium text-gray-700">Medication ${fieldId}</h4>
+                    ${fieldId > 1 ? `<button type="button" onclick="removeMedicationField(${fieldId})" class="text-red-500 hover:text-red-700 text-xs"><i class="fas fa-trash"></i> Remove</button>` : ''}
+                </div>
+                <div class="relative mb-3">
+                    <label class="block text-xs text-gray-600 mb-1">Product Name / Manual Entry</label>
+                    <input type="text" class="product-search w-full border px-2 py-2 rounded-lg text-sm" placeholder="Search product or enter manually" data-field-id="${fieldId}">
+                    <div class="product-suggestions absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-32 overflow-y-auto hidden" data-field-id="${fieldId}"></div>
+                    <input type="hidden" class="selected-product-id" data-field-id="${fieldId}">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">Instructions (Sig.)</label>
+                    <textarea class="medication-instructions w-full border px-2 py-2 rounded-lg text-sm" rows="2" data-field-id="${fieldId}" placeholder="e.g., Take 1 capsule twice daily for 7 days" required></textarea>
+                </div>
+            </div>
+        `;
+        container.insertAdjacentHTML('beforeend', fieldHtml);
+        setupProductSearch(fieldId);
+    }
+
+    function removeMedicationField(fieldId) {
+        const field = document.querySelector(`#medicationContainer .medication-field[data-field-id="${fieldId}"]`);
+        if (field) {
+            field.remove();
+        }
+    }
+
+    function setupProductSearch(fieldId) {
+        const searchInput = document.querySelector(`.medication-field[data-field-id="${fieldId}"] .product-search`);
+        const suggestionsDiv = document.querySelector(`.medication-field[data-field-id="${fieldId}"] .product-suggestions`);
+        const productIdInput = document.querySelector(`.medication-field[data-field-id="${fieldId}"] .selected-product-id`);
+
+        let searchTimeout;
+
+        searchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase().trim();
+            clearTimeout(searchTimeout);
+            productIdInput.value = '';
+
+            if (query.length < 2) {
+                suggestionsDiv.classList.add('hidden');
+                return;
+            }
+
+            searchTimeout = setTimeout(() => {
+                const filtered = availablePrescriptionProducts.filter(p => p.prod_name.toLowerCase().includes(query));
+                suggestionsDiv.innerHTML = '';
+                
+                if (filtered.length > 0) {
+                    filtered.forEach(product => {
+                        const item = document.createElement('div');
+                        item.className = 'product-suggestion-item px-3 py-2 cursor-pointer hover:bg-blue-50 text-sm';
+                        item.innerHTML = `<div>${product.prod_name}</div><div class="text-xs text-gray-500">Stock: ${product.prod_stocks} - ₱${parseFloat(product.prod_price || 0).toFixed(2)}</div>`;
+                        
+                        item.onclick = function() {
+                            productIdInput.value = product.prod_id;
+                            searchInput.value = product.prod_name;
+                            suggestionsDiv.classList.add('hidden');
+                            searchInput.focus();
+                        };
+                        suggestionsDiv.appendChild(item);
+                    });
+                    suggestionsDiv.classList.remove('hidden');
+                } else {
+                    suggestionsDiv.innerHTML = '<div class="px-3 py-2 text-gray-500 text-xs">No matching products found.</div>';
+                    suggestionsDiv.classList.remove('hidden');
+                }
+            }, 300);
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!searchInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
+                suggestionsDiv.classList.add('hidden');
+            }
+        });
+    }
+
+    function handlePrescriptionSubmit(e) {
+        e.preventDefault();
+        
+        const form = e.target;
+        const medications = [];
+        let isValid = true;
+        
+        document.querySelectorAll('#medicationContainer .medication-field').forEach(field => {
+            const fieldId = field.dataset.fieldId;
+            const searchInput = field.querySelector('.product-search');
+            const productIdInput = field.querySelector('.selected-product-id');
+            const instructionsTextarea = field.querySelector('.medication-instructions');
+            
+            const productName = searchInput.value.trim();
+            const instructions = instructionsTextarea.value.trim();
+            
+            if (productName && instructions) {
+                medications.push({
+                    product_id: productIdInput.value || null,
+                    product_name: productName,
+                    instructions: instructions
+                });
+            } else if (productName || instructions) {
+                isValid = false;
+            }
+        });
+        
+        if (!isValid) {
+            showToast('error', 'Please ensure all medication fields are complete or empty.');
+            return;
+        }
+
+        if (medications.length === 0) {
+            showToast('error', 'Please add at least one medication.');
+            return;
+        }
+        
+        document.getElementById('medications_json').value = JSON.stringify(medications);
+        form.action = "{{ route('medical.prescriptions.store') }}"; 
+        form.method = 'POST';
+        
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Saving...';
+        
+        form.submit();
+    }
+
+    function handleInitialAssessmentSubmit(e) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+        fetch(form.action, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('success', data.message || 'Initial assessment saved successfully!');
+                setTimeout(() => {
+                    closeInitialAssessmentModal(); 
+                }, 2000);
+            } else {
+                throw new Error(data.message || 'Failed to save initial assessment');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('error', error.message || 'Failed to save initial assessment. Please try again.');
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+        });
+    }
+
+    // Toast notification function
+    function showToast(type, message) {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast-notification ${type === 'success' ? 'toast-success' : 'toast-error'}`;
+        
+        const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+        toast.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas ${icon} mr-2"></i>
+                <span>${message}</span>
+            </div>
+        `;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.animation = 'fadeOut 0.5s ease-out forwards';
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.remove();
+                }
+            }, 500);
+        }, 3000);
+    }
 </script>
 
-@include('modals.service_activity_modal', [
-    'allPets' => $allPets, 
-    'allBranches' => $allBranches, 
-    'allProducts' => $allProducts,
-])
+<style>
+/* Add necessary styles for the toast container if not already in your CSS */
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 55; /* Higher than modals */
+}
+
+.toast-notification {
+    padding: 12px 20px;
+    margin-top: 10px;
+    border-radius: 8px;
+    color: white;
+    font-size: 0.9rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    opacity: 1;
+    animation: fadeIn 0.5s ease-out forwards;
+}
+
+.toast-success {
+    background-color: #10B981; /* Tailwind green-500 */
+}
+
+.toast-error {
+    background-color: #EF4444; /* Tailwind red-500 */
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(20px); }
+}
+</style>
+
 @endsection

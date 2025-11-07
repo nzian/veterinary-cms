@@ -1468,14 +1468,29 @@
 
             // Fetch both inventory history AND service usage
             Promise.all([
-                fetch(`/inventory/${productId}/history`),
-                fetch(`/products/${productId}/service-usage`)
+                fetch(`/inventory/${productId}/history`).then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                }),
+                fetch(`/products/${productId}/service-usage`).then(response => {
+                    if (!response.ok) {
+                        console.warn('Failed to load service usage data, continuing without it');
+                        return { services_using_product: [], recent_service_usage: [], total_used_in_services: 0 };
+                    }
+                    return response.json();
+                })
             ])
-                .then(responses => Promise.all(responses.map(r => r.json())))
                 .then(([historyData, serviceData]) => {
-                    if (historyData.error || serviceData.error) {
-                        document.getElementById('inventoryHistoryContent').innerHTML = `<div class="text-red-500">${data.error}</div>`;
-                        return;
+                    if (historyData.error) {
+                        throw new Error(historyData.error);
+                    }
+                    
+                    // If service data has an error, we'll just log it but continue with empty data
+                    if (serviceData.error) {
+                        console.warn('Error in service usage data:', serviceData.error);
+                        serviceData = { services_using_product: [], recent_service_usage: [], total_used_in_services: 0 };
                     }
 
                     const product = historyData.product;
@@ -1605,13 +1620,21 @@
                                         movement.type === 'pullout' ? 'text-orange-600' : 'text-gray-600';
 
                         const movementDate = movement.date ? new Date(movement.date) : new Date();
-                        const displayQuantity = movement.quantity || 0;
+                        // Ensure quantity is treated as a number and handle negative values for pullouts
+                        const displayQuantity = typeof movement.quantity === 'number' ? movement.quantity : 
+                                             (movement.quantity ? parseFloat(movement.quantity) : 0);
+
+                        // Format the quantity with proper sign for display
+                        const quantitySign = displayQuantity > 0 ? '+' : '';
+                        const quantityClass = displayQuantity > 0 ? 'text-green-600' : 'text-red-600';
+                        const displayType = movement.type === 'pullout' ? 'Pull-out' : 
+                                         movement.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
                         content += `
                     <tr>
                         <td class="p-2 border">${movementDate.toLocaleDateString()}</td>
-                        <td class="p-2 border"><span class="${typeClass} capitalize font-semibold">${movement.type.replace('_', ' ') || 'adjustment'}</span></td>
-                        <td class="p-2 border ${displayQuantity > 0 ? 'text-green-600' : 'text-red-600'} font-bold">${displayQuantity > 0 ? '+' : ''}${displayQuantity}</td>
+                        <td class="p-2 border"><span class="${typeClass} capitalize font-semibold">${displayType}</span></td>
+                        <td class="p-2 border ${quantityClass} font-bold">${quantitySign}${displayQuantity}</td>
                         <td class="p-2 border">${movement.reference || 'N/A'}</td>
                         <td class="p-2 border">${movement.user || 'System'}</td>
                         <td class="p-2 border">${movement.notes || 'No notes'}</td>
@@ -1651,8 +1674,28 @@
                     document.getElementById('inventoryHistoryContent').innerHTML = content;
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    document.getElementById('inventoryHistoryContent').innerHTML = '<div class="text-red-500">Error loading inventory history</div>';
+                    console.error('Error loading inventory history:', error);
+                    const errorMessage = error.message || 'An unknown error occurred while loading inventory history';
+                    document.getElementById('inventoryHistoryContent').innerHTML = `
+                        <div class="p-4 bg-red-50 border-l-4 border-red-500">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-red-700">
+                                        ${errorMessage}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-4 text-center">
+                            <button onclick="viewInventoryHistory(${productId})" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                                Retry
+                            </button>
+                        </div>`;
                 });
         }
         function closeInventoryHistoryModal() {

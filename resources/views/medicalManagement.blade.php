@@ -83,6 +83,94 @@
             </nav>
         </div>
 
+        <!-- ==================== APPOINTMENTS TAB ==================== -->
+        <div id="appointmentsContent" class="tab-content hidden">
+            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
+                    <input type="hidden" name="active_tab" value="appointments">
+                    <label for="perPage" class="text-sm text-black">Show</label>
+                    <select name="perPage" id="perPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                        @foreach ([10, 20, 50, 100, 'all'] as $limit)
+                            <option value="{{ $limit }}" {{ request('perPage') == $limit ? 'selected' : '' }}>
+                                {{ $limit === 'all' ? 'All' : $limit }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <span>entries</span>
+                </form>
+            </div>
+            <br>
+
+            <div class="overflow-x-auto">
+                <table class="w-full table-auto text-sm border text-center">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="border px-2 py-2">#</th>
+                            <th class="border px-4 py-2">Date</th>
+                            <th class="border px-4 py-2">Type</th>
+                            <th class="border px-4 py-2">Time</th>
+                            <th class="border px-4 py-2">Pet</th>
+                            <th class="border px-4 py-2">Owner</th>
+                            <th class="border px-4 py-2">Contact</th>
+                            <th class="border px-4 py-2">Status</th>
+                            <th class="border px-4 py-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($appointments as $index => $appointment)
+                            <tr>
+                                <td class="border px-2 py-2">
+                                    @if(method_exists($appointments, 'firstItem'))
+                                        {{ $appointments->firstItem() + $index }}
+                                    @else
+                                        {{ $index + 1 }}
+                                    @endif
+                                </td>
+                                <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($appointment->appoint_date)->format('F j, Y') }}</td>
+                                <td class="border px-4 py-2">{{ $appointment->appoint_type }}</td>
+                                <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($appointment->appoint_time)->format('h:i A') }}</td>
+                                <td class="border px-4 py-2">{{ $appointment->pet?->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_contactnum }}</td>
+                                <td class="border px-4 py-2">
+                                    <span class="px-2 py-1 rounded text-xs 
+                                        {{ $appointment->appoint_status == 'completed' ? 'bg-green-100 text-green-800' : 
+                                           ($appointment->appoint_status == 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                                           ($appointment->appoint_status == 'refer' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800')) }}">
+                                        {{ ucfirst($appointment->appoint_status) }}
+                                    </span>
+                                </td>
+                                <td class="border px-2 py-1">
+                                    <div class="flex justify-center items-center gap-1">
+                                        <button onclick="viewAppointment({{ $appointment->appoint_id }})"
+                                            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="9" class="text-center text-gray-500 py-4">No appointments found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            @if(isset($appointments) && method_exists($appointments, 'links'))
+            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+                <div>
+                    Showing {{ $appointments->firstItem() }} to {{ $appointments->lastItem() }} of
+                    {{ $appointments->total() }} entries
+                </div>
+                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
+                    {{ $appointments->appends(['active_tab' => 'appointments'])->links() }}
+                </div>
+            </div>
+            @endif
+        </div>
+
         {{-- Success/Error Messages --}}
         @if(session('success'))
             <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded mb-4 text-sm">

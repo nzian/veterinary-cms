@@ -45,7 +45,14 @@ class CareContinuityController extends Controller
             ->whereHas('user', function($q) use ($activeBranchId) {
                 $q->where('branch_id', $activeBranchId);
             })
-            ->whereIn('appoint_type', ['Follow-up', 'Vaccination Follow-up', 'Deworming Follow-up', 'Post-Surgical Recheck'])
+            ->where(function($q) {
+                // Exact generic follow-up types
+                $q->whereIn('appoint_type', ['Follow-up', 'Vaccination Follow-up', 'Deworming Follow-up', 'Post-Surgical Recheck'])
+                  // Auto-scheduled detailed types like "Vaccination Follow-up for 5-in-1 (Dose 2)"
+                  ->orWhere('appoint_type', 'like', 'Vaccination Follow-up%')
+                  ->orWhere('appoint_type', 'like', 'Deworming Follow-up%')
+                  ->orWhere('appoint_type', 'like', 'Post-Surgical Recheck%');
+            })
             ->orderBy('appoint_date', 'desc')
             ->orderBy('appoint_time', 'desc');
 

@@ -554,6 +554,10 @@ class MedicalManagementController extends Controller
         // 2. Save Vaccination Record 
         $dateAdministered = $validated['date_administered'] ?: $visitModel->visit_date;
         
+        // Determine next due date: manual override if provided, else 14 days after administration
+        $computedNextDue = Carbon::parse($dateAdministered)->addDays(14)->toDateString();
+        $nextDueDate = !empty($validated['next_due_date']) ? $validated['next_due_date'] : $computedNextDue;
+
         DB::table('tbl_vaccination_record')->insert([
             'visit_id' => $visitModel->visit_id, 
             'pet_id' => $visitModel->pet_id,
@@ -562,7 +566,7 @@ class MedicalManagementController extends Controller
             'manufacturer' => $validated['manufacturer'],
             'batch_no' => $validated['batch_no'], 
             'date_administered' => $dateAdministered,
-            'next_due_date' => $validated['next_due_date'], 
+            'next_due_date' => $nextDueDate, 
             'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
             'remarks' => $validated['remarks'], 
             'created_at' => now(), 
@@ -586,24 +590,24 @@ class MedicalManagementController extends Controller
             ]);
         }
 
-        // 4. AUTO-SCHEDULING LOGIC
+        // 4. AUTO-SCHEDULING LOGIC (manual date overrides calculated schedule)
         $schedule = $this->calculateNextSchedule('vaccination', $validated['vaccine_name'], $visitModel->pet_id);
+
+        $appointType = $schedule['next_appoint_type'] ?? ('Vaccination Follow-up for ' . $validated['vaccine_name']);
+        $newDose = $schedule['new_dose'] ?? 1;
+
+        $this->autoScheduleFollowUp(
+            $visitModel,
+            $appointType,
+            $nextDueDate,
+            $validated['vaccine_name'],
+            $newDose
+        );
+
+        $successMessage = 'Vaccination recorded and visit status marked **Completed**. Next appointment auto-scheduled for **' . Carbon::parse($nextDueDate)->format('F j, Y') . '**.';
         
-        if ($schedule) {
-            $this->autoScheduleFollowUp(
-                $visitModel, 
-                $schedule['next_appoint_type'], 
-                $schedule['next_due_date'], 
-                $validated['vaccine_name'],
-                $schedule['new_dose'] 
-            );
-            $successMessage = 'Vaccination recorded and visit status marked **Completed**. Next appointment auto-scheduled for **' . Carbon::parse($schedule['next_due_date'])->format('F j, Y') . '**.';
-        } else {
-             $successMessage = 'Vaccination recorded and visit status marked **Completed**. All required doses completed, no further follow-up scheduled.';
-        }
-        
-        // 5. Redirect to Appointments tab 
-        return redirect()->route('medical.index', ['active_tab' => 'appointments'])->with('success', $successMessage);
+        // 5. Redirect to Care Continuity Appointments tab
+        return redirect()->route('care-continuity.index', ['active_tab' => 'appointments'])->with('success', $successMessage);
     }
 
     public function saveDeworming(Request $request, $visitId)
@@ -620,40 +624,42 @@ class MedicalManagementController extends Controller
         $visitModel->workflow_status = 'Completed';
         $visitModel->save();
         
-        // 2. Save Deworming Record
+        // 2. Save Deworming Record (manual override if provided, else 14 days after today/visit)
+        $dwBase = $visitModel->visit_date ?? now();
+        $dwComputedNextDue = Carbon::parse($dwBase)->addDays(14)->toDateString();
+        $dwNextDueDate = !empty($validated['next_due_date']) ? $validated['next_due_date'] : $dwComputedNextDue;
+
         DB::table('tbl_deworming_record')->insert([
             'visit_id' => $visitModel->visit_id, 
             'pet_id' => $visitModel->pet_id,
             'dewormer_name' => $validated['dewormer_name'], 
             'dosage' => $validated['dosage'], 
-            'next_due_date' => $validated['next_due_date'], 
+            'next_due_date' => $dwNextDueDate, 
             'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
             'remarks' => $validated['remarks'], 
             'created_at' => now(), 
             'updated_at' => now(),
         ]);
 
-        // 3. AUTO-SCHEDULING LOGIC
+        // 3. AUTO-SCHEDULING LOGIC (manual date overrides calculated schedule)
         $currentDewormName = $validated['dewormer_name']; 
         $schedule = $this->calculateNextSchedule('deworming', $currentDewormName, $visitModel->pet_id);
+
+        $dwAppointType = $schedule['next_appoint_type'] ?? ('Deworming Follow-up for ' . $currentDewormName);
+        $dwNewDose = $schedule['new_dose'] ?? 1;
+
+        $this->autoScheduleFollowUp(
+            $visitModel,
+            $dwAppointType,
+            $dwNextDueDate,
+            $currentDewormName,
+            $dwNewDose
+        );
+
+        $successMessage = 'Deworming recorded and visit status marked **Completed**. Next appointment auto-scheduled for **' . Carbon::parse($dwNextDueDate)->format('F j, Y') . '**.';
         
-        if ($schedule) {
-            $this->autoScheduleFollowUp(
-                $visitModel, 
-                $schedule['next_appoint_type'], 
-                $schedule['next_due_date'], 
-                $currentDewormName,
-                $schedule['new_dose'] 
-            );
-            
-            $nextScheduleName = str_contains($schedule['next_appoint_type'], 'Monthly') ? 'Monthly Deworming' : 'Deworming';
-            $successMessage = 'Deworming recorded and visit status marked **Completed**. Next appointment auto-scheduled for **' . Carbon::parse($schedule['next_due_date'])->format('F j, Y') . '**.';
-        } else {
-             $successMessage = 'Deworming recorded and visit status marked **Completed**. Maintenance schedule established or completed.';
-        }
-        
-        // 4. Redirect to Appointments tab
-        return redirect()->route('medical.index', ['active_tab' => 'appointments'])->with('success', $successMessage);
+        // 4. Redirect to Care Continuity Appointments tab
+        return redirect()->route('care-continuity.index', ['active_tab' => 'appointments'])->with('success', $successMessage);
     }
     
     public function updateGroomingService(Request $request, $visitId)
