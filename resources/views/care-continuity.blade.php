@@ -147,7 +147,6 @@
                             <th class="border px-2 py-2">#</th>
                             <th class="border px-4 py-2">Date</th>
                             <th class="border px-4 py-2">Type</th>
-                            <th class="border px-4 py-2">Time</th>
                             <th class="border px-4 py-2">Pet</th>
                             <th class="border px-4 py-2">Owner</th>
                             <th class="border px-4 py-2">Contact</th>
@@ -163,9 +162,6 @@
                                     {{ \Carbon\Carbon::parse($appointment->appoint_date)->format('F j, Y') }}
                                 </td>
                                 <td class="border px-4 py-2">{{ $appointment->appoint_type }}</td>
-                                <td class="border px-4 py-2">
-                                    {{ \Carbon\Carbon::parse($appointment->appoint_time)->format('h:i A') }}
-                                </td>
                                 <td class="border px-4 py-2">{{ $appointment->pet?->pet_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_contactnum}}</td>

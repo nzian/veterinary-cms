@@ -968,6 +968,33 @@ function viewTransaction(transactionId) {
     window.location.href = '/sales/transaction/' + transactionId;
 }
 
+function payBilling(billId, total) {
+    const def = (typeof total === 'number' && !isNaN(total)) ? total.toFixed(2) : '';
+    const cashStr = prompt('Enter cash amount to pay (₱):', def);
+    if (cashStr === null) return;
+    const cash = parseFloat(cashStr);
+    if (isNaN(cash) || cash < 0) {
+        alert('Invalid cash amount.');
+        return;
+    }
+    const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    fetch(`{{ url('/sales/billing') }}/${billId}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+        body: JSON.stringify({ cash_amount: cash })
+    })
+    .then(async res => {
+        let data = {};
+        try { data = await res.json(); } catch {}
+        if (!res.ok || data.success === false) {
+            alert(data.message || `Failed to pay bill. HTTP ${res.status}`);
+            return;
+        }
+        location.reload();
+    })
+    .catch(() => alert('Network error while paying bill.'));
+}
+
 // Add event listener for after print to clean up
 window.addEventListener('afterprint', function() {
     console.log('Print dialog closed');
