@@ -5,6 +5,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\BranchDataScope;
 use App\Enums\PatientType;
+use App\Services\VisitBillingService;
 
 
 class Visit extends Model

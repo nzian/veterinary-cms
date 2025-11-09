@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
+use App\Services\VisitBillingService;
 use App\Services\NotificationService; 
 use App\Services\InventoryService; 
 use App\Models\InventoryHistory as InventoryHistoryModel;
@@ -496,11 +497,13 @@ class MedicalManagementController extends Controller
         $visitModel->weight = $validated['weight'] ?? $visitModel->weight;
         $visitModel->temperature = $validated['temperature'] ?? $visitModel->temperature;
         
-        // 🌟 NEW: Set Status to Completed
-        $visitModel->visit_status = 'completed';
+        // Keep visit ARRIVED until billing is paid; only advance workflow
+        $visitModel->visit_status = 'arrived';
         $visitModel->workflow_status = 'Completed';
         
         $visitModel->save();
+        // Auto-generate billing for this visit
+        try { (new VisitBillingService())->createFromVisit($visitModel); } catch (\Throwable $e) { Log::warning('Billing creation failed: '.$e->getMessage()); }
 
         // Update pet's weight and temperature if they were provided
         if (isset($validated['weight']) || isset($validated['temperature'])) {
@@ -546,10 +549,12 @@ class MedicalManagementController extends Controller
         
         $visitModel = Visit::with('pet.owner')->findOrFail($visitId);
         
-        // 1. Update Visit Status
-        $visitModel->visit_status = 'completed';
+        // 1. Update Visit Status (keep Arrived until paid)
+        $visitModel->visit_status = 'arrived';
         $visitModel->workflow_status = 'Completed';
         $visitModel->save();
+        // Auto-generate billing
+        try { (new VisitBillingService())->createFromVisit($visitModel); } catch (\Throwable $e) { Log::warning('Billing creation failed: '.$e->getMessage()); }
         
         // 2. Save Vaccination Record 
         $dateAdministered = $validated['date_administered'] ?: $visitModel->visit_date;
@@ -619,10 +624,12 @@ class MedicalManagementController extends Controller
         
         $visitModel = Visit::with('pet.owner')->findOrFail($visitId);
         
-        // 1. Update Visit Status
-        $visitModel->visit_status = 'completed';
+        // 1. Update Visit Status (keep Arrived until paid)
+        $visitModel->visit_status = 'arrived';
         $visitModel->workflow_status = 'Completed';
         $visitModel->save();
+        // Auto-generate billing
+        try { (new VisitBillingService())->createFromVisit($visitModel); } catch (\Throwable $e) { Log::warning('Billing creation failed: '.$e->getMessage()); }
         
         // 2. Save Deworming Record (manual override if provided, else 14 days after today/visit)
         $dwBase = $visitModel->visit_date ?? now();
@@ -726,11 +733,13 @@ class MedicalManagementController extends Controller
                 ->with('error', 'Grooming service record saved, but **Agreement must be signed** before setting status to Completed.');
         }
 
-        // 🌟 NEW: Set Status to Completed (only if agreement is present/not checked above)
-        $visitModel->visit_status = 'completed';
+        // Keep visit ARRIVED until paid (agreement required already)
+        $visitModel->visit_status = 'arrived';
         $visitModel->workflow_status = 'Completed';
         
         $visitModel->save();
+        // Auto-generate billing
+        try { (new VisitBillingService())->createFromVisit($visitModel); } catch (\Throwable $e) { Log::warning('Billing creation failed: '.$e->getMessage()); }
         
         DB::table('tbl_grooming_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
@@ -755,11 +764,13 @@ class MedicalManagementController extends Controller
         
         $visitModel = Visit::findOrFail($visitId);
         
-        // 🌟 NEW: Set Status to Completed
-        $visitModel->visit_status = 'completed';
+        // Keep visit ARRIVED until paid; use workflow for boarding stage
+        $visitModel->visit_status = 'arrived';
         $visitModel->workflow_status = 'Checked Out'; // Boarding uses Checked Out as final status
         
         $visitModel->save();
+        // Auto-generate billing
+        try { (new VisitBillingService())->createFromVisit($visitModel); } catch (\Throwable $e) { Log::warning('Billing creation failed: '.$e->getMessage()); }
         
         DB::table('tbl_boarding_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
@@ -783,11 +794,13 @@ class MedicalManagementController extends Controller
         
         $visitModel = Visit::findOrFail($visitId);
         
-        // 🌟 NEW: Set Status to Completed
-        $visitModel->visit_status = 'completed';
+        // Keep visit ARRIVED until billing is paid
+        $visitModel->visit_status = 'arrived';
         $visitModel->workflow_status = 'Completed';
         
         $visitModel->save();
+        // Auto-generate billing
+        try { (new VisitBillingService())->createFromVisit($visitModel); } catch (\Throwable $e) { Log::warning('Billing creation failed: '.$e->getMessage()); }
         
         DB::table('tbl_diagnostic_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
@@ -813,11 +826,13 @@ class MedicalManagementController extends Controller
         
         $visitModel = Visit::findOrFail($visitId);
         
-        // 🌟 NEW: Set Status to Completed
-        $visitModel->visit_status = 'completed';
+        // Keep visit ARRIVED until billing is paid
+        $visitModel->visit_status = 'arrived';
         $visitModel->workflow_status = 'Completed';
         
         $visitModel->save();
+        // Auto-generate billing
+        try { (new VisitBillingService())->createFromVisit($visitModel); } catch (\Throwable $e) { Log::warning('Billing creation failed: '.$e->getMessage()); }
         
         DB::table('tbl_surgical_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
@@ -846,11 +861,13 @@ class MedicalManagementController extends Controller
         
         $visitModel = Visit::findOrFail($visitId);
         
-        // 🌟 NEW: Set Status to Completed
-        $visitModel->visit_status = 'completed';
+        // Keep visit ARRIVED until billing is paid
+        $visitModel->visit_status = 'arrived';
         $visitModel->workflow_status = 'Completed';
         
         $visitModel->save();
+        // Auto-generate billing
+        try { (new VisitBillingService())->createFromVisit($visitModel); } catch (\Throwable $e) { Log::warning('Billing creation failed: '.$e->getMessage()); }
         
         DB::table('tbl_emergency_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
@@ -931,6 +948,21 @@ class MedicalManagementController extends Controller
             $visit->save();
         }
 
+        // Auto-generate billing if visit is marked completed and no billing exists yet
+        if (strcasecmp((string)$visit->visit_status, 'completed') === 0 && !$visit->billing) {
+            try {
+                $branchId = optional($visit->user)->branch_id ?? session('active_branch_id');
+                \App\Models\Billing::create([
+                    'bill_date' => \Carbon\Carbon::today()->toDateString(),
+                    'visit_id' => $visit->visit_id,
+                    'bill_status' => 'pending',
+                    'branch_id' => $branchId,
+                ]);
+            } catch (\Throwable $e) {
+                \Log::warning('Failed to auto-create billing on visit completion: '.$e->getMessage());
+            }
+        }
+
         $activeTab = $request->input('active_tab', 'visits');
         return redirect()->route('medical.index', ['active_tab' => $activeTab])
             ->with('success', 'Visit updated successfully');
@@ -984,6 +1016,18 @@ class MedicalManagementController extends Controller
 
             $visit->workflow_status = $next;
             $visit->save();
+
+            if (strcasecmp($next, 'Completed') === 0) {
+                if (!$visit->billing) {
+                    $branchId = optional($visit->user)->branch_id ?? session('active_branch_id');
+                    \App\Models\Billing::create([
+                        'bill_date' => \Carbon\Carbon::today()->toDateString(),
+                        'visit_id' => $visit->visit_id,
+                        'bill_status' => 'pending',
+                        'branch_id' => $branchId,
+                    ]);
+                }
+            }
 
             return response()->json(['success' => true, 'workflow_status' => $next]);
         } catch (\Exception $e) {
@@ -1060,9 +1104,56 @@ class MedicalManagementController extends Controller
         return $v;
     });
             
-        $availableServices = Service::where('serv_type', 'LIKE', '%' . $serviceType . '%') 
+       $availableGroomingServices = Service::where('serv_type', 'LIKE', '%' . $serviceType . '%') 
+            // Only select the columns that actually exist in your tbl_serv
+            ->select('serv_id', 'serv_name', 'serv_price') 
             ->orderBy('serv_name')
             ->get();
+            
+        // 2. Map the collection to extract weight limits from the 'serv_name' string
+        $petWeight = optional($visit)->weight; // may be null
+        $availableServices = $availableGroomingServices->map(function ($service) {
+            $name = $service->serv_name;
+            $min_weight = 0;
+            $max_weight = 9999; // Default to max/no limit
+
+            // Regex to find patterns like (7.5 kl) below or (15 kg) above
+            // Handles kg/kl and spacing variations
+            if (preg_match('/\(([-\d\.]+)\s*k[gl]\)\s*below/i', $name, $matches)) {
+                $max_weight = (float)$matches[1];
+                $min_weight = 0;
+            } else if (preg_match('/\(([-\d\.]+)\s*k[gl]\)\s*above/i', $name, $matches)) {
+                $min_weight = (float)$matches[1];
+                $max_weight = 9999;
+            }
+
+            // Derive a base "kind" label (e.g., Full Groom, Bath & Blowdry)
+            $kind = $name;
+            if (preg_match('/grooming\s*-\s*([^\(]+)/i', $name, $km)) {
+                $kind = trim($km[1]);
+            } else {
+                // fallback: strip anything after first parenthesis
+                $kind = trim(preg_split('/\(/', $name)[0]);
+            }
+
+            $service->min_weight = $min_weight;
+            $service->max_weight = $max_weight;
+            $service->kind = $kind;
+
+            return $service;
+        })
+        // Server-side filter: only keep services within the pet's weight if available
+        ->when(!empty($petWeight) && is_numeric($petWeight), function ($col) use ($petWeight) {
+            return $col->filter(function ($s) use ($petWeight) {
+                return $petWeight >= ($s->min_weight ?? 0) && $petWeight <= ($s->max_weight ?? 9999);
+            })->values();
+        });
+
+        // Build unique kinds for UI filtering
+        $groomKinds = $availableServices->pluck('kind')->filter()->unique()->sort()->values();
+
+        // The rest of the method continues using $availableServices...
+        $lookups = $this->getBranchLookups();
             
         $lookups = $this->getBranchLookups(); 
 
@@ -1079,7 +1170,7 @@ class MedicalManagementController extends Controller
                             ->get();
         
         // Pass the new variable 'veterinarians' to the view
-        return view($viewName, array_merge(compact('visit', 'serviceData', 'petMedicalHistory', 'availableServices','vaccines', 'veterinarians'), $lookups));
+        return view($viewName, array_merge(compact('visit', 'serviceData', 'petMedicalHistory', 'availableServices','vaccines', 'veterinarians', 'groomKinds'), $lookups));
     }
     // ==================== APPOINTMENT METHODS (Full Implementations) ====================
 

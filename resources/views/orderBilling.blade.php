@@ -88,15 +88,15 @@
                         @forelse($billings as $billing)
                             @php
                                 $servicesTotal = 0;
-                                if ($billing->appointment && $billing->appointment->services) {
-                                    $servicesTotal = $billing->appointment->services->sum('serv_price');
+                                if ($billing->visit && $billing->visit->services) {
+                                    $servicesTotal = $billing->visit->services->sum('serv_price');
                                 }
 
                                 $prescriptionTotal = 0;
                                 $prescriptionItems = [];
                                 
-                                if ($billing->appointment && $billing->appointment->pet) {
-                                    $prescriptions = \App\Models\Prescription::where('pet_id', $billing->appointment->pet->pet_id)
+                                if ($billing->visit && $billing->visit->pet) {
+                                    $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit->pet->pet_id)
                                         ->whereDate('prescription_date', '<=', $billing->bill_date)
                                         ->whereDate('prescription_date', '>=', date('Y-m-d', strtotime($billing->bill_date . ' -7 days')))
                                         ->get();
@@ -134,20 +134,20 @@
                             
                             <tr class="hover:bg-gray-50">
                                 <td class="px-4 py-2 border">
-                                    {{ $billing->appointment?->pet?->owner?->own_name ?? 'N/A' }}
+                                    {{ $billing->visit?->pet?->owner?->own_name ?? 'N/A' }}
                                 </td>
                                 <td class="px-4 py-2 border">
                                     <div>
-                                        <div class="font-medium">{{ $billing->appointment?->pet?->pet_name ?? 'N/A' }}</div>
-                                        <div class="text-xs text-gray-500">{{ $billing->appointment?->pet?->pet_species ?? '' }}</div>
+                                        <div class="font-medium">{{ $billing->visit?->pet?->pet_name ?? 'N/A' }}</div>
+                                        <div class="text-xs text-gray-500">{{ $billing->visit?->pet?->pet_species ?? '' }}</div>
                                     </div>
                                 </td>
                                 <td class="px-4 py-2 border">
                                     {{-- Services --}}
-                                    @if($billing->appointment && $billing->appointment->services && $billing->appointment->services->count() > 0)
+                                    @if($billing->visit && $billing->visit->services && $billing->visit->services->count() > 0)
                                         <div class="mb-2">
                                             <div class="font-semibold text-blue-600 text-xs mb-1">SERVICES:</div>
-                                            @foreach($billing->appointment->services as $service)
+                                            @foreach($billing->visit->services as $service)
                                                 <span class="block text-xs">
                                                     {{ $service->serv_name ?? 'N/A' }} - ₱{{ number_format($service->serv_price ?? 0, 2) }}
                                                 </span>
@@ -170,7 +170,7 @@
                                         </div>
                                     @endif
                                     
-                                    @if(count($prescriptionItems) == 0 && (!$billing->appointment || !$billing->appointment->services || $billing->appointment->services->count() == 0))
+                                    @if(count($prescriptionItems) == 0 && (!$billing->visit || !$billing->visit->services || $billing->visit->services->count() == 0))
                                         <span class="text-gray-500 text-xs">No items</span>
                                     @endif
                                 </td>
@@ -220,29 +220,36 @@
         </button>-->
         
 
-        <button onclick="window.location.href='{{ route('sales.billing.show', $billing->bill_id) }}'" 
-        class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs">
-    <i class="fas fa-eye"></i>
-</button>
+        @if($billingStatus !== 'paid')
+            <button onclick="payBilling({{ $billing->bill_id }}, {{ $grandTotal }})" 
+                class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 text-xs" title="Pay">
+                <i class="fas fa-money-bill"></i>
+            </button>
+        @else
+            <a href="{{ route('sales.billing.receipt', $billing->bill_id) }}" 
+               class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="Receipt">
+                <i class="fas fa-receipt"></i>
+            </a>
+        @endif
 
         @if(hasPermission('print_billing', $can))
             <!-- Direct Print Button -->
             <button onclick="directPrintBilling(this)" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="print"
                 data-bill-id="{{ $billing->bill_id }}"
-                data-owner="{{ $billing->appointment?->pet?->owner?->own_name ?? 'N/A' }}"
-                data-pet="{{ $billing->appointment?->pet?->pet_name ?? 'N/A' }}"
-                data-pet-species="{{ $billing->appointment?->pet?->pet_species ?? 'N/A' }}"
-                data-pet-breed="{{ $billing->appointment?->pet?->pet_breed ?? 'N/A' }}"
+                data-owner="{{ $billing->visit?->pet?->owner?->own_name ?? 'N/A' }}"
+                data-pet="{{ $billing->visit?->pet?->pet_name ?? 'N/A' }}"
+                data-pet-species="{{ $billing->visit?->pet?->pet_species ?? 'N/A' }}"
+                data-pet-breed="{{ $billing->visit?->pet?->pet_breed ?? 'N/A' }}"
                 data-date="{{ \Carbon\Carbon::parse($billing->bill_date)->format('F d, Y') }}"
                 data-services-total="{{ $servicesTotal }}"
                 data-prescription-total="{{ $prescriptionTotal }}"
                 data-grand-total="{{ $grandTotal }}"
                 data-status="{{ $billingStatus }}"
-                data-services="{{ $billing->appointment && $billing->appointment->services ? $billing->appointment->services->map(function($service) { return $service->serv_name . ' - ₱' . number_format($service->serv_price ?? 0, 2); })->implode('|') : 'No services' }}"
+                data-services="{{ $billing->visit && $billing->visit->services ? $billing->visit->services->map(function($service) { return $service->serv_name . ' - ₱' . number_format($service->serv_price ?? 0, 2); })->implode('|') : 'No services' }}"
                 data-prescription-items="{{ json_encode($prescriptionItems) }}"
-                data-branch-name="{{ $billing->appointment?->branch?->branch_name ?? 'Main Branch' }}"
-                data-branch-address="{{ $billing->appointment?->branch?->branch_address ?? 'Branch Address' }}"
-                data-branch-contact="{{ $billing->appointment?->branch?->branch_contactNum ?? 'Contact Number' }}">
+                data-branch-name="{{ $billing->visit?->user?->branch?->branch_name ?? 'Main Branch' }}"
+                data-branch-address="{{ $billing->visit?->user?->branch?->branch_address ?? 'Branch Address' }}"
+                data-branch-contact="{{ $billing->visit?->user?->branch?->branch_contactNum ?? 'Contact Number' }}">
                 <i class="fas fa-print"></i>
             </button>
         @endif
@@ -287,17 +294,15 @@
                     <input type="search" id="ordersSearch" placeholder="Search sales..." class="border border-gray-300 rounded px-3 py-2 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
-                <!--<div class="flex gap-2">
+                <div class="flex gap-2">
                     <button onclick="exportSales()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
                         Export CSV
                     </button>
                     <button onclick="showFilters()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
                         Filter
                     </button>
-                </div>-->
+                </div>
             </div>
-
-            <!-- Filter Section (Initially Hidden) 
             <div id="filterSection" class="mb-4 p-4 bg-gray-100 rounded-lg hidden">
                 <form method="GET" class="flex gap-4 items-end">
                     <div>
@@ -317,9 +322,9 @@
                         Reset
                     </a>
                 </form>
-            </div>-->
+            </div>
 
-            <!-- Summary Cards 
+            Summary Cards 
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <div class="bg-blue-100 p-4 rounded-lg">
                     <h3 class="text-blue-800 font-semibold">Total Sales</h3>
@@ -345,7 +350,7 @@
                         ₱{{ number_format($averageSale, 2) }}
                     </p>
                 </div>
-            </div>-->
+            </div>
 
            
                <!-- Sales Table -->

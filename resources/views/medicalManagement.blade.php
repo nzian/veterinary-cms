@@ -266,7 +266,10 @@
                                 <td class="border px-4 py-2">{{ is_object($visit->patient_type) && method_exists($visit->patient_type, 'value') ? $visit->patient_type->value : $visit->patient_type }}</td>
                                 <td class="border px-4 py-2">
                                     @php
-                                        $__types = ($visit->services ? $visit->services->pluck('serv_type')->filter()->map(function($t){ return strtolower(trim($t)); })->unique()->values()->all() : []);
+                                        $__types = [];
+                                        if ($visit->services && method_exists($visit->services, 'count') && $visit->services->count() > 0) {
+                                            $__types = $visit->services->pluck('serv_type')->filter()->map(function($t){ return strtolower(trim($t)); })->unique()->values()->all();
+                                        }
                                         $__summary = $visit->visit_service_type ?? ($visit->service_type ?? ($visit->serv_type ?? null));
                                     @endphp
                                     {{ !empty($__types) ? implode(', ', $__types) : ($__summary ?: '-') }}

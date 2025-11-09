@@ -234,27 +234,107 @@ class ProdServEquipController extends Controller
                 ->orderBy('month', 'desc')
                 ->get();
 
-            $recentAppointments = DB::table('tbl_appoint')
-                ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
-                ->leftJoin('tbl_pet', 'tbl_appoint.pet_id', '=', 'tbl_pet.pet_id')
-                ->leftJoin('tbl_own', 'tbl_pet.own_id', '=', 'tbl_own.own_id')
-                ->leftJoin('tbl_user', 'tbl_appoint.user_id', '=', 'tbl_user.user_id')
-                ->where('tbl_appoint_serv.serv_id', $id)
-                ->select(
-                    'tbl_appoint.appoint_id',
-                    'tbl_appoint.appoint_date',
-                    'tbl_appoint.appoint_time',
-                    'tbl_appoint.appoint_status',
-                    'tbl_appoint.appoint_type',
-                    'tbl_pet.pet_name',
-                    'tbl_pet.pet_species',
-                    'tbl_own.own_name',
-                    'tbl_own.own_contactnum',
-                    'tbl_user.user_name'
-                )
-                ->orderBy('tbl_appoint.appoint_date', 'desc')
-                ->limit(10)
-                ->get();
+            // Primary source: visits table (various possible names)
+            $visitTables = ['tbl_visit', 'tbl_visits', 'tbl_visit_record', 'tbl_visit_records', 'visits', 'visit'];
+            $visitsTable = null;
+            foreach ($visitTables as $vt) {
+                if (!Schema::hasTable($vt)) { continue; }
+                try {
+                    // Probe columns to ensure compatibility
+                    $probe = DB::table($vt)->limit(1)->first();
+                    $columns = Schema::getColumnListing($vt);
+                    $need = ['visit_date','visit_status','pet_id','user_id','service_type'];
+                    $hasAll = !array_diff($need, $columns);
+                    if ($hasAll) { $visitsTable = $vt; break; }
+                } catch (\Throwable $t) {
+                    // skip invalid table
+                }
+            }
+
+            if ($visitsTable) {
+                // Build recent visits for this service using visits table
+                $recentAppointments = DB::table($visitsTable . ' as v')
+                    ->leftJoin('tbl_pet as p', 'v.pet_id', '=', 'p.pet_id')
+                    ->leftJoin('tbl_own as o', 'p.own_id', '=', 'o.own_id')
+                    ->leftJoin('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+                    ->where(function($q) use ($service) {
+                        $q->where('v.service_type', $service->serv_type)
+                          ->orWhere('v.service_type', $service->serv_name)
+                          ->orWhere('v.service_type', 'like', "%".$service->serv_type."%")
+                          ->orWhere('v.service_type', 'like', "%".$service->serv_name."%");
+                    })
+                    ->select(
+                        DB::raw('NULL as appoint_id'),
+                        'v.visit_date as appoint_date',
+                        DB::raw('NULL as appoint_time'),
+                        'v.visit_status as appoint_status',
+                        DB::raw("CONCAT('Visit - ', COALESCE(v.service_type,'')) as appoint_type"),
+                        'p.pet_name',
+                        'p.pet_species',
+                        'o.own_name',
+                        'o.own_contactnum',
+                        'u.user_name'
+                    )
+                    ->orderBy('v.visit_date', 'desc')
+                    ->orderBy('v.updated_at', 'desc')
+                    ->limit(10)
+                    ->get();
+            } else {
+                // Fallback 1: pivot appoint-service linkage
+                $recentAppointments = DB::table('tbl_appoint_serv as aps')
+                    ->join('tbl_appoint as a', 'aps.appoint_id', '=', 'a.appoint_id')
+                    ->leftJoin('tbl_pet as p', 'a.pet_id', '=', 'p.pet_id')
+                    ->leftJoin('tbl_own as o', 'p.own_id', '=', 'o.own_id')
+                    // Prefer veterinarian assigned on the service record; fallback to scheduler/handler on appointment
+                    ->leftJoin('tbl_user as v', 'aps.vet_user_id', '=', 'v.user_id')
+                    ->leftJoin('tbl_user as u', 'a.user_id', '=', 'u.user_id')
+                    ->where('aps.serv_id', $id)
+                    ->select(
+                        'a.appoint_id',
+                        'a.appoint_date',
+                        'a.appoint_time',
+                        'a.appoint_status',
+                        'a.appoint_type',
+                        'p.pet_name',
+                        'p.pet_species',
+                        'o.own_name',
+                        'o.own_contactnum',
+                        DB::raw('COALESCE(v.user_name, u.user_name) as user_name')
+                    )
+                    ->orderBy('a.appoint_date', 'desc')
+                    ->orderBy('a.appoint_time', 'desc')
+                    ->limit(10)
+                    ->get();
+
+                // Fallback 2: heuristic by appointment_type
+                if ($recentAppointments->isEmpty()) {
+                    $recentAppointments = DB::table('tbl_appoint as a')
+                        ->leftJoin('tbl_pet as p', 'a.pet_id', '=', 'p.pet_id')
+                        ->leftJoin('tbl_own as o', 'p.own_id', '=', 'o.own_id')
+                        ->leftJoin('tbl_user as u', 'a.user_id', '=', 'u.user_id')
+                        ->where(function($q) use ($service) {
+                            $q->where('a.appoint_type', $service->serv_name)
+                              ->orWhere('a.appoint_type', 'like', "%".$service->serv_name."%")
+                              ->orWhere('a.appoint_type', 'like', "%".$service->serv_type."%");
+                        })
+                        ->select(
+                            'a.appoint_id',
+                            'a.appoint_date',
+                            'a.appoint_time',
+                            'a.appoint_status',
+                            'a.appoint_type',
+                            'p.pet_name',
+                            'p.pet_species',
+                            'o.own_name',
+                            'o.own_contactnum',
+                            'u.user_name'
+                        )
+                        ->orderBy('a.appoint_date', 'desc')
+                        ->orderBy('a.appoint_time', 'desc')
+                        ->limit(10)
+                        ->get();
+                }
+            }
 
             $utilizationData = DB::table('tbl_appoint')
                 ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')

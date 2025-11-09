@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Billing;
 use App\Models\Prescription;
+use App\Models\Visit;
+use App\Models\Appointment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class BillingController extends Controller
 {
@@ -106,9 +109,37 @@ class BillingController extends Controller
 
      public function markAsPaid($billId)
     {
-        $billing = Billing::findOrFail($billId);
+        $billing = Billing::with('visit')->findOrFail($billId);
         $billing->bill_status = 'paid';
         $billing->save();
+
+        // When billing is paid, mark visit and its corresponding appointment as completed
+        if ($billing->visit) {
+            $visit = $billing->visit;
+            $visit->visit_status = 'completed';
+            // If workflow exists and not completed, set to Completed
+            if (strcasecmp((string)$visit->workflow_status, 'Completed') !== 0) {
+                $visit->workflow_status = 'Completed';
+            }
+            $visit->save();
+
+            // Try to complete the most relevant appointment for the same pet
+            try {
+                $petId = $visit->pet_id;
+                if ($petId) {
+                    $appt = Appointment::where('pet_id', $petId)
+                        ->orderBy('appoint_date', 'desc')
+                        ->orderBy('appoint_id', 'desc')
+                        ->first();
+                    if ($appt && strtolower($appt->appoint_status) !== 'completed') {
+                        $appt->appoint_status = 'completed';
+                        $appt->save();
+                    }
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('Failed to mark appointment completed on bill paid: '.$e->getMessage());
+            }
+        }
 
         return response()->json([
             'success' => true,

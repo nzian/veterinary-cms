@@ -466,6 +466,8 @@ Route::post('/sales/billing/{id}/mark-paid', [SalesManagementController::class, 
 Route::get('/sales/transaction/{id}', [SalesManagementController::class, 'showTransaction'])->name('sales.transaction');
 Route::get('/sales/print-transaction/{id}', [SalesManagementController::class, 'printTransaction'])->name('sales.printTransaction');
 Route::get('/sales/export', [SalesManagementController::class, 'export'])->name('sales.export');
+Route::get('/sales/billing/{id}/receipt', [SalesManagementController::class, 'showReceipt'])->name('sales.billing.receipt');
+Route::post('/sales/billing/{id}/pay', [SalesManagementController::class, 'markAsPaid'])->name('sales.billing.pay');
 
 
 Route::get('/sms-settings', [SMSSettingsController::class, 'index'])->name('sms-settings.index');
@@ -532,6 +534,7 @@ Route::prefix('care-continuity')->name('care-continuity.')->group(function () {
     Route::post('/appointments/store', [CareContinuityController::class, 'storeFollowUpAppointment'])->name('appointments.store');
     Route::put('/appointments/{id}', [CareContinuityController::class, 'updateFollowUpAppointment'])->name('appointments.update');
     Route::delete('/appointments/{id}', [CareContinuityController::class, 'destroyFollowUpAppointment'])->name('appointments.destroy');
+    Route::post('/appointments/{id}/create-visit', [CareContinuityController::class, 'createVisitFromAppointment'])->name('appointments.create-visit');
     
     // Prescriptions
     Route::post('/prescriptions/store', [CareContinuityController::class, 'storeFollowUpPrescription'])->name('prescriptions.store');

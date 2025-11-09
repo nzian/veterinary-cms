@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Appointment;
 use App\Models\Prescription;
 use App\Models\Referral;
+use App\Models\Visit;
 use App\Models\Pet;
 use App\Models\Owner;
 use App\Models\Branch;
@@ -91,6 +92,14 @@ class CareContinuityController extends Controller
         $allBranches = Branch::all();
 
         $careContinuityModals = true;
+        // Pet IDs that already have a visit today (to hide Add Visit button)
+        $todayVisitPetIds = Visit::whereDate('visit_date', Carbon::today())
+            ->whereHas('user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            })
+            ->pluck('pet_id')
+            ->unique()
+            ->values();
 
         return view('care-continuity', compact(
             'appointments',
@@ -101,6 +110,7 @@ class CareContinuityController extends Controller
             'filteredPets',
             'allBranches',
             'careContinuityModals',
+            'todayVisitPetIds',
             
         ));
     }
@@ -141,11 +151,21 @@ class CareContinuityController extends Controller
         $validated = $request->validate([
             'appoint_date' => 'required|date',
             'appoint_time' => 'required',
-            'appoint_status' => 'required|in:pending,arrived,completed,cancelled',
-            'appoint_description' => 'nullable|string',
         ]);
 
-        $appointment->update($validated);
+        // Rescheduling-only: update date/time and force status
+        $appointment->appoint_date = $validated['appoint_date'];
+        $appointment->appoint_time = $validated['appoint_time'];
+        $appointment->appoint_status = 'rescheduled';
+        $appointment->save();
+        // If this is an AJAX/JSON request (e.g., from Dashboard), return JSON instead of redirect
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'appointment_id' => $appointment->appoint_id,
+                'appoint_status' => $appointment->appoint_status,
+            ]);
+        }
 
         $activeTab = $request->input('active_tab', 'appointments');
         return redirect()->route('care-continuity.index', ['active_tab' => $activeTab])
@@ -307,9 +327,155 @@ class CareContinuityController extends Controller
     {
         $referral = Referral::findOrFail($id);
         $referral->delete();
-
         $activeTab = $request->input('active_tab', 'referrals');
         return redirect()->route('care-continuity.index', ['active_tab' => $activeTab])
             ->with('success', 'Referral deleted successfully!');
+    }
+
+    /**
+     * Create a Visit from an Arrived Appointment
+     */
+    public function createVisitFromAppointment(Request $request, $id)
+    {
+        try {
+            $appointment = Appointment::with(['pet', 'user', 'services'])->findOrFail($id);
+
+            if (strtolower($appointment->appoint_status) !== 'arrived') {
+                $message = 'Visit can only be created when appointment status is Arrived.';
+                if ($request->expectsJson()) {
+                    return response()->json(['success' => false, 'message' => $message], 422);
+                }
+                return back()->with('error', $message);
+            }
+
+            // Prevent duplicate visit creation (same pet, same day)
+            $existing = Visit::whereDate('visit_date', Carbon::today())
+                ->where('pet_id', $appointment->pet_id)
+                ->first();
+            if ($existing) {
+                $redirect = route('medical.index') . '?active_tab=visits';
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => true,
+                        'visit_id' => $existing->visit_id,
+                        'redirect' => $redirect,
+                        'message' => 'Visit already exists for today. Redirecting to Visits.'
+                    ]);
+                }
+                return redirect($redirect)->with('success', 'Visit already exists for today.');
+            }
+
+            $visit = Visit::create([
+                'visit_date' => Carbon::today()->toDateString(),
+                'pet_id' => $appointment->pet_id,
+                'user_id' => $appointment->user_id,
+                'patient_type' => 'outpatient',
+                'visit_status' => 'arrived',
+                'workflow_status' => 'Pending',
+            ]);
+
+            // Determine services based on the most recent prior Visit for this pet (no dependency on appointment services)
+            $serviceIds = [];
+            {
+                $priorVisit = Visit::with('services')
+                    ->where('pet_id', $appointment->pet_id)
+                    ->when(!empty($appointment->appoint_date), function($q) use ($appointment){
+                        $q->whereDate('visit_date', '<=', Carbon::parse($appointment->appoint_date)->toDateString());
+                    })
+                    ->orderBy('visit_date', 'desc')
+                    ->orderBy('visit_id', 'desc')
+                    ->first();
+                if (!$priorVisit) {
+                    // Fallback: any most recent visit regardless of date
+                    $priorVisit = Visit::with('services')
+                        ->where('pet_id', $appointment->pet_id)
+                        ->orderBy('visit_date', 'desc')
+                        ->orderBy('visit_id', 'desc')
+                        ->first();
+                }
+                if ($priorVisit && $priorVisit->services && $priorVisit->services->count() > 0) {
+                    $serviceIds = $priorVisit->services->pluck('serv_id')->toArray();
+                }
+
+                // If prior visit had no explicit services, infer from clinical records
+                if (empty($serviceIds) && $priorVisit) {
+                    try {
+                        $hadVacc = \Illuminate\Support\Facades\DB::table('tbl_vaccination_record')
+                            ->where('visit_id', $priorVisit->visit_id)
+                            ->exists();
+                        $hadDeworm = !$hadVacc && \Illuminate\Support\Facades\DB::table('tbl_deworming_record')
+                            ->where('visit_id', $priorVisit->visit_id)
+                            ->exists();
+
+                        if ($hadVacc) {
+                            $svc = \App\Models\Service::whereRaw('LOWER(serv_type) = ?', ['vaccination'])->first();
+                            if ($svc) { $serviceIds = [$svc->serv_id]; }
+                        } elseif ($hadDeworm) {
+                            $svc = \App\Models\Service::whereRaw('LOWER(serv_type) = ?', ['deworming'])->first();
+                            if ($svc) { $serviceIds = [$svc->serv_id]; }
+                        }
+                    } catch (\Throwable $e) {
+                        \Log::warning('Clinical-record inference failed: '.$e->getMessage());
+                    }
+                }
+
+                // Final fallback: infer from appointment description/type (e.g., "Vaccination Follow-up for ...")
+                if (empty($serviceIds)) {
+                    $hay = strtolower(trim(($appointment->appoint_description ?? '') . ' ' . ($appointment->appoint_type ?? '')));
+                    $map = [
+                        'vaccination' => 'vaccination',
+                        'deworm' => 'deworming',
+                        'groom' => 'grooming',
+                        'check' => 'check up',
+                        'consult' => 'check up',
+                        'diagnostic' => 'diagnostics',
+                        'surg' => 'surgical',
+                        'emergency' => 'emergency',
+                        'board' => 'boarding',
+                    ];
+                    $match = null;
+                    foreach ($map as $needle => $servType) {
+                        if ($hay !== '' && str_contains($hay, $needle)) { $match = $servType; break; }
+                    }
+                    if ($match) {
+                        $svc = \App\Models\Service::whereRaw('LOWER(serv_type) = ?', [$match])->first();
+                        if ($svc) { $serviceIds = [$svc->serv_id]; }
+                    }
+                }
+                \Log::info('CreateVisitFromAppointment serviceIds', ['appoint_id' => $appointment->appoint_id, 'visit_id' => $visit->visit_id, 'service_ids' => $serviceIds]);
+            }
+
+            if (!empty($serviceIds)) {
+                $visit->services()->sync($serviceIds);
+                // Optional denormalized summary for rendering fallbacks
+                try {
+                    $types = \App\Models\Service::whereIn('serv_id', $serviceIds)->pluck('serv_type')->filter()->unique()->values()->all();
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
+                        $visit->visit_service_type = !empty($types) ? implode(', ', $types) : null;
+                        $visit->save();
+                    }
+                } catch (\Throwable $e) {
+                    \Log::warning('Failed to set visit_service_type summary: '.$e->getMessage());
+                }
+            }
+
+            $redirect = route('medical.index') . '?active_tab=visits';
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'visit_id' => $visit->visit_id,
+                    'redirect' => $redirect,
+                ]);
+            }
+
+            return redirect($redirect)->with('success', 'Visit created from appointment.');
+        } catch (\Exception $e) {
+            Log::error('Create visit from appointment failed: ' . $e->getMessage());
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Failed to create visit'], 500);
+            }
+            return back()->with('error', 'Failed to create visit from appointment.');
+        }
     }
 }

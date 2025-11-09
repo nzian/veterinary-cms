@@ -4,16 +4,16 @@
 @php
     // Calculate everything FIRST before using in the view
     $servicesTotal = 0;
-    if ($billing->appointment && $billing->appointment->services) {
-        $servicesTotal = $billing->appointment->services->sum('serv_price');
+    if ($billing->visit && $billing->visit->services) {
+        $servicesTotal = $billing->visit->services->sum('serv_price');
     }
 
     // Calculate prescription total and items
     $prescriptionTotal = 0;
     $prescriptionItems = [];
     
-    if ($billing->appointment && $billing->appointment->pet) {
-        $prescriptions = \App\Models\Prescription::where('pet_id', $billing->appointment->pet->pet_id)
+    if ($billing->visit && $billing->visit->pet) {
+        $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit->pet->pet_id)
             ->whereDate('prescription_date', '<=', $billing->bill_date)
             ->whereDate('prescription_date', '>=', date('Y-m-d', strtotime($billing->bill_date . ' -7 days')))
             ->get();
@@ -40,7 +40,7 @@
     }
     
     $grandTotal = $servicesTotal + $prescriptionTotal;
-    $totalItems = ($billing->appointment && $billing->appointment->services ? $billing->appointment->services->count() : 0) + count($prescriptionItems);
+    $totalItems = ($billing->visit && $billing->visit->services ? $billing->visit->services->count() : 0) + count($prescriptionItems);
     $billingStatus = strtolower($billing->bill_status ?? 'pending');
 @endphp
 <div class="min-h-screen px-2 sm:px-4 md:px-6 py-4">
@@ -63,6 +63,19 @@
                 <button onclick="printBilling()" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded text-xs sm:text-sm">
                     <i class="fas fa-print mr-1"></i>
                 </button>
+                @if($billingStatus !== 'paid')
+                    <button type="button" id="openPayModal" class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-xs sm:text-sm">
+                        <i class="fas fa-cash-register mr-1"></i> Pay
+                    </button>
+                    <form id="payForm" method="POST" action="{{ route('sales.markAsPaid', $billing->bill_id) }}" class="hidden">
+                        @csrf
+                        <input type="hidden" name="cash_amount" id="cash_amount_field" value="0">
+                    </form>
+                @else
+                    <a href="{{ route('sales.billing.receipt', $billing->bill_id) }}" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-xs sm:text-sm">
+                        <i class="fas fa-receipt mr-1"></i> Receipt
+                    </a>
+                @endif
             </div>
         </div>
 
@@ -75,16 +88,16 @@
         @php
             // Calculate services total
             $servicesTotal = 0;
-            if ($billing->appointment && $billing->appointment->services) {
-                $servicesTotal = $billing->appointment->services->sum('serv_price');
+            if ($billing->visit && $billing->visit->services) {
+                $servicesTotal = $billing->visit->services->sum('serv_price');
             }
 
             // Calculate prescription total and items
             $prescriptionTotal = 0;
             $prescriptionItems = [];
             
-            if ($billing->appointment && $billing->appointment->pet) {
-                $prescriptions = \App\Models\Prescription::where('pet_id', $billing->appointment->pet->pet_id)
+            if ($billing->visit && $billing->visit->pet) {
+                $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit->pet->pet_id)
                     ->whereDate('prescription_date', '<=', $billing->bill_date)
                     ->whereDate('prescription_date', '>=', date('Y-m-d', strtotime($billing->bill_date . ' -7 days')))
                     ->get();
@@ -111,7 +124,7 @@
             }
             
             $grandTotal = $servicesTotal + $prescriptionTotal;
-            $totalItems = ($billing->appointment && $billing->appointment->services ? $billing->appointment->services->count() : 0) + count($prescriptionItems);
+            $totalItems = ($billing->visit && $billing->visit->services ? $billing->visit->services->count() : 0) + count($prescriptionItems);
             $billingStatus = strtolower($billing->bill_status ?? 'pending');
         @endphp
 
@@ -146,17 +159,17 @@
                 <h3 class="font-semibold text-gray-800 text-sm sm:text-lg mb-2">Customer & Pet</h3>
                 <div class="space-y-1 text-xs sm:text-sm">
                     <div class="flex justify-between"><span class="text-gray-600">Owner:</span>
-                        <span class="font-medium">{{ $billing->appointment?->pet?->owner?->own_name ?? 'N/A' }}</span>
+                        <span class="font-medium">{{ $billing->visit?->pet?->owner?->own_name ?? 'N/A' }}</span>
                     </div>
-                    @if($billing->appointment?->pet?->owner?->own_email)
-                        <div class="flex justify-between"><span class="text-gray-600">Email:</span><span class="font-medium">{{ $billing->appointment->pet->owner->own_email }}</span></div>
+                    @if($billing->visit?->pet?->owner?->own_email)
+                        <div class="flex justify-between"><span class="text-gray-600">Email:</span><span class="font-medium">{{ $billing->visit->pet->owner->own_email }}</span></div>
                     @endif
-                    @if($billing->appointment?->pet?->owner?->own_phone)
-                        <div class="flex justify-between"><span class="text-gray-600">Phone:</span><span class="font-medium">{{ $billing->appointment->pet->owner->own_phone }}</span></div>
+                    @if($billing->visit?->pet?->owner?->own_phone)
+                        <div class="flex justify-between"><span class="text-gray-600">Phone:</span><span class="font-medium">{{ $billing->visit->pet->owner->own_phone }}</span></div>
                     @endif
-                    <div class="flex justify-between border-t pt-1 mt-1"><span class="text-gray-600">Pet Name:</span><span class="font-medium">{{ $billing->appointment?->pet?->pet_name ?? 'N/A' }}</span></div>
-                    <div class="flex justify-between"><span class="text-gray-600">Species:</span><span class="font-medium">{{ $billing->appointment?->pet?->pet_species ?? 'N/A' }}</span></div>
-                    <div class="flex justify-between"><span class="text-gray-600">Breed:</span><span class="font-medium">{{ $billing->appointment?->pet?->pet_breed ?? 'N/A' }}</span></div>
+                    <div class="flex justify-between border-t pt-1 mt-1"><span class="text-gray-600">Pet Name:</span><span class="font-medium">{{ $billing->visit?->pet?->pet_name ?? 'N/A' }}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-600">Species:</span><span class="font-medium">{{ $billing->visit?->pet?->pet_species ?? 'N/A' }}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-600">Breed:</span><span class="font-medium">{{ $billing->visit?->pet?->pet_breed ?? 'N/A' }}</span></div>
                 </div>
             </div>
         </div>
@@ -261,6 +274,116 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- POS-style Payment Modal -->
+<div id="billingPayModal" class="fixed inset-0 flex items-center justify-center hidden z-50 bg-black bg-opacity-30">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+        <div class="text-center mb-4">
+            <div class="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-money-bill-wave text-white text-xl"></i>
+            </div>
+            <h2 class="text-xl font-bold text-gray-800">Process Billing Payment</h2>
+            <p class="text-gray-500 text-sm">Enter the cash amount received</p>
+        </div>
+
+        <div class="space-y-3">
+            <div class="bg-blue-50 rounded-xl p-3 border border-blue-200">
+                <div class="text-sm text-gray-600 mb-2 font-semibold">Items</div>
+                <div class="max-h-28 overflow-y-auto space-y-1">
+                    @forelse($billing->orders as $o)
+                        <div class="flex justify-between text-sm">
+                            <span>{{ $o->product->prod_name ?? 'Item' }} x{{ $o->ord_quantity ?? 1 }}</span>
+                            @php $line = ($o->ord_price ?? optional($o->product)->prod_price ?? 0) * ($o->ord_quantity ?? 1); @endphp
+                            <span class="font-semibold">₱{{ number_format($line, 2) }}</span>
+                        </div>
+                    @empty
+                        <div class="text-center text-gray-500 text-sm">No items</div>
+                    @endforelse
+                </div>
+                <div class="border-t border-blue-200 mt-2 pt-2 flex justify-between font-bold">
+                    <span>Total</span>
+                    @php $ordersTotal = $billing->orders->sum(fn($o) => ($o->ord_price ?? optional($o->product)->prod_price ?? 0) * ($o->ord_quantity ?? 1)); @endphp
+                    <span id="billingTotal">₱{{ number_format($ordersTotal, 2) }}</span>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Cash Amount Received</label>
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₱</span>
+                    <input type="number" id="billingCashInput" min="0" step="0.01"
+                        class="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent text-lg font-semibold" />
+                </div>
+            </div>
+
+            <div class="bg-green-50 rounded-xl p-3 border-2 border-green-200">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Change</label>
+                <div id="billingChange" class="text-2xl font-bold text-green-600">₱0.00</div>
+            </div>
+        </div>
+
+        <div class="flex gap-3 mt-6">
+            <button type="button" id="cancelBillingPay" class="flex-1 px-4 py-2 bg-gray-500 text-white rounded-xl font-semibold">Cancel</button>
+            <button type="button" id="confirmBillingPay" class="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold">Confirm Payment</button>
+        </div>
+    </div>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script>
+    (function(){
+        const openBtn = document.getElementById('openPayModal');
+        const modal = document.getElementById('billingPayModal');
+        const cancelBtn = document.getElementById('cancelBillingPay');
+        const confirmBtn = document.getElementById('confirmBillingPay');
+        const cashInput = document.getElementById('billingCashInput');
+        const changeEl = document.getElementById('billingChange');
+        const totalText = document.getElementById('billingTotal');
+        const payForm = document.getElementById('payForm');
+
+        if (!openBtn) return;
+
+        const parsePeso = (txt) => parseFloat((txt||'').replace('₱','').replace(/,/g,'')) || 0;
+        const total = parsePeso(totalText?.textContent || '0');
+
+        openBtn.addEventListener('click', ()=>{
+            modal.classList.remove('hidden');
+            cashInput.value = '';
+            changeEl.textContent = '₱0.00';
+            changeEl.className = 'text-2xl font-bold text-green-600';
+            setTimeout(()=> cashInput.focus(), 150);
+        });
+
+        cancelBtn.addEventListener('click', ()=>{
+            modal.classList.add('hidden');
+        });
+
+        cashInput.addEventListener('input', ()=>{
+            const cash = parseFloat(cashInput.value || '0');
+            const change = cash - total;
+            if (cash >= total && total > 0) {
+                changeEl.textContent = `₱${change.toFixed(2)}`;
+                changeEl.className = 'text-2xl font-bold text-green-600';
+                confirmBtn.disabled = false;
+            } else {
+                changeEl.textContent = cash > 0 ? `₱${change.toFixed(2)}` : '₱0.00';
+                changeEl.className = 'text-2xl font-bold text-red-500';
+                confirmBtn.disabled = true;
+            }
+        });
+
+        let paying = false;
+        confirmBtn.addEventListener('click', ()=>{
+            if (paying) return;
+            const cash = parseFloat(cashInput.value || '0');
+            if (cash < total) { cashInput.focus(); return; }
+            paying = true; confirmBtn.disabled = true; cancelBtn.disabled = true;
+            // Submit to mark as paid (server handles visit completion and redirect)
+            const cashField = document.getElementById('cash_amount_field');
+            if (cashField) cashField.value = cash.toFixed(2);
+            payForm.submit();
+        });
+    })();
+    </script>
 </div>
 
 <!-- Hidden Print Container -->

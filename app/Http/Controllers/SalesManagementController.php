@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Billing;
 use App\Models\Order;
 use App\Models\Prescription;
+use App\Models\Appointment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -164,19 +165,129 @@ class SalesManagementController extends Controller
         $billing->delete();
         return back()->with('success', 'Billing record deleted.');
     }
+public function markAsPaid($billId)
+{
+    $billing = Billing::with(['visit.pet', 'orders.product', 'visit.services'])->findOrFail($billId);
+    
+    // Validate payment details
+    $validated = request()->validate([
+        'cash_amount' => 'required|numeric|min:0',
+    ]);
+    
+    $cash = (float) $validated['cash_amount'];
+    
+    // Calculate total from services and prescriptions
+    $servicesTotal = 0;
+    if ($billing->visit && $billing->visit->services) {
+        $servicesTotal = $billing->visit->services->sum('serv_price');
+    }
 
-    public function markAsPaid($billId)
-    {
-        $billing = Billing::findOrFail($billId);
-        $billing->bill_status = 'paid';
-        $billing->save();
+    $prescriptionTotal = 0;
+    if ($billing->visit && $billing->visit->pet) {
+        $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit->pet->pet_id)
+            ->whereDate('prescription_date', '<=', $billing->bill_date)
+            ->whereDate('prescription_date', '>=', date('Y-m-d', strtotime($billing->bill_date . ' -7 days')))
+            ->get();
+        
+        foreach ($prescriptions as $prescription) {
+            $medications = json_decode($prescription->medication, true) ?? [];
+            foreach ($medications as $medication) {
+                if (isset($medication['product_id']) && $medication['product_id']) {
+                    $product = \DB::table('tbl_prod')
+                        ->where('prod_id', $medication['product_id'])
+                        ->first();
+                    
+                    if ($product) {
+                        $prescriptionTotal += $product->prod_price;
+                    }
+                }
+            }
+        }
+    }
+    
+    $total = $servicesTotal + $prescriptionTotal;
+    
+    // Check if cash is sufficient
+    if ($cash < $total) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Insufficient cash amount. Total is ₱' . number_format($total, 2)
+        ], 422);
+    }
+    
+    $change = $cash - $total;
 
+    // Update billing status
+    $billing->bill_status = 'paid';
+    $billing->save();
+
+    // Mark visit and appointment as completed
+    if ($billing->visit) {
+        $visit = $billing->visit;
+        $visit->visit_status = 'completed';
+        if (strcasecmp((string)$visit->workflow_status, 'Completed') !== 0) {
+            $visit->workflow_status = 'Completed';
+        }
+        $visit->save();
+
+        try {
+            $petId = $visit->pet_id;
+            if ($petId) {
+                $appt = Appointment::where('pet_id', $petId)
+                    ->orderBy('appoint_date', 'desc')
+                    ->orderBy('appoint_id', 'desc')
+                    ->first();
+                if ($appt && strtolower($appt->appoint_status) !== 'completed') {
+                    $appt->appoint_status = 'completed';
+                    $appt->save();
+                }
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('Sales markAsPaid: failed to complete appointment: '.$e->getMessage());
+        }
+    }
+
+    // Record payment details
+    try {
+        \App\Models\Payment::create([
+            'bill_id' => $billing->bill_id,
+            'pay_total' => $total,
+            'pay_cashAmount' => $cash,
+            'pay_change' => $change,
+        ]);
+    } catch (\Throwable $e) {
+        \Log::warning('Payment record create failed: '.$e->getMessage());
+    }
+
+    if (request()->expectsJson() || request()->wantsJson() || request()->ajax()) {
         return response()->json([
             'success' => true,
             'message' => 'Billing marked as paid',
             'billing_id' => $billId,
-            'status' => 'paid'
+            'status' => 'paid',
+            'total' => $total,
+            'cash' => $cash,
+            'change' => $change,
         ]);
+    }
+    
+    return redirect()->route('sales.billing.receipt', $billId)->with('success', 'Billing marked as paid');
+}
+
+    public function showReceipt($id)
+    {
+        $billing = Billing::with([
+            'visit.pet.owner',
+            'orders.product',
+            'visit.user.branch'
+        ])->findOrFail($id);
+        $orders = $billing->orders;
+        $total = $orders->sum(function($o){
+            return ($o->ord_price ?? optional($o->product)->prod_price ?? 0) * ($o->ord_quantity ?? 1);
+        });
+        $payment = \App\Models\Payment::where('bill_id', $billing->bill_id)->orderByDesc('pay_id')->first();
+
+        return view('receipt', compact('billing', 'orders', 'total', 'payment'));
     }
 
     public function showTransaction($transactionId)

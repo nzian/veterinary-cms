@@ -136,11 +136,6 @@
                     </select>
                     <span>entries</span>
                 </form>
-               @if(auth()->check() && in_array(auth()->user()->user_role, [ 'receptionist']))
-    <button onclick="openAddModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-        + Add Appointment
-    </button>
-@endif
             </div>
             <br>
 
@@ -207,6 +202,16 @@
                 class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="prescribe">
                 <i class="fas fa-prescription"></i>
             </button>
+        @endif
+
+        @if(strtolower($appointment->appoint_status) === 'arrived' && !($todayVisitPetIds ?? collect())->contains($appointment->pet_id))
+            <form action="{{ route('care-continuity.appointments.create-visit', $appointment->appoint_id) }}" method="POST" class="inline">
+                @csrf
+                <button type="submit"
+                    class="bg-emerald-500 text-white px-2 py-1 rounded hover:bg-emerald-600 flex items-center gap-1 text-xs" title="Add Visit">
+                    <i class="fas fa-notes-medical"></i>
+                </button>
+            </form>
         @endif
 
         @if(hasPermission('delete_appointment', $can))
@@ -553,193 +558,11 @@
         </form>
     </div>
 </div>
-
-<!-- ==================== APPOINTMENT MODALS ==================== -->
-<!-- Add Appointment Modal -->
-<div id="addModal" class="fixed inset-0 hidden items-center justify-center bg-black bg-opacity-50" style="z-index: 50;">
-    <div class="bg-white p-6 rounded shadow-md w-full max-w-3xl" style="z-index: 51;">
-        <h2 class="text-lg font-bold text-[#0f7ea0] mb-4">Add Appointment</h2>
-        <form id="addForm" action="{{ route('medical.appointments.store') }}" method="POST">
-            @csrf
-            <input type="hidden" name="active_tab" value="appointments">
-
-          <div class="mb-3">
-            <label class="block text-sm mb-1">Pet Owner</label>
-            <select id="owner_id" class="w-full border rounded px-3 py-2 text-sm" required onchange="populateOwnerDetails(this)">
-                <option disabled selected>Select Pet Owner</option>
-                {{-- **FIX: Replace the inline DB query with the Controller variable** --}}
-                @foreach($filteredOwners as $owner) 
-                    <option 
-                        value="{{ $owner->own_id }}" 
-                        data-contact="{{ $owner->own_contactnum }}" 
-                        data-pets='@json($owner->pets->map(fn($p) => ["id"=>$p->pet_id,"name"=>$p->pet_name]))'
-                    >
-                        {{ $owner->own_name }}
-                    </option>
-                @endforeach
-            </select>
-        </div>
-
-            <!-- Row 2: Contact Number & Pet -->
-            <div class="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                    <label class="block text-sm mb-1">Contact Number</label>
-                    <input type="text" name="appoint_contactNum" id="appoint_contactNum" required class="w-full border rounded px-3 py-2 text-sm" readonly />
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Pet</label>
-                    <select name="pet_id" id="pet_id" required class="w-full border rounded px-3 py-2 text-sm">
-                        <option disabled selected>Select Pet</option>
-                    </select>
-                </div>
-            </div>
-
-                    <!-- Row 3: Appointment Type & Appointment Date -->
-            <div class="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                    <label class="block text-sm mb-1">Appointment Type</label>
-                    <select name="appoint_type" required class="w-full border rounded px-3 py-2 text-sm">
-                        <option value="Walk-in" selected>Walk-in</option>
-                        <option value="Referral">Referral</option>
-                        <option value="Follow-up">Follow-up</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Appointment Date</label>
-                    <input type="date" 
-                        name="appoint_date" 
-                        value="{{ date('Y-m-d') }}" 
-                        required 
-                        class="w-full border rounded px-3 py-2 text-sm" />
-                </div>
-            </div>
-
-            <!-- Row 4: Appointment Time & Status -->
-            <div class="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                    <label class="block text-sm mb-1">Appointment Time</label>
-                    <select name="appoint_time" class="w-full border rounded px-3 py-2 text-sm" required>
-                        <option value="" disabled selected>Select a time</option>
-                        @foreach ([
-                            '09:00 AM','10:00 AM','11:00 AM','01:00 PM','02:00 PM','03:00 PM','04:00 PM','05:00 PM'
-                        ] as $label)
-                            <option value="{{ date('H:i', strtotime($label)) }}">{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Appointment Status</label>
-                    <select name="appoint_status" required class="w-full border rounded px-3 py-2 text-sm">
-                        <option value="pending">Pending</option>
-                        <option value="arrived">Arrived</option>
-                        <option value="completed">Complete</option>
-                    </select>
-                </div>
-            </div>
-<!-- Row 5: Services & Description -->
-<!-- Row 5: Services Button -->
-<div class="mb-3">
-    <div class="flex justify-between items-center mb-2">
-        <label class="block text-sm">Selected Services</label>
-        <button type="button" onclick="toggleServiceSelection('add')" class="bg-[#0f7ea0] text-white px-3 py-1 rounded hover:bg-[#0c6a86] text-sm">
-            <span id="addServiceButtonText">Select Services</span>
-        </button>
-    </div>
-    <input type="text" id="selectedServicesDisplay" class="w-full border rounded px-3 py-2 text-sm" readonly placeholder="Click 'Select Services' to choose services" />
-    
-    <!-- Inline Service Selection - Full Width, Hidden by default -->
-    <div id="addServiceSelection" class="hidden mt-4 border-2 border-[#0f7ea0] rounded-lg p-5 bg-gradient-to-br from-blue-50 to-gray-50">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-base font-bold text-[#0f7ea0]">Choose Services</h3>
-            <span id="addSelectedCount" class="text-sm bg-[#0f7ea0] text-white px-3 py-1 rounded-full font-semibold">
-                0 selected
-            </span>
-        </div>
-        
-        <!-- Search Bar -->
-        <div class="mb-4">
-            <div class="relative">
-                <input type="text" 
-                       id="addServiceSearch" 
-                       placeholder="Search services..." 
-                       class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 pl-10 text-sm focus:border-[#0f7ea0] focus:ring-2 focus:ring-[#0f7ea0] focus:ring-opacity-50 transition-all"
-                       oninput="filterServices('add')"
-                       onkeyup="filterServices('add')">
-                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                <button type="button" 
-                        onclick="clearServiceSearch('add')" 
-                        id="addClearSearch"
-                        class="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 hidden">
-                    <i class="fas fa-times-circle"></i>
-                </button>
-            </div>
-            <div id="addSearchStats" class="text-xs text-gray-600 mt-1 hidden">
-                Found <span id="addFoundCount">0</span> service(s)
-            </div>
-        </div>
-        
-        <!-- 4 Column Grid -->
-        <div id="addServiceGrid" class="grid grid-cols-4 gap-3 max-h-64 overflow-y-auto mb-4 p-2">
-            @foreach(\App\Models\Service::all() as $service)
-                <label class="service-item flex items-center gap-2 border-2 p-3 rounded-lg cursor-pointer hover:bg-white hover:border-[#0f7ea0] transition-all bg-white shadow-sm" data-service-name="{{ strtolower($service->serv_name) }}">
-                    <input type="checkbox"
-                           value="{{ $service->serv_id }}"
-                           data-name="{{ $service->serv_name }}"
-                           class="add-service-checkbox w-4 h-4 text-[#0f7ea0] focus:ring-[#0f7ea0]"
-                           onchange="updateServiceCount('add')">
-                    <span class="text-sm font-medium">{{ $service->serv_name }}</span>
-                </label>
-            @endforeach
-        </div>
-        
-        <!-- No Results Message -->
-        <div id="addNoResults" class="hidden text-center py-8 text-gray-500">
-            <i class="fas fa-search text-4xl mb-2 opacity-50"></i>
-            <p class="text-sm font-medium">No services found</p>
-            <p class="text-xs">Try a different search term</p>
-        </div>
-        
-        <!-- Action Buttons -->
-        <div class="flex justify-between items-center pt-3 border-t-2">
-            <button type="button"
-                    onclick="selectAllServices('add')"
-                    class="bg-green-500 text-white text-xs px-3 py-1.5 rounded hover:bg-green-600 transition-colors">
-                <i class="fas fa-check-double mr-1"></i> Select All
-            </button>
-            <div class="flex gap-3">
-                <button type="button"
-                        onclick="cancelServiceSelection('add')"
-                        class="bg-gray-400 text-white text-sm px-4 py-2 rounded hover:bg-gray-500 transition-colors">
-                    Cancel
-                </button>
-                <button type="button"
-                        onclick="saveSelectedServices('add')"
-                        class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86] transition-colors font-semibold">
-                    Save Selected Services
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Row 6: Description -->
-<div class="mb-3">
-    <label class="block text-sm mb-1">Description</label>
-    <textarea name="appoint_description" rows="3" class="w-full border rounded px-3 py-2 text-sm" placeholder="Add description..."></textarea>
-</div>
-
-            <div class="flex justify-end gap-2 mt-4">
-                <button type="button" onclick="closeAddModal()" class="bg-gray-300 text-sm px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
-                <button type="submit" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0d6b85]">Save</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Edit Appointment Modal -->
 <div id="editModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-30">
     <div class="bg-white w-full max-w-3xl p-6 rounded shadow">
-        <h2 class="text-lg font-semibold text-[#0f7ea0] mb-4">Update Appointment</h2>
+
+
+        <h2 class="text-lg font-semibold text-[#0f7ea0] mb-4">Reschedule Appointment</h2>
         <form method="POST" id="editForm" class="space-y-4">
             @csrf
             @method('PUT')
@@ -747,35 +570,8 @@
 
             <input type="hidden" id="edit_appoint_id" name="appoint_id">
 
-            <!-- Row 1: Pet Owner -->
-            <div class="mb-3">
-                <label class="block text-sm mb-1">Pet Owner</label>
-                <select id="edit_owner_id" class="w-full border rounded px-3 py-2 text-sm" required onchange="populateOwnerDetailsEdit(this)">
-                    <option disabled selected>Select Pet Owner</option>
-                    @foreach(\App\Models\Owner::with('pets')->get() as $owner)
-                        <option value="{{ $owner->own_id }}" data-contact="{{ $owner->own_contactnum }}" data-pets='@json($owner->pets->map(fn($p) => ["id"=>$p->pet_id,"name"=>$p->pet_name]))'>
-                            {{ $owner->own_name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-
-            <!-- Row 2: Contact Number & Pet -->
             <div class="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                    <label class="block text-sm mb-1">Contact Number</label>
-                    <input type="text" id="edit_appoint_contactNum" name="appoint_contactNum" class="w-full border rounded px-3 py-2 text-sm" readonly />
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Pet</label>
-                    <select id="edit_pet_id" name="pet_id" required class="w-full border rounded px-3 py-2 text-sm">
-                    </select>
-                </div>
-            </div>
-
-            <!-- Row 3: Appointment Type & Appointment Date -->
-            <div class="grid grid-cols-2 gap-4 mb-3">
-                <div>
+                <div class="hidden">
                     <label class="block text-sm mb-1">Appointment Type</label>
                     <select id="edit_appoint_type" name="appoint_type" class="w-full border rounded px-3 py-2 text-sm">
                         <option value="Walk-in">Walk-in</option>
@@ -788,7 +584,6 @@
                 </div>
             </div>
 
-            <!-- Row 4: Appointment Time & Status -->
             <div class="grid grid-cols-2 gap-4 mb-3">
                 <div>
                     <label class="block text-sm mb-1">Appointment Time</label>
@@ -800,104 +595,22 @@
                         @endforeach
                     </select>
                 </div>
-                <div>
-                    <label class="block text-sm mb-1">Appointment Status</label>
-                    <select id="edit_appoint_status" name="appoint_status" class="w-full border rounded px-3 py-2 text-sm">
-                        <option value="pending">Pending</option>
-                        <option value="arrived">Arrived</option>
-                        <option value="completed">Completed</option>
-                    </select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 pt-4"> <div></div>
+                
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="closeEditModal()"
+                        class="bg-gray-300 text-sm px-4 py-2 rounded hover:bg-gray-400">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                        class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0d6b85]">
+                        Update
+                    </button>
                 </div>
             </div>
-<div class="mb-3">
-    <div class="flex justify-between items-center mb-2">
-        <label class="block text-sm">Selected Services</label>
-        <button type="button" onclick="toggleServiceSelection('edit')" class="bg-[#0f7ea0] text-white px-3 py-1 rounded hover:bg-[#0c6a86] text-sm">
-            <span id="editServiceButtonText">Select Services</span>
-        </button>
-    </div>
-    <input type="text" id="edit_selectedServicesDisplay" class="w-full border rounded px-3 py-2 text-sm" readonly placeholder="Click 'Select Services' to choose services" />
-    
-    <div id="editServiceSelection" class="hidden mt-4 border-2 border-[#0f7ea0] rounded-lg p-5 bg-gradient-to-br from-blue-50 to-gray-50">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-base font-bold text-[#0f7ea0]">Choose Services</h3>
-            <span id="editSelectedCount" class="text-sm bg-[#0f7ea0] text-white px-3 py-1 rounded-full font-semibold">
-                0 selected
-            </span>
-        </div>
-        
-        <div class="mb-4">
-            <div class="relative">
-                <input type="text" 
-                       id="editServiceSearch" 
-                       placeholder="Search services..." 
-                       class="w-full border-2 border-gray-300 rounded-lg px-4 py-2 pl-10 text-sm focus:border-[#0f7ea0] focus:ring-2 focus:ring-[#0f7ea0] focus:ring-opacity-50 transition-all"
-                       oninput="filterServices('edit')"
-                       onkeyup="filterServices('edit')">
-                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                <button type="button" 
-                        onclick="clearServiceSearch('edit')" 
-                        id="editClearSearch"
-                        class="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 hidden">
-                    <i class="fas fa-times-circle"></i>
-                </button>
-            </div>
-            <div id="editSearchStats" class="text-xs text-gray-600 mt-1 hidden">
-                Found <span id="editFoundCount">0</span> service(s)
-            </div>
-        </div>
-        
-        <div id="editServiceGrid" class="grid grid-cols-4 gap-3 max-h-64 overflow-y-auto mb-4 p-2">
-            @foreach(\App\Models\Service::all() as $service)
-                <label class="service-item flex items-center gap-2 border-2 p-3 rounded-lg cursor-pointer hover:bg-white hover:border-[#0f7ea0] transition-all bg-white shadow-sm" data-service-name="{{ strtolower($service->serv_name) }}">
-                    <input type="checkbox"
-                           value="{{ $service->serv_id }}"
-                           data-name="{{ $service->serv_name }}"
-                           class="edit-service-checkbox w-4 h-4 text-[#0f7ea0] focus:ring-[#0f7ea0]"
-                           onchange="updateServiceCount('edit')">
-                    <span class="text-sm font-medium">{{ $service->serv_name }}</span>
-                </label>
-            @endforeach
-        </div>
-        
-        <div id="editNoResults" class="hidden text-center py-8 text-gray-500">
-            <i class="fas fa-search text-4xl mb-2 opacity-50"></i>
-            <p class="text-sm font-medium">No services found</p>
-            <p class="text-xs">Try a different search term</p>
-        </div>
-        
-        <div class="flex justify-between items-center pt-3 border-t-2">
-            <button type="button"
-                    onclick="selectAllServices('edit')"
-                    class="bg-green-500 text-white text-xs px-3 py-1.5 rounded hover:bg-green-600 transition-colors">
-                <i class="fas fa-check-double mr-1"></i> Select All
-            </button>
-            <div class="flex gap-3">
-                <button type="button"
-                        onclick="cancelServiceSelection('edit')"
-                        class="bg-gray-400 text-white text-sm px-4 py-2 rounded hover:bg-gray-500 transition-colors">
-                    Cancel
-                </button>
-                <button type="button"
-                        onclick="saveSelectedServices('edit')"
-                        class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86] transition-colors font-semibold">
-                    Save Selected Services
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="mb-3">
-    <label class="block text-sm mb-1">Description</label>
-    <textarea id="edit_appoint_description" name="appoint_description" rows="3" class="w-full border rounded px-3 py-2 text-sm"></textarea>
-</div>
-
-            <div class="flex justify-end gap-2 mt-4">
-                <button type="button" onclick="closeEditModal()" class="bg-gray-300 text-sm px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
-                <button type="submit" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0d6b85]">Update</button>
-            </div>
-        </form>
+            </form>
     </div>
 </div>
 
@@ -2046,33 +1759,16 @@ function closeAddModal() {
 }
 
 function openEditModal(appointment) {
-    document.getElementById('editForm').action = `/medical-management/appointments/${appointment.appoint_id}`;
+    // Point to Care Continuity update route
+    document.getElementById('editForm').action = `/care-continuity/appointments/${appointment.appoint_id}`;
     document.getElementById('edit_appoint_id').value = appointment.appoint_id ?? '';
+    // Only reschedule: date and time
     document.getElementById('edit_appoint_date').value = appointment.appoint_date ?? '';
-
     const timeValue = formatTime24hr(appointment.appoint_time ?? '');
     document.getElementById('edit_appoint_time').value = timeValue;
-    //document.getElementById('edit_appoint_time').value = appointment.appoint_time ?? '';
-    document.getElementById('edit_appoint_contactNum').value = appointment.appoint_contactNum ?? '';
-    document.getElementById('edit_appoint_status').value = appointment.appoint_status ?? '';
-    document.getElementById('edit_appoint_type').value = appointment.appoint_type ?? '';
-    document.getElementById('edit_appoint_description').value = appointment.appoint_description ?? '';
 
-    document.getElementById('edit_owner_id').value = appointment.pet?.owner?.own_id ?? '';
-    populateOwnerDetailsEdit(document.getElementById('edit_owner_id'), appointment.pet_id ?? null);
-
-    const serviceIds = (appointment.services || []).map(s => String(s.serv_id));
-    createHiddenServiceInputs('editForm', serviceIds);
-    const names = (appointment.services || []).map(s => s.serv_name).join(', ');
-    document.getElementById('edit_selectedServicesDisplay').value = names || 'No services selected';
-    
-
-    
-    // Store selected services globally
-    selectedServices = serviceIds;
-
-    const m = document.getElementById('editModal'); 
-    m.classList.remove('hidden'); 
+    const m = document.getElementById('editModal');
+    m.classList.remove('hidden');
     m.classList.add('flex');
 }
 

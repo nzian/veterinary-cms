@@ -835,7 +835,7 @@
         
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
         
-        fetch(`/medical-management/appointments/${currentAppointment.id}`, {
+        fetch(`/care-continuity/appointments/${currentAppointment.id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',

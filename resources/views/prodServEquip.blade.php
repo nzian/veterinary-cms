@@ -1986,7 +1986,7 @@
                     </div>
 
                     <div class="mt-6">
-                        <h4 class="font-bold text-lg mb-3">Recent Appointments</h4>
+                        <h4 class="font-bold text-lg mb-3">Recent Visits</h4>
                         <div class="overflow-x-auto">
                             <table class="w-full text-sm border">
                                 <thead class="bg-gray-100">
@@ -2005,10 +2005,14 @@
                             const appointDate = appt.appoint_date ? new Date(appt.appoint_date) : new Date();
                             const statusColors = {
                                 'completed': 'bg-green-100 text-green-800',
+                                'complete': 'bg-green-100 text-green-800',
+                                'arrive': 'bg-blue-100 text-blue-800',
                                 'pending': 'bg-yellow-100 text-yellow-800',
-                                'cancelled': 'bg-red-100 text-red-800'
+                                'cancelled': 'bg-red-100 text-red-800',
+                                'canceled': 'bg-red-100 text-red-800'
                             };
-                            const statusClass = statusColors[appt.appoint_status] || 'bg-gray-100 text-gray-800';
+                            const statusKey = (appt.appoint_status || '').toString().toLowerCase();
+                            const statusClass = statusColors[statusKey] || 'bg-gray-100 text-gray-800';
 
                             content += `
                             <tr>
@@ -2022,7 +2026,7 @@
                             </tr>`;
                         });
                     } else {
-                        content += '<tr><td colspan="5" class="p-4 text-center text-gray-500">No recent appointments found</td></tr>';
+                        content += '<tr><td colspan="5" class="p-4 text-center text-gray-500">No recent visits found</td></tr>';
                     }
 
                     content += `
