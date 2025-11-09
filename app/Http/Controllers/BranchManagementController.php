@@ -181,6 +181,8 @@ class BranchManagementController extends Controller
             'user_licenseNum' => 'nullable|string|max:100|required_if:user_role,veterinarian',
         ]);
 
+        //dd($validated);
+
         $updateData = [
             'user_name' => $validated['user_name'],
             'user_email' => $validated['user_email'],
@@ -191,7 +193,7 @@ class BranchManagementController extends Controller
         ];
 
         if ($request->filled('user_password')) {
-            $updateData['user_password'] = bcrypt($validated['user_password']);
+            $updateData['user_password'] = $validated['user_password'];
         }
 
         $user->update($updateData);

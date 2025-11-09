@@ -59,7 +59,7 @@
       </div>
     @endif
 
-    <form method="POST" action="{{ route('login') }}" class="space-y-4">
+    <form method="POST" action="{{ route('login') }}" onsubmit="disableButton()" class="space-y-4">
       @csrf
 
       <!-- Email -->
@@ -99,7 +99,7 @@
       </div>
 
       <!-- Submit -->
-      <button type="submit"
+      <button type="submit" id="submitLogin"
         class="w-full bg-pink-400 text-white text-xs font-semibold py-2 rounded mt-4 hover:bg-pink-700 transition">
         Log In
       </button>
@@ -119,6 +119,11 @@
       Don’t have an Account? Contact your Administrator
     </p>
   </div>
+<script>
+  function disableButton() {
+    document.getElementById("submitLogin").disabled = true;
+  }
+</script>
 
 </body>
 </html>

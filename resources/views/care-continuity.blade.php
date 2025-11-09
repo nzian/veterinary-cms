@@ -14,11 +14,11 @@
             'refer_appointment' => false,
             
             // Prescriptions
-            'view_prescriptions' => true,
-            'add_prescription' => false,
-            'edit_prescription' => false,
-            'delete_prescription' => true,
-            'print_prescription' => true,
+            //'view_prescriptions' => true,
+           // 'add_prescription' => false,
+           // 'edit_prescription' => false,
+           // 'delete_prescription' => true,
+           // 'print_prescription' => true,
             
             // Referrals
             'view_referrals' => true,
@@ -37,11 +37,11 @@
             'refer_appointment' => true,
             
             // Prescriptions - FULL ACCESS
-            'view_prescriptions' => true,
-            'add_prescription' => true,
-            'edit_prescription' => true,
-            'delete_prescription' => true,
-            'print_prescription' => true,
+           // 'view_prescriptions' => true,
+           // 'add_prescription' => true,
+           // 'edit_prescription' => true,
+           // 'delete_prescription' => true,
+           // 'print_prescription' => true,
             
             // Referrals - FULL ACCESS
             'view_referrals' => true,
@@ -63,11 +63,11 @@
             'refer_appointment' => false,
             
             // Prescriptions - VIEW AND PRINT ONLY
-            'view_prescriptions' => true,
-            'add_prescription' => false,
-            'edit_prescription' => false,
-            'delete_prescription' => false,
-            'print_prescription' => true,
+           // 'view_prescriptions' => true,
+           // 'add_prescription' => false,
+           // 'edit_prescription' => false,
+           // 'delete_prescription' => false,
+           // 'print_prescription' => true,
             
             // Referrals - VIEW AND PRINT ONLY
             'view_referrals' => true,
@@ -99,10 +99,10 @@
             class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab', 'appointments') == 'appointments' ? 'active' : '' }}">
             <h2 class="font-bold text-xl">Appointments</h2>
         </button>
-        <button onclick="showTab('prescriptions')" id="prescriptions-tab" 
+        <!--<button onclick="showTab('prescriptions')" id="prescriptions-tab" 
             class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'prescriptions' ? 'active' : '' }}">
             <h2 class="font-bold text-xl">Prescriptions</h2>
-        </button>
+        </button>-->
         <button onclick="showTab('referrals')" id="referrals-tab" 
             class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'referrals' ? 'active' : '' }}">
             <h2 class="font-bold text-xl">Referrals</h2>
