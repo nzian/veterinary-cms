@@ -37,7 +37,7 @@
 @endphp
 @section('content')
 <div class="min-h-screen">
-    <div class="max-w-7xl mx-auto bg-white p-6 rounded-lg shadow">
+    <div class="w-full px-2 sm:px-4 md:px-6 lg:px-8 mx-auto bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         {{-- Tab Navigation --}}
@@ -63,20 +63,20 @@
 
         {{-- Billing Tab Content --}}
         <div id="billingContent" class="tab-content">
-            <div class="flex justify-between items-center mb-4 gap-2 flex-wrap">
-                <div class="relative">
-                    <input type="search" id="billingSearch" placeholder="Search billing..." class="border border-gray-300 rounded px-3 py-2 text-sm pl-8">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 w-full">
+                <div class="relative w-full sm:w-auto">
+                    <input type="search" id="billingSearch" placeholder="Search billing..." class="w-full sm:w-64 border border-gray-300 rounded px-3 py-2 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
             </div>
 
             {{-- Billing Table --}}
-            <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+            <div class="w-full overflow-x-auto">
+                <table class="min-w-full table-auto text-sm border text-center">
                     <thead>
                         <tr class="bg-gray-100 text-centered">
-                            <th class="px-4 py-2 border">Owner</th>
-                            <th class="px-4 py-2 border">Pet</th>
+                            <th class="px-2 py-2 border whitespace-nowrap">Owner</th>
+                            <th class="px-2 py-2 border whitespace-nowrap">Pet</th>
                             <th class="px-4 py-2 border">Services & Products</th>
                             <th class="px-4 py-2 border">Total Amount</th>
                             <th class="px-4 py-2 border">Status</th>
@@ -133,10 +133,12 @@
                             @endphp
                             
                             <tr class="hover:bg-gray-50">
-                                <td class="px-4 py-2 border">
+                                <td class="px-2 py-2 border">
+                                    <span class="sm:hidden font-medium">Owner: </span>
                                     {{ $billing->visit?->pet?->owner?->own_name ?? 'N/A' }}
                                 </td>
-                                <td class="px-4 py-2 border">
+                                <td class="px-2 py-2 border">
+                                    <span class="sm:hidden font-medium">Pet: </span>
                                     <div>
                                         <div class="font-medium">{{ $billing->visit?->pet?->pet_name ?? 'N/A' }}</div>
                                         <div class="text-xs text-gray-500">{{ $billing->visit?->pet?->pet_species ?? '' }}</div>
@@ -198,9 +200,9 @@
                                 </td>
                                 <td class="px-4 py-2 border">{{ \Carbon\Carbon::parse($billing->bill_date)->format('M d, Y') }}</td>
                                 <td class="px-4 py-2 border text-center">
-    <div class="flex justify-center items-center gap-1">
-        <!-- View Button 
-        <button onclick="viewBilling(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="view"
+    <div class="flex flex-wrap justify-center items-center gap-1">
+        <!-- View Button -->
+        <button onclick="viewBilling(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs whitespace-nowrap" title="view"
             data-bill-id="{{ $billing->bill_id }}"
             data-owner="{{ $billing->appointment?->pet?->owner?->own_name ?? 'N/A' }}"
             data-pet="{{ $billing->appointment?->pet?->pet_name ?? 'N/A' }}"
@@ -282,16 +284,18 @@
             </div>
 
             {{-- Billing Pagination --}}
-            <div class="mt-4">
-                {{ $billings->links() }}
+            <div class="mt-4 overflow-x-auto">
+                <div class="flex justify-center">
+                    {{ $billings->links() }}
+                </div>
             </div>
         </div>
 
         {{-- Orders Tab Content --}}
         <div id="ordersContent" class="tab-content hidden">
-            <div class="flex justify-between items-center mb-4 gap-2 flex-wrap">
-                <div class="relative">
-                    <input type="search" id="ordersSearch" placeholder="Search sales..." class="border border-gray-300 rounded px-3 py-2 text-sm pl-8">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 w-full">
+                <div class="relative w-full sm:w-auto">
+                    <input type="search" id="ordersSearch" placeholder="Search sales..." class="w-full sm:w-64 border border-gray-300 rounded px-3 py-2 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
                 <div class="flex gap-2">
@@ -451,8 +455,10 @@
 </div>
 
             <!-- Pagination -->
-            <div class="mt-6">
-                {{ $paginator->appends(request()->query())->links() }}
+            <div class="mt-6 overflow-x-auto">
+                <div class="flex justify-center">
+                    {{ $paginator->appends(request()->query())->onEachSide(1)->links() }}
+                </div>
             </div>
 
             <!-- Additional Info -->
@@ -466,8 +472,8 @@
 </div>
 
 {{-- Billing View Modal --}}
-<div id="viewBillingModal" class="fixed inset-0 flex justify-center items-center z-50 hidden no-print">
-    <div class="bg-white w-full max-w-3xl p-0 rounded-lg shadow-lg relative max-h-[100vh] overflow-y-auto">
+<div id="viewBillingModal" class="fixed inset-0 flex justify-center items-start md:items-center p-2 sm:p-4 z-50 hidden no-print">
+    <div class="bg-white w-full max-w-3xl p-0 rounded-lg shadow-lg relative max-h-[90vh] overflow-y-auto">
         <div id="billingContent" class="billing-container bg-white p-10">
             <div class="header flex items-center justify-between border-b-2 border-black pb-6 mb-6">
                 <!-- Left side: Logo -->

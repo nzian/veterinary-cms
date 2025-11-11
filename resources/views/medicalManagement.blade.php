@@ -37,16 +37,16 @@
 @endphp
 
 @section('content')
-<div class="min-h-screen">
+<div class="min-h-screen bg-gray-50">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <div class="max-w-7xl mx-auto bg-white p-6 rounded-lg shadow">
+    <div class="max-w-7xl mx-auto bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow-sm">
         
         {{-- Tab Navigation --}}
-        <div class="border-b border-gray-200 mb-6">
-            <nav class="-mb-px flex space-x-8 items-center">
+        <div class="border-b border-gray-200 mb-4 sm:mb-6 overflow-x-auto">
+            <nav class="-mb-px flex space-x-2 sm:space-x-4 md:space-x-6 items-center" style="min-width: max-content;">
                 <button onclick="showTab('visits')" id="visits-tab" 
-                    class="tab-button py-2 px-1 border-b-2 font-medium text-sm active">
-                    <h2 class="font-bold text-xl">Visits</h2>
+                    class="tab-button py-2 px-1 sm:px-2 border-b-2 font-medium text-sm sm:text-base active whitespace-nowrap">
+                    <span class="font-bold text-lg sm:text-xl">Visits</span>
                 </button>
                 <button onclick="showTab('vaccination')" id="vaccination-tab" 
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
@@ -1069,6 +1069,25 @@
 </div>
 
 <style>
+/* Responsive Table Styles */
+@media (max-width: 767px) {
+    .responsive-table {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .responsive-table table {
+        min-width: 640px;
+    }
+    
+    /* Hide less important columns on mobile */
+    .hidden-mobile {
+        display: none;
+    }
+}
+
 /* Tab Styles */
 .tab-button {
     border-bottom-color: transparent;
