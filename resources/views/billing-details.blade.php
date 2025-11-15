@@ -1,6 +1,52 @@
 @extends('AdminBoard')
 
 @section('content')
+@push('styles')
+<style>
+    .product-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    .product-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .product-card:hover {
+        border-color: #4299e1;
+        box-shadow: 0 0 0 1px #4299e1;
+    }
+    .product-card.selected {
+        border-color: #48bb78;
+        background-color: #f0fff4;
+    }
+    .product-card .price {
+        color: #2d3748;
+        font-weight: bold;
+    }
+    .product-card .stock {
+        font-size: 0.875rem;
+        color: #718096;
+    }
+    #selectedProducts {
+        margin-top: 1.5rem;
+    }
+    .selected-product {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .selected-product:last-child {
+        border-bottom: none;
+    }
+</style>
+@endpush
 @php
     // Calculate everything FIRST before using in the view
     $servicesTotal = 0;
@@ -43,8 +89,64 @@
     $totalItems = ($billing->visit && $billing->visit->services ? $billing->visit->services->count() : 0) + count($prescriptionItems);
     $billingStatus = strtolower($billing->bill_status ?? 'pending');
 @endphp
-<div class="min-h-screen px-2 sm:px-4 md:px-6 py-4">
+<div class="min-h-screen px-2 sm:px-4 md:px-6 py-4" x-data="billingApp()" x-init="init()">
+    <!-- Product Selection Modal -->
+    <div x-show="showProductModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Add Products to Billing</h3>
+                <button @click="showProductModal = false" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-grow">
+                <div class="mb-4">
+                    <input type="text" x-model="productSearch" placeholder="Search products..." 
+                           class="w-full p-2 border rounded-md" @input="searchProducts">
+                </div>
+                
+                <div x-show="loading" class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin text-blue-500"></i> Loading products...
+                </div>
+                
+                <div x-show="!loading && products.length === 0" class="text-center py-4 text-gray-500">
+                    No products found. Try a different search term.
+                </div>
+                
+                <div class="product-grid" x-show="!loading && products.length > 0">
+                    <template x-for="product in products" :key="product.prod_id">
+                        <div class="product-card" 
+                             :class="{ 'selected': isProductSelected(product.prod_id) }"
+                             @click="toggleProduct(product)">
+                            <div class="font-medium" x-text="product.prod_name"></div>
+                            <div class="price" x-text="'₱' + product.prod_price.toFixed(2)"></div>
+                            <div class="stock" x-text="'Stock: ' + product.prod_stocks"></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end space-x-2">
+                <button @click="showProductModal = false" 
+                        class="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-100">
+                    Cancel
+                </button>
+                <button @click="addSelectedProducts" 
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                        :disabled="selectedProducts.length === 0">
+                    Add Selected Products
+                </button>
+            </div>
+        </div>
+    </div>
     <div class="max-w-6xl mx-auto bg-white p-4 sm:p-6 rounded-lg shadow">
+        <!-- Add Products Button -->
+        <div class="mb-6 flex justify-between items-center">
+            <h2 class="text-xl font-bold text-gray-800">Billing Details</h2>
+            <button @click="showProductModal = true" 
+                    class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center">
+                <i class="fas fa-plus-circle mr-2"></i> Add Products
+            </button>
+        </div>
         <!-- Header -->
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 md:gap-0">
             <div>
@@ -603,5 +705,130 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 5000);
     }
 });
+
+// Alpine.js component for billing functionality
+function billingApp() {
+    return {
+        showProductModal: false,
+        products: [],
+        selectedProducts: [],
+        productSearch: '',
+        loading: false,
+        
+        init() {
+            // Initialize any required data
+            this.loadProducts();
+        },
+        
+        loadProducts() {
+            this.loading = true;
+            fetch('{{ route("sales.products.available") }}')
+                .then(response => response.json())
+                .then(data => {
+                    this.products = data.products || [];
+                    this.loading = false;
+                })
+                .catch(error => {
+                    console.error('Error loading products:', error);
+                    this.loading = false;
+                });
+        },
+        
+        searchProducts: _.debounce(function() {
+            if (this.productSearch.length < 2) {
+                this.loadProducts();
+                return;
+            }
+            
+            this.loading = true;
+            fetch(`{{ route("sales.products.available") }}?search=${encodeURIComponent(this.productSearch)}`)
+                .then(response => response.json())
+                .then(data => {
+                    this.products = data.products || [];
+                    this.loading = false;
+                })
+                .catch(error => {
+                    console.error('Error searching products:', error);
+                    this.loading = false;
+                });
+        }, 300),
+        
+        isProductSelected(productId) {
+            return this.selectedProducts.some(p => p.prod_id === productId);
+        },
+        
+        toggleProduct(product) {
+            const index = this.selectedProducts.findIndex(p => p.prod_id === product.prod_id);
+            if (index === -1) {
+                // Add product with default quantity of 1
+                this.selectedProducts.push({
+                    ...product,
+                    quantity: 1,
+                    price: product.prod_price
+                });
+            } else {
+                // Remove product
+                this.selectedProducts.splice(index, 1);
+            }
+        },
+        
+        updateQuantity(productId, value) {
+            const product = this.selectedProducts.find(p => p.prod_id === productId);
+            if (product) {
+                product.quantity = Math.max(1, parseInt(value) || 1);
+            }
+        },
+        
+        removeProduct(index) {
+            this.selectedProducts.splice(index, 1);
+        },
+        
+        addSelectedProducts() {
+            if (this.selectedProducts.length === 0) return;
+            
+            const productsToAdd = this.selectedProducts.map(product => ({
+                product_id: product.prod_id,
+                quantity: product.quantity,
+                price: product.price
+            }));
+            
+            fetch(`/sales/billing/{{ $billing->bill_id }}/add-product`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({ products: productsToAdd })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.message || 'Failed to add products');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding products:', error);
+                alert('An error occurred while adding products');
+            });
+        },
+        
+        formatPrice(price) {
+            return '₱' + parseFloat(price || 0).toFixed(2);
+        },
+        
+        get totalSelected() {
+            return this.selectedProducts.reduce((sum, product) => {
+                return sum + (product.price * product.quantity);
+            }, 0);
+        }
+    };
+}
 </script>
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+@endpush
+
 @endsection

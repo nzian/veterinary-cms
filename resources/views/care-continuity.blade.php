@@ -2275,16 +2275,22 @@ function setupProductSearch(fieldId) {
 }
 
 // Form submission handler for prescriptions
-document.getElementById('prescriptionForm').addEventListener('submit', function(e) {
+document.getElementById('prescriptionForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
     const medications = [];
+    let hasErrors = false;
+    
+    // Collect all medication fields
     document.querySelectorAll('.medication-field').forEach(field => {
         const fieldId = field.dataset.fieldId;
-        const productId = document.querySelector(`.selected-product-id[data-field-id="${fieldId}"]`).value;
-        const productName = document.querySelector(`.selected-product-name[data-field-id="${fieldId}"]`).value || 
-                           document.querySelector(`input[data-field-id="${fieldId}"].product-search`).value;
-        const instructions = document.querySelector(`.medication-instructions[data-field-id="${fieldId}"]`).value;
+        const searchInput = field.querySelector(`input[data-field-id="${fieldId}"].product-search`);
+        const productIdInput = field.querySelector(`.selected-product-id[data-field-id="${fieldId}"]`);
+        const instructionsTextarea = field.querySelector(`.medication-instructions[data-field-id="${fieldId}"]`);
+        
+        const productName = searchInput ? searchInput.value.trim() : '';
+        const instructions = instructionsTextarea ? instructionsTextarea.value.trim() : '';
+        const productId = productIdInput ? productIdInput.value : null;
         
         if (productName && instructions) {
             medications.push({
@@ -2292,8 +2298,17 @@ document.getElementById('prescriptionForm').addEventListener('submit', function(
                 product_name: productName,
                 instructions: instructions
             });
+        } else if (productName || instructions) {
+            // If only one field is filled, show error
+            hasErrors = true;
+            return;
         }
     });
+    
+    if (hasErrors) {
+        alert('Please ensure all medication fields are complete or remove empty ones.');
+        return;
+    }
     
     if (medications.length === 0) {
         alert('Please add at least one medication with instructions');
@@ -2313,23 +2328,54 @@ document.getElementById('prescriptionForm').addEventListener('submit', function(
         return;
     }
     
+    // Remove any existing medications_json input
     const existingHiddenInput = this.querySelector('input[name="medications_json"]');
     if (existingHiddenInput) {
         existingHiddenInput.remove();
     }
     
+    // Add the medications as a JSON string
     const hiddenInput = document.createElement('input');
     hiddenInput.type = 'hidden';
     hiddenInput.name = 'medications_json';
     hiddenInput.value = JSON.stringify(medications);
     this.appendChild(hiddenInput);
     
+    // Disable submit button to prevent double submission
     const submitBtn = this.querySelector('button[type="submit"]');
-    const originalText = submitBtn.textContent;
-    submitBtn.textContent = 'Saving...';
+    const originalBtnText = submitBtn.innerHTML;
     submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Saving...';
     
-    this.submit();
+    try {
+        // Submit the form
+        const formData = new FormData(this);
+        const response = await fetch(this.action, {
+            method: this.method,
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json'
+            },
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            // Success - reload the page or update UI as needed
+            window.location.reload();
+        } else {
+            // Show error message
+            alert(result.message || 'Error saving prescription');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('An error occurred while saving the prescription');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnText;
+    }
 });
 
 function editPrescription(id) {

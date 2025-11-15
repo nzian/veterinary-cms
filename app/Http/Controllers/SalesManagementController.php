@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Billing;
 use App\Models\Order;
 use App\Models\Prescription;
-use App\Models\Appointment;
+use App\Models\Payment;
+use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -150,364 +152,233 @@ class SalesManagementController extends Controller
             'averageSale'
         ));
     }
-
-    public function showBilling($id)
+    public function markAsPaid(Request $request, $billId)
     {
-        $billing = Billing::with(['visit.pet.owner', 'visit.services'])
-            ->findOrFail($id);
-        
-        return view('billing-details', compact('billing'));
-    }
-
-    public function destroyBilling($id)
-    {
-        $billing = Billing::findOrFail($id);
-        $billing->delete();
-        return back()->with('success', 'Billing record deleted.');
-    }
-public function markAsPaid(Request $request, $billId)
-    {
-        // 1. Validate incoming data, including the total calculated on the client-side
         $validated = $request->validate([
-            'cash_amount' => 'required|numeric|min:0',
-            'total_amount' => 'required|numeric|min:0', // Trust client-side calculation for bill total
-            'sale_items' => 'nullable|array', // Received items for audit/Order creation
+            'cash_amount' => 'required|numeric|min:0.01', 
+            'payment_type' => 'required|in:full,partial', 
         ]);
         
         $cash = (float) $validated['cash_amount'];
-        $clientTotal = (float) $validated['total_amount'];
-        $saleItems = $validated['sale_items'] ?? [];
+        $paymentType = $validated['payment_type'];
 
-        // 2. Fetch the billing record
-        $billing = Billing::with(['appointment.pet', 'appointment.services', 'appointment.pet.owner', 'appointment.user'])->findOrFail($billId);
+        // Eager load necessary relationships
+        $billing = Billing::with([
+            'visit.pet.owner', 
+            'visit.services', 
+            'visit.user', 
+            'orders.product', 
+            'payments',
+            'orders' => function($query) {
+                $query->where('source', 'Billing Add-on');
+            }
+        ])->findOrFail($billId);
         
-        // 3. Server-Side Validation Check (Simplified)
-        // For security, you should recalculate the total, but since your client logic is complex (services + prescriptions), 
-        // we'll primarily rely on the client total and basic cash validation.
-        // For a true "fix," we should compare $clientTotal to a robustly calculated $serverTotal.
-        // For now, we trust the client total to move past the immediate issue.
-        $total = $clientTotal; // We use the validated total from the client side.
-        
-        // Check if cash is sufficient
-        if ($cash < $total) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Insufficient cash amount. Total is ₱' . number_format($total, 2)
-            ], 422);
+        // Check product availability before processing payment
+        foreach ($billing->orders as $order) {
+            if ($order->product && $order->product->prod_stock < $order->ord_quantity) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Insufficient stock for product: ' . $order->product->prod_name
+                ], 422);
+            }
         }
         
-        $change = $cash - $total;
-
-        // --- Start Transaction (Optional but Recommended) ---
         DB::beginTransaction();
-
+        
         try {
-            // 4. Record Orders (Products/Services sold from Prescription/Billing)
-            // This is crucial for the transaction history/POS Sales tab.
-            $ownerId = $billing->appointment->pet->owner->own_id ?? null;
-            $userId = $billing->appointment->user->user_id ?? auth()->id(); // Fallback to current user
-            $currentDate = now();
-            $transactionKey = 'BILL-' . $billId; // Use billing ID as the transaction group key
+            // Calculate services total
+            $servicesTotal = (float) ($billing->visit?->services->sum('serv_price') ?? 0);
 
-            foreach ($saleItems as $item) {
-                // Ensure a valid product price/name is present
-                $price = (float)($item['price'] ?? 0);
-                $quantity = (int)($item['quantity'] ?? 1);
-                $productName = $item['product_name'] ?? 'Unknown Item';
-
-                // Look up product ID if available (only for actual products)
-                $productId = null;
-                if (($item['type'] ?? '') === 'product') {
-                    $productRecord = DB::table('tbl_prod')->where('prod_name', $productName)->first();
-                    $productId = $productRecord->prod_id ?? null;
-                }
-
-                // If it's a product and we found the ID, or if it's a service/item with a price > 0, record the sale
-                if ($productId || $price > 0) {
-                     Order::create([
-                        'ord_date' => $currentDate,
-                        'ord_quantity' => $quantity,
-                        'ord_price' => $price, // Store the final price used for the sale
-                        'prod_id' => $productId, // Null for services/non-products, or the actual ID
-                        'user_id' => $userId,
-                        'own_id' => $ownerId,
-                        'bill_id' => $billing->bill_id, // Link back to the billing
-                        'transaction_key' => $transactionKey, // Use this for grouping sales on the POS tab
-                        'source' => 'Billing Payment', // Explicitly mark source
-                    ]);
+            // --- FIX: Calculate prescription total (Only from existing products) ---
+            $prescriptionTotal = 0;
+            if ($billing->visit && $billing->visit->pet) {
+                $prescriptions = Prescription::where('pet_id', $billing->visit->pet->pet_id)
+                    ->whereDate('prescription_date', '<=', $billing->bill_date)
+                    ->whereDate('prescription_date', '>=', date('Y-m-d', strtotime($billing->bill_date . ' -7 days')))
+                    ->get();
+                
+                foreach ($prescriptions as $prescription) {
+                    $medications = json_decode($prescription->medication, true) ?? [];
+                    foreach ($medications as $medication) {
+                        if (isset($medication['product_id']) && $medication['product_id']) {
+                            // Fetch product to ensure it exists and has a price
+                            $product = DB::table('tbl_prod')
+                                ->where('prod_id', $medication['product_id'])
+                                ->first();
+                            
+                            // STRICT FILTER: Only add to total if product exists and has a price
+                            if ($product && $product->prod_price > 0) { 
+                                $prescriptionTotal += (float) $product->prod_price;
+                            }
+                        }
+                    }
                 }
             }
-
-            // 5. Update billing status
-            $billing->bill_status = 'paid';
-            $billing->save();
-
-            // 6. Mark visit and appointment as completed
-            $visit = $billing->appointment;
-            if ($visit) {
-                $visit->visit_status = 'completed';
-                if (strcasecmp((string)$visit->workflow_status, 'Completed') !== 0) {
-                    $visit->workflow_status = 'Completed';
-                }
-                $visit->save();
-
-                try {
-                    // Try to complete the latest related appointment if it exists
-                    Appointment::where('pet_id', $visit->pet_id)
-                        ->where('appoint_status', '!=', 'completed')
-                        ->orderBy('appoint_date', 'desc')
-                        ->limit(1)
-                        ->update(['appoint_status' => 'completed']);
-                } catch (\Throwable $e) {
-                    Log::warning('Sales markAsPaid: failed to complete appointment: '.$e->getMessage());
-                }
+            
+            // Calculate add-on products total (kept for existing old bills)
+            $addOnTotal = (float) $billing->orders->where('source', 'Billing Add-on')->sum('ord_total');
+            
+            // Total amount = services + prescriptions + add-ons
+            $totalAmount = $servicesTotal + $prescriptionTotal + $addOnTotal;
+            
+            // Calculate total paid from existing payments
+            $existingPaymentsTotal = (float) $billing->payments->sum('pay_total');
+            
+            // Calculate remaining balance before this payment
+            $currentBalance = round($totalAmount - $existingPaymentsTotal, 2);
+            
+            // Validation
+            if ($currentBalance <= 0.01) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This bill is already fully paid. No remaining balance.'
+                ], 422);
             }
 
-            // 7. Record final Payment details (for audit)
-            Payment::create([
+            if ($paymentType === 'partial' && $cash > $currentBalance) {
+                // This scenario means the user is trying to overpay for a partial payment, or cash is just slightly over balance
+                // If it's a full payment, we expect $cash >= $currentBalance, which is handled below.
+                if (abs($cash - $currentBalance) > 0.01) { // Allow for tiny floating point errors
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Partial payment cannot exceed the remaining balance.'
+                    ], 422);
+                }
+                // If cash is slightly over, we proceed as a full payment
+            }
+            
+            // Calculate new payment amount (can't be more than remaining balance)
+            $paymentAmount = min($cash, $currentBalance);
+            $change = max(0, $cash - $currentBalance);
+            
+            // Calculate new total paid amount
+            $newTotalPaid = round($existingPaymentsTotal + $paymentAmount, 2);
+            $newBalance = round($totalAmount - $newTotalPaid, 2);
+            
+            // Determine if this payment completes the bill
+            $isFullyPaid = ($newBalance <= 0.01);
+            $billingStatus = $isFullyPaid ? 'paid' : 'partial'; // Changed 'pending' to 'partial' if $newTotalPaid > 0
+
+            if ($newTotalPaid == 0) {
+                $billingStatus = 'pending';
+            }
+
+
+            // Create payment record
+            $transactionKey = 'PAY-' . $billId . '-' . time();
+            
+            $payment = Payment::create([
                 'bill_id' => $billing->bill_id,
-                'pay_total' => $total,
+                'pay_total' => $paymentAmount,
                 'pay_cashAmount' => $cash,
                 'pay_change' => $change,
+                'payment_type' => $paymentType,
+                'payment_date' => now(),
+                'transaction_id' => $transactionKey,
+                'status' => $billingStatus
             ]);
-            
-            DB::commit();
 
-            // 8. Return JSON response for AJAX success
+            // CRITICAL FIX: Update billing record with new paid amount
+            $billing->paid_amount = $newTotalPaid;
+            $billing->bill_status = $billingStatus;
+            $billing->save();
+
+            // Update associated orders if fully paid (only update those not already paid)
+            if ($isFullyPaid) {
+                // Update payment status for unpaid orders
+                $unpaidOrders = Order::where('bill_id', $billing->bill_id)
+                    ->where('payment_status', '!=', 'paid')
+                    ->get();
+                
+                // Update inventory for each product in the order
+                foreach ($unpaidOrders as $order) {
+                    if ($order->product) {
+                        // Decrease the product stock
+                        $order->product->decrement('prod_stock', $order->ord_quantity);
+                    }
+                }
+                
+                // Update payment status after inventory is successfully updated
+                $unpaidOrders->each(function($order) use ($transactionKey) {
+                    $order->update([
+                        'payment_status' => 'paid',
+                        'transaction_key' => $transactionKey
+                    ]);
+                });
+
+                if ($billing->visit) {
+                    $billing->visit->update(['visit_status' => 'completed']);
+                }
+            } else {
+                // For partial payments, create an Order record to log the payment itself.
+                // This ensures the payment transaction appears in the Orders tab correctly.
+                Order::create([
+                    'bill_id' => $billing->bill_id,
+                    'prod_id' => null, // No product
+                    'ord_quantity' => 1,
+                    'ord_date' => now(),
+                    'ord_total' => $paymentAmount, // The amount that actually covered the bill
+                    'user_id' => auth()->id(),
+                    'owner_id' => $billing->visit->pet->owner_id,
+                    'source' => 'Billing Payment', // New source type
+                    'transaction_key' => $transactionKey,
+                    'payment_status' => 'paid' // The payment itself is a 'paid' transaction
+                ]);
+                
+            }
+
+
+            DB::commit();
+            
+            Log::info("Payment processed - Bill ID: {$billId}, New Paid Amount: {$newTotalPaid}, Balance: {$newBalance}, Status: {$billingStatus}");
+            
             return response()->json([
                 'success' => true,
-                'message' => 'Billing marked as paid',
-                'billing_id' => $billId,
-                'status' => 'paid',
-                'total' => $total,
-                'cash' => $cash,
+                'message' => 'Payment processed successfully!',
                 'change' => $change,
+                'final_status' => $billingStatus,
+                'paid_amount' => $newTotalPaid,
+                'total_amount' => $totalAmount,
+                'remaining_balance' => $newBalance
             ]);
 
         } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Billing Payment Failed (Bill ID: ' . $billId . '): ' . $e->getMessage());
+            DB::rollback();
+            Log::error('Payment processing error: ' . $e->getMessage() . ' | Trace: ' . $e->getTraceAsString());
             
             return response()->json([
                 'success' => false,
-                'message' => 'Server error during payment: ' . $e->getMessage()
+                'message' => 'Failed to process payment: ' . $e->getMessage()
             ], 500);
         }
     }
 
-    public function showReceipt($id)
+    public function destroyBilling($billId) 
     {
-        $billing = Billing::with([
-            'visit.pet.owner',
-            'orders.product',
-            'visit.user.branch'
-        ])->findOrFail($id);
-        $orders = $billing->orders;
-        $total = $orders->sum(function($o){
-            return ($o->ord_price ?? optional($o->product)->prod_price ?? 0) * ($o->ord_quantity ?? 1);
-        });
-        $payment = \App\Models\Payment::where('bill_id', $billing->bill_id)->orderByDesc('pay_id')->first();
+        // Keep existing delete logic
+        try {
+            DB::beginTransaction();
+            $billing = Billing::findOrFail($billId);
 
-        return view('receipt', compact('billing', 'orders', 'total', 'payment'));
-    }
+            // Cascade delete related records
+            // Assuming relationships handle deletion, or manually clean up if required by schema
+            $billing->orders()->delete();
+            $billing->payments()->delete();
+            // Note: Visit/Services/Prescriptions are usually not deleted, only detached/updated, 
+            // but the provided logic does not touch them, so we proceed with deleting the billing record itself.
 
-    public function showTransaction($transactionId)
-    {
-        $activeBranchId = session('active_branch_id');
-        $user = auth()->user();
-        
-        if ($user->user_role !== 'superadmin') {
-            $activeBranchId = $user->branch_id;
+            $billing->delete();
+
+            DB::commit();
+
+            return redirect()->route('sales.index')->with('success', 'Billing record deleted successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Billing deletion error: ' . $e->getMessage());
+            return redirect()->route('sales.index')->with('error', 'Failed to delete billing record: ' . $e->getMessage());
         }
-
-        // Check if this is a billing transaction
-        if (str_starts_with($transactionId, 'BILL-')) {
-            $billId = str_replace('BILL-', '', $transactionId);
-            
-            // Get all orders with this bill_id (filtered by branch)
-            $orders = Order::with(['product', 'user', 'owner', 'payment', 'billing'])
-                ->where('bill_id', $billId)
-                ->whereHas('user', function($q) use ($activeBranchId) {
-                    $q->where('branch_id', $activeBranchId);
-                })
-                ->orderBy('ord_date', 'desc')
-                ->get();
-            
-            if ($orders->isEmpty()) {
-                abort(404, 'Transaction not found');
-            }
-            
-            $transactionTotal = $orders->sum(function($order) {
-                return $order->ord_quantity * ($order->product->prod_price ?? 0);
-            });
-            
-            $totalItems = $orders->sum('ord_quantity');
-            
-            return view('order-detail', compact('orders', 'transactionId', 'transactionTotal', 'totalItems'));
-        }
-        
-        // Handle SALE- transactions (direct sales)
-        $firstOrderId = str_replace(['SALE-', 'T'], '', $transactionId);
-        
-        $firstOrder = Order::with(['product', 'user', 'owner', 'payment'])
-            ->whereHas('user', function($q) use ($activeBranchId) {
-                $q->where('branch_id', $activeBranchId);
-            })
-            ->find($firstOrderId);
-        
-        if (!$firstOrder) {
-            abort(404, 'Transaction not found');
-        }
-        
-        // Use the EXACT same logic as in index() method
-        $orderTime = Carbon::parse($firstOrder->ord_date);
-        
-        // Get all orders from the database to filter
-        $allOrders = Order::with(['product', 'user', 'owner', 'payment'])
-            ->whereNull('bill_id')
-            ->whereDate('ord_date', $orderTime->toDateString())
-            ->whereHas('user', function($q) use ($activeBranchId) {
-                $q->where('branch_id', $activeBranchId);
-            })
-            ->get();
-        
-        // Filter orders using the same logic as index()
-        $orders = $allOrders->filter(function($order) use ($firstOrder, $orderTime) {
-            $oTime = Carbon::parse($order->ord_date);
-            $timeDiff = abs($orderTime->diffInSeconds($oTime));
-            $sameUser = ($order->user_id ?? 0) === ($firstOrder->user_id ?? 0);
-            $sameCustomer = ($order->own_id ?? 0) === ($firstOrder->own_id ?? 0);
-            
-            return $timeDiff <= 1 && $sameUser && $sameCustomer;
-        });
-
-        if ($orders->isEmpty()) {
-            $orders = collect([$firstOrder]);
-        }
-
-        $transactionTotal = $orders->sum(function($order) {
-            return $order->ord_quantity * ($order->product->prod_price ?? 0);
-        });
-        
-        $totalItems = $orders->sum('ord_quantity');
-
-        return view('order-detail', compact('orders', 'transactionId', 'transactionTotal', 'totalItems'));
-    }
-
-    public function printTransaction($transactionId)
-    {
-        $activeBranchId = session('active_branch_id');
-        $user = auth()->user();
-        
-        if ($user->user_role !== 'superadmin') {
-            $activeBranchId = $user->branch_id;
-        }
-
-        $firstOrderId = str_replace('T', '', $transactionId);
-        
-        $firstOrder = Order::with(['product', 'user', 'owner', 'payment'])
-            ->whereHas('user', function($q) use ($activeBranchId) {
-                $q->where('branch_id', $activeBranchId);
-            })
-            ->find($firstOrderId);
-        
-        if (!$firstOrder) {
-            abort(404, 'Transaction not found');
-        }
-        
-        $orders = Order::with(['product', 'user', 'owner', 'payment'])
-            ->where(function($query) use ($firstOrder) {
-                $dateTime = Carbon::parse($firstOrder->ord_date)->format('Y-m-d H:i');
-                $query->where('ord_date', 'like', $dateTime . '%');
-                
-                if ($firstOrder->user_id !== null) {
-                    $query->where('user_id', $firstOrder->user_id);
-                } else {
-                    $query->whereNull('user_id');
-                }
-                
-                if ($firstOrder->own_id !== null) {
-                    $query->where('own_id', $firstOrder->own_id);
-                } else {
-                    $query->whereNull('own_id');
-                }
-            })
-            ->whereHas('user', function($q) use ($activeBranchId) {
-                $q->where('branch_id', $activeBranchId);
-            })
-            ->orderBy('ord_date', 'desc')
-            ->get();
-
-        if ($orders->isEmpty()) {
-            $orders = collect([$firstOrder]);
-        }
-
-        $transactionTotal = $orders->sum(function($order) {
-            return $order->ord_quantity * ($order->product->prod_price ?? 0);
-        });
-        
-        $totalItems = $orders->sum('ord_quantity');
-
-        return view('receipt-print', compact('orders', 'transactionId', 'transactionTotal', 'totalItems'));
-    }
-
-    public function export(Request $request)
-    {
-        $activeBranchId = session('active_branch_id');
-        $user = auth()->user();
-        
-        if ($user->user_role !== 'superadmin') {
-            $activeBranchId = $user->branch_id;
-        }
-
-        $startDate = $request->input('start_date', now()->startOfMonth());
-        $endDate = $request->input('end_date', now()->endOfMonth());
-
-        $orders = Order::with(['product', 'user', 'owner', 'payment'])
-            ->whereBetween('ord_date', [$startDate, $endDate])
-            ->whereHas('user', function($q) use ($activeBranchId) {
-                $q->where('branch_id', $activeBranchId);
-            })
-            ->orderBy('ord_date', 'desc')
-            ->get();
-
-        $filename = 'pos_sales_' . now()->format('Y-m-d_H-i-s') . '.csv';
-
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-        ];
-
-        $callback = function () use ($orders) {
-            $file = fopen('php://output', 'w');
-
-            fputcsv($file, [
-                'Order ID',
-                'Sale Date',
-                'Product Name',
-                'Quantity',
-                'Unit Price',
-                'Total Amount',
-                'Customer',
-                'Cashier',
-            ]);
-
-            foreach ($orders as $order) {
-                fputcsv($file, [
-                    $order->ord_id,
-                    $order->ord_date,
-                    $order->product->prod_name ?? 'N/A',
-                    $order->ord_quantity,
-                    $order->product->prod_price ?? 0,
-                    ($order->product->prod_price ?? 0) * $order->ord_quantity,
-                    $order->owner->own_name ?? 'Walk-in Customer',
-                    $order->user->user_name ?? 'N/A',
-                ]);
-            }
-
-            fclose($file);
-        };
-
-        return response()->stream($callback, 200, $headers);
     }
 }

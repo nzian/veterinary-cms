@@ -758,31 +758,65 @@ class MedicalManagementController extends Controller
     public function saveBoarding(Request $request, $visitId)
     {
         $validated = $request->validate([
-            'checkin' => ['required','date'], 'checkout' => ['nullable','date','after_or_equal:checkin'], 'room' => ['nullable','string'],
-            'care_instructions' => ['nullable','string'], 'monitoring_notes' => ['nullable','string'], 'workflow_status' => ['nullable','string'],
+            'checkin' => ['required','date'], 
+            'checkout' => ['nullable','date','after_or_equal:checkin'], 
+            'room' => ['nullable','string'],
+            'care_instructions' => ['nullable','string'], 
+            'monitoring_notes' => ['nullable','string'], 
+            'workflow_status' => ['nullable','string'],
+            'service_id' => ['required', 'exists:tbl_serv,serv_id'],
+            'total_days' => ['required', 'integer', 'min:1'],
         ]);
         
         $visitModel = Visit::findOrFail($visitId);
         
-        // Keep visit ARRIVED until paid; use workflow for boarding stage
+        // Get the service to calculate total amount
+        $service = Service::findOrFail($validated['service_id']);
+        $totalAmount = $service->serv_price * $validated['total_days'];
+        
+        // Update visit status and workflow
         $visitModel->visit_status = 'arrived';
-        $visitModel->workflow_status = 'Checked Out'; // Boarding uses Checked Out as final status
-        
+        $visitModel->workflow_status = 'Checked Out';
         $visitModel->save();
-        // Auto-generate billing
-        try { (new VisitBillingService())->createFromVisit($visitModel); } catch (\Throwable $e) { Log::warning('Billing creation failed: '.$e->getMessage()); }
         
+        // Attach the service to the visit
+        $visitModel->services()->syncWithoutDetaching([
+            $validated['service_id'] => [
+                'quantity' => $validated['total_days'],
+                'unit_price' => $service->serv_price,
+                'total_price' => $totalAmount,
+                'created_at' => now(),
+                'updated_at' => now()
+            ]
+        ]);
+        
+        // Save boarding record
         DB::table('tbl_boarding_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
             [
-                'check_in_date' => $validated['checkin'], 'check_out_date' => $validated['checkout'], 'room_no' => $validated['room'],
-                'feeding_schedule' => $validated['care_instructions'], 'daily_notes' => $validated['monitoring_notes'],
-                'status' => 'Checked Out', 'handled_by' => Auth::user()->user_name ?? null,
+                'check_in_date' => $validated['checkin'], 
+                'check_out_date' => $validated['checkout'], 
+                'room_no' => $validated['room'],
+                'feeding_schedule' => $validated['care_instructions'], 
+                'daily_notes' => $validated['monitoring_notes'],
+                'status' => 'Checked Out', 
+                'handled_by' => Auth::user()->user_name ?? null,
+                'total_days' => $validated['total_days'],
+                'total_amount' => $totalAmount,
                 'updated_at' => now(),
             ]
         );
-        // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
-        return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', 'Boarding record saved and visit status marked **Completed** (Checked Out).');
+        
+        // Generate billing with the calculated amount
+        try { 
+            $billingService = new VisitBillingService();
+            $billingService->createFromVisit($visitModel); 
+        } catch (\Throwable $e) { 
+            Log::warning('Billing creation failed: '.$e->getMessage()); 
+        }
+        
+        return redirect()->route('medical.index', ['active_tab' => 'visits'])
+            ->with('success', 'Boarding record saved with '.$validated['total_days'].' days of boarding. Total amount: ₱'.number_format($totalAmount, 2));
     }
 
     public function saveDiagnostic(Request $request, $visitId)
@@ -1040,7 +1074,7 @@ class MedicalManagementController extends Controller
     /**
      * Renders the service-specific blade for performing a visit.
      */
-   public function performVisit(Request $request, $id)
+  public function performVisit(Request $request, $id)
     {
         $visit = Visit::with(['pet.owner', 'user', 'services'])->findOrFail($id);
 
@@ -1104,7 +1138,7 @@ class MedicalManagementController extends Controller
         return $v;
     });
             
-       $availableGroomingServices = Service::where('serv_type', 'LIKE', '%' . $serviceType . '%') 
+        $availableGroomingServices = Service::where('serv_type', 'LIKE', '%' . $serviceType . '%') 
             // Only select the columns that actually exist in your tbl_serv
             ->select('serv_id', 'serv_name', 'serv_price') 
             ->orderBy('serv_name')
@@ -1152,17 +1186,28 @@ class MedicalManagementController extends Controller
         // Build unique kinds for UI filtering
         $groomKinds = $availableServices->pluck('kind')->filter()->unique()->sort()->values();
 
-        // The rest of the method continues using $availableServices...
         $lookups = $this->getBranchLookups();
-            
-        $lookups = $this->getBranchLookups(); 
-
         $viewName = 'visits.' . $blade;
-
-        $vaccines = \App\Models\Product::where('prod_category', 'Vaccines')
-            ->where('prod_stocks', '>', 0) // Only show vaccines in stock
-            ->orderBy('prod_name')
-            ->get();
+        
+        // ** FIX APPLIED HERE: INITIALIZE $vaccines **
+        $vaccines = null; 
+        
+        // For vaccination view, only show vaccination services in the service type dropdown
+        if ($blade === 'vaccination') {
+            $availableServices = \App\Models\Service::where('serv_type', 'like', '%vaccination%')
+                ->orderBy('serv_name')
+                ->get();
+            
+            // Only show product-based vaccines that are in stock and not expired
+            $vaccines = \App\Models\Product::where('prod_category', 'like', '%vaccin%')
+                ->where('prod_stocks', '>', 0)
+                ->where(function($query) {
+                    $query->where('prod_expiry', '>', now())
+                          ->orWhereNull('prod_expiry');
+                })
+                ->orderBy('prod_name')
+                ->get();
+        }
 
         // 🌟 NEW LOGIC: Fetch all registered veterinarians
         $veterinarians = User::where('user_role', 'veterinarian')

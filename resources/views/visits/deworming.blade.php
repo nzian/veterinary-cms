@@ -38,7 +38,7 @@
             </div>
         </div>
 
-        {{--- ADDED ROW 3: Separate Action Buttons (Ordered as requested) ---}}
+        {{--- ROW 3: Separate Action Buttons ---}}
         <div class="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap gap-4 justify-between sm:justify-start">
             <button type="button" 
                     onclick="openInitialAssessmentModal('{{ $visit->pet_id }}', '{{ $visit->visit_id }}')"
@@ -61,7 +61,7 @@
                 <i class="fas fa-share"></i> **Referral**
             </button>
         </div>
-        {{--- END ADDED ROW 3 ---}}
+        {{--- END ROW 3 ---}}
 
         {{-- Row 4+: Main Content (full width) --}}
         <div class="space-y-6">
@@ -77,6 +77,8 @@
                         'remarks' => $serviceData->remarks ?? null,
                     ];
                 }
+                // Determine the currently selected service for pre-selection
+                $selectedServiceId = $visit->services->where('serv_type', 'deworming')->first()->serv_id ?? old('service_id');
             @endphp
             <form action="{{ route('medical.visits.deworming.save', $visit->visit_id) }}" method="POST" class="space-y-6">
                 @csrf
@@ -87,27 +89,66 @@
                 <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
                     <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-flask-pill mr-2 text-green-600"></i> Administration Details</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Deworming Product Name <span class="text-red-500">*</span></label>
-                            <input type="text" name="dewormer_name" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                required value="{{ old('dewormer_name', $__deworm['dewormer_name'] ?? '') }}" placeholder="e.g. Drontal, Pyrantel Pamoate"/>
+                        
+                        {{-- NEW: Deworming Service Type (Base for fee) --}}
+                        <div class="sm:col-span-2">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Deworming Service Type <span class="text-red-500">*</span></label>
+                            <select name="service_id" id="deworming_service_id" class="w-full border border-gray-300 p-3 rounded-lg focus:border-green-500 focus:ring-green-500" required>
+                                <option value="">-- Select Deworming Package --</option>
+                                @forelse($availableServices as $service)
+                                    @php
+                                        // Ensure we only list deworming services if the controller is correctly passing them
+                                        $isDewormingService = (isset($service->serv_type) && strtolower($service->serv_type) == 'deworming');
+                                        $isSelected = $selectedServiceId == $service->serv_id;
+                                    @endphp
+                                    @if($isDewormingService || !isset($service->serv_type))
+                                        <option value="{{ $service->serv_id }}" data-name="{{ $service->serv_name ?? 'N/A' }}" {{ $isSelected ? 'selected' : '' }}>
+                                            {{ $service->serv_name ?? 'N/A' }} 
+                                            @if(isset($service->serv_price))
+                                                (Fee: ₱{{ number_format($service->serv_price, 2) }})
+                                            @endif
+                                        </option>
+                                    @endif
+                                @empty
+                                    <option value="" disabled>No Deworming Services Available</option>
+                                @endforelse
+                            </select>
+                            @error('service_id')
+                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                            @enderror
                         </div>
+                        {{-- END NEW --}}
+
+                        {{-- Old Dewormer Name field (Kept as an input field but pre-filled/used for database record, not billing) --}}
+                        <div class="sm:col-span-2">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Dewormer/Product Administered (Record)</label>
+                            <input type="text" name="dewormer_name" id="dewormer_name_input" class="w-full border border-gray-300 p-3 rounded-lg bg-gray-50" 
+                                readonly value="{{ old('dewormer_name', $__deworm['dewormer_name'] ?? '') }}" placeholder="Selected service name will appear here"/>
+                        </div>
+                        
+                        {{-- Dosage field remains the same --}}
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Dosage</label>
                             <input type="text" name="dosage" class="w-full border border-gray-300 p-3 rounded-lg" 
                                 placeholder="Calculate dosage based on {{ $visit->weight ? $visit->weight.' kg' : 'N/A weight' }}" 
                                 value="{{ old('dosage', $__deworm['dosage'] ?? '') }}" />
                         </div>
+                        
+                        {{-- Administered By field remains the same --}}
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Administered By</label>
                             <input type="text" name="administered_by" class="w-full border border-gray-300 p-3 rounded-lg" 
                                 value="{{ old('administered_by', $__deworm['administered_by'] ?? (auth()->user()->user_name ?? '')) }}" placeholder="Staff Name"/>
                         </div>
+                        
+                        {{-- Next Schedule field remains the same --}}
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Next Schedule (Reminder)</label>
                             <input type="date" name="next_due_date" class="w-full border border-gray-300 p-3 rounded-lg" 
                                 value="{{ old('next_due_date', optional(\Carbon\Carbon::parse($__deworm['next_due_date'] ?? optional(\Carbon\Carbon::parse($visit->visit_date ?? now()))->addDays(14)))->format('Y-m-d')) }}" />
                         </div>
+                        
+                        {{-- Remarks field remains the same --}}
                         <div class="sm:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Remarks / Notes</label>
                             <textarea name="remarks" rows="3" class="w-full border border-gray-300 p-3 rounded-lg" 
@@ -127,7 +168,149 @@
     </div>
 </div>
 
-{{-- 1. Initial Assessment Modal (FIXED: Table content included directly) --}}
+{{-- MODALS (Replaced placeholder includes with actual content to resolve parsing issue) --}}
+
+{{-- Pet Profile Modal (Photo + Pet & Owner Info Only) --}}
+<div id="petProfileModal" class="fixed inset-0 bg-black/60 z-50 hidden">
+  <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closePetProfileModal()}">
+    <div class="bg-white rounded-xl shadow-2xl w-[600px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between px-4 py-3 border-b">
+        <h3 class="font-bold text-lg text-gray-800">Pet Profile</h3>
+        <button type="button" onclick="closePetProfileModal()" class="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded-md"><i class="fas fa-times mr-1"></i>Close</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="w-full rounded-lg border bg-gray-50 flex items-center justify-center overflow-hidden">
+          @if(!empty($visit->pet->pet_photo))
+            <img src="{{ asset('storage/'.$visit->pet->pet_photo) }}" alt="{{ $visit->pet->pet_name }}" class="w-full h-80 object-cover"/>
+          @else
+            <div class="h-80 w-full flex items-center justify-center text-gray-400 text-lg">
+              <i class="fas fa-paw text-6xl"></i>
+            </div>
+          @endif
+        </div>
+
+        <div class="bg-white rounded-lg border p-4">
+          <div class="font-semibold text-gray-800 text-lg mb-3 flex items-center gap-2">
+            <i class="fas fa-dog text-blue-600"></i> Pet Information
+          </div>
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <span class="text-gray-500">Name:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->pet_name ?? '—' }}</div>
+            </div>
+            <div>
+              <span class="text-gray-500">Species:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->pet_species ?? '—' }}</div>
+            </div>
+            <div>
+              <span class="text-gray-500">Breed:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->pet_breed ?? '—' }}</div>
+            </div>
+            <div>
+              <span class="text-gray-500">Gender:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->pet_gender ?? '—' }}</div>
+            </div>
+            <div>
+              <span class="text-gray-500">Age:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->pet_age ?? '—' }}</div>
+            </div>
+            <div>
+              <span class="text-gray-500">Weight:</span>
+              <div class="font-medium text-gray-800">{{ $visit->weight ? number_format($visit->weight, 2).' kg' : '—' }}</div>
+            </div>
+            <div class="col-span-2">
+              <span class="text-gray-500">Temperature:</span>
+              <div class="font-medium text-gray-800">{{ $visit->temperature ? number_format($visit->temperature, 1).' °C' : '—' }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg border p-4">
+          <div class="font-semibold text-gray-800 text-lg mb-3 flex items-center gap-2">
+            <i class="fas fa-user text-green-600"></i> Owner Information
+          </div>
+          <div class="space-y-2 text-sm">
+            <div>
+              <span class="text-gray-500">Name:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->owner->own_name ?? '—' }}</div>
+            </div>
+            <div>
+              <span class="text-gray-500">Contact:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->owner->own_contactnum ?? '—' }}</div>
+            </div>
+            <div>
+              <span class="text-gray-500">Location:</span>
+              <div class="font-medium text-gray-800">{{ $visit->pet->owner->own_location ?? '—' }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{-- Medical History Modal (History Only) --}}
+<div id="medicalHistoryModal" class="fixed inset-0 bg-black/60 z-50 hidden">
+  <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closeMedicalHistoryModal()}">
+    <div class="bg-white rounded-xl shadow-2xl w-[900px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between px-4 py-3 border-b">
+        <h3 class="font-bold text-lg text-gray-800 flex items-center gap-2">
+          <i class="fas fa-history text-orange-600"></i> 
+          Complete Medical History - {{ $visit->pet->pet_name ?? 'Pet' }}
+        </h3>
+        <button type="button" onclick="closeMedicalHistoryModal()" class="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded-md"><i class="fas fa-times mr-1"></i>Close</button>
+      </div>
+      <div class="p-6">
+        <div class="space-y-4 max-h-[75vh] overflow-y-auto">
+          @forelse($petMedicalHistory as $record)
+            <div class="border-l-4 pl-4 py-3 {{ $record->diagnosis ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-gray-50' }} rounded-r-lg">
+              <div class="flex items-center justify-between mb-2">
+                <div class="font-semibold text-gray-800 text-base">
+                  {{ \Carbon\Carbon::parse($record->visit_date)->format('F j, Y') }}
+                </div>
+                @if(!empty($record->service_type))
+                  <span class="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded">{{ $record->service_type }}</span>
+                @endif
+              </div>
+              
+              @if($record->diagnosis)
+                <div class="mb-2">
+                  <span class="text-xs font-semibold text-gray-600">Diagnosis:</span>
+                  <div class="text-sm text-gray-800">{{ $record->diagnosis }}</div>
+                </div>
+              @endif
+
+              @if($record->treatment)
+                <div class="mb-2">
+                  <span class="text-xs font-semibold text-gray-600">Treatment:</span>
+                  <div class="text-sm text-gray-800">{{ $record->treatment }}</div>
+                </div>
+              @endif
+
+              @if($record->medication)
+                <div class="mb-2">
+                  <span class="text-xs font-semibold text-gray-600">Medication:</span>
+                  <div class="text-sm text-blue-700">{{ $record->medication }}</div>
+                </div>
+              @endif
+
+              @if(!$record->diagnosis && !$record->treatment)
+                <div class="text-sm text-gray-600 italic">Routine Visit</div>
+              @endif
+            </div>
+          @empty
+            <div class="text-center py-8">
+              <i class="fas fa-clipboard-list text-gray-300 text-5xl mb-3"></i>
+              <p class="text-gray-500 italic">No medical history on record.</p>
+            </div>
+          @endforelse
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{-- Initial Assessment Modal --}}
 <div id="initialAssessmentModal" class="fixed inset-0 bg-black/60 z-50 hidden">
     <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closeInitialAssessmentModal()}">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto p-6" onclick="event.stopPropagation()">
@@ -313,7 +496,7 @@
                                     </div>
                                 </td>
                             </tr>
-                            <tr class="border-b">
+                            <tr>
                                 <td class="p-3 align-top">
                                     <label class="font-medium">Scooting?</label>
                                     <div class="flex gap-4 mt-2">
@@ -367,7 +550,7 @@
     </div>
 </div>
 
-{{-- 2. Prescription Modal --}}
+{{-- Prescription Modal --}}
 <div id="prescriptionModal" class="fixed inset-0 bg-black/60 z-50 hidden">
     <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closePrescriptionModal()}">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto p-6" onclick="event.stopPropagation()">
@@ -414,7 +597,7 @@
     </div>
 </div>
 
-{{-- 3. Appointment Modal --}}
+{{-- Appointment Modal --}}
 <div id="appointmentModal" class="fixed inset-0 bg-black/60 z-50 hidden">
     <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closeAppointmentModal()}">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[95vh] overflow-y-auto p-6" onclick="event.stopPropagation()">
@@ -467,7 +650,7 @@
     </div>
 </div>
 
-{{-- 4. Referral Modal --}}
+{{-- Referral Modal --}}
 <div id="referralModal" class="fixed inset-0 bg-black/60 z-50 hidden">
     <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closeReferralModal()}">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[95vh] overflow-y-auto p-6" onclick="event.stopPropagation()">
@@ -512,147 +695,9 @@
     </div>
 </div>
 
-<div id="petProfileModal" class="fixed inset-0 bg-black/60 z-50 hidden">
-  <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closePetProfileModal()}">
-    <div class="bg-white rounded-xl shadow-2xl w-[600px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
-      <div class="flex items-center justify-between px-4 py-3 border-b">
-        <h3 class="font-bold text-lg text-gray-800">Pet Profile</h3>
-        <button type="button" onclick="closePetProfileModal()" class="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded-md"><i class="fas fa-times mr-1"></i>Close</button>
-      </div>
-      <div class="p-6 space-y-4">
-        <div class="w-full rounded-lg border bg-gray-50 flex items-center justify-center overflow-hidden">
-          @if(!empty($visit->pet->pet_photo))
-            <img src="{{ asset('storage/'.$visit->pet->pet_photo) }}" alt="{{ $visit->pet->pet_name }}" class="w-full h-80 object-cover"/>
-          @else
-            <div class="h-80 w-full flex items-center justify-center text-gray-400 text-lg">
-              <i class="fas fa-paw text-6xl"></i>
-            </div>
-          @endif
-        </div>
-
-        <div class="bg-white rounded-lg border p-4">
-          <div class="font-semibold text-gray-800 text-lg mb-3 flex items-center gap-2">
-            <i class="fas fa-dog text-blue-600"></i> Pet Information
-          </div>
-          <div class="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span class="text-gray-500">Name:</span>
-              <div class="font-medium text-gray-800">{{ $visit->pet->pet_name ?? '—' }}</div>
-            </div>
-            <div>
-              <span class="text-gray-500">Species:</span>
-              <div class="font-medium text-gray-800">{{ $visit->pet->pet_species ?? '—' }}</div>
-            </div>
-            <div>
-              <span class="text-gray-500">Breed:</span>
-              <div class="font-medium text-gray-800">{{ $visit->pet->pet_breed ?? '—' }}</div>
-            </div>
-            <div>
-              <span class="text-gray-500">Gender:</span>
-              <div class="font-medium text-gray-800">{{ $visit->pet->pet_gender ?? '—' }}</div>
-            </div>
-            <div>
-              <span class="text-gray-500">Age:</span>
-              <div class="font-medium text-gray-800">{{ $visit->pet->pet_age ?? '—' }}</div>
-            </div>
-            <div>
-              <span class="text-gray-500">Weight:</span>
-              <div class="font-medium text-gray-800">{{ $visit->weight ? number_format($visit->weight, 2).' kg' : '—' }}</div>
-            </div>
-            <div class="col-span-2">
-              <span class="text-gray-500">Temperature:</span>
-              <div class="font-medium text-gray-800">{{ $visit->temperature ? number_format($visit->temperature, 1).' °C' : '—' }}</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-lg border p-4">
-          <div class="font-semibold text-gray-800 text-lg mb-3 flex items-center gap-2">
-            <i class="fas fa-user text-green-600"></i> Owner Information
-          </div>
-          <div class="space-y-2 text-sm">
-            <div>
-              <span class="text-gray-500">Name:</span>
-              <div class="font-medium text-gray-800">{{ $visit->pet->owner->own_name ?? '—' }}</div>
-            </div>
-            <div>
-              <span class="text-gray-500">Contact:</span>
-              <div class="font-medium text-gray-800">{{ $visit->pet->owner->own_contactnum ?? '—' }}</div>
-            </div>
-            <div>
-              <span class="text-gray-500">Location:</span>
-              <div class="font-medium text-gray-800">{{ $visit->pet->owner->own_location ?? '—' }}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div id="medicalHistoryModal" class="fixed inset-0 bg-black/60 z-50 hidden">
-  <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closeMedicalHistoryModal()}">
-    <div class="bg-white rounded-xl shadow-2xl w-[900px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
-      <div class="flex items-center justify-between px-4 py-3 border-b">
-        <h3 class="font-bold text-lg text-gray-800 flex items-center gap-2">
-          <i class="fas fa-history text-orange-600"></i> 
-          Complete Medical History - {{ $visit->pet->pet_name ?? 'Pet' }}
-        </h3>
-        <button type="button" onclick="closeMedicalHistoryModal()" class="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded-md"><i class="fas fa-times mr-1"></i>Close</button>
-      </div>
-      <div class="p-6">
-        <div class="space-y-4 max-h-[75vh] overflow-y-auto">
-          @forelse($petMedicalHistory as $record)
-            <div class="border-l-4 pl-4 py-3 {{ $record->diagnosis ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-gray-50' }} rounded-r-lg">
-              <div class="flex items-center justify-between mb-2">
-                <div class="font-semibold text-gray-800 text-base">
-                  {{ \Carbon\Carbon::parse($record->visit_date)->format('F j, Y') }}
-                </div>
-                @if(!empty($record->service_type))
-                  <span class="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded">{{ $record->service_type }}</span>
-                @endif
-              </div>
-              
-              @if($record->diagnosis)
-                <div class="mb-2">
-                  <span class="text-xs font-semibold text-gray-600">Diagnosis:</span>
-                  <div class="text-sm text-gray-800">{{ $record->diagnosis }}</div>
-                </div>
-              @endif
-
-              @if($record->treatment)
-                <div class="mb-2">
-                  <span class="text-xs font-semibold text-gray-600">Treatment:</span>
-                  <div class="text-sm text-gray-800">{{ $record->treatment }}</div>
-                </div>
-              @endif
-
-              @if($record->medication)
-                <div class="mb-2">
-                  <span class="text-xs font-semibold text-gray-600">Medication:</span>
-                  <div class="text-sm text-blue-700">{{ $record->medication }}</div>
-                </div>
-              @endif
-
-              @if(!$record->diagnosis && !$record->treatment)
-                <div class="text-sm text-gray-600 italic">Routine Visit</div>
-              @endif
-            </div>
-          @empty
-            <div class="text-center py-8">
-              <i class="fas fa-clipboard-list text-gray-300 text-5xl mb-3"></i>
-              <p class="text-gray-500 italic">No medical history on record.</p>
-            </div>
-          @endforelse
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script>
     // Global Data
-    let availablePrescriptionProducts = @json($allProducts);
+    let availablePrescriptionProducts = @json($allProducts ?? []);
     let activityMedicationCounter = 0;
     
     // --- General Modals ---
@@ -891,6 +936,8 @@
     // Toast notification function
     function showToast(type, message) {
         const container = document.getElementById('toastContainer');
+        if(!container) return; // Prevent error if container is missing
+        
         const toast = document.createElement('div');
         toast.className = `toast-notification ${type === 'success' ? 'toast-success' : 'toast-error'}`;
         
@@ -914,6 +961,9 @@
         }, 3000);
     }
 </script>
+
+{{-- Added the toast container div --}}
+<div id="toastContainer" class="toast-container"></div>
 
 <style>
 /* Add necessary styles for the toast container if not already in your CSS */

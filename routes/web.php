@@ -335,6 +335,10 @@ Route::post('/billing/pay/{bill}', [BillingController::class, 'payBilling'])->na
 Route::get('/sales/billing/{id}', [SalesManagementController::class, 'showBilling'])->name('sales.billing.show');
 Route::get('/sales/billing/{id}/pdf', [SalesController::class, 'generateBillingPDF'])->name('sales.billing.pdf');
 
+Route::get('/api/products/available', [SalesManagementController::class, 'getAvailableProducts'])->middleware('auth');
+
+// Update the existing billing pay route or add if it doesn't exist
+Route::post('/sales/billing/{id}/pay', [SalesManagementController::class, 'markAsPaid'])->middleware('auth')->name('sales.billing.pay');
 ///Route::get('/prescriptions', [PrescriptionController::class, 'index'])->name('prescriptions.index');
 //Route::post('/prescriptions', [PrescriptionController::class, 'store'])->name('prescriptions.store');
 //Route::get('/prescriptions/{id}/edit', [PrescriptionController::class, 'edit'])->name('prescriptions.edit');
@@ -468,8 +472,10 @@ Route::get('/sales/print-transaction/{id}', [SalesManagementController::class, '
 Route::get('/sales/export', [SalesManagementController::class, 'export'])->name('sales.export');
 Route::get('/sales/billing/{id}/receipt', [SalesManagementController::class, 'showReceipt'])->name('sales.billing.receipt');
 Route::post('/sales/billing/{id}/pay', [SalesManagementController::class, 'markAsPaid'])->name('sales.billing.pay');
-
-
+Route::post('/sales/billing/{billing}/add-product', [SalesManagementController::class, 'addProductToBilling'])->name('sales.billing.addProduct');
+// Add this to your routes/web.php
+// NEW - Use this
+Route::post('/sales/billing/{billId}/add-products', [SalesManagementController::class, 'saveProductsToBilling'])->name('sales.billing.addProducts');
 Route::get('/sms-settings', [SMSSettingsController::class, 'index'])->name('sms-settings.index');
 Route::put('/sms-settings', [SMSSettingsController::class, 'update'])->name('sms-settings.update');
 Route::post('/sms-settings/test', [SMSSettingsController::class, 'testSMS'])->name('sms-settings.test');
