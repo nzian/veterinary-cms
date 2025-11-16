@@ -14,6 +14,10 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
                      <h2 class="font-bold text-xl">Users</h2>
                 </button>
+                <button id="referralCompaniesTab" onclick="switchTab('referralCompanies')" 
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                     <h2 class="font-bold text-xl">Referral Companies</h2>
+                </button>
             </nav>
         </div>
 
@@ -212,6 +216,111 @@
                 </table>
             </div>
         </div>
+        {{-- Referral Companies Tab Content --}}
+        <div id="referralCompaniesContent" class="tab-content hidden">
+            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
+                <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
+                    <label for="referralCompaniesPerPage" class="text-sm text-black">Show</label>
+                    <select name="perPage" id="referralCompaniesPerPage" onchange="this.form.submit()"
+                        class="border border-gray-400 rounded px-2 py-1 text-sm">
+                        @foreach ([10, 20, 50, 100, 'all'] as $limit)
+                        <option value="{{ $limit }}" {{ request('perPage') == $limit ? 'selected' : '' }}>
+                            {{ $limit === 'all' ? 'All' : $limit }}
+                        </option>
+                        @endforeach
+                    </select>
+                    <span>referral companies</span>
+                </form>
+               <div class="relative">
+                   <input type="search" id="referralCompaniesSearch" placeholder="Search referral companies..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                   <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+               </div>
+                 <button onclick="openAddReferralCompanyModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
+                        + Add Referral Company
+                    </button>
+            </div>
+            <br>
+
+            <div class="overflow-x-auto">
+                <table class="w-full table-auto text-sm border text-center">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="border px-2 py-2">#</th>
+                            <th class="border px-2 py-2">Company Name</th>
+                            <th class="border px-2 py-2">Address</th>
+                            <th class="border px-2 py-2">Contact Number</th>
+                            <th class="border px-2 py-2">Email</th>
+                            <th class="border px-2 py-2">Website</th>   
+                            <th class="border px-2 py-2">Branch</th>
+                            <th class="border px-2 py-2">Status</th>
+                            <th class="border px-2 py-2">Contact Person</th>
+                            <th class="border px-2 py-2">Contact Person Number</th>
+                            <th class="border px-2 py-2">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($referralCompanies as $index => $company)
+                        @php
+                            $isActive = $company->is_active;
+                            $statusClass = $isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                            $statusText = $isActive ? 'Active' : 'Inactive';
+                        @endphp
+                        <tr class="hover:bg-gray-50">
+                            <td class="border px-2 py-2">{{ $index + 1 }}</td>
+                            <td class="border px-2 py-2">{{ $company->name }}</td>
+                            <td class="border px-2 py-2">{{ $company->address }}</td>
+                          
+                            <td class="border px-2 py-2 capitalize">{{ $company->contact_number }}</td>
+                            <td class="border px-2 py-2 capitalize">{{ $company->email }}</td>
+                            <td class="border px-2 py-2">{{ $company->website }}</td>   
+                            <td class="border px-2 py-2">{{ $company->branch->branch_name ?? 'All Branches'}}</td>
+                            <td class="border px-2 py-2">
+                                <span class="text-xs px-2 py-1 rounded-full font-medium {{ $statusClass }}">
+                                    {{ $statusText }}
+                                </span>
+                            </td>
+                            <td class="border px-2 py-2 text-xs">
+                               {{ $company->contact_person }}
+                            </td>
+                            <td class="border px-2 py-2 text-xs">
+                               {{ $company->contact_person_number }}
+                            </td>
+                            <td class="border px-2 py-1">
+                                <div class="flex justify-center items-center gap-1">
+                                    <button
+                                    class="editReferralCompanyBtn bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs"
+                                        data-id="{{ $company->id }}" data-name="{{ $company->name }}"
+                                        data-email="{{ $company->email }}" data-contact="{{ $company->contact_number }}" data-address="{{$company->address}}"
+                                        data-website="{{ $company->website }}" data-description="{{ $company->description }}" data-contact-person="{{$company->contact_person}}" data-contact-person-number="{{ $company->contact_person_number }}"
+                                        data-branch-id="{{ $company->branch_id }}" title="Edit">
+                                        <i class="fas fa-pen"></i> 
+                                    </button>
+                                    <button onclick='openReferralCompanyModal(@json($company))'
+                                        class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="View">
+                                        <i class="fas fa-eye"></i> 
+                                    </button>
+                                    <form action="{{ route('referralCompany.destroy', $company->id) }}" method="POST"
+                                        onsubmit="return confirm('Delete this company?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit"
+                                            class="bg-[#f44336] text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs"title="Delete">
+                                            <i class="fas fa-trash"></i> 
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="10" class="text-center text-gray-500 py-4">No Referral Company found.</td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+            
     </div>
 </div>
 
@@ -612,6 +721,192 @@
     </div>
 </div>
 
+{{-- Referral Company Modals --}}
+<!-- Add Referral Company Modal (From Referral Company Tab) -->
+<div id="referralCompanyModal" class="fixed inset-0 flex justify-center items-center hidden z-50">
+    <div class="bg-white w-full max-w-lg p-6 rounded shadow-lg relative">
+        <h3 class="text-lg font-semibold text-[#0f7ea0] mb-4">Add New Referral Company</h3>
+        <form action="{{ route('referralCompany.store') }}" method="POST">
+            @csrf
+
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Company Name*</label>
+                <input type="text" name="name" required class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Company Address*</label>
+                <input type="text" name="address" required class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Company Description</label>
+                <input type="text" name="description" class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Company Email*</label>
+                <input type="email" name="email" required class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+             <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Website</label>
+                <input type="text" name="website" class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Contact Number</label>
+                <input type="text" name="contact_number" required class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+             <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Contact Person</label>
+                <input type="text" name="contact_person" class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+             <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Contact Person Number</label>
+                <input type="text" name="contact_person_number" class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+
+
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Branch</label>
+                <select name="branch_id" id="branch_id" required class="w-full border rounded px-2 py-1 text-sm">
+                    <option value="">Select Branch</option>
+                    @forelse($branches as $branch)
+                        <option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>
+                    @empty
+                        <option disabled>No branches found</option>
+                    @endforelse
+                </select>
+            </div>
+
+            <div class="flex justify-end space-x-2 mt-4">
+                <button type="button" class="px-4 py-1 bg-gray-300 rounded text-sm hover:bg-gray-400"
+                    onclick="closeReferralCompanyModal()">Cancel</button>
+                <button type="submit"
+                    class="px-4 py-1 bg-[#0f7ea0] text-white rounded text-sm hover:bg-[#0d6b85]">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit referral company Modal -->
+<div id="editReferralCompanyModal" class="fixed inset-0 flex justify-center items-center hidden z-50">
+    <div class="bg-white w-full max-w-lg p-6 rounded shadow-lg relative">
+        <h3 class="text-lg font-semibold text-[#0f7ea0] mb-4">Edit Referral Company</h3>
+        <form id="editReferralCompanyForm" method="POST">
+            @csrf
+            @method('PUT')
+
+            <input type="hidden" name="referral_company_id" id="edit_referral_company_id">
+
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Company Name</label>
+                <input type="text" name="referral_company_name" id="edit_referral_company_name" required
+                    class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+
+             <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Company address</label>
+                <input type="text" name="referral_company_address" id="edit_referral_company_address" required
+                    class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+             <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Company description</label>
+                <input type="text" name="referral_company_description" id="edit_referral_company_description"
+                    class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+
+             <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Website</label>
+                <input type="email" name="referral_company_website" id="edit_referral_company_website"
+                    class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Email</label>
+                <input type="email" name="referral_company_email" id="edit_referral_company_email" required
+                    class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Contact Number</label>
+                <input type="text" name="referral_company_contact" id="edit_referral_company_contact" required
+                    class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+              <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Contact Person</label>
+                <input type="text" name="referral_company_contact_person" id="edit_referral_company_contact_person"
+                    class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+              <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Conatct Person Number</label>
+                <input type="text" name="referral_company_contact_person_number" id="edit_referral_company_contact_person_number"
+                    class="w-full border rounded px-2 py-1 text-sm">
+            </div>
+
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Branch</label>
+                <select name="branch_id" id="edit_referral_company_branch" required class="w-full border rounded px-2 py-1 text-sm">
+                    <option value="">Select Branch</option>
+                    @foreach($branches as $branch)
+                        <option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="flex justify-end space-x-2 mt-4">
+                <button type="button" class="px-4 py-1 bg-gray-300 rounded text-sm hover:bg-gray-400"
+                    onclick="closeEditReferralCompanyModal()">Cancel</button>
+                <button type="submit" class="px-4 py-1 bg-[#0f7ea0] text-white rounded text-sm hover:bg-[#0d6b85]">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+<!-- View Referral company -->
+<div id="viewReferralCompanyModal" class="fixed inset-0 flex justify-center items-center hidden z-50">
+    <div class="bg-white p-6 rounded shadow w-full max-w-6xl max-h-[90vh] overflow-y-auto relative">
+        <h2 class="text-lg font-semibold text-[#0f7ea0] mb-4">Referral company details</h2>
+        
+        <!-- Branch Information Section -->
+        <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+            <h3 class="text-md font-semibold text-gray-800 mb-3">Company Information</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                    <p class="text-gray-600">Name:</p>
+                    <p class="font-medium" id="view_referral_company_name"></p>
+                </div>
+                <div>
+                    <p class="text-gray-600">Address:</p>
+                    <p class="font-medium" id="view_referral_company_address"></p>
+                </div>
+                <div>
+                    <p class="text-gray-600">Description:</p>
+                    <p class="font-medium" id="view_referral_company_description"></p>
+                </div>
+                <div>
+                    <p class="text-gray-600">Website:</p>
+                    <p class="font-medium" id="view_referral_company_website"></p>
+                </div>
+                <div>
+                    <p class="text-gray-600">Contact Person:</p>
+                    <p class="font-medium" id="view_referral_company_contact_person"></p>
+                </div>
+                 <div>
+                    <p class="text-gray-600">Contact Person Number:</p>
+                    <p class="font-medium" id="view_referral_company_contact_person_number"></p>
+                </div>
+                 <div>
+                    <p class="text-gray-600">Branch:</p>
+                    <p class="font-medium" id="view_referral_company_branch"></p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex justify-end mt-6 pt-4 border-t">
+            <button onclick="closeViewReferralCompanyModal()" class="px-4 py-2 bg-gray-300 rounded text-sm hover:bg-gray-400">Close</button>
+        </div>
+    </div>
+</div>
+
 <script>
 // Tab switching functionality
 function switchTab(tabName) {
@@ -678,9 +973,27 @@ function openViewModal(branch) {
     document.getElementById('viewBranchModal').classList.remove('hidden');
 }
 
+function openReferralCompanyModal(company) {
+    // Set referral company information
+    document.getElementById('view_referral_company_name').innerText = company.name;
+    document.getElementById('view_referral_company_address').innerText = company.address;
+    document.getElementById('view_referral_company_description').innerText = company.description || 'N/A';
+    document.getElementById('view_referral_company_website').innerText = company.website || 'N/A';
+    document.getElementById('view_referral_company_contact_person').innerText = company.contact_person || 'N/A';
+    document.getElementById('view_referral_company_contact_person_number').innerText = company.contact_person_number || 'N/A';
+    document.getElementById('view_referral_company_branch').innerText = company.branch_name || 'N/A';
+    
+    document.getElementById('viewReferralCompanyModal').classList.remove('hidden');
+}
+
+function closeViewReferralCompanyModal() {
+    document.getElementById('viewReferralCompanyModal').classList.add('hidden');
+}
+
 function closeViewModal() {
     document.getElementById('viewBranchModal').classList.add('hidden');
 }
+
 
 // Tab switching for branch modal
 function switchBranchTab(tabName) {
@@ -926,6 +1239,17 @@ function openAddModal() {
     document.getElementById('branchModal').classList.remove('hidden');
 }
 
+function openAddReferralCompanyModal() {
+    document.getElementById('referralCompanyModal').classList.remove('hidden');
+}
+function closeReferralCompanyModal() {
+    document.getElementById('referralCompanyModal').classList.add('hidden');
+}
+
+function closeEditReferralCompanyModal() {
+    document.getElementById('editReferralCompanyModal').classList.add('hidden');
+}
+
 function closeBranchModal() {
     document.getElementById('branchModal').classList.add('hidden');
 }
@@ -964,6 +1288,35 @@ function closeAddUserToBranchModal() {
 
 // DOM Ready Functions
 document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.editreferralCompanyBtn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            console.log('Edit Referral Company button clicked'); // Debug log
+            const id = this.dataset.id;
+            const name = this.dataset.name;
+            const address = this.dataset.address;
+            const description = this.dataset.description;
+            const website = this.dataset.website;
+            const email = this.dataset.email;
+            const contact = this.dataset.contact;
+            const contactPerson = this.dataset.contactPerson;
+            const contactPersonNumber = this.dataset.contactPersonNumber;
+            const branchId = this.dataset.branchId;
+
+            document.getElementById('edit_referral_company_id').value = id;
+            document.getElementById('edit_referral_company_name').value = name;
+            document.getElementById('edit_referral_company_address').value = address;
+            document.getElementById('edit_referral_company_description').value = description;
+            document.getElementById('edit_referral_company_website').value = website;
+            document.getElementById('edit_referral_company_email').value = email;
+            document.getElementById('edit_referral_company_contact').value = contact;
+            document.getElementById('edit_referral_company_contact_person').value = contactPerson;
+            document.getElementById('edit_referral_company_contact_person_number').value = contactPersonNumber;
+            document.getElementById('edit_referral_company_branch').value = branchId;
+
+            document.getElementById('editReferralCompanyForm').action = `/referral-companies/${id}`;
+            document.getElementById('editReferralCompanyModal').classList.remove('hidden');
+        });
+    });
     // Edit branch buttons
     document.querySelectorAll('.editBranchBtn').forEach(btn => {
         btn.addEventListener('click', function () {
@@ -1144,6 +1497,14 @@ function switchTab(tabName) {
         tab: 'users',
         perPageSelectId: 'userPerPage',
         formSelector: '#userContent form[action]'
+    });
+     // Users
+    setupTableFilter({
+        inputId: 'referralCompanySearch',
+        tableSelector: '#referralCompanyContent table',
+        tab: 'referralCompanies',
+        perPageSelectId: 'referralCompanyPerPage',
+        formSelector: '#referralCompanyContent form[action]'
     });
 })();
 </script>
