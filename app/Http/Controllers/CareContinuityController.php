@@ -478,4 +478,157 @@ class CareContinuityController extends Controller
             return back()->with('error', 'Failed to create visit from appointment.');
         }
     }
+
+    /**
+     * Create a Visit from a Referral
+     */
+    public function createVisitFromReferral(Request $request, $id)
+    {
+        // Define the target tab for redirects (both success and failure)
+        $referralsTab = 'referrals';
+        $visitsTab = 'visits';
+        $referralsRedirect = route('care-continuity.index', ['active_tab' => $referralsTab]);
+        $visitsRedirect = route('medical.index', ['active_tab' => $visitsTab]);
+
+        try {
+            $referral = Referral::with(['appointment.pet', 'appointment.user', 'appointment.services'])->findOrFail($id);
+            
+            if (!$referral->appointment) {
+                // FIX 1: Ensure explicit redirect back to the referral tab on error
+                return redirect($referralsRedirect)->with('error', 'No associated appointment found for this referral.');
+            }
+
+            $appointment = $referral->appointment;
+            $pet = $appointment->pet;
+            $user = $appointment->user ?? Auth::user();
+
+            // Check if appointment status is arrived
+            if (strtolower($appointment->appoint_status) !== 'arrived') {
+                $message = 'Visit can only be created when appointment status is Arrived.';
+                if ($request->expectsJson()) {
+                    return response()->json(['success' => false, 'message' => $message], 422);
+                }
+                // FIX 1: Ensure explicit redirect back to the referral tab on error
+                return redirect($referralsRedirect)->with('error', $message);
+            }
+
+            // Prevent duplicate visit creation (same pet, same day)
+            $existing = Visit::whereDate('visit_date', Carbon::today())
+                ->where('pet_id', $pet->pet_id)
+                ->first();
+                
+            if ($existing) {
+                // Already existing, redirect to visits tab
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => true,
+                        'visit_id' => $existing->visit_id,
+                        'redirect' => $visitsRedirect,
+                        'message' => 'Visit already exists for today. Redirecting to Visits.'
+                    ]);
+                }
+                return redirect($visitsRedirect)->with('success', 'Visit already exists for today.');
+            }
+
+            // Create the visit using the same approach as in MedicalManagementController
+            $visit = Visit::create([
+                'visit_date' => Carbon::today()->toDateString(),
+                'pet_id' => $pet->pet_id,
+                'user_id' => $user->user_id,
+                'patient_type' => 'outpatient',
+                'visit_status' => 'catered', // Set status to Catered
+                'workflow_status' => 'Completed',
+                'referral_id' => $referral->ref_id, // Link to the referral
+            ]);
+
+            // Update the pet's weight and temperature if available
+            if ($appointment->weight) {
+                $pet->pet_weight = $appointment->weight;
+            }
+            if ($appointment->temperature) {
+                $pet->pet_temperature = $appointment->temperature;
+            }
+            $pet->save();
+
+            // Get services from the appointment if available
+            $serviceIds = [];
+            if ($appointment->services && $appointment->services->count() > 0) {
+                $serviceIds = $appointment->services->pluck('serv_id')->toArray();
+            } else {
+                // Fallback to inferring services from appointment type/description
+                $hay = strtolower(trim(($appointment->appoint_description ?? '') . ' ' . ($appointment->appoint_type ?? '')));
+                $map = [
+                    'vaccination' => 'vaccination',
+                    'deworm' => 'deworming',
+                    'groom' => 'grooming',
+                    'check' => 'check up',
+                    'consult' => 'check up',
+                    'diagnostic' => 'diagnostics',
+                    'surg' => 'surgical',
+                    'emergency' => 'emergency',
+                    'board' => 'boarding',
+                ];
+                $match = null;
+                foreach ($map as $needle => $servType) {
+                    if ($hay !== '' && str_contains($hay, $needle)) { 
+                        $match = $servType; 
+                        break; 
+                    }
+                }
+                if ($match) {
+                    $svc = \App\Models\Service::whereRaw('LOWER(serv_type) = ?', [$match])->first();
+                    if ($svc) { 
+                        $serviceIds = [$svc->serv_id]; 
+                    }
+                }
+            }
+
+            // Attach services to the visit
+            if (!empty($serviceIds)) {
+                $visit->services()->sync($serviceIds);
+                // Update visit_service_type for display
+                try {
+                    $types = \App\Models\Service::whereIn('serv_id', $serviceIds)
+                        ->pluck('serv_type')
+                        ->filter()
+                        ->unique()
+                        ->values()
+                        ->all();
+                    
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
+                        $visit->visit_service_type = !empty($types) ? implode(', ', $types) : null;
+                    }
+                } catch (\Throwable $e) {
+                    \Log::warning('Failed to set visit_service_type: '.$e->getMessage());
+                }
+            }
+
+            // Update appointment status to completed
+            $appointment->update(['appoint_status' => 'completed']);
+            
+            // Update the referral status
+            $referral->update(['ref_status' => 'completed']);
+
+            // Redirect to the medical management visits tab
+            $redirect = route('medical.index', ['active_tab' => 'visits']);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'visit_id' => $visit->visit_id,
+                    'redirect' => $redirect,
+                    'message' => 'Visit created and marked as Catered.'
+                ]);
+            }
+
+            return redirect($redirect)->with('success', 'Visit created and marked as Catered.');
+
+        } catch (\Exception $e) {
+            Log::error('Create visit from referral failed: ' . $e->getMessage());
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Failed to create visit'], 500);
+            }
+            return back()->with('error', 'Failed to create visit from referral: ' . $e->getMessage());
+        }
+    }
 }

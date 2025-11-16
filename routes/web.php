@@ -480,7 +480,9 @@ Route::get('/sms-settings', [SMSSettingsController::class, 'index'])->name('sms-
 Route::put('/sms-settings', [SMSSettingsController::class, 'update'])->name('sms-settings.update');
 Route::post('/sms-settings/test', [SMSSettingsController::class, 'testSMS'])->name('sms-settings.test');
 
-
+Route::post('/visits/{visit}/services/{service}/complete', [MedicalManagementController::class, 'completeService'])
+    ->name('visits.services.complete')
+    ->middleware('auth');
 
 Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
 Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllRead');
@@ -551,4 +553,5 @@ Route::prefix('care-continuity')->name('care-continuity.')->group(function () {
     Route::post('/referrals/store', [CareContinuityController::class, 'storeReferral'])->name('referrals.store');
     Route::get('/referrals/{id}', [CareContinuityController::class, 'showReferral'])->name('referrals.show');
     Route::delete('/referrals/{id}', [CareContinuityController::class, 'destroyReferral'])->name('referrals.destroy');
+    Route::post('/referrals/{id}/create-visit', [CareContinuityController::class, 'createVisitFromReferral'])->name('referrals.create-visit');
 });

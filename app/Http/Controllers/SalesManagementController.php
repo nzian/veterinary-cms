@@ -10,6 +10,7 @@ use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 
 class SalesManagementController extends Controller
@@ -24,13 +25,24 @@ class SalesManagementController extends Controller
         }
 
         // Filter billings by branch through visit -> user relationship
+        // Also include billings that might not have a visit.user relationship
         $billings = Billing::with([
             'visit.pet.owner', 
             'visit.services',
-            'visit.user.branch'
+            'visit.user.branch',
+            'orders.product'
         ])
-        ->whereHas('visit.user', function($q) use ($activeBranchId) {
-            $q->where('branch_id', $activeBranchId);
+        ->where(function($query) use ($activeBranchId) {
+            // Try to filter by visit.user.branch_id
+            $query->whereHas('visit.user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            })
+            // Also include billings with branch_id directly set (if column exists)
+            ->orWhere(function($q) use ($activeBranchId) {
+                if (\Schema::hasColumn('tbl_bill', 'branch_id')) {
+                    $q->where('branch_id', $activeBranchId);
+                }
+            });
         })
         ->orderBy('bill_date', 'desc')
         ->paginate(10);
@@ -152,6 +164,22 @@ class SalesManagementController extends Controller
             'averageSale'
         ));
     }
+
+    public function generateBill(Visit $visit)
+{
+    if ($visit->service_status !== 'completed') {
+        return back()->with('error', 'Cannot generate bill until all services are completed');
+    }
+
+    if ($visit->billing) {
+        return redirect()->route('billings.show', $visit->billing->bill_id);
+    }
+
+    $billing = $visit->generateBilling();
+    
+    return redirect()->route('billings.show', $billing->bill_id)
+        ->with('success', 'Billing generated successfully');
+}
     public function markAsPaid(Request $request, $billId)
     {
         $validated = $request->validate([

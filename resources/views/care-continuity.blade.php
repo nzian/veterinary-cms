@@ -203,7 +203,7 @@
             </button>
         @endif
 
-        @if(strtolower($appointment->appoint_status) === 'arrived' && !($todayVisitPetIds ?? collect())->contains($appointment->pet_id))
+        @if(strtolower($appointment->appoint_status) === 'arrived')
             <form action="{{ route('care-continuity.appointments.create-visit', $appointment->appoint_id) }}" method="POST" class="inline">
                 @csrf
                 <button type="submit"
@@ -487,6 +487,14 @@
                 </button>
             </form>
         @endif
+
+        <form action="{{ route('care-continuity.referrals.create-visit', $referral->ref_id) }}" method="POST" class="inline">
+            @csrf
+            <button type="submit"
+                class="bg-emerald-500 text-white px-2 py-1 rounded hover:bg-emerald-600 flex items-center gap-1 text-xs" title="Add Visit">
+                <i class="fas fa-notes-medical"></i>
+            </button>
+        </form>
     </div>
 </td>
                             </tr>

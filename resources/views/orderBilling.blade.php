@@ -106,7 +106,18 @@
                             @php
                                 $servicesTotal = 0;
                                 if ($billing->visit && $billing->visit->services) {
-                                    $servicesTotal = $billing->visit->services->sum('serv_price');
+                                    // Calculate services total from pivot table (quantity * unit_price) or use total_price if available
+                                    $servicesTotal = $billing->visit->services->sum(function($service) {
+                                        $quantity = $service->pivot->quantity ?? 1;
+                                        $unitPrice = $service->pivot->unit_price ?? $service->serv_price ?? 0;
+                                        $totalPrice = $service->pivot->total_price ?? ($unitPrice * $quantity);
+                                        return $totalPrice;
+                                    });
+                                    
+                                    // Fallback: if pivot data is missing, use orders from billing
+                                    if ($servicesTotal == 0 && $billing->orders) {
+                                        $servicesTotal = $billing->orders->where('product.prod_category', 'Service')->sum('ord_total');
+                                    }
                                 }
 
                                 // Calculate prescription total - Only include available products with valid prices
@@ -187,8 +198,30 @@
                                         <div class="mb-2">
                                             <div class="font-semibold text-blue-600 text-xs mb-1">SERVICES:</div>
                                             @foreach($billing->visit->services as $service)
+                                                @php
+                                                    $quantity = $service->pivot->quantity ?? 1;
+                                                    $unitPrice = $service->pivot->unit_price ?? $service->serv_price ?? 0;
+                                                    $totalPrice = $service->pivot->total_price ?? ($unitPrice * $quantity);
+                                                @endphp
                                                 <span class="block text-xs">
-                                                    {{ $service->serv_name ?? 'N/A' }} - ₱{{ number_format($service->serv_price ?? 0, 2) }}
+                                                    {{ $service->serv_name ?? 'N/A' }} 
+                                                    @if($quantity > 1)
+                                                        ({{ $quantity }}x)
+                                                    @endif
+                                                    - ₱{{ number_format($totalPrice, 2) }}
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    @elseif($billing->orders && $billing->orders->where('product.prod_category', 'Service')->count() > 0)
+                                        <div class="mb-2">
+                                            <div class="font-semibold text-blue-600 text-xs mb-1">SERVICES:</div>
+                                            @foreach($billing->orders->where('product.prod_category', 'Service') as $order)
+                                                <span class="block text-xs">
+                                                    {{ $order->product->prod_name ?? 'N/A' }} 
+                                                    @if($order->ord_quantity > 1)
+                                                        ({{ $order->ord_quantity }}x)
+                                                    @endif
+                                                    - ₱{{ number_format($order->ord_total ?? 0, 2) }}
                                                 </span>
                                             @endforeach
                                         </div>

@@ -10,6 +10,7 @@ class VisitService extends Pivot
     
     protected $casts = [
         'skin_issues' => 'array',
+        'completed_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime'
     ];
@@ -19,6 +20,28 @@ class VisitService extends Pivot
         'serv_id',
         'coat_condition',
         'skin_issues',
-        'notes'
+        'notes',
+        'status',
+        'completed_at'
     ];
+
+    public function service()
+    {
+        return $this->belongsTo(Service::class, 'serv_id');
+    }
+
+    public function visit()
+    {
+        return $this->belongsTo(Visit::class);
+    }
+
+    public function complete()
+    {
+        $this->status = 'completed';
+        $this->completed_at = now();
+        $this->save();
+
+        // Check if all services are completed
+        $this->visit->checkAllServicesCompleted();
+    }
 }
