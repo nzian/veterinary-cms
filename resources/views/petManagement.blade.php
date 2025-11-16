@@ -103,31 +103,29 @@
         
        {{-- Pet Owners Tab Content (Now First) --}}
 <div id="owners-content" class="tab-content {{ request('tab', 'owners') != 'owners' ? 'hidden' : '' }}">
-    <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
-        <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
-        <input type="hidden" name="tab" value="owners">
-        <label for="ownersPerPage" class="text-sm text-black">Show</label>
-        <select name="ownersPerPage" id="ownersPerPage" onchange="this.form.submit()"
-            class="border border-gray-400 rounded px-2 py-1 text-sm">
-            @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                <option value="{{ $limit }}" {{ request('ownersPerPage') == $limit ? 'selected' : '' }}>
-                    {{ $limit === 'all' ? 'All' : $limit }}
-                </option>
-            @endforeach
-        </select>
-        <span>entries</span>
-    </form>
-    <div class="flex items-center gap-2 flex-wrap">
-        <div class="relative">
-            <input type="search" id="ownersSearch" placeholder="Search owners..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+    <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+        <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
+            <input type="hidden" name="tab" value="owners">
+            <label for="ownersPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
+            <select name="ownersPerPage" id="ownersPerPage" onchange="this.form.submit()" 
+                class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                @foreach ([10, 20, 50, 100, 'all'] as $limit)
+                    <option value="{{ $limit }}" {{ request('ownersPerPage') == $limit ? 'selected' : '' }}>
+                        {{ $limit === 'all' ? 'All' : $limit }}
+                    </option>
+                @endforeach
+            </select>
+            <span class="whitespace-nowrap">entries</span>
+        </form>
+        <div class="relative flex-1 min-w-[200px] max-w-xs">
+            <input type="search" id="ownersSearch" placeholder="Search owners..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
             <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
         </div>
         @if(hasPermission('add_owner', $can))
-            <button onclick="openAddOwnerModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
+            <button onclick="openAddOwnerModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86] whitespace-nowrap">
                 + Add Pet Owner
             </button>
         @endif
-    </div>
 </div>
 
             <div class="overflow-x-auto mt-4">
@@ -225,28 +223,28 @@
 
         {{-- Pets Tab Content (Now Second) --}}
         <div id="pets-content" class="tab-content {{ request('tab') != 'pets' ? 'hidden' : '' }}">
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
-                <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
+            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="tab" value="pets">
-                    <label for="perPage" class="text-sm text-black">Show</label>
-                    <select name="perPage" id="perPage" onchange="this.form.submit()"
-                        class="border border-gray-400 rounded px-2 py-1 text-sm">
+                    <label for="perPage" class="whitespace-nowrap text-sm text-black">Show</label>
+                    <select name="perPage" id="perPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('perPage') == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
-                    <span>entries</span>
+                    <span class="whitespace-nowrap">entries</span>
                 </form>
-                <div class="relative">
-                    <input type="search" id="petsSearch" placeholder="Search pets..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                <div class="relative flex-1 min-w-[200px] max-w-xs">
+                    <input type="search" id="petsSearch" placeholder="Search pets..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
-                 {{-- 
-                <button onclick="openAddPetModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-                    + Add Pet
-                </button>--}}
+                @if(hasPermission('add_pet', $can))
+                    <button onclick="openAddPetModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86] whitespace-nowrap">
+                        + Add Pet
+                    </button>
+                @endif
             </div>
 
             <div class="overflow-x-auto mt-4">

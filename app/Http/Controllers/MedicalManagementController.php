@@ -738,9 +738,32 @@ class MedicalManagementController extends Controller
         $visitModel->workflow_status = 'Completed';
         
         $visitModel->save();
-        // Auto-generate billing
-        try { (new VisitBillingService())->createFromVisit($visitModel); } catch (\Throwable $e) { Log::warning('Billing creation failed: '.$e->getMessage()); }
+        try {
+        DB::beginTransaction();
         
+        // 1. Find the selected service's ID and Price
+        $selectedService = Service::where('serv_name', $validated['grooming_type'])->first();
+
+        if ($selectedService) {
+            // 2. Prepare sync data for the pivot table (assuming pivot has quantity/price fields)
+            $syncData = [
+                $selectedService->serv_id => [
+                    'quantity' => 1,
+                    'unit_price' => $selectedService->serv_price,
+                    'total_price' => $selectedService->serv_price,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            ];
+            
+            // 3. Sync the single service, detaching any others (crucial fix)
+            $visitModel->services()->sync($syncData);
+        } else {
+             Log::warning("Grooming save failed: Service name '{$validated['grooming_type']}' not found in tbl_serv.");
+             throw new \Exception("Selected grooming service not found.");
+        }
+
+        // 4. Update the Grooming Record (tbl_grooming_record)
         DB::table('tbl_grooming_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
             [
@@ -751,73 +774,95 @@ class MedicalManagementController extends Controller
                 'updated_at' => now(),
             ]
         );
+        
+        // 5. Update Visit Status
+        $visitModel->visit_status = 'arrived';
+        $visitModel->workflow_status = 'Completed';
+        $visitModel->save();
+
+        // 6. Auto-generate billing (will now only pick up the synced service)
+        try { (new VisitBillingService())->createFromVisit($visitModel); } catch (\Throwable $e) { Log::warning('Billing creation failed: '.$e->getMessage()); }
+
+        DB::commit();
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Error saving grooming record and billing: ' . $e->getMessage());
+        return back()->with('error', 'Failed to save grooming record and create bill: ' . $e->getMessage());
+    }
         // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
         return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', 'Grooming record saved and visit status marked **Completed**.');
     }
 
     public function saveBoarding(Request $request, $visitId)
-    {
-        $validated = $request->validate([
-            'checkin' => ['required','date'], 
-            'checkout' => ['nullable','date','after_or_equal:checkin'], 
-            'room' => ['nullable','string'],
-            'care_instructions' => ['nullable','string'], 
-            'monitoring_notes' => ['nullable','string'], 
-            'workflow_status' => ['nullable','string'],
-            'service_id' => ['required', 'exists:tbl_serv,serv_id'],
-            'total_days' => ['required', 'integer', 'min:1'],
-        ]);
-        
-        $visitModel = Visit::findOrFail($visitId);
-        
-        // Get the service to calculate total amount
-        $service = Service::findOrFail($validated['service_id']);
-        $totalAmount = $service->serv_price * $validated['total_days'];
-        
-        // Update visit status and workflow
-        $visitModel->visit_status = 'arrived';
-        $visitModel->workflow_status = 'Checked Out';
-        $visitModel->save();
-        
-        // Attach the service to the visit
-        $visitModel->services()->syncWithoutDetaching([
-            $validated['service_id'] => [
-                'quantity' => $validated['total_days'],
-                'unit_price' => $service->serv_price,
-                'total_price' => $totalAmount,
-                'created_at' => now(),
-                'updated_at' => now()
-            ]
-        ]);
-        
-        // Save boarding record
-        DB::table('tbl_boarding_record')->updateOrInsert(
-            ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
-            [
-                'check_in_date' => $validated['checkin'], 
-                'check_out_date' => $validated['checkout'], 
-                'room_no' => $validated['room'],
-                'feeding_schedule' => $validated['care_instructions'], 
-                'daily_notes' => $validated['monitoring_notes'],
-                'status' => 'Checked Out', 
-                'handled_by' => Auth::user()->user_name ?? null,
-                'total_days' => $validated['total_days'],
-                'total_amount' => $totalAmount,
-                'updated_at' => now(),
-            ]
-        );
-        
-        // Generate billing with the calculated amount
-        try { 
-            $billingService = new VisitBillingService();
-            $billingService->createFromVisit($visitModel); 
-        } catch (\Throwable $e) { 
-            Log::warning('Billing creation failed: '.$e->getMessage()); 
-        }
-        
-        return redirect()->route('medical.index', ['active_tab' => 'visits'])
-            ->with('success', 'Boarding record saved with '.$validated['total_days'].' days of boarding. Total amount: ₱'.number_format($totalAmount, 2));
+{
+    // 1. Validation: total_days is required for the duration calculation.
+    $validated = $request->validate([
+        'checkin' => ['required','date'], 
+        'checkout' => ['nullable','date','after_or_equal:checkin'], 
+        'room' => ['nullable','string'],
+        'care_instructions' => ['nullable','string'], 
+        'monitoring_notes' => ['nullable','string'], 
+        'workflow_status' => ['nullable','string'],
+        'service_id' => ['required', 'exists:tbl_serv,serv_id'],
+        'total_days' => ['required', 'integer', 'min:1'],
+        'daily_rate' => ['required', 'numeric', 'min:0'], // MUST be present and accurate (set by JS)
+    ]);
+    
+    $visitModel = Visit::findOrFail($visitId);
+    
+   $service = Service::findOrFail($validated['service_id']);
+    
+    // Total Amount = Daily Rate * Calculated Days
+    $dailyRate = (float) $validated['daily_rate'];
+    $totalDays = (int) $validated['total_days'];
+
+    $totalAmount = $dailyRate * $totalDays;
+    
+    // 3. Sync Service to Pivot Table (CRITICAL FOR BILLING)
+    $syncData = [
+        $validated['service_id'] => [
+            'quantity' => $validated['total_days'],     // <-- Total Days (e.g., 2)
+            'unit_price' => $service->serv_price,       // <-- Daily Rate (e.g., 250)
+            'total_price' => $totalAmount,              // <-- Total Cost (e.g., 500)
+            'created_at' => now(),
+            'updated_at' => now()
+        ]
+    ];
+    // This command ensures the billable service entry is accurate.
+    $visitModel->services()->sync($syncData); // <-- This is correct
+    // 4. Update visit status and workflow
+    $visitModel->visit_status = 'arrived';
+    $visitModel->workflow_status = 'Checked Out';
+    $visitModel->save();
+    
+    // 5. Save Boarding Record (FIXED: Omitting non-existent columns)
+    DB::table('tbl_boarding_record')->updateOrInsert(
+        ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
+        [
+            'check_in_date' => $validated['checkin'], 
+            'check_out_date' => $validated['checkout'], 
+            'room_no' => $request->input('room'), // Use input() for non-validated fields if needed
+            'feeding_schedule' => $request->input('care_instructions'), 
+            'daily_notes' => $request->input('monitoring_notes'),
+            'status' => 'Checked Out', 
+            'handled_by' => Auth::user()->user_name ?? null,
+            'total_days' => $totalDays, // Saved to boarding record for completeness
+            'updated_at' => now(),
+        ]
+    );
+    
+
+   try { 
+        $billingService = new \App\Services\VisitBillingService(); 
+        $billingService->createFromVisit($visitModel); 
+    } catch (\Throwable $e) { 
+        Log::warning('Billing creation failed: '.$e->getMessage()); 
     }
+    
+    return redirect()->route('medical.index', ['active_tab' => 'visits'])
+        ->with('success', 'Boarding record saved. Total billed amount: ₱'.number_format($totalAmount, 2));
+}
 
     public function saveDiagnostic(Request $request, $visitId)
     {

@@ -186,7 +186,9 @@
                 </div>
 
                 <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
-                <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
+<input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
+{{-- 💥 FIX 1: ADD HIDDEN FIELD FOR DAILY RATE --}}
+<input type="hidden" name="daily_rate" id="daily_rate_hidden" value="" />
             </form>
             </div>
         </div>
@@ -335,129 +337,147 @@
 </div>
 
 <script>
-  function openPetProfileModal() { 
-    const m = document.getElementById('petProfileModal'); 
-    if(m){ m.classList.remove('hidden'); } 
-  }
-  
-  function closePetProfileModal() { 
-    const m = document.getElementById('petProfileModal'); 
-    if(m){ m.classList.add('hidden'); } 
-  }
-
-  function openMedicalHistoryModal() { 
-    const m = document.getElementById('medicalHistoryModal'); 
-    if(m){ m.classList.remove('hidden'); } 
-  }
-  
-  function closeMedicalHistoryModal() { 
-    const m = document.getElementById('medicalHistoryModal'); 
-    if(m){ m.classList.add('hidden'); } 
-  }
-
-  // JAVASCRIPT FOR AUTO-CALCULATING DURATION AND BILLING
-  document.addEventListener('DOMContentLoaded', function () {
-    const checkinDate = document.getElementById('checkin_date');
-    const checkoutDate = document.getElementById('checkout_date');
-    const totalTimeDisplay = document.getElementById('total_time_display');
-    const totalDaysHidden = document.getElementById('total_days_hidden');
-    const boardingServiceSelect = document.getElementById('boarding_service_id');
-    
-    // Billing display elements
-    const dailyRateDisplay = document.getElementById('dailyRateDisplay');
-    const durationDisplay = document.getElementById('durationDisplay');
-    const totalAmountDisplay = document.getElementById('totalAmountDisplay');
-    const checkinDisplay = document.getElementById('checkinDisplay');
-    const checkoutDisplay = document.getElementById('checkoutDisplay');
-    const serviceTypeDisplay = document.getElementById('serviceTypeDisplay');
-
-    // Format date for display
-    function formatDateForDisplay(dateString) {
-        if (!dateString) return 'N/A';
-        const options = { 
-            year: 'numeric', 
-            month: 'short', 
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        };
-        return new Date(dateString).toLocaleString('en-US', options);
+    function openPetProfileModal() { 
+        const m = document.getElementById('petProfileModal'); 
+        if(m){ m.classList.remove('hidden'); } 
     }
     
-    // Calculate duration and update billing
-    function calculateBilling() {
-        const checkin = checkinDate.value ? new Date(checkinDate.value) : null;
-        const checkout = checkoutDate.value ? new Date(checkoutDate.value) : null;
-        const selectedService = boardingServiceSelect ? boardingServiceSelect.options[boardingServiceSelect.selectedIndex] : null;
-        const servicePrice = selectedService && selectedService.dataset.price ? parseFloat(selectedService.dataset.price) : 0;
-        const serviceName = selectedService ? selectedService.text.split('(')[0].trim() : '';
+    function closePetProfileModal() { 
+        const m = document.getElementById('petProfileModal'); 
+        if(m){ m.classList.add('hidden'); } 
+    }
 
-        // Update service type display
-        serviceTypeDisplay.value = serviceName || 'Not selected';
+    function openMedicalHistoryModal() { 
+        const m = document.getElementById('medicalHistoryModal'); 
+        if(m){ m.classList.remove('hidden'); } 
+    }
+    
+    function closeMedicalHistoryModal() { 
+        const m = document.getElementById('medicalHistoryModal'); 
+        if(m){ m.classList.add('hidden'); } 
+    }
+
+    // JAVASCRIPT FOR AUTO-CALCULATING DURATION AND BILLING
+    document.addEventListener('DOMContentLoaded', function () {
+        const checkinDate = document.getElementById('checkin_date');
+        const checkoutDate = document.getElementById('checkout_date');
+        const totalTimeDisplay = document.getElementById('total_time_display');
+        const totalDaysHidden = document.getElementById('total_days_hidden');
+        const boardingServiceSelect = document.getElementById('boarding_service_id');
         
-        // Update check-in/out displays
-        checkinDisplay.value = checkinDate.value ? formatDateForDisplay(checkinDate.value) : 'Not set';
-        checkoutDisplay.value = checkoutDate.value ? formatDateForDisplay(checkoutDate.value) : 'Not set';
+        // Billing display elements
+        const dailyRateDisplay = document.getElementById('dailyRateDisplay');
+        const durationDisplay = document.getElementById('durationDisplay');
+        const totalAmountDisplay = document.getElementById('totalAmountDisplay');
+        const checkinDisplay = document.getElementById('checkinDisplay');
+        const checkoutDisplay = document.getElementById('checkoutDisplay');
+        const serviceTypeDisplay = document.getElementById('serviceTypeDisplay');
         
-        // Calculate duration
-        if (checkin && checkout && checkout > checkin) {
-            const diffMs = checkout.getTime() - checkin.getTime();
-            const diffDays = diffMs / (1000 * 60 * 60 * 24);
-            const roundedDays = Math.ceil(diffDays); // Always round up to full days
-            
-            // Update duration display
-            const daysText = roundedDays === 1 ? 'day' : 'days';
-            totalTimeDisplay.value = `${roundedDays} ${daysText}`;
-            totalDaysHidden.value = roundedDays;
-            
-            // Calculate total amount
-            const totalAmount = servicePrice * roundedDays;
-            
-            // Update billing display
-            dailyRateDisplay.textContent = `₱${servicePrice.toFixed(2)}`;
-            durationDisplay.textContent = `${roundedDays} ${daysText}`;
-            totalAmountDisplay.textContent = `₱${totalAmount.toFixed(2)}`;
-            
-        } else {
-            // Reset values if dates are invalid
-            totalTimeDisplay.value = 'N/A';
-            totalDaysHidden.value = '';
-            dailyRateDisplay.textContent = '₱0.00';
-            durationDisplay.textContent = '0 days';
-            totalAmountDisplay.textContent = '₱0.00';
+        // Hidden input for the daily rate
+        const dailyRateHidden = document.getElementById('daily_rate_hidden');
+
+
+        // Format date for display
+        function formatDateForDisplay(dateString) {
+            if (!dateString) return 'N/A';
+            try {
+                const options = { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                };
+                return new Date(dateString).toLocaleString('en-US', options);
+            } catch (e) {
+                return 'Invalid Date';
+            }
         }
+        
+        // Calculate duration and update billing
+        function calculateBilling() {
+    const checkin = checkinDate.value ? new Date(checkinDate.value) : null;
+    const checkout = checkoutDate.value ? new Date(checkoutDate.value) : null;
+    const selectedService = boardingServiceSelect ? boardingServiceSelect.options[boardingServiceSelect.selectedIndex] : null;
+    
+    // Get price from the selected option's data attribute
+    const servicePrice = selectedService && selectedService.dataset.price ? parseFloat(selectedService.dataset.price) : 0;
+    const serviceName = selectedService ? selectedService.text.split('(')[0].trim() : '';
+
+    // Update service type display
+    serviceTypeDisplay.value = serviceName || 'Not selected';
+    
+    // Update check-in/out displays
+    checkinDisplay.value = checkinDate.value ? formatDateForDisplay(checkinDate.value) : 'Not set';
+    checkoutDisplay.value = checkoutDate.value ? formatDateForDisplay(checkoutDate.value) : 'Not set';
+    
+    // Set initial state for calculations
+    let totalDays = 0;
+    let totalAmount = 0;
+    
+    // Calculate duration
+    if (checkin && checkout && checkout > checkin) {
+        const diffMs = checkout.getTime() - checkin.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        // CRITICAL FIX: Use Math.ceil to round up to the next full day for billing
+        totalDays = Math.ceil(diffDays); 
+        
+        // Calculate total amount: Daily Rate * Total Days
+        totalAmount = servicePrice * totalDays;
+        
+        // Update duration display
+        const daysText = totalDays === 1 ? 'day' : 'days';
+        totalTimeDisplay.value = `${totalDays} ${daysText}`;
+        
+    } else {
+        totalTimeDisplay.value = 'N/A';
+        // If dates are invalid, days are 0, amount is 0
     }
 
-    // Add event listeners
-    if (boardingServiceSelect) {
-        boardingServiceSelect.addEventListener('change', calculateBilling);
+    // Update hidden inputs for form submission (CRITICAL FIX)
+    totalDaysHidden.value = totalDays;
+    if (dailyRateHidden) {
+        dailyRateHidden.value = servicePrice.toFixed(2);
     }
     
-    if (checkinDate) {
-        checkinDate.addEventListener('change', function() {
-            calculateBilling();
-            // If check-out is before check-in, update it to be the same as check-in
-            if (checkoutDate.value && new Date(checkoutDate.value) < new Date(this.value)) {
-                checkoutDate.value = this.value;
-            }
-            calculateBilling();
-        });
-    }
-    
-    if (checkoutDate) {
-        checkoutDate.addEventListener('change', function() {
-            // Ensure check-out is not before check-in
-            if (checkinDate.value && new Date(this.value) < new Date(checkinDate.value)) {
+    // Update billing display
+    dailyRateDisplay.textContent = `₱${servicePrice.toFixed(2)}`;
+    durationDisplay.textContent = `${totalDays} ${totalDays === 1 ? 'day' : 'days'}`;
+    totalAmountDisplay.textContent = `₱${totalAmount.toFixed(2)}`;
+}
+
+        // --- Event Listeners ---
+        
+        // Function to handle date changes consistently
+        const handleDateChange = (event) => {
+            const currentTarget = event.currentTarget;
+            if (currentTarget.id === 'checkout_date' && checkinDate.value && new Date(currentTarget.value) < new Date(checkinDate.value)) {
                 alert('Check-out date cannot be before check-in date');
-                this.value = '';
+                currentTarget.value = checkinDate.value; // Reset to checkin date
+            } else if (currentTarget.id === 'checkin_date' && checkoutDate.value && new Date(checkoutDate.value) < new Date(currentTarget.value)) {
+                // If check-in is moved forward past checkout, adjust checkout too
+                checkoutDate.value = currentTarget.value;
             }
             calculateBilling();
-        });
-    }
+        };
 
-    // Initial calculation
-    calculateBilling();
-  });
+        // 1. Service Selection Change
+        if (boardingServiceSelect) {
+            boardingServiceSelect.addEventListener('change', calculateBilling);
+        }
+        
+        // 2. Date Changes (Unified Listener)
+        if (checkinDate) {
+            checkinDate.addEventListener('change', handleDateChange);
+        }
+        
+        if (checkoutDate) {
+            checkoutDate.addEventListener('change', handleDateChange);
+        }
+
+        // Initial calculation on page load
+        calculateBilling();
+    });
 </script>
 
 @endsection

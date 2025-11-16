@@ -187,11 +187,23 @@ class SalesManagementController extends Controller
         DB::beginTransaction();
         
         try {
-            // Calculate services total
-            $servicesTotal = (float) ($billing->visit?->services->sum('serv_price') ?? 0);
+            $servicesTotal = (float) $billing->visit?->services->sum(function ($service) {
+            // For services like Boarding, the quantity (days) and unit_price (daily rate) are
+            // stored in the pivot table (tbl_visit_serv).
+            $quantity = $service->pivot->quantity ?? 1;
+            $unitPrice = $service->pivot->unit_price ?? $service->serv_price ?? 0;
+            
+            // Check if total_price exists in the pivot, which is often pre-calculated for services like boarding
+            $totalPrice = $service->pivot->total_price ?? ($unitPrice * $quantity);
 
-            // --- FIX: Calculate prescription total (Only from existing products) ---
+            return $totalPrice; // Use the calculated total price (Days * Rate)
+        }) ?? 0;
+            //$servicesTotal = (float) ($billing->visit?->services->sum('serv_price') ?? 0);
+
+            // Calculate prescription total (Only from existing and available products in inventory)
             $prescriptionTotal = 0;
+            $billablePrescriptions = [];
+            
             if ($billing->visit && $billing->visit->pet) {
                 $prescriptions = Prescription::where('pet_id', $billing->visit->pet->pet_id)
                     ->whereDate('prescription_date', '<=', $billing->bill_date)
@@ -200,18 +212,37 @@ class SalesManagementController extends Controller
                 
                 foreach ($prescriptions as $prescription) {
                     $medications = json_decode($prescription->medication, true) ?? [];
+                    $hasBillableItems = false;
+                    $prescriptionTotalForThisPrescription = 0;
+                    
                     foreach ($medications as $medication) {
                         if (isset($medication['product_id']) && $medication['product_id']) {
-                            // Fetch product to ensure it exists and has a price
+                            // First check if product exists and is active
                             $product = DB::table('tbl_prod')
                                 ->where('prod_id', $medication['product_id'])
+                                ->where('prod_status', 'active')
                                 ->first();
                             
-                            // STRICT FILTER: Only add to total if product exists and has a price
-                            if ($product && $product->prod_price > 0) { 
-                                $prescriptionTotal += (float) $product->prod_price;
+                            // If product doesn't exist or is not active, skip to next medication
+                            if (!$product) {
+                                continue;
+                            }
+                            
+                            // Check if product is in stock
+                            $inStock = $product->prod_stock > 0;
+                            $hasPrice = $product->prod_price > 0;
+                            
+                            if ($inStock && $hasPrice) {
+                                $prescriptionTotalForThisPrescription += (float) $product->prod_price;
+                                $hasBillableItems = true;
                             }
                         }
+                    }
+                    
+                    // Only add to total if at least one billable item exists
+                    if ($hasBillableItems) {
+                        $prescriptionTotal += $prescriptionTotalForThisPrescription;
+                        $billablePrescriptions[] = $prescription->id;
                     }
                 }
             }
@@ -335,15 +366,15 @@ class SalesManagementController extends Controller
             
             Log::info("Payment processed - Bill ID: {$billId}, New Paid Amount: {$newTotalPaid}, Balance: {$newBalance}, Status: {$billingStatus}");
             
-            return response()->json([
-                'success' => true,
-                'message' => 'Payment processed successfully!',
-                'change' => $change,
-                'final_status' => $billingStatus,
-                'paid_amount' => $newTotalPaid,
-                'total_amount' => $totalAmount,
-                'remaining_balance' => $newBalance
-            ]);
+           return response()->json([
+            'success' => true,
+            'message' => 'Payment processed successfully!',
+            'change' => $change,
+            'final_status' => $billingStatus,
+            'paid_amount' => $newTotalPaid,
+            'total_amount' => $totalAmount, // This will now show the correct total
+            'remaining_balance' => $newBalance
+        ]);
 
         } catch (\Exception $e) {
             DB::rollback();

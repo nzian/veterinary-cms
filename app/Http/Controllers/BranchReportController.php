@@ -107,20 +107,20 @@ class BranchReportController extends Controller
                     'title' => 'Financial Billing Report',
                     'description' => 'Billing records for ' . $branch->branch_name,
                     'data' => DB::table('tbl_bill')
-                        ->join('tbl_appoint', 'tbl_bill.appoint_id', '=', 'tbl_appoint.appoint_id')
-                        ->join('tbl_pet', 'tbl_appoint.pet_id', '=', 'tbl_pet.pet_id')
+                        ->join('tbl_visit_record', 'tbl_bill.visit_id', '=', 'tbl_visit_record.visit_id')
+                        ->join('tbl_pet', 'tbl_visit_record.pet_id', '=', 'tbl_pet.pet_id')
                         ->join('tbl_own', 'tbl_pet.own_id', '=', 'tbl_own.own_id')
-                        ->join('tbl_user', 'tbl_appoint.user_id', '=', 'tbl_user.user_id')
+                        ->join('tbl_user', 'tbl_visit_record.user_id', '=', 'tbl_user.user_id')
                         ->join('tbl_branch', 'tbl_user.branch_id', '=', 'tbl_branch.branch_id')
-                        ->leftJoin('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
-                        ->leftJoin('tbl_serv', 'tbl_appoint_serv.serv_id', '=', 'tbl_serv.serv_id')
+                        ->leftJoin('tbl_visit_service', 'tbl_visit_record.visit_id', '=', 'tbl_visit_service.visit_id')
+                        ->leftJoin('tbl_serv', 'tbl_visit_record_service.serv_id', '=', 'tbl_serv.serv_id')
                         ->whereBetween('tbl_bill.bill_date', [$startDate, $endDate])
                         ->where('tbl_user.branch_id', $branchId)
                         ->select(
                             'tbl_bill.bill_id',
                             'tbl_own.own_name as customer_name',
                             'tbl_pet.pet_name',
-                            'tbl_appoint.appoint_date as service_date',
+                            'tbl_visit_record.visit_date as service_date',
                             DB::raw('COALESCE(SUM(tbl_serv.serv_price), 0) as pay_total'),
                             'tbl_branch.branch_name',
                             'tbl_bill.bill_status as payment_status'
@@ -129,7 +129,7 @@ class BranchReportController extends Controller
                             'tbl_bill.bill_id',
                             'tbl_own.own_name',
                             'tbl_pet.pet_name',
-                            'tbl_appoint.appoint_date',
+                            'tbl_visit_record.visit_date',
                             'tbl_branch.branch_name',
                             'tbl_bill.bill_status'
                         )

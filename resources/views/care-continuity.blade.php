@@ -120,22 +120,25 @@
         @endif
 
         <!-- ==================== APPOINTMENTS TAB ==================== -->
-        <div id="appointmentsContent" class="tab-content">
-
-            <!-- Show Entries Dropdown -->
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
+        <div id="appointmentsContent" class="tab-content {{ request('tab', 'appointments') == 'appointments' ? '' : 'hidden' }}">
+            <!-- Show Entries and Search for Appointments -->
+            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="active_tab" value="appointments">
-                    <label for="perPage" class="text-sm text-black">Show</label>
-                    <select name="perPage" id="perPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                    <label for="appointmentsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
+                    <select name="appointmentsPerPage" id="appointmentsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                            <option value="{{ $limit }}" {{ request('perPage') == $limit ? 'selected' : '' }}>
+                            <option value="{{ $limit }}" {{ request('appointmentsPerPage') == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
-                    <span>entries</span>
+                    <span class="whitespace-nowrap">entries</span>
                 </form>
+                <div class="relative flex-shrink-0 w-64">
+                    <input type="search" id="appointmentsSearch" placeholder="Search appointments..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                    <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                </div>
             </div>
             <br>
 
@@ -390,20 +393,24 @@
 
         <!-- ==================== REFERRALS TAB ==================== -->
         <div id="referralsContent" class="tab-content hidden">
-            <!-- Show Entries Dropdown for Referrals -->
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
+            <!-- Show Entries and Search for Referrals -->
+            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="active_tab" value="referrals">
-                    <label for="referralPerPage" class="text-sm text-black">Show</label>
-                    <select name="referralPerPage" id="referralPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                    <label for="referralsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
+                    <select name="referralsPerPage" id="referralsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                            <option value="{{ $limit }}" {{ request('referralPerPage') == $limit ? 'selected' : '' }}>
+                            <option value="{{ $limit }}" {{ request('referralsPerPage') == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
-                    <span>entries</span>
+                    <span class="whitespace-nowrap">entries</span>
                 </form>
+                <div class="relative flex-shrink-0 w-64">
+                    <input type="search" id="referralsSearch" placeholder="Search referrals..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                    <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                </div>
                 <!--<button onclick="openReferralModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
                     + Add Referral
                 </button>-->
@@ -3502,6 +3509,71 @@ function formatTime(timeString) {
 function closeViewAppointmentModal() {
     document.getElementById('viewAppointmentModal').classList.add('hidden');
 }
+
+// Simple search functionality for appointments and referrals
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initializing search functionality...');
+    
+    // Function to initialize search for a specific input and table
+    function initSearch(inputId, tableId) {
+        const searchInput = document.getElementById(inputId);
+        const table = document.querySelector(tableId);
+        
+        if (!searchInput || !table) {
+            console.error(`Search elements not found for ${inputId} and ${tableId}`);
+            return;
+        }
+        
+        // Add input event listener
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const rows = table.querySelectorAll('tbody tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchTerm) ? '' : 'none';
+            });
+        });
+        
+        // Add clear button
+        const clearButton = document.createElement('button');
+        clearButton.innerHTML = '&times;';
+        clearButton.className = 'absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600';
+        clearButton.style.display = 'none';
+        clearButton.onclick = function(e) {
+            e.preventDefault();
+            searchInput.value = '';
+            searchInput.dispatchEvent(new Event('input'));
+            this.style.display = 'none';
+        };
+        
+        searchInput.parentNode.style.position = 'relative';
+        searchInput.parentNode.appendChild(clearButton);
+        
+        // Show/hide clear button based on input
+        searchInput.addEventListener('input', function() {
+            clearButton.style.display = this.value ? 'block' : 'none';
+        });
+    }
+    
+    // Initialize search for appointments
+    initSearch('appointmentsSearch', '#appointmentsContent table');
+    
+    // Initialize search for referrals
+    initSearch('referralsSearch', '#referralsContent table');
+    
+    // Reinitialize search when switching tabs
+    document.body.addEventListener('click', function(e) {
+        const tabButton = e.target.closest('button[onclick^="showTab"]');
+        if (tabButton) {
+            // Small delay to ensure tab content is loaded
+            setTimeout(() => {
+                initSearch('appointmentsSearch', '#appointmentsContent table');
+                initSearch('referralsSearch', '#referralsContent table');
+            }, 200);
+        }
+    });
+});
 </script>
 
 @endsection

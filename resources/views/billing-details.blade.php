@@ -194,7 +194,7 @@
                 $servicesTotal = $billing->visit->services->sum('serv_price');
             }
 
-            // Calculate prescription total and items
+            // Calculate prescription total and items - Only include available products with valid prices
             $prescriptionTotal = 0;
             $prescriptionItems = [];
             
@@ -208,8 +208,12 @@
                     $medications = json_decode($prescription->medication, true) ?? [];
                     foreach ($medications as $medication) {
                         if (isset($medication['product_id']) && $medication['product_id']) {
+                            // Only include products that are active, in stock, and have a valid price
                             $product = \DB::table('tbl_prod')
                                 ->where('prod_id', $medication['product_id'])
+                                ->where('prod_status', 'active')
+                                ->where('prod_stock', '>', 0)
+                                ->where('prod_price', '>', 0)
                                 ->first();
                             
                             if ($product) {
