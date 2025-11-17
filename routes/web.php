@@ -29,8 +29,9 @@ use App\Http\Controllers\BranchReportController;
 use App\Http\Controllers\SMSSettingsController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\GlobalSearchController;
-
+use App\Http\Controllers\ReferralCompanyController;
 use App\Http\Controllers\SuperAdminDashboardController;
+use App\Models\ReferralCompany;
 
 Route::get('/', function () {
     return redirect('/login');
@@ -437,6 +438,14 @@ Route::middleware(['auth'])->group(function () {
 });
 
 Route::middleware(['auth'])->group(function () {
+
+
+    Route::get('referral-companies', [ReferralCompanyController::class, 'index'])->name('referralCompany.index');
+    Route::post('referral-companies', [ReferralCompanyController::class, 'store'])->name('referralCompany.store');
+    Route::get('referral-companies/{id}', [ReferralCompanyController::class, 'show'])->name('referralCompany.show');
+    Route::put('referral-companies/{referralCompany}', [ReferralCompanyController::class, 'update'])->name('referralCompany.update');
+    Route::delete('referral-companies/{referralCompany}', [ReferralCompanyController::class, 'destroy'])->name('referralCompany.destroy'); 
+
     // Branch Management
     Route::get('/branch-management', [BranchManagementController::class, 'index'])
         ->name('branch-management.index');

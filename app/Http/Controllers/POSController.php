@@ -24,7 +24,7 @@ class POSController extends Controller
 
         // Get all user IDs associated with the current user's branch
         $branchUserIds = [];
-        if ($activeBranchId) {
+        if ($activeBranchId) {  
             $branchUserIds = User::where('branch_id', $activeBranchId)
                 ->pluck('user_id')
                 ->toArray();
