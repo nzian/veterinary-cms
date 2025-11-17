@@ -109,18 +109,34 @@
                             </div>
                         </div>
 
-                       <button type="button" onclick="printLegalAgreement()" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">Print Agreement</button>
+                       <button type="button"
+                               class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+                               onclick="openPrintWindow('{{ route('medical.visits.grooming.agreement.print', ['visit' => $visit->visit_id]) }}')">
+                           <i class="fas fa-print mr-2"></i> Print Agreement
+                       </button>
     </div>
                     </div>
                 @endif
             </div>
 
             @php
-                $__groom = [];
+                $__groom = [
+                    'grooming_type' => [],
+                    'instructions' => null,
+                    'start_time' => null,
+                    'end_time' => null,
+                    'assigned_groomer' => auth()->user()->user_name ?? null,
+                ];
+
                 if (isset($serviceData) && $serviceData) {
+                    $presetServices = collect(explode(',', $serviceData->service_package ?? ''))
+                        ->map(fn ($name) => trim($name))
+                        ->filter()
+                        ->values()
+                        ->all();
+
                     $__groom = [
-                        'grooming_type' => $serviceData->service_package ?? null,
-                        'additional_services' => $serviceData->add_ons ?? null,
+                        'grooming_type' => $presetServices,
                         'instructions' => $serviceData->remarks ?? null,
                         'start_time' => $serviceData->start_time ? \Carbon\Carbon::parse($serviceData->start_time)->format('Y-m-d\TH:i') : null,
                         'end_time' => $serviceData->end_time ? \Carbon\Carbon::parse($serviceData->end_time)->format('Y-m-d\TH:i') : null,
@@ -161,37 +177,38 @@
                                     class="w-full border border-gray-300 p-3 rounded-lg" required/>
                             </div>
                             
-                            {{-- Grooming Kind Filter + Package Select (with Weight Validation) --}}
+                            {{-- Grooming Package Multi-select (weight & age aware) --}}
                             <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-1">Grooming Type / Package <span class="text-red-500">*</span></label>
-                                @if(isset($groomKinds) && $groomKinds->count())
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
-                                    <div>
-                                        <label class="block text-xs text-gray-600 mb-1">Filter by Kind</label>
-                                        <select id="groom_kind_filter" class="w-full border border-gray-300 p-2 rounded-lg">
-                                            <option value="">All kinds</option>
-                                            @foreach($groomKinds as $kind)
-                                                <option value="{{ $kind }}">{{ $kind }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                                @endif
-                                <select name="grooming_type" id="grooming_type_select" class="w-full border border-gray-300 p-3 rounded-lg" required>
-                                    <option value="">Select service type</option>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                                    Grooming Packages <span class="text-red-500 font-bold">*</span> <span class="text-red-600 text-xs font-normal">(required)</span>
+                                    <span class="block text-xs text-gray-500 font-normal">Hold Ctrl/Cmd to choose multiple services.</span>
+                                </label>
+                                @php
+                                    $preselectedServices = old('grooming_type', $__groom['grooming_type'] ?? []);
+                                    if (!is_array($preselectedServices)) {
+                                        $preselectedServices = array_filter(array_map('trim', explode(',', (string) $preselectedServices)));
+                                    }
+                                @endphp
+                                <select name="grooming_type[]" id="grooming_type_select" class="w-full border border-gray-300 p-3 rounded-lg min-h-[180px]" multiple required>
                                     {{-- Store service data in data attributes for JS to read --}}
-                                    @foreach($availableServices as $service)
+                                    @forelse($availableServices as $service)
+                                        @php
+                                            $isSelected = in_array($service->serv_name, $preselectedServices);
+                                        @endphp
                                         <option 
                                             value="{{ $service->serv_name }}" 
                                             data-min-weight="{{ $service->min_weight ?? 0 }}"
                                             data-max-weight="{{ $service->max_weight ?? 9999 }}"
-                                            data-kind="{{ $service->kind ?? '' }}"
-                                            {{ ($__groom['grooming_type'] ?? '') === $service->serv_name ? 'selected' : '' }}
+                                            data-min-age="{{ $service->min_age_months ?? '' }}"
+                                            data-max-age="{{ $service->max_age_months ?? '' }}"
+                                            {{ $isSelected ? 'selected' : '' }}
                                             class="grooming-option"
                                         >
                                             {{ $service->serv_name }} (₱{{ number_format($service->serv_price, 2) }})
                                         </option>
-                                    @endforeach
+                                    @empty
+                                        <option disabled>No grooming packages match the pet's age/weight.</option>
+                                    @endforelse
                                 </select>
                                 
                                 {{-- Display Pet's Weight --}}
@@ -203,46 +220,12 @@
                                 </p>
                                 <p id="weight_warning" class="text-xs text-red-500 mt-1 font-semibold hidden">
                                     <i class="fas fa-exclamation-triangle mr-1"></i>
-                                    Weight limit violation. Options outside the pet's weight range are disabled.
+                                    Some packages are disabled because of weight or age restrictions.
                                 </p>
                             </div>
 
-                            {{-- Add-ons Checkboxes (Replaces Additional Services Input) --}}
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-1">Add-ons (Optional)</label>
-                                <div class="space-y-2 border border-gray-300 p-3 rounded-lg bg-gray-50">
-                                    @php
-                                        // Define your standard Add-on services here. 
-                                        $addOns = [
-                                            'Tooth Brushing',
-                                            'De-Shedding Treatment',
-                                            'Flea & Tick Treatment',
-                                            'Deep Conditioning',
-                                        ];
-                                        // $__groom['additional_services'] stores the previously selected, comma-separated string
-                                        $selectedAddons = array_map('trim', explode(',', $__groom['additional_services'] ?? ''));
-                                    @endphp
-
-                                    @foreach($addOns as $serviceName)
-                                    <label class="flex items-center text-sm font-medium text-gray-700">
-                                        <input 
-                                            type="checkbox" 
-                                            name="additional_services_array[]" 
-                                            value="{{ $serviceName }}" 
-                                            class="form-checkbox h-4 w-4 text-indigo-600 transition duration-150 ease-in-out"
-                                            {{ in_array($serviceName, $selectedAddons) ? 'checked' : '' }}
-                                        />
-                                        <span class="ml-2">{{ $serviceName }}</span>
-                                    </label>
-                                    @endforeach
-                                </div>
-                                
-                                {{-- Hidden field to collect selected add-ons as a comma-separated string for form submission --}}
-                                <input type="hidden" name="additional_services" id="additional_services_hidden" value="{{ $__groom['additional_services'] ?? '' }}"/>
-                            </div>
-                            
                             {{-- Start/End Time --}}
-                            <div class="grid grid-cols-2 gap-3">
+                            <div class="grid grid-cols-1 gap-3">
                                 <div>
                                     <label class="block text-sm font-semibold text-gray-700 mb-1">Start Time</label>
                                     <input type="datetime-local" name="start_time" class="w-full border border-gray-300 p-3 rounded-lg" 
@@ -267,11 +250,7 @@
 
                     {{-- Action Buttons --}}
                     <div class="flex justify-between items-center pt-4">
-                        <button type="button" 
-                                onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_id ?? 'N/A' }}', 'Grooming')"
-                                class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold shadow-md transition flex items-center gap-2">
-                            <i class="fas fa-tasks"></i> Service Actions
-                        </button>
+                      
                         
                         <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
                             <i class="fas fa-save mr-1"></i> Save Grooming Record
@@ -703,359 +682,15 @@
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
 <script>
-    // --- 1. PHP DATA FETCHING (GLOBAL SCOPE) ---
-    @php
-        // Check if the agreement exists; if not, initialize with null.
-        $agreement = $visit->groomingAgreement;
-        $fallback = '—';
-        
-        // Define safe default values for all variables used in JavaScript
-        $signerName = $fallback;
-        $historyBefore = $fallback;
-        $historyAfter = $fallback;
-        $colorMarkings = $fallback;
-        $signaturePathUrl = ''; // Default to empty string for the image source
-        $dateSigned = $fallback;
-
-        if ($agreement) {
-            // Only attempt to read properties if the agreement record is present
-            $signerName = $agreement->signer_name ?? $fallback;
-            // Use addslashes on nl2br output for safe insertion into JS template literals
-            $historyBefore = addslashes(nl2br($agreement->history_before ?? $fallback));
-            $historyAfter = addslashes(nl2br($agreement->history_after ?? $fallback));
-            $colorMarkings = $agreement->color_markings ?? $fallback;
-            $signaturePathUrl = asset('storage/' . ($agreement->signature_path ?? ''));
-
-            // Use optional() for safe date formatting
-            $dateSigned = optional($agreement->signed_at)->format('F j, Y') ?? $fallback;
+    window.openPrintWindow = function(url) {
+        const printWindow = window.open(url, '_blank', 'noopener');
+        if (!printWindow) {
+            alert('Please allow pop-ups to print the grooming agreement. Opening in the current tab instead.');
+            window.location.href = url;
         }
-
-        $currentWeight = $visit->weight ?? 0;
-        $weightNumeric = (float) $currentWeight; 
-        $weightNote = $currentWeight !== 0 ? number_format($weightNumeric, 2).' kg' : 'N/A (Weight missing)';
-        $weightDisplayString = $currentWeight !== 0 ? number_format($weightNumeric, 2) . ' kg' : 'N/A (Weight missing)';
-    @endphp
-
-    // --- 2. JAVASCRIPT CONSTANTS (Referencing PHP Variables) ---
-    // These constants will hold the fallback value if the agreement is unsigned.
-    const signerName = "{{ $signerName }}";
-    const historyBefore = "{!! $historyBefore !!}";
-    const historyAfter = "{!! $historyAfter !!}";
-    const colorMarkings = "{{ $colorMarkings }}";
-    const signaturePath = "{{ $signaturePathUrl }}";
-    const dateSigned = "{{ $dateSigned }}";
-    // --- 3. GLOBAL PRINT FUNCTION DEFINITION ---
-    window.printLegalAgreement = function() {
-        // Fetch remaining data needed for the template
-        const petName = "{{ $visit->pet->pet_name ?? 'N/A' }}";
-        const ownerName = "{{ $visit->pet->owner->own_name ?? 'N/A' }}";
-        const ownerAddress = "{{ $visit->pet->owner->own_location ?? 'N/A' }}";
-        const ownerContact = "{{ $visit->pet->owner->own_contactnum ?? 'N/A' }}";
-        const petSpecies = "{{ $visit->pet->pet_species ?? 'N/A' }}";
-        const petGender = "{{ $visit->pet->pet_gender ?? 'N/A' }}";
-        const petAge = "{{ $visit->pet->pet_age ?? 'N/A' }}";
-        const petBreed = "{{ $visit->pet->pet_breed ?? 'N/A' }}";
-        const dateTime = "{{ now()->format('F j, Y g:i A') }}";
-
-        // 4. Define Print Styles and HTML Template (Legal Size)
-        const printHtml = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Grooming Agreement - ${petName}</title>
-                <style>
-                    @page {
-                        size: legal; /* 8.5 in x 14 in */
-                        margin: 0.3in;
-                    }
-                    body {
-                        font-family: Arial, sans-serif;
-                        margin: 0;
-                        padding: 0;
-                        font-size: 10pt;
-                    }
-                    .document-wrapper {
-                        width: 8.5in; 
-                        height: 14in; 
-                        box-sizing: border-box;
-                        margin: 0;
-                        padding: 0;
-                        display: flex;
-                        flex-direction: column;
-                    }
-                    .header-banner { 
-                        width: 100%;
-                        background-color: #f88e28;
-                        padding: 0;
-                        box-sizing: border-box;
-                        border-bottom: 2px solid #000;
-                    }
-                    .header-img {
-                        max-width: 7.9in; 
-                        height: 80px; 
-                        object-fit: contain;
-                        display: block;
-                        margin: 0 auto;
-                        padding: 0.1in 0;
-                    }
-                    .document-content {
-                        width: 7.9in;
-                        margin: 0.15in auto 0 auto;
-                        border: 2px solid #000;
-                        padding: 0.2in;
-                        flex-grow: 1;
-                        box-sizing: border-box;
-                    }
-                    h1 {
-                        font-size: 16pt;
-                        font-weight: bold;
-                        text-align: center;
-                        margin-top: 10px;
-                        margin-bottom: 10px;
-                        padding-bottom: 8px;
-                        border-bottom: 2px solid #000;
-                        letter-spacing: 0.5px;
-                    }
-                    .grid-3 {
-                        display: table;
-                        width: 100%;
-                        margin-bottom: 8px;
-                    }
-                    .grid-3 > div {
-                        display: table-cell;
-                        width: 33.33%;
-                        padding-right: 15px;
-                    }
-                    label {
-                        display: block;
-                        font-size: 8pt;
-                        font-weight: bold;
-                        color: #555;
-                        text-transform: uppercase;
-                        margin-bottom: 2px;
-                    }
-                    .value-line {
-                        border-bottom: 1px solid #000;
-                        padding-bottom: 2px;
-                        margin-bottom: 8px;
-                        font-size: 10pt;
-                    }
-                    .history-table {
-                        width: 100%;
-                        border-collapse: collapse;
-                        margin-bottom: 12px;
-                    }
-                    .history-table th, .history-table td {
-                        border: 1px solid #000;
-                        padding: 6px;
-                        vertical-align: top;
-                        font-size: 9pt;
-                        white-space: pre-wrap;
-                    }
-                    .history-table th {
-                        background-color: #f0f0f0;
-                        text-align: left;
-                        font-weight: bold;
-                        text-transform: uppercase;
-                    }
-                    .terms {
-                        margin-bottom: 12px;
-                        line-height: 1.3;
-                        font-size: 9pt;
-                        text-align: justify;
-                    }
-                    .terms p {
-                        margin-top: 4px;
-                        margin-bottom: 4px;
-                    }
-                    .signature-section {
-                        display: table;
-                        width: 100%;
-                        margin-top: 15px;
-                        border-top: 2px solid #000;
-                        padding-top: 15px;
-                    }
-                    .signature-box-container {
-                        display: table-cell;
-                        width: 50%;
-                        padding-right: 20px;
-                        vertical-align: top; 
-                        padding-top: 5px; 
-                    }
-                    .signature-box {
-                        border: 1px solid #000;
-                        height: 90px;
-                        margin-top: 5px;
-                        background-color: #fff;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        overflow: hidden;
-                    }
-                    .signer-info {
-                        display: table-cell;
-                        width: 50%;
-                        vertical-align: top;
-                    }
-                    .signer-info > div {
-                        margin-bottom: 8px;
-                    }
-                    .center-text {
-                        text-align: center;
-                        font-weight: bold;
-                        margin-top: 10px;
-                        margin-bottom: 12px;
-                        font-size: 10pt;
-                    }
-                    .sig-label {
-                        font-size: 8pt;
-                        text-align: center;
-                        font-weight: bold;
-                        text-transform: uppercase;
-                        margin-top: 5px;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="document-wrapper">
-                    <div class="header-banner">
-                        <img src="{{ asset('images/header.jpg') }}" class="header-img" alt="Clinic Header">
-                    </div>
-                    <div class="document-content">
-                        <h1>GROOMING AGREEMENT CONSENT</h1>
-                        
-                        <div class="grid-3">
-                            <div>
-                                <label>Date and Time</label>
-                                <div class="value-line">${dateTime}</div>
-                            </div>
-                            <div>&nbsp;</div>
-                            <div>&nbsp;</div>
-                        </div>
-
-                        <div class="grid-3">
-                            <div>
-                                <label>Owner's Name</label>
-                                <div class="value-line">${ownerName}</div>
-                            </div>
-                            <div>
-                                <label>Address</label>
-                                <div class="value-line">${ownerAddress}</div>
-                            </div>
-                            <div>
-                                <label>Phone Number</label>
-                                <div class="value-line">${ownerContact}</div>
-                            </div>
-                        </div>
-
-                        <div class="grid-3">
-                            <div>
-                                <label>Name of Pet</label>
-                                <div class="value-line">${petName}</div>
-                            </div>
-                            <div>
-                                <label>Species</label>
-                                <div class="value-line">${petSpecies}</div>
-                            </div>
-                            <div>
-                                <label>Gender</label>
-                                <div class="value-line">${petGender}</div>
-                            </div>
-                        </div>
-
-                        <div class="grid-3">
-                            <div>
-                                <label>Pet Age</label>
-                                <div class="value-line">${petAge}</div>
-                            </div>
-                            <div>
-                                <label>Breed</label>
-                                <div class="value-line">${petBreed}</div>
-                            </div>
-                            <div>
-                                <label>Color Markings</label>
-                                <div class="value-line">${colorMarkings}</div>
-                            </div>
-                        </div>
-
-                        <h1 style="border-bottom: none; font-size: 12pt;">History</h1>
-                        <table class="history-table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 50%;">Before Grooming (Notes)</th>
-                                    <th style="width: 50%;">After Grooming (Notes)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>${historyBefore}</td>
-                                    <td>${historyAfter}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-
-                        <div class="terms">
-                            <p><strong>1.</strong> I certify that I am the owner of (or person responsible for) the pet described above.</p>
-                            <p><strong>2.</strong> I understand that grooming entails hair trimming, bathing, nail clipping and ear cleaning. No physical examination or check up is included in the process of grooming. All pets shall be presented healthy and regular handling procedures will be instituted, unless I inform the staff beforehand of any pre-existing medical conditions.</p>
-                            <p><strong>3.</strong> Grooming can be stressful to animals; however, the grooming staff will use reasonable precautions against injury, escape or death of my pet. I am aware that sometimes skin reactions may arise due to my pet's skin sensitivity. Therefore, the establishment shall not be held liable for any problem that may transpire from either stress or reaction brought about by grooming of my pet, provided reasonable care and precautions were strictly followed. I understand that any problem that may develop with my pet will be treated as deemed best by the staff veterinarian and I assume full responsibility for the treatment expense involved.</p>
-                            <p><strong>4.</strong> The groomers make no claim of expertise in grooming any particular breed. Groomers will make reasonable effort to conform to my grooming requests; however, no guarantees are made that the exact grooming cut can be followed.</p>
-                            <p><strong>5.</strong> Grooming may take a few hours to complete and pets will be served on a FIRST COME FIRST SERVED basis.</p>
-                        </div>
-                        
-                        <div class="center-text">
-                            After carefully reading the above, I have signed an agreement.
-                        </div>
-
-                        <div class="signature-section">
-                            <div class="signature-box-container">
-                                <label>Signature</label>
-                                <div class="signature-box">
-                                    <img src="${signaturePath}" alt="Owner Signature" style="max-height: 100%; max-width: 100%; object-fit: contain;">
-                                </div>
-                                <div class="sig-label">Signature of Owner/Representative</div>
-                            </div>
-                            <div class="signer-info">
-                                <div>
-                                    <label>Signer Name</label>
-                                    <div class="value-line">${signerName}</div>
-                                </div>
-                                <div>
-                                    <label>Date</label>
-                                    <div class="value-line">${dateSigned}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div> 
-                </div> 
-            </body>
-            </html>
-        `;
-
-        // 5. Execution logic (using iframe)
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none'; 
-        document.body.appendChild(iframe);
-
-        const doc = iframe.contentWindow.document;
-        doc.open();
-        doc.write(printHtml);
-        doc.close();
-
-        iframe.contentWindow.onload = function() {
-            iframe.contentWindow.print();
-            setTimeout(() => {
-                document.body.removeChild(iframe);
-            }, 500);
-        };
-
-        setTimeout(() => {
-            if (iframe.parentNode && iframe.contentWindow.document.readyState === 'complete') {
-                iframe.contentWindow.print();
-            }
-        }, 100);
     };
 
-    // --- Data validation and add-ons logic (Restored original DOMContentLoaded content) ---
+    // Grooming agreement modal + validation logic
     document.addEventListener('DOMContentLoaded', function() {
         // ... (All your existing DOMContentLoaded logic for validation, signing, etc.)
         const agreementModal = document.getElementById('groomingAgreementModal');
@@ -1064,7 +699,6 @@
         const petWeightElement = document.getElementById('pet_current_weight');
         const groomingSelect = document.getElementById('grooming_type_select');
         const weightWarning = document.getElementById('weight_warning');
-        const serviceForm = document.querySelector('.space-y-6 form');
 
         let signaturePad = null;
 
@@ -1151,34 +785,27 @@
             });
         }
 
-        // --- Weight Validation & Add-ons Logic ---
+        // --- Weight Validation Logic ---
         if (petWeightElement && groomingSelect) {
             const petWeight = parseFloat(petWeightElement.getAttribute('data-weight'));
             const weightDisplay = petWeightElement.innerText.trim(); 
 
             function validateGroomingPackages() {
-                if (isNaN(petWeight) || petWeight <= 0) {
-                    weightWarning.innerText = 'Pet weight is not recorded. Please record the pet\'s weight for accurate service selection.';
-                    weightWarning.classList.remove('hidden');
-                    return;
-                }
                 let disabledCount = 0;
                 let enabledCount = 0;
-                // Assuming groomKindFilter is defined earlier, if not available, the logic proceeds without filter.
-                const kindFilter = document.getElementById('groom_kind_filter');
-                const selectedKind = (kindFilter && kindFilter.value) ? kindFilter.value : '';
-                
+                const weightUnavailable = isNaN(petWeight) || petWeight <= 0;
+
                 Array.from(groomingSelect.options).forEach(option => {
                     if (option.value === "") return; 
                     const minWeight = parseFloat(option.getAttribute('data-min-weight'));
                     const maxWeight = parseFloat(option.getAttribute('data-max-weight'));
-                    const kind = option.getAttribute('data-kind') || '';
 
-                    const isOutsideRange = (petWeight < minWeight || petWeight > maxWeight);
-                    const kindMismatch = selectedKind && kind !== selectedKind;
-                    
-                    option.hidden = !!kindMismatch;
-                    option.disabled = isOutsideRange || kindMismatch;
+                    let isOutsideRange = false;
+                    if (!weightUnavailable) {
+                        isOutsideRange = (petWeight < minWeight || petWeight > maxWeight);
+                    }
+
+                    option.disabled = isOutsideRange;
 
                     if (isOutsideRange) {
                         option.style.backgroundColor = '#fca5a5'; 
@@ -1191,8 +818,17 @@
                     }
                 });
                 
-                if (enabledCount === 0) {
-                    weightWarning.innerText = `No packages available. Adjust weight or kind filter. Current weight: ${weightDisplay}.`;
+                Array.from(groomingSelect.selectedOptions).forEach(option => {
+                    if (option.disabled) {
+                        option.selected = false;
+                    }
+                });
+
+                if (weightUnavailable) {
+                    weightWarning.innerText = 'Pet weight is not recorded. Please record the pet\'s weight for accurate service selection.';
+                    weightWarning.classList.remove('hidden');
+                } else if (enabledCount === 0) {
+                    weightWarning.innerText = `No packages available for the current weight (${weightDisplay}).`;
                     weightWarning.classList.remove('hidden');
                 } else if (disabledCount > 0) {
                     weightWarning.innerText = `Some service packages are disabled as the pet's weight (${weightDisplay}) falls outside their allowed range.`;
@@ -1200,29 +836,8 @@
                 } else {
                     weightWarning.classList.add('hidden');
                 }
-                if (groomingSelect.selectedOptions.length > 0 && groomingSelect.selectedOptions[0].disabled) {
-                    groomingSelect.value = "";
-                }
             }
             validateGroomingPackages();
-            
-            const kindFilter = document.getElementById('groom_kind_filter');
-            if (kindFilter) {
-                kindFilter.addEventListener('change', function() {
-                    validateGroomingPackages();
-                    const firstValid = Array.from(groomingSelect.options).find(opt => !opt.hidden && !opt.disabled && opt.value !== '');
-                    if (firstValid) groomingSelect.value = firstValid.value;
-                });
-            }
-        }
-
-        // --- Add-ons Checkbox to Hidden Input Logic ---
-        if (serviceForm) {
-            serviceForm.addEventListener('submit', function() {
-                const checkedBoxes = Array.from(document.querySelectorAll('input[name="additional_services_array[]"]:checked'));
-                const selectedAddons = checkedBoxes.map(cb => cb.value).join(', '); 
-                document.getElementById('additional_services_hidden').value = selectedAddons;
-            });
         }
     });
 </script>

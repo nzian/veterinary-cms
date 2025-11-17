@@ -54,8 +54,8 @@ class CareContinuityController extends Controller
                   ->orWhere('appoint_type', 'like', 'Deworming Follow-up%')
                   ->orWhere('appoint_type', 'like', 'Post-Surgical Recheck%');
             })
-            ->orderBy('appoint_date', 'desc')
-            ->orderBy('appoint_time', 'desc');
+            ->orderBy('appoint_date', 'asc')
+            ->orderBy('appoint_time', 'asc');
 
         $appointments = $appointmentPerPage === 'all' 
             ? $appointmentsQuery->get() 
@@ -370,7 +370,7 @@ class CareContinuityController extends Controller
                 'pet_id' => $appointment->pet_id,
                 'user_id' => $appointment->user_id,
                 'patient_type' => 'outpatient',
-                'visit_status' => 'arrived',
+                'visit_status' => 'pending',
                 'workflow_status' => 'Pending',
             ]);
 
@@ -597,6 +597,7 @@ class CareContinuityController extends Controller
                     
                     if (\Illuminate\Support\Facades\Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
                         $visit->visit_service_type = !empty($types) ? implode(', ', $types) : null;
+                        $visit->save();
                     }
                 } catch (\Throwable $e) {
                     \Log::warning('Failed to set visit_service_type: '.$e->getMessage());

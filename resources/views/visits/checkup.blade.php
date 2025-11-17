@@ -56,7 +56,7 @@
                 <i class="fas fa-calendar-plus"></i> **Set Appointment**
             </button>
             <button type="button" 
-                    onclick="openReferralModal('{{ $visit->visit_id }}')"
+                    onclick="openReferralModal('{{ $visit->visit_id }}', '{{ $visit->pet_id }}')"
                     class="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-semibold shadow-md transition text-sm">
                 <i class="fas fa-share"></i> **Referral**
             </button>
@@ -150,18 +150,7 @@
 
                 {{-- Action Buttons --}}
                 <div class="flex justify-between items-center pt-4">
-                    <div class="flex items-center gap-2">
-                        <button type="button"
-                                onclick="openExamForm()"
-                                class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold shadow-md transition flex items-center gap-2">
-                            <i class="fas fa-notes-medical"></i> Examination Form
-                        </button>
-                        <button type="button"
-                                onclick="openChartsModal()"
-                                class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-semibold shadow-md transition flex items-center gap-2">
-                            <i class="fas fa-tooth"></i> Charts
-                        </button>
-                    </div>
+                  
                     
                     <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
                         <i class="fas fa-save mr-1"></i> Save Consultation Record
@@ -327,7 +316,8 @@
             </div>
             <form id="referralForm" action="{{ route('medical.referrals.store') }}" method="POST" class="space-y-4 border border-red-200 p-4 rounded-lg bg-red-50">
                 @csrf
-                <input type="hidden" name="appointment_id" id="referral_appoint_id" value="{{ $visit->visit_id ?? '' }}">
+                <input type="hidden" name="visit_id" id="referral_visit_id" value="{{ $visit->visit_id ?? '' }}">
+                <input type="hidden" name="pet_id" id="referral_pet_id" value="{{ $visit->pet_id ?? '' }}">
                 <input type="hidden" name="active_tab" value="visits">
 
                 <div class="grid grid-cols-2 gap-4">
@@ -342,6 +332,7 @@
                             @foreach($allBranches as $branch)
                                 <option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>
                             @endforeach
+                            <option value="9999999">Other Clinic</option>
                         </select>
                     </div>
                 </div>
@@ -550,8 +541,9 @@
         document.getElementById('appointmentModal').classList.add('hidden');
     }
     
-    function openReferralModal(visitId) {
-        document.getElementById('referral_appoint_id').value = visitId;
+    function openReferralModal(visitId, petId) {
+        document.getElementById('referral_visit_id').value = visitId;
+        document.getElementById('referral_pet_id').value = petId;
         document.getElementById('referralForm').reset();
         document.getElementById('referralModal').classList.remove('hidden');
     }

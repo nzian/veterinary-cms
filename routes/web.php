@@ -192,6 +192,7 @@ Route::put('appointments/{appointmentId}/record-vaccine-details', [MedicalManage
      Route::put('/medical-management/appointments/{id}', [YourController::class, 'update'])->name('medical.appointments.update');
     Route::get('/medical-management/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])
     ->name('medical.appointments.show');
+    Route::post('/medical-management/appointments', [MedicalManagementController::class, 'storeAppointment'])->name('medical.appointments.store');
 
 
     // Prescription routes
@@ -238,6 +239,9 @@ Route::prefix('visits')->group(function () {
     Route::post('/visits/{visit}/surgical', [MedicalManagementController::class, 'saveSurgical'])->name('medical.visits.surgical.save');
     Route::post('/visits/{visit}/emergency', [MedicalManagementController::class, 'saveEmergency'])->name('medical.visits.emergency.save');
     Route::post('/visits/{visit}/agreement', [GroomingAgreementController::class, 'store'])->name('medical.visits.grooming.agreement.store');
+    Route::get('/visits/{visit}/agreement/print', [GroomingAgreementController::class, 'print'])
+        ->middleware('auth')
+        ->name('medical.visits.grooming.agreement.print');
     Route::put('/visits/{visit}/grooming', [MedicalManagementController::class, 'updateGroomingService'])
     ->name('medical.visits.grooming.update');
 });

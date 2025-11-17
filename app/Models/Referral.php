@@ -17,6 +17,8 @@ class Referral extends Model
         'ref_by',
         'ref_to',
         'appoint_id',
+        'visit_id',
+        'pet_id',
         'medical_history',
         'tests_conducted',
         'medications_given',
@@ -29,7 +31,7 @@ class Referral extends Model
     
     public function refByBranch()
     {
-        return $this->belongsTo(Branch::class, 'ref_by', 'branch_id');
+        return $this->belongsTo(User::class, 'ref_by', 'user_id');
     }
 
     public function refToBranch()
@@ -40,6 +42,14 @@ class Referral extends Model
     public function appointment()
     {
         return $this->belongsTo(Appointment::class, 'appoint_id', 'appoint_id');
+    }
+    public function visit()
+    {
+        return $this->belongsTo(Visit::class, 'visit_id', 'visit_id');
+    }
+    public function pet()
+    {
+        return $this->belongsTo(Pet::class, 'pet_id', 'pet_id');
     }
 
 }
