@@ -359,7 +359,8 @@
                 <h4 class="text-lg font-semibold text-red-600">Create New Referral</h4>
                 <form id="activityReferralForm" action="{{ route('medical.referrals.store') }}" method="POST" class="space-y-4 border border-red-200 p-4 rounded-lg bg-red-50">
                     @csrf
-                    <input type="hidden" name="appointment_id" id="activity_referral_appoint_id" value="{{ $visit->visit_id ?? '' }}">
+                    <input type="hidden" name="visit_id" id="activity_referral_visit_id" value="{{ $visit->visit_id ?? '' }}">
+                    <input type="hidden" name="pet_id" id="activity_referral_pet_id" value="{{ $visit->pet_id ?? '' }}">
                     <input type="hidden" name="active_tab" value="visits">
 
                     <div class="grid grid-cols-2 gap-4">
@@ -374,6 +375,7 @@
                                 @foreach($allBranches as $branch)
                                     <option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>
                                 @endforeach
+                                <option value="9999999">External Clinic</option>
                             </select>
                         </div>
                     </div>

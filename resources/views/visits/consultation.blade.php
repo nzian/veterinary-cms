@@ -63,16 +63,16 @@
                     <form method="POST" action="{{ route('medical.visits.consultation.save', $visit->visit_id) }}" class="flex items-center gap-2 text-xs">
                         @csrf
                         <select name="workflow_status" class="border border-gray-300 px-3 py-1.5 rounded-lg text-sm">
-                            @php($statuses = ['Waiting','Consultation Ongoing','Observation','Completed'])
+                            @php($statuses = ['Pending','Consultation Ongoing','Observation','Completed'])
                             @foreach($statuses as $s)
-                                <option value="{{ $s }}" {{ (($visit->workflow_status ?? 'Waiting') === $s) ? 'selected' : '' }}>{{ $s }}</option>
+                                <option value="{{ $s }}" {{ (($visit->workflow_status ?? 'Pending') === $s) ? 'selected' : '' }}>{{ $s }}</option>
                             @endforeach
                         </select>
                         <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Update Status</button>
                     </form>
                 </div>
                 <div class="mt-4 flex items-center justify-between gap-1 text-xs overflow-x-auto pt-2">
-                    @php($current = $visit->workflow_status ?? 'Waiting')
+                    @php($current = $visit->workflow_status ?? 'Pending')
                     @foreach($statuses as $label)
                         <span class="px-2 py-1 rounded-full whitespace-nowrap text-[10px] font-semibold 
                             {{ $current === $label ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-600' }}">

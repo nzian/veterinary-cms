@@ -142,7 +142,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
     public function index(Request $request)
     {
         $perPage = $request->get('perPage', 10);
-        $activeTab = $request->get('active_tab', 'visits'); 
+        $activeTab = $request->get('tab', 'visits'); 
         $activeBranchId = session('active_branch_id');
     $user = Auth::user();
         
@@ -289,7 +289,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                 : 'Consultation completed. All services done, but billing generation failed. Please check logs.')
             : 'Consultation saved. Please complete remaining services.';
         
-        return redirect()->route('medical.index', ['active_tab' => 'visits'])
+        return redirect()->route('medical.index', ['tab' => 'consultation'])
             ->with($billingExists && $allCompleted ? 'success' : 'warning', $message);
     }
     
@@ -394,7 +394,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         }
         
         // 6. Redirect to Care Continuity Appointments tab
-        return redirect()->route('care-continuity.index', ['active_tab' => 'appointments'])->with('success', $successMessage);
+        return redirect()->route('care-continuity.index', ['tab' => 'appointments'])->with('success', $successMessage);
     }
 
     public function saveDeworming(Request $request, $visitId)
@@ -476,7 +476,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         }
         
         // 5. Redirect to Care Continuity Appointments tab
-        return redirect()->route('care-continuity.index', ['active_tab' => 'appointments'])->with('success', $successMessage);
+        return redirect()->route('care-continuity.index', ['tab' => 'appointments'])->with('success', $successMessage);
     }
     
     public function updateGroomingService(Request $request, $visitId)
@@ -579,7 +579,9 @@ public function completeService(Request $request, $visitId, $serviceId)
     public function saveGrooming(Request $request, $visitId)
     {
         $validated = $request->validate([
-            'grooming_type' => ['nullable','string'], 'additional_services' => ['nullable','string'], 'instructions' => ['nullable','string'],
+            'grooming_type' => ['required','array','min:1'],
+            'grooming_type.*' => ['string','max:255'],
+            'instructions' => ['nullable','string'],
             'start_time' => ['nullable','date'], 'end_time' => ['nullable','date','after_or_equal:start_time'],
             'assigned_groomer' => ['nullable','string'], 'workflow_status' => ['nullable','string'],
         ]);
@@ -601,50 +603,75 @@ public function completeService(Request $request, $visitId, $serviceId)
         try {
         DB::beginTransaction();
         
-        // 1. Find the selected service's ID and Price
-        $selectedService = Service::where('serv_name', $validated['grooming_type'])->first();
+        // 1. Find the selected service IDs and prices
+        $selectedNames = $validated['grooming_type'];
+        $selectedServices = Service::whereIn('serv_name', $selectedNames)->get();
 
-        if ($selectedService) {
-            // 2. Get all existing services for this visit to preserve them
-            $existingServices = $visitModel->services()->get();
-            $syncData = [];
-            
-            // Preserve all existing services
-            foreach ($existingServices as $existingService) {
-                $syncData[$existingService->serv_id] = [
-                    'status' => $existingService->pivot->status ?? 'pending',
-                    'completed_at' => $existingService->pivot->completed_at ?? null,
-                    'quantity' => $existingService->pivot->quantity ?? 1,
-                    'unit_price' => $existingService->pivot->unit_price ?? $existingService->serv_price,
-                    'total_price' => $existingService->pivot->total_price ?? $existingService->serv_price,
-                    'created_at' => $existingService->pivot->created_at ?? now(),
-                    'updated_at' => now(),
-                ];
-            }
-            
-            // Update or add the grooming service
-            $syncData[$selectedService->serv_id] = [
-                'status' => 'completed', // Mark as completed since grooming is being saved
-                'completed_at' => now(),
-                'quantity' => 1,
-                'unit_price' => $selectedService->serv_price,
-                'total_price' => $selectedService->serv_price,
-                'created_at' => $syncData[$selectedService->serv_id]['created_at'] ?? now(),
-                'updated_at' => now(),
-            ];
-            
-            // 3. Sync all services (existing + grooming service)
-            $visitModel->services()->sync($syncData);
-        } else {
-             Log::warning("Grooming save failed: Service name '{$validated['grooming_type']}' not found in tbl_serv.");
-             throw new \Exception("Selected grooming service not found.");
+        $missing = array_diff($selectedNames, $selectedServices->pluck('serv_name')->all());
+        if (!empty($missing)) {
+            Log::warning('Grooming save failed: Some selected services were not found.', ['missing' => $missing]);
+            throw new \Exception('One or more selected grooming services were not found.');
         }
 
-        // 4. Update the Grooming Record (tbl_grooming_record)
+        // 2. Get all existing services for this visit to preserve them
+        $existingServices = $visitModel->services()->get();
+        $syncData = [];
+        
+        foreach ($existingServices as $existingService) {
+            $syncData[$existingService->serv_id] = [
+                'status' => $existingService->pivot->status ?? 'pending',
+                'completed_at' => $existingService->pivot->completed_at ?? null,
+                'quantity' => $existingService->pivot->quantity ?? 1,
+                'unit_price' => $existingService->pivot->unit_price ?? $existingService->serv_price,
+                'total_price' => $existingService->pivot->total_price ?? $existingService->serv_price,
+                'created_at' => $existingService->pivot->created_at ?? now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        foreach ($selectedServices as $service) {
+            $syncData[$service->serv_id] = [
+                'status' => 'completed',
+                'completed_at' => now(),
+                'quantity' => 1,
+                'unit_price' => $service->serv_price,
+                'total_price' => $service->serv_price,
+                'created_at' => $syncData[$service->serv_id]['created_at'] ?? now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        // 3. Sync all services (existing + grooming services)
+        $visitModel->services()->sync($syncData);
+
+        // 4. Determine workflow status based on start_time and end_time for grooming
+        $workflowStatus = 'Completed'; // Default when saving
+        if (empty($validated['start_time']) && empty($validated['end_time'])) {
+            // Neither time filled - keep current status or set to Agreement Signed if agreement exists
+            $workflowStatus = $visitModel->groomingAgreement ? 'Agreement Signed' : 'Pending';
+        } elseif (!empty($validated['start_time']) && empty($validated['end_time'])) {
+            // Start time filled but not end time
+            $workflowStatus = 'In Grooming';
+        } elseif (!empty($validated['start_time']) && !empty($validated['end_time'])) {
+            // Both times filled
+            $workflowStatus = 'Ready for Pickup';
+        }
+        
+        // When record is saved (form submission), mark as Completed
+        // This happens on final save after end_time is filled
+        if (!empty($validated['end_time'])) {
+            $workflowStatus = 'Completed';
+        }
+
+        // Update visit workflow_status
+        $visitModel->workflow_status = $workflowStatus;
+        $visitModel->save();
+
+        // 5. Update the Grooming Record (tbl_grooming_record)
         DB::table('tbl_grooming_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
             [
-                'service_package' => $validated['grooming_type'], 'add_ons' => $validated['additional_services'],
+                'service_package' => implode(', ', $selectedNames), 'add_ons' => null,
                 'groomer_name' => $validated['assigned_groomer'] ?? Auth::user()->user_name,
                 'start_time' => $validated['start_time'], 'end_time' => $validated['end_time'],
                 'status' => 'Completed', 'remarks' => $validated['instructions'],
@@ -652,7 +679,7 @@ public function completeService(Request $request, $visitId, $serviceId)
             ]
         );
         
-        // 5. Update visit_service_type to include all services
+        // 6. Update visit_service_type to include all services
         $visitModel->refresh();
         $allServices = $visitModel->services()->get();
         if ($allServices->isNotEmpty()) {
@@ -661,7 +688,7 @@ public function completeService(Request $request, $visitId, $serviceId)
             $visitModel->save();
         }
         
-        // 6. Check if all services are completed and generate billing
+        // 7. Check if all services are completed and generate billing
         $allCompleted = $visitModel->checkAllServicesCompleted();
         
         // If checkAllServicesCompleted didn't update status (shouldn't happen, but just in case)
@@ -678,8 +705,8 @@ public function completeService(Request $request, $visitId, $serviceId)
         Log::error('Error saving grooming record and billing: ' . $e->getMessage());
         return back()->with('error', 'Failed to save grooming record and create bill: ' . $e->getMessage());
     }
-        // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
-        return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', 'Grooming record saved and visit status marked **Completed**.');
+        // Redirect to the grooming tab
+        return redirect()->route('medical.index', ['tab' => 'grooming'])->with('success', 'Grooming record saved and visit status marked **Completed**.');
     }
 
     public function saveBoarding(Request $request, $visitId)
@@ -773,7 +800,7 @@ public function completeService(Request $request, $visitId, $serviceId)
     // Billing is now handled by checkAllServicesCompleted() method
     // No need to manually create billing here
     
-    return redirect()->route('medical.index', ['active_tab' => 'visits'])
+    return redirect()->route('medical.index', ['tab' => 'boarding'])
         ->with('success', 'Boarding record saved. Total billed amount: ₱'.number_format($totalAmount, 2));
 }
 
@@ -837,8 +864,8 @@ public function completeService(Request $request, $visitId, $serviceId)
                 : ' All services completed, but billing generation failed. Please check logs.';
         }
         
-        // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
-        return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', $message);
+        // Redirect to the diagnostic tab
+        return redirect()->route('medical.index', ['tab' => 'diagnostic'])->with('success', $message);
     }
 
     public function saveSurgical(Request $request, $visitId)
@@ -905,8 +932,8 @@ public function completeService(Request $request, $visitId, $serviceId)
                 : ' All services completed, but billing generation failed. Please check logs.';
         }
         
-        // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
-        return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', $message);
+        // Redirect to the surgical tab
+        return redirect()->route('medical.index', ['tab' => 'surgical'])->with('success', $message);
     }
 
     public function saveEmergency(Request $request, $visitId)
@@ -968,8 +995,8 @@ public function completeService(Request $request, $visitId, $serviceId)
                 : ' All services completed, but billing generation failed. Please check logs.';
         }
         
-        // 🌟 NEW: Redirect to the main index view, specifically the 'visits' tab
-        return redirect()->route('medical.index', ['active_tab' => 'visits'])->with('success', $message);
+        // Redirect to the emergency tab
+        return redirect()->route('medical.index', ['tab' => 'emergency'])->with('success', $message);
     }
 
     // ==================== VISIT CRUD (Fixed) ====================
@@ -1003,8 +1030,8 @@ public function completeService(Request $request, $visitId, $serviceId)
                     'weight' => $request->input("weight.$petId") ?? null,
                     'temperature' => $request->input("temperature.$petId") ?? null,
                     'patient_type' => $validated['patient_type'],
-                    'visit_status' => 'arrived',
-                    'workflow_status' => 'Waiting',
+                    'visit_status' => 'pending',
+                    'workflow_status' => 'Pending',
                 ];
 
                 $visit = Visit::create($data);
@@ -1062,22 +1089,23 @@ public function completeService(Request $request, $visitId, $serviceId)
                     // Store service summary in visit record (if column exists)
                     $typesSummary = implode(', ', $serviceNames);
                     $updateData = [
-                        'workflow_status' => 'Waiting (0/' . count($syncData) . ' completed)'
+                        'workflow_status' => 'Pending (0/' . count($syncData) . ' completed)'
                     ];
                     if (Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
                         $updateData['visit_service_type'] = $typesSummary;
                     }
+                    
                     $visit->update($updateData);
                 }
             }
         });
 
-        $activeTab = $request->input('active_tab', 'visits');
+        $activeTab = $request->input('tab', 'visits');
         $message = $visitsCreated > 1 
             ? "Successfully created {$visitsCreated} visits with {$totalServicesCreated} total service(s)."
             : "Visit recorded successfully with {$totalServicesCreated} service(s).";
             
-        return redirect()->route('medical.index', ['active_tab' => $activeTab])
+        return redirect()->route('medical.index', ['tab' => $activeTab])
             ->with('success', $message);
     }
     public function updateVisit(Request $request, Visit $visit)
@@ -1114,8 +1142,8 @@ public function completeService(Request $request, $visitId, $serviceId)
             }
         }
 
-        $activeTab = $request->input('active_tab', 'visits');
-        return redirect()->route('medical.index', ['active_tab' => $activeTab])
+        $activeTab = $request->input('tab', 'visits');
+        return redirect()->route('medical.index', ['tab' => $activeTab])
             ->with('success', 'Visit updated successfully');
     }
 
@@ -1124,8 +1152,8 @@ public function completeService(Request $request, $visitId, $serviceId)
         $visit = Visit::findOrFail($id);
         $visit->delete();
 
-        $activeTab = $request->input('active_tab', 'visits');
-        return redirect()->route('medical.index', ['active_tab' => $activeTab])
+        $activeTab = $request->input('tab', 'visits');
+        return redirect()->route('medical.index', ['tab' => $activeTab])
             ->with('success', 'Visit deleted successfully');
     }
 
@@ -1193,6 +1221,7 @@ public function completeService(Request $request, $visitId, $serviceId)
      */
   public function performVisit(Request $request, $id)
     {
+        
         $visit = Visit::with(['pet.owner', 'user', 'services'])->findOrFail($id);
 
         $explicitType = $request->query('type');
@@ -1263,6 +1292,7 @@ public function completeService(Request $request, $visitId, $serviceId)
             
         // 2. Map the collection to extract weight limits from the 'serv_name' string
         $petWeight = optional($visit)->weight; // may be null
+        $petAgeMonths = $this->calculatePetAgeInMonths(optional($visit)->pet);
         $availableServices = $availableGroomingServices->map(function ($service) {
             $name = $service->serv_name;
             $min_weight = 0;
@@ -1278,18 +1308,12 @@ public function completeService(Request $request, $visitId, $serviceId)
                 $max_weight = 9999;
             }
 
-            // Derive a base "kind" label (e.g., Full Groom, Bath & Blowdry)
-            $kind = $name;
-            if (preg_match('/grooming\s*-\s*([^\(]+)/i', $name, $km)) {
-                $kind = trim($km[1]);
-            } else {
-                // fallback: strip anything after first parenthesis
-                $kind = trim(preg_split('/\(/', $name)[0]);
-            }
+            [$minAge, $maxAge] = $this->extractAgeRangeFromServiceLabel($name);
 
             $service->min_weight = $min_weight;
             $service->max_weight = $max_weight;
-            $service->kind = $kind;
+            $service->min_age_months = $minAge;
+            $service->max_age_months = $maxAge;
 
             return $service;
         })
@@ -1298,10 +1322,23 @@ public function completeService(Request $request, $visitId, $serviceId)
             return $col->filter(function ($s) use ($petWeight) {
                 return $petWeight >= ($s->min_weight ?? 0) && $petWeight <= ($s->max_weight ?? 9999);
             })->values();
-        });
+        })
+        ->when(!is_null($petAgeMonths), function ($col) use ($petAgeMonths) {
+            return $col->filter(function ($s) use ($petAgeMonths) {
+                $minAge = $s->min_age_months;
+                $maxAge = $s->max_age_months;
 
-        // Build unique kinds for UI filtering
-        $groomKinds = $availableServices->pluck('kind')->filter()->unique()->sort()->values();
+                if (!is_null($minAge) && $petAgeMonths < $minAge) {
+                    return false;
+                }
+
+                if (!is_null($maxAge) && $petAgeMonths > $maxAge) {
+                    return false;
+                }
+
+                return true;
+            })->values();
+        });
 
         $lookups = $this->getBranchLookups();
         $viewName = 'visits.' . $blade;
@@ -1332,7 +1369,8 @@ public function completeService(Request $request, $visitId, $serviceId)
                             ->get();
         
         // Pass the new variable 'veterinarians' to the view
-        return view($viewName, array_merge(compact('visit', 'serviceData', 'petMedicalHistory', 'availableServices','vaccines', 'veterinarians', 'groomKinds'), $lookups));
+        //dd($viewName);
+        return view($viewName, array_merge(compact('visit', 'serviceData', 'petMedicalHistory', 'availableServices','vaccines', 'veterinarians'), $lookups));
     }
     // ==================== APPOINTMENT METHODS (Full Implementations) ====================
 
@@ -1352,8 +1390,8 @@ public function completeService(Request $request, $visitId, $serviceId)
         
         // Assuming History and Service Sync Logic is restored/handled elsewhere
         
-        $activeTab = $request->input('active_tab', 'appointments');
-        return redirect()->route('medical.index', ['active_tab' => $activeTab])->with('success', 'Appointment added successfully');
+        $activeTab = $request->input('tab', 'appointments');
+        return redirect()->route('medical.index', ['tab' => $activeTab])->with('success', 'Appointment added successfully');
     }
 
     public function showAppointment($id)
@@ -1377,8 +1415,8 @@ public function completeService(Request $request, $visitId, $serviceId)
 
         // ... (Original Update and Inventory Logic)
         
-        $activeTab = $request->input('active_tab', 'appointments');
-        return redirect()->route('medical.index', ['active_tab' => $activeTab])
+        $activeTab = $request->input('tab', 'appointments');
+        return redirect()->route('medical.index', ['tab' => $activeTab])
                         ->with('success', 'Appointment updated successfully');
     }
 
@@ -1388,8 +1426,8 @@ public function completeService(Request $request, $visitId, $serviceId)
         $appointment->services()->detach();
         $appointment->delete();
 
-        $activeTab = $request->input('active_tab', 'appointments');
-        return redirect()->route('medical.index', ['active_tab' => $activeTab])
+        $activeTab = $request->input('tab', 'appointments');
+        return redirect()->route('medical.index', ['tab' => $activeTab])
                         ->with('success', 'Appointment deleted successfully');
     }
 
@@ -1459,8 +1497,8 @@ public function completeService(Request $request, $visitId, $serviceId)
             // If we got here, everything succeeded
             DB::commit();
             
-            $activeTab = $request->input('active_tab', 'prescriptions');
-            return redirect()->route('medical.index', ['active_tab' => $activeTab])
+            $activeTab = $request->input('tab', 'prescriptions');
+            return redirect()->route('medical.index', ['tab' => $activeTab])
                 ->with('success', 'Prescription created successfully!');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -1483,8 +1521,8 @@ public function completeService(Request $request, $visitId, $serviceId)
         try {
             $request->validate(['pet_id' => 'required|exists:tbl_pet,pet_id', 'prescription_date' => 'required|date']);
             // ... (Original Update Logic)
-            $activeTab = $request->input('active_tab', 'prescriptions');
-            return redirect()->route('medical.index', ['active_tab' => $activeTab])->with('success', 'Prescription updated successfully!');
+            $activeTab = $request->input('tab', 'prescriptions');
+            return redirect()->route('medical.index', ['tab' => $activeTab])->with('success', 'Prescription updated successfully!');
         } catch (\Exception $e) { return back()->with('error', 'Error updating prescription: ' . $e->getMessage()); }
     }
 
@@ -1492,8 +1530,8 @@ public function completeService(Request $request, $visitId, $serviceId)
     {
         try {
             Prescription::findOrFail($id)->delete();
-            $activeTab = $request->input('active_tab', 'prescriptions');
-            return redirect()->route('medical.index', ['active_tab' => $activeTab])->with('success', 'Prescription deleted successfully!');
+            $activeTab = $request->input('tab', 'prescriptions');
+            return redirect()->route('medical.index', ['tab' => $activeTab])->with('success', 'Prescription deleted successfully!');
         } catch (\Exception $e) { return back()->with('error', 'Error deleting prescription: ' . $e->getMessage()); }
     }
 
@@ -1509,12 +1547,39 @@ public function completeService(Request $request, $visitId, $serviceId)
     public function storeReferral(Request $request)
     {
         $validated = $request->validate([
-            'appointment_id' => 'required|exists:tbl_appoint,appoint_id', 'ref_date' => 'required|date', 
-            'ref_to' => 'required|exists:tbl_branch,branch_id', 'ref_description' => 'required|string',
+            'visit_id' => 'required|exists:tbl_visit_record,visit_id', 'ref_date' => 'required|date', 'pet_id' => 'required|exists:tbl_pet,pet_id',
+            'ref_to' => 'required|numeric', 'ref_description' => 'required|string',
         ]);
-        // ... (Original Store Logic)
-        $activeTab = $request->input('active_tab', 'referrals');
-        return redirect()->route('medical.index', ['active_tab' => $activeTab])->with('success', 'Referral created successfully.');
+          try {
+            // Create a temporary appointment for the referral
+           /* $appointment = Appointment::create([
+                'pet_id' => $validated['pet_id'],
+                'appoint_date' => $validated['ref_date'],
+                'appoint_time' => '09:00:00',
+                'appoint_status' => 'refer',
+                'appoint_type' => 'Referral',
+                'user_id' => Auth::id(),
+            ]);*/
+
+            // @todo : Consider linking the referral to an appointment if needed in the future
+            // @todo : For now, we just create the referral record but we also measure pet medical history, medication and test record via visit_id and pet_id 
+            Referral::create([
+                'visit_id' => $validated['visit_id'],
+                'pet_id' => $validated['pet_id'],   
+                'ref_date' => $validated['ref_date'],
+                'ref_to' => $validated['ref_to'],
+                'ref_description' => $validated['ref_description'],
+                'ref_by' => Auth::id(),
+            ]);
+
+           $activeTab = $request->input('tab', 'referrals');
+        return redirect()->route('medical.index', ['tab' => $activeTab])->with('success', 'Referral created successfully.');
+        } catch (\Exception $e) {
+            Log::error('Referral creation failed: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Failed to create referral');
+        }
+      
+       
     }
 
     public function editReferral($id)
@@ -1529,8 +1594,8 @@ public function completeService(Request $request, $visitId, $serviceId)
     {
         $validated = $request->validate(['ref_date' => 'required|date', 'ref_description' => 'required|string']);
         // ... (Original Update Logic)
-        $activeTab = $request->input('active_tab', 'referrals');
-        return redirect()->route('medical.index', ['active_tab' => $activeTab])->with('success', 'Referral updated successfully.');
+        $activeTab = $request->input('tab', 'referrals');
+        return redirect()->route('medical.index', ['tab' => $activeTab])->with('success', 'Referral updated successfully.');
     }
 
     public function showReferral($id)
@@ -1545,8 +1610,8 @@ public function completeService(Request $request, $visitId, $serviceId)
     {
         $referral = Referral::findOrFail($id);
         $referral->delete();
-        $activeTab = $request->input('active_tab', 'referrals');
-        return redirect()->route('medical.index', ['active_tab' => $activeTab])->with('success', 'Referral deleted successfully!');
+        $activeTab = $request->input('tab', 'referrals');
+        return redirect()->route('medical.index', ['tab' => $activeTab])->with('success', 'Referral deleted successfully!');
     }
 
     public function getAppointmentDetails($id)
@@ -1577,10 +1642,123 @@ public function completeService(Request $request, $visitId, $serviceId)
     { 
         return redirect()->back()->with('success', 'Vaccine details recorded.');
     }
-
+    
     public function getServiceProductsForVaccination($serviceId) 
     { 
         return response()->json(['success' => true, 'products' => []]);
+    }
+
+    /**
+     * Derive the pet's age in months from birthdate or stored age string.
+     */
+    private function calculatePetAgeInMonths(?Pet $pet): ?int
+    {
+        if (!$pet) {
+            return null;
+        }
+
+        if (!empty($pet->pet_birthdate)) {
+            try {
+                return Carbon::parse($pet->pet_birthdate)->diffInMonths(Carbon::now());
+            } catch (\Throwable $e) {
+                // Ignore parsing failures and fall back to the pet_age column
+            }
+        }
+
+        if (!empty($pet->pet_age)) {
+            return $this->normalizeAgeStringToMonths($pet->pet_age);
+        }
+
+        return null;
+    }
+
+    /**
+     * Normalize a free-form age string (e.g., "2 years", "6 mos") into months.
+     */
+    private function normalizeAgeStringToMonths(string $value): ?int
+    {
+        $normalized = strtolower(trim($value));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        if (preg_match('/(\d+(?:\.\d+)?)\s*(year|yrs?|y)/', $normalized, $match)) {
+            return (int) round(((float) $match[1]) * 12);
+        }
+
+        if (preg_match('/(\d+(?:\.\d+)?)\s*(month|mos?|mo|m)/', $normalized, $match)) {
+            return (int) round((float) $match[1]);
+        }
+
+        if (ctype_digit($normalized)) {
+            return (int) $normalized;
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract min/max age boundaries (in months) from the service label.
+     */
+    private function extractAgeRangeFromServiceLabel(string $label): array
+    {
+        $min = null;
+        $max = null;
+
+        // Range like "3-6 months"
+        if (preg_match('/(\d+(?:\.\d+)?)\s*(?:-|to)\s*(\d+(?:\.\d+)?)\s*(month|mos?|mo|m)/i', $label, $matches)) {
+            $min = (int) round((float) $matches[1]);
+            $max = (int) round((float) $matches[2]);
+            return [$min, $max];
+        }
+
+        // Range like "1-3 years"
+        if (preg_match('/(\d+(?:\.\d+)?)\s*(?:-|to)\s*(\d+(?:\.\d+)?)\s*(year|yrs?|y)/i', $label, $matches)) {
+            $min = (int) round(((float) $matches[1]) * 12);
+            $max = (int) round(((float) $matches[2]) * 12);
+            return [$min, $max];
+        }
+
+        // Upper bounds "under 6 months", "below 1 year"
+        if (preg_match('/(\d+(?:\.\d+)?)\s*(month|mos?|mo|m)\s*(?:and)?\s*(?:below|under|less)/i', $label, $matches)) {
+            $max = (int) round((float) $matches[1]);
+            return [$min, $max];
+        }
+
+        if (preg_match('/(\d+(?:\.\d+)?)\s*(year|yrs?|y)\s*(?:and)?\s*(?:below|under|less)/i', $label, $matches)) {
+            $max = (int) round(((float) $matches[1]) * 12);
+            return [$min, $max];
+        }
+
+        // Lower bounds "12 months and above", "5 years above"
+        if (preg_match('/(\d+(?:\.\d+)?)\s*(month|mos?|mo|m)\s*(?:and)?\s*(?:above|over|\+|plus)/i', $label, $matches)) {
+            $min = (int) round((float) $matches[1]);
+            return [$min, $max];
+        }
+
+        if (preg_match('/(\d+(?:\.\d+)?)\s*(year|yrs?|y)\s*(?:and)?\s*(?:above|over|\+|plus)/i', $label, $matches)) {
+            $min = (int) round(((float) $matches[1]) * 12);
+            return [$min, $max];
+        }
+
+        $normalized = strtolower($label);
+
+        if (str_contains($normalized, 'puppy') || str_contains($normalized, 'kitten')) {
+            $min = 0;
+            $max = 12;
+        } elseif (str_contains($normalized, 'junior')) {
+            $min = 6;
+            $max = 24;
+        } elseif (str_contains($normalized, 'adult')) {
+            $min = 12;
+            $max = 84;
+        } elseif (str_contains($normalized, 'senior')) {
+            $min = 84;
+            $max = null;
+        }
+
+        return [$min, $max];
     }
 
     // ==================== HELPER METHODS FOR AUTO-SCHEDULING ====================
