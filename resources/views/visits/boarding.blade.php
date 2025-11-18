@@ -189,6 +189,7 @@
 <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
 {{-- 💥 FIX 1: ADD HIDDEN FIELD FOR DAILY RATE --}}
 <input type="hidden" name="daily_rate" id="daily_rate_hidden" value="" />
+<input type="hidden" name="redirect_to" value="perform" />
             </form>
             </div>
         </div>

@@ -154,6 +154,7 @@
                     <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
                     <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
                     <input type="hidden" name="weight" value="{{ $visit->weight }}">
+                    <input type="hidden" name="redirect_to" value="perform">
 
                     {{-- 🌟 FIX: Define $currentWeight and display strings once for all HTML/JS references --}}
                     @php

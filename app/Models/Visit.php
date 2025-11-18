@@ -114,7 +114,7 @@ public function services()
 {
     return $this->belongsToMany(Service::class, 'tbl_visit_service', 'visit_id', 'serv_id')
                 ->using(VisitService::class)
-                ->withPivot(['status', 'completed_at', 'coat_condition', 'skin_issues', 'notes'])
+                ->withPivot(['status', 'completed_at', 'coat_condition', 'skin_issues', 'notes', 'quantity', 'unit_price', 'total_price'])
                 ->withTimestamps();
 }
 
