@@ -22,7 +22,10 @@ class VisitService extends Pivot
         'skin_issues',
         'notes',
         'status',
-        'completed_at'
+        'completed_at',
+        'quantity',
+        'unit_price',
+        'total_price'
     ];
 
     public function service()

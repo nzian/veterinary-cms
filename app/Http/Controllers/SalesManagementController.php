@@ -15,6 +15,10 @@ use Carbon\Carbon;
 
 class SalesManagementController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('auth');
+    }   
     public function index(Request $request)
     {
         $activeBranchId = session('active_branch_id');
