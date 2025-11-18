@@ -175,23 +175,35 @@ class VisitBillingService
 
     if ($services->isNotEmpty()) {
         foreach ($services as $s) {
-            // FIX: Prioritize reading the pre-calculated total from the pivot table if available
-            $quantity = $s->pivot->quantity ?? 1; 
-            $unitPrice = $s->pivot->unit_price ?? $s->serv_price ?? 0;
+            // FIX: Read quantity and pricing from pivot table
+            $quantity = $s->pivot->quantity ?? 1;
             
-            // Ensure we have a valid price
-            if ($unitPrice <= 0) {
-                Log::warning("Service {$s->serv_name} has invalid price: {$unitPrice}. Using service price from table.");
+            // Read unit_price from pivot, but if it's 0 or null, fall back to service price
+            $unitPrice = $s->pivot->unit_price;
+            if (empty($unitPrice) || $unitPrice <= 0) {
                 $unitPrice = $s->serv_price ?? 0;
+                Log::warning("Service {$s->serv_name} (serv_id: {$s->serv_id}) has zero/null unit_price in pivot. Using service price: {$unitPrice}");
             }
             
-            // Fallback price logic is robust. For boarding, this uses (Days * Daily Rate) as saved in the controller.
+            // If total_price is available and valid, use it directly
+            $totalPrice = $s->pivot->total_price;
+            if (!empty($totalPrice) && $totalPrice > 0) {
+                // If total_price exists, recalculate unit_price if needed
+                if ($quantity > 0) {
+                    $calculatedUnitPrice = $totalPrice / $quantity;
+                    // Use the calculated unit price if it's reasonable
+                    if ($calculatedUnitPrice > 0) {
+                        $unitPrice = $calculatedUnitPrice;
+                        Log::info("Service {$s->serv_name}: Using calculated unit_price {$unitPrice} from total_price {$totalPrice} / quantity {$quantity}");
+                    }
+                }
+            }
             
             $lines[] = [
                 'service_name' => $s->serv_name ?? 'Service N/A',
                 'prod_id' => $this->resolveServiceProductId($s->serv_id),
-                'price' => $unitPrice, // Unit Price (Daily Rate)
-                'quantity' => $quantity, // Quantity (Total Days)
+                'price' => $unitPrice, // Unit Price (Daily Rate or service price)
+                'quantity' => $quantity, // Quantity (Total Days or sessions)
             ];
             
             Log::info("Added service line: {$s->serv_name}, Price: {$unitPrice}, Quantity: {$quantity}, Prod ID: " . ($lines[count($lines)-1]['prod_id'] ?? 'null'));

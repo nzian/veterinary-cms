@@ -296,187 +296,233 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
     public function saveVaccination(Request $request, $visitId)
     {
         $validated = $request->validate([
-            'vaccine_name' => ['required','string'], 'dose' => ['nullable','string'], 'manufacturer' => ['nullable','string'], 
-            'batch_no' => ['nullable','string'], 'date_administered' => ['nullable','date'], 'next_due_date' => ['nullable','date'],
-            'administered_by' => ['nullable','string'], 'remarks' => ['nullable','string'], 'workflow_status' => ['nullable','string'],
+            'vaccine_name' => ['required','string'], 
+            'dose' => ['nullable','string'], 
+            'manufacturer' => ['nullable','string'], 
+            'batch_no' => ['nullable','string'], 
+            'date_administered' => ['nullable','date'], 
+            'next_due_date' => ['nullable','date'],
+            'administered_by' => ['nullable','string'], 
+            'remarks' => ['nullable','string'], 
+            'workflow_status' => ['nullable','string'],
         ]);
         
         $visitModel = Visit::with('pet.owner', 'services')->findOrFail($visitId);
         
-        // 1. Mark vaccination service as completed
-        $vaccinationService = $visitModel->services()
-            ->where('serv_type', 'LIKE', '%vaccination%')
-            ->first();
-        
-        if ($vaccinationService) {
-            $visitModel->services()->updateExistingPivot($vaccinationService->serv_id, [
-                'status' => 'completed',
-                'completed_at' => now()
-            ]);
+        try {
+            DB::beginTransaction();
+            
+            // 1. Mark vaccination service as completed with proper pricing
+            $vaccinationService = $visitModel->services()
+                ->where('serv_type', 'LIKE', '%vaccination%')
+                ->first();
+            
+            if ($vaccinationService) {
+                $visitModel->services()->updateExistingPivot($vaccinationService->serv_id, [
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                    'quantity' => 1,
+                    'unit_price' => $vaccinationService->serv_price,
+                    'total_price' => $vaccinationService->serv_price,
+                    'updated_at' => now(),
+                ]);
+            } else {
+                Log::warning("No vaccination service found for visit {$visitModel->visit_id}");
+            }
+            
+            // 2. Save Vaccination Record (use updateOrInsert to avoid duplicates)
+            $dateAdministered = $validated['date_administered'] ?: $visitModel->visit_date;
+            
+            // Determine next due date: manual override if provided, else 14 days after administration
+            $computedNextDue = Carbon::parse($dateAdministered)->addDays(14)->toDateString();
+            $nextDueDate = !empty($validated['next_due_date']) ? $validated['next_due_date'] : $computedNextDue;
+
+            DB::table('tbl_vaccination_record')->updateOrInsert(
+                ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
+                [
+                    'vaccine_name' => $validated['vaccine_name'],
+                    'dose'=> $validated['dose'], 
+                    'manufacturer' => $validated['manufacturer'],
+                    'batch_no' => $validated['batch_no'], 
+                    'date_administered' => $dateAdministered,
+                    'next_due_date' => $nextDueDate, 
+                    'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
+                    'remarks' => $validated['remarks'], 
+                    'created_at' => now(), 
+                    'updated_at' => now(),
+                ]
+            );
+
+            // 3. Deduct Inventory 
+            $vaccine = Product::where('prod_name', $request->vaccine_name)
+                ->where('prod_category', 'Vaccines')
+                ->first();
+            
+            if ($vaccine && $vaccine->prod_stocks > 0) {
+                $vaccine->decrement('prod_stocks', 1);
+                InventoryHistoryModel::create([
+                    'prod_id' => $vaccine->prod_id,
+                    'type' => 'service_usage',
+                    'quantity' => -1,
+                    'reference' => "Vaccination - Visit #{$visitId}",
+                    'user_id' => Auth::id(),
+                    'notes' => "Administered to " . ($visitModel->pet->pet_name ?? 'Pet')
+                ]);
+            }
+
+            // 4. AUTO-SCHEDULING LOGIC (manual date overrides calculated schedule)
+            $schedule = $this->calculateNextSchedule('vaccination', $validated['vaccine_name'], $visitModel->pet_id);
+
+            $appointType = $schedule['next_appoint_type'] ?? ('Vaccination Follow-up for ' . $validated['vaccine_name']);
+            $newDose = $schedule['new_dose'] ?? 1;
+
+            $this->autoScheduleFollowUp(
+                $visitModel,
+                $appointType,
+                $nextDueDate,
+                $validated['vaccine_name'],
+                $newDose
+            );
+
+            // 5. Update visit_service_type to include all services
+            $visitModel->refresh();
+            $allServices = $visitModel->services()->get();
+            if ($allServices->isNotEmpty()) {
+                $typesSummary = $allServices->pluck('serv_name')->implode(', ');
+                $visitModel->visit_service_type = $typesSummary;
+                $visitModel->save();
+            }
+            
+            // 6. Check if all services are completed and generate billing
+            $allCompleted = $visitModel->checkAllServicesCompleted();
+            
+            // Verify billing was actually created
+            $visitModel->refresh();
+            $billingExists = DB::table('tbl_bill')
+                ->where('visit_id', $visitModel->visit_id)
+                ->exists();
+            
+            DB::commit();
+            
+            $successMessage = 'Vaccination recorded. Next appointment auto-scheduled for **' . Carbon::parse($nextDueDate)->format('F j, Y') . '**.';
+            if ($allCompleted) {
+                $successMessage .= $billingExists 
+                    ? ' All services completed - billing generated!'
+                    : ' All services completed, but billing generation failed. Please check logs.';
+            }
+            
+            // Redirect to Care Continuity Appointments tab
+            return redirect()->route('care-continuity.index', ['active_tab' => 'appointments'])->with('success', $successMessage);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error saving vaccination record: ' . $e->getMessage());
+            return back()->with('error', 'Failed to save vaccination record: ' . $e->getMessage());
         }
-        
-        // 2. Save Vaccination Record 
-        $dateAdministered = $validated['date_administered'] ?: $visitModel->visit_date;
-        
-        // Determine next due date: manual override if provided, else 14 days after administration
-        $computedNextDue = Carbon::parse($dateAdministered)->addDays(14)->toDateString();
-        $nextDueDate = !empty($validated['next_due_date']) ? $validated['next_due_date'] : $computedNextDue;
-
-        DB::table('tbl_vaccination_record')->insert([
-            'visit_id' => $visitModel->visit_id, 
-            'pet_id' => $visitModel->pet_id,
-            'vaccine_name' => $validated['vaccine_name'],
-            'dose'=> $validated['dose'], 
-            'manufacturer' => $validated['manufacturer'],
-            'batch_no' => $validated['batch_no'], 
-            'date_administered' => $dateAdministered,
-            'next_due_date' => $nextDueDate, 
-            'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
-            'remarks' => $validated['remarks'], 
-            'created_at' => now(), 
-            'updated_at' => now(),
-        ]);
-
-        // 3. Deduct Inventory 
-        $vaccine = Product::where('prod_name', $request->vaccine_name)
-            ->where('prod_category', 'Vaccines')
-            ->first();
-        
-        if ($vaccine && $vaccine->prod_stocks > 0) {
-            $vaccine->decrement('prod_stocks', 1);
-            InventoryHistoryModel::create([
-                'prod_id' => $vaccine->prod_id,
-                'type' => 'service_usage',
-                'quantity' => -1,
-                'reference' => "Vaccination - Visit #{$visitId}",
-                'user_id' => Auth::id(),
-                'notes' => "Administered to " . ($visitModel->pet->pet_name ?? 'Pet')
-            ]);
-        }
-
-        // 4. AUTO-SCHEDULING LOGIC (manual date overrides calculated schedule)
-        $schedule = $this->calculateNextSchedule('vaccination', $validated['vaccine_name'], $visitModel->pet_id);
-
-        $appointType = $schedule['next_appoint_type'] ?? ('Vaccination Follow-up for ' . $validated['vaccine_name']);
-        $newDose = $schedule['new_dose'] ?? 1;
-
-        $this->autoScheduleFollowUp(
-            $visitModel,
-            $appointType,
-            $nextDueDate,
-            $validated['vaccine_name'],
-            $newDose
-        );
-
-        // 5. Update visit_service_type to include all services
-        $visitModel->refresh();
-        $allServices = $visitModel->services()->get();
-        if ($allServices->isNotEmpty()) {
-            $typesSummary = $allServices->pluck('serv_name')->implode(', ');
-            $visitModel->visit_service_type = $typesSummary;
-            $visitModel->save();
-        }
-        
-        // 6. Check if all services are completed and generate billing
-        $allCompleted = $visitModel->checkAllServicesCompleted();
-        
-        // Verify billing was actually created
-        $visitModel->refresh();
-        $billingExists = \Illuminate\Support\Facades\DB::table('tbl_bill')
-            ->where('visit_id', $visitModel->visit_id)
-            ->exists();
-        
-        $successMessage = 'Vaccination recorded. Next appointment auto-scheduled for **' . Carbon::parse($nextDueDate)->format('F j, Y') . '**.';
-        if ($allCompleted) {
-            $successMessage .= $billingExists 
-                ? ' All services completed - billing generated!'
-                : ' All services completed, but billing generation failed. Please check logs.';
-        }
-        
-        // 6. Redirect to Care Continuity Appointments tab
-        return redirect()->route('care-continuity.index', ['tab' => 'appointments'])->with('success', $successMessage);
     }
 
     public function saveDeworming(Request $request, $visitId)
     {
         $validated = $request->validate([
-            'dewormer_name' => ['required','string'], 'dosage' => ['nullable','string'], 'next_due_date' => ['nullable','date'],
-            'administered_by' => ['nullable','string'], 'remarks' => ['nullable','string'], 'workflow_status' => ['nullable','string'],
+            'dewormer_name' => ['required','string'], 
+            'dosage' => ['nullable','string'], 
+            'next_due_date' => ['nullable','date'],
+            'administered_by' => ['nullable','string'], 
+            'remarks' => ['nullable','string'], 
+            'workflow_status' => ['nullable','string'],
         ]);
         
         $visitModel = Visit::with('pet.owner', 'services')->findOrFail($visitId);
         
-        // 1. Mark deworming service as completed
-        $dewormingService = $visitModel->services()
-            ->where('serv_type', 'LIKE', '%deworming%')
-            ->first();
-        
-        if ($dewormingService) {
-            $visitModel->services()->updateExistingPivot($dewormingService->serv_id, [
-                'status' => 'completed',
-                'completed_at' => now()
-            ]);
+        try {
+            DB::beginTransaction();
+            
+            // 1. Mark deworming service as completed with proper pricing
+            $dewormingService = $visitModel->services()
+                ->where('serv_type', 'LIKE', '%deworming%')
+                ->first();
+            
+            if ($dewormingService) {
+                $visitModel->services()->updateExistingPivot($dewormingService->serv_id, [
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                    'quantity' => 1,
+                    'unit_price' => $dewormingService->serv_price,
+                    'total_price' => $dewormingService->serv_price,
+                    'updated_at' => now(),
+                ]);
+            } else {
+                Log::warning("No deworming service found for visit {$visitModel->visit_id}");
+            }
+            
+            // 2. Save Deworming Record (use updateOrInsert to avoid duplicates)
+            $dwBase = $visitModel->visit_date ?? now();
+            $dwComputedNextDue = Carbon::parse($dwBase)->addDays(14)->toDateString();
+            $dwNextDueDate = !empty($validated['next_due_date']) ? $validated['next_due_date'] : $dwComputedNextDue;
+
+            DB::table('tbl_deworming_record')->updateOrInsert(
+                ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
+                [
+                    'dewormer_name' => $validated['dewormer_name'], 
+                    'dosage' => $validated['dosage'], 
+                    'next_due_date' => $dwNextDueDate, 
+                    'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
+                    'remarks' => $validated['remarks'], 
+                    'created_at' => now(), 
+                    'updated_at' => now(),
+                ]
+            );
+
+            // 3. AUTO-SCHEDULING LOGIC (manual date overrides calculated schedule)
+            $currentDewormName = $validated['dewormer_name']; 
+            $schedule = $this->calculateNextSchedule('deworming', $currentDewormName, $visitModel->pet_id);
+
+            $dwAppointType = $schedule['next_appoint_type'] ?? ('Deworming Follow-up for ' . $currentDewormName);
+            $dwNewDose = $schedule['new_dose'] ?? 1;
+
+            $this->autoScheduleFollowUp(
+                $visitModel,
+                $dwAppointType,
+                $dwNextDueDate,
+                $currentDewormName,
+                $dwNewDose
+            );
+
+            // 4. Update visit_service_type to include all services
+            $visitModel->refresh();
+            $allServices = $visitModel->services()->get();
+            if ($allServices->isNotEmpty()) {
+                $typesSummary = $allServices->pluck('serv_name')->implode(', ');
+                $visitModel->visit_service_type = $typesSummary;
+                $visitModel->save();
+            }
+            
+            // 5. Check if all services are completed and generate billing
+            $allCompleted = $visitModel->checkAllServicesCompleted();
+            
+            // Verify billing was actually created
+            $visitModel->refresh();
+            $billingExists = DB::table('tbl_bill')
+                ->where('visit_id', $visitModel->visit_id)
+                ->exists();
+            
+            DB::commit();
+            
+            $successMessage = 'Deworming recorded. Next appointment auto-scheduled for **' . Carbon::parse($dwNextDueDate)->format('F j, Y') . '**.';
+            if ($allCompleted) {
+                $successMessage .= $billingExists 
+                    ? ' All services completed - billing generated!'
+                    : ' All services completed, but billing generation failed. Please check logs.';
+            }
+            
+            // Redirect to Care Continuity Appointments tab
+            return redirect()->route('care-continuity.index', ['active_tab' => 'appointments'])->with('success', $successMessage);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error saving deworming record: ' . $e->getMessage());
+            return back()->with('error', 'Failed to save deworming record: ' . $e->getMessage());
         }
-        
-        // 2. Save Deworming Record (manual override if provided, else 14 days after today/visit)
-        $dwBase = $visitModel->visit_date ?? now();
-        $dwComputedNextDue = Carbon::parse($dwBase)->addDays(14)->toDateString();
-        $dwNextDueDate = !empty($validated['next_due_date']) ? $validated['next_due_date'] : $dwComputedNextDue;
-
-        DB::table('tbl_deworming_record')->insert([
-            'visit_id' => $visitModel->visit_id, 
-            'pet_id' => $visitModel->pet_id,
-            'dewormer_name' => $validated['dewormer_name'], 
-            'dosage' => $validated['dosage'], 
-            'next_due_date' => $dwNextDueDate, 
-            'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
-            'remarks' => $validated['remarks'], 
-            'created_at' => now(), 
-            'updated_at' => now(),
-        ]);
-
-        // 3. AUTO-SCHEDULING LOGIC (manual date overrides calculated schedule)
-        $currentDewormName = $validated['dewormer_name']; 
-        $schedule = $this->calculateNextSchedule('deworming', $currentDewormName, $visitModel->pet_id);
-
-        $dwAppointType = $schedule['next_appoint_type'] ?? ('Deworming Follow-up for ' . $currentDewormName);
-        $dwNewDose = $schedule['new_dose'] ?? 1;
-
-        $this->autoScheduleFollowUp(
-            $visitModel,
-            $dwAppointType,
-            $dwNextDueDate,
-            $currentDewormName,
-            $dwNewDose
-        );
-
-        // 4. Update visit_service_type to include all services
-        $visitModel->refresh();
-        $allServices = $visitModel->services()->get();
-        if ($allServices->isNotEmpty()) {
-            $typesSummary = $allServices->pluck('serv_name')->implode(', ');
-            $visitModel->visit_service_type = $typesSummary;
-            $visitModel->save();
-        }
-        
-        // 5. Check if all services are completed and generate billing
-        $allCompleted = $visitModel->checkAllServicesCompleted();
-        
-        // Verify billing was actually created
-        $visitModel->refresh();
-        $billingExists = \Illuminate\Support\Facades\DB::table('tbl_bill')
-            ->where('visit_id', $visitModel->visit_id)
-            ->exists();
-        
-        $successMessage = 'Deworming recorded. Next appointment auto-scheduled for **' . Carbon::parse($dwNextDueDate)->format('F j, Y') . '**.';
-        if ($allCompleted) {
-            $successMessage .= $billingExists 
-                ? ' All services completed - billing generated!'
-                : ' All services completed, but billing generation failed. Please check logs.';
-        }
-        
-        // 5. Redirect to Care Continuity Appointments tab
-        return redirect()->route('care-continuity.index', ['tab' => 'appointments'])->with('success', $successMessage);
     }
     
     public function updateGroomingService(Request $request, $visitId)
@@ -582,26 +628,21 @@ public function completeService(Request $request, $visitId, $serviceId)
             'grooming_type' => ['required','array','min:1'],
             'grooming_type.*' => ['string','max:255'],
             'instructions' => ['nullable','string'],
-            'start_time' => ['nullable','date'], 'end_time' => ['nullable','date','after_or_equal:start_time'],
-            'assigned_groomer' => ['nullable','string'], 'workflow_status' => ['nullable','string'],
+            'start_time' => ['nullable','date'], 
+            'end_time' => ['nullable','date','after_or_equal:start_time'],
+            'assigned_groomer' => ['nullable','string'],
         ]);
         
         $visitModel = Visit::with('groomingAgreement')->findOrFail($visitId);
 
-        // Check if agreement is signed before marking as complete
+        // Check if agreement is signed before proceeding
         if (!$visitModel->groomingAgreement) {
-            // If the agreement isn't signed, we prevent marking as 'Completed'
             return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'grooming'])
-                ->with('error', 'Grooming service record saved, but **Agreement must be signed** before setting status to Completed.');
+                ->with('error', 'Please sign the Grooming Agreement before saving the service record.');
         }
 
-        // Keep visit ARRIVED until paid (agreement required already)
-        $visitModel->visit_status = 'arrived';
-        $visitModel->workflow_status = 'Completed';
-        
-        $visitModel->save();
         try {
-        DB::beginTransaction();
+            DB::beginTransaction();
         
         // 1. Find the selected service IDs and prices
         $selectedNames = $validated['grooming_type'];
@@ -653,17 +694,12 @@ public function completeService(Request $request, $visitId, $serviceId)
             // Start time filled but not end time
             $workflowStatus = 'In Grooming';
         } elseif (!empty($validated['start_time']) && !empty($validated['end_time'])) {
-            // Both times filled
-            $workflowStatus = 'Ready for Pickup';
-        }
-        
-        // When record is saved (form submission), mark as Completed
-        // This happens on final save after end_time is filled
-        if (!empty($validated['end_time'])) {
+            // Both times filled - mark as completed
             $workflowStatus = 'Completed';
         }
 
-        // Update visit workflow_status
+        // Update visit status - keep as 'arrived' until paid
+        $visitModel->visit_status = 'arrived';
         $visitModel->workflow_status = $workflowStatus;
         $visitModel->save();
 
@@ -691,22 +727,33 @@ public function completeService(Request $request, $visitId, $serviceId)
         // 7. Check if all services are completed and generate billing
         $allCompleted = $visitModel->checkAllServicesCompleted();
         
-        // If checkAllServicesCompleted didn't update status (shouldn't happen, but just in case)
-        if ($allCompleted) {
-            $visitModel->visit_status = 'arrived';
-            $visitModel->workflow_status = 'Completed';
-            $visitModel->save();
-        }
+        // Verify billing was actually created
+        $visitModel->refresh();
+        $billingExists = DB::table('tbl_bill')
+            ->where('visit_id', $visitModel->visit_id)
+            ->exists();
 
         DB::commit();
+        
+        $message = 'Grooming record saved.';
+        if ($allCompleted) {
+            $message .= $billingExists 
+                ? ' All services completed - billing generated!'
+                : ' All services completed, but billing generation failed. Please check logs.';
+        }
 
     } catch (\Exception $e) {
         DB::rollBack();
         Log::error('Error saving grooming record and billing: ' . $e->getMessage());
-        return back()->with('error', 'Failed to save grooming record and create bill: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
+        return back()->with('error', 'Failed to save grooming record: ' . $e->getMessage());
     }
-        // Redirect to the grooming tab
-        return redirect()->route('medical.index', ['tab' => 'grooming'])->with('success', 'Grooming record saved and visit status marked **Completed**.');
+        // Redirect back to the perform page to show saved data, or to grooming tab
+        if ($request->input('redirect_to') === 'perform') {
+            return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'grooming'])
+                ->with('success', $message);
+        }
+        return redirect()->route('medical.index', ['active_tab' => 'grooming'])->with('success', $message);
     }
 
     public function saveBoarding(Request $request, $visitId)
@@ -718,90 +765,120 @@ public function completeService(Request $request, $visitId, $serviceId)
         'room' => ['nullable','string'],
         'care_instructions' => ['nullable','string'], 
         'monitoring_notes' => ['nullable','string'], 
-        'workflow_status' => ['nullable','string'],
         'service_id' => ['required', 'exists:tbl_serv,serv_id'],
         'total_days' => ['required', 'integer', 'min:1'],
         'daily_rate' => ['required', 'numeric', 'min:0'], // MUST be present and accurate (set by JS)
     ]);
     
     $visitModel = Visit::findOrFail($visitId);
-    
-   $service = Service::findOrFail($validated['service_id']);
-    
+    $service = Service::findOrFail($validated['service_id']);
+    //dd($validated);
     // Total Amount = Daily Rate * Calculated Days
     $dailyRate = (float) $validated['daily_rate'];
     $totalDays = (int) $validated['total_days'];
-
     $totalAmount = $dailyRate * $totalDays;
     
-    // 3. Get all existing services for this visit to preserve them
-    $existingServices = $visitModel->services()->get();
-    $syncData = [];
-    
-    // Preserve all existing services
-    foreach ($existingServices as $existingService) {
-        $syncData[$existingService->serv_id] = [
-            'status' => $existingService->pivot->status ?? 'pending',
-            'completed_at' => $existingService->pivot->completed_at ?? null,
-            'quantity' => $existingService->pivot->quantity ?? 1,
-            'unit_price' => $existingService->pivot->unit_price ?? $existingService->serv_price,
-            'total_price' => $existingService->pivot->total_price ?? $existingService->serv_price,
-            'created_at' => $existingService->pivot->created_at ?? now(),
-            'updated_at' => now(),
+    try {
+        DB::beginTransaction();
+        
+        // 2. Get all existing services for this visit to preserve them
+        $existingServices = $visitModel->services()->get();
+        $syncData = [];
+        //dd($existingServices);  
+        // Preserve all existing services
+        foreach ($existingServices as $existingService) {
+            // Skip the boarding service being updated
+            if ($existingService->serv_id == $validated['service_id']) {
+                continue;
+            }
+            $syncData[$existingService->serv_id] = [
+                'status' => $existingService->pivot->status ?? 'pending',
+                'completed_at' => $existingService->pivot->completed_at ?? null,
+                'quantity' => $existingService->pivot->quantity ?? 1,
+                'unit_price' => $existingService->pivot->unit_price ?? $existingService->serv_price,
+                'total_price' => $existingService->pivot->total_price ?? $existingService->serv_price * ($existingService->pivot->quantity ?? 1),
+                'created_at' => $existingService->pivot->created_at ?? now(),
+                'updated_at' => now(),
+            ];
+        }
+        
+        // 3. Add or update the boarding service with correct pricing
+        $syncData[$validated['service_id']] = [
+            'status' => 'completed', // Mark as completed since boarding is being checked out
+            'completed_at' => now(),
+            'quantity' => $totalDays,           // Total Days (e.g., 3)
+            'unit_price' => $dailyRate,         // Daily Rate (e.g., 250)
+            'total_price' => $totalAmount,      // Total Cost (e.g., 750)
+            'created_at' => now(),
+            'updated_at' => now()
         ];
+        
+        // Log the sync data for debugging
+        Log::info('Boarding syncData', [
+            'visit_id' => $visitModel->visit_id,
+            'syncData' => $syncData
+        ]);
+        
+        // Sync all services (existing + boarding service)
+        $visitModel->services()->sync($syncData);
+        
+        // 4. Save Boarding Record
+        DB::table('tbl_boarding_record')->updateOrInsert(
+            ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
+            [
+                'check_in_date' => $validated['checkin'], 
+                'check_out_date' => $validated['checkout'], 
+                'room_no' => $request->input('room'),
+                'feeding_schedule' => $request->input('care_instructions'), 
+                'daily_notes' => $request->input('monitoring_notes'),
+                'status' => 'Checked Out', 
+                'handled_by' => Auth::user()->user_name ?? null,
+                'total_days' => $totalDays,
+                'updated_at' => now(),
+            ]
+        );
+        
+        // 5. Update visit_service_type
+        $visitModel->refresh();
+        $allServices = $visitModel->services()->get();
+        if ($allServices->isNotEmpty()) {
+            $typesSummary = $allServices->pluck('serv_name')->implode(', ');
+            $visitModel->visit_service_type = $typesSummary;
+            $visitModel->save();
+        }
+        
+        // 6. Check if all services are completed and generate billing
+        $allCompleted = $visitModel->checkAllServicesCompleted();
+        
+        // 7. Verify billing was actually created
+        $visitModel->refresh();
+        $billingExists = DB::table('tbl_bill')
+            ->where('visit_id', $visitModel->visit_id)
+            ->exists();
+        
+        DB::commit();
+        
+        $message = 'Boarding record saved. Total billed amount: ₱'.number_format($totalAmount, 2);
+        if ($allCompleted) {
+            $message .= $billingExists 
+                ? ' Billing generated successfully!'
+                : ' Warning: Billing generation failed. Please check logs.';
+        }
+        
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Error saving boarding record: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
+        return back()->with('error', 'Failed to save boarding record: ' . $e->getMessage());
     }
     
-    // Update or add the boarding service
-    $syncData[$validated['service_id']] = [
-        'status' => 'completed', // Mark as completed since boarding is being checked out
-        'completed_at' => now(),
-        'quantity' => $validated['total_days'],     // <-- Total Days (e.g., 2)
-        'unit_price' => $service->serv_price,       // <-- Daily Rate (e.g., 250)
-        'total_price' => $totalAmount,              // <-- Total Cost (e.g., 500)
-        'created_at' => $syncData[$validated['service_id']]['created_at'] ?? now(),
-        'updated_at' => now()
-    ];
-    
-    // Sync all services (existing + boarding service)
-    $visitModel->services()->sync($syncData);
-    // 4. Check if all services are completed and generate billing
-    $visitModel->refresh();
-    $allCompleted = $visitModel->checkAllServicesCompleted();
-    
-    // If checkAllServicesCompleted didn't update status, update it manually
-    if ($allCompleted) {
-        $visitModel->visit_status = 'arrived';
-        $visitModel->workflow_status = 'Checked Out';
-        $visitModel->save();
-    } else {
-        // Update visit status and workflow even if not all services completed
-        $visitModel->visit_status = 'arrived';
-        $visitModel->workflow_status = 'Checked Out';
-        $visitModel->save();
+    // Redirect back to perform page or boarding tab
+    if ($request->input('redirect_to') === 'perform') {
+        return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'boarding'])
+            ->with($billingExists ? 'success' : 'warning', $message);
     }
-    
-    // 5. Save Boarding Record (FIXED: Omitting non-existent columns)
-    DB::table('tbl_boarding_record')->updateOrInsert(
-        ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
-        [
-            'check_in_date' => $validated['checkin'], 
-            'check_out_date' => $validated['checkout'], 
-            'room_no' => $request->input('room'), // Use input() for non-validated fields if needed
-            'feeding_schedule' => $request->input('care_instructions'), 
-            'daily_notes' => $request->input('monitoring_notes'),
-            'status' => 'Checked Out', 
-            'handled_by' => Auth::user()->user_name ?? null,
-            'total_days' => $totalDays, // Saved to boarding record for completeness
-            'updated_at' => now(),
-        ]
-    );
-    
-
-    // Billing is now handled by checkAllServicesCompleted() method
-    // No need to manually create billing here
-    
-    return redirect()->route('medical.index', ['tab' => 'boarding'])
-        ->with('success', 'Boarding record saved. Total billed amount: ₱'.number_format($totalAmount, 2));
+    return redirect()->route('medical.index', ['active_tab' => 'boarding'])
+        ->with($billingExists ? 'success' : 'warning', $message);
 }
 
     public function saveDiagnostic(Request $request, $visitId)
