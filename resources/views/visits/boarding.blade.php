@@ -62,8 +62,9 @@
                     'weight' => $visit->weight,
                 ];
             }
-            // Determine the selected service ID (from visit services or old input)
-            $selectedServiceId = $visit->services->where('serv_type', 'boarding')->first()->serv_id ?? old('service_id');
+            // Determine the selected service ID (prioritize: pivot table entry > old input > null)
+            $boardingService = $visit->services()->where('serv_type', 'boarding')->first();
+            $selectedServiceId = $boardingService ? $boardingService->serv_id : old('service_id');
             @endphp
             <form action="{{ route('medical.visits.boarding.save', $visit->visit_id) }}" method="POST" class="space-y-6">
                 @csrf

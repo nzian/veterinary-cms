@@ -634,7 +634,7 @@ public function completeService(Request $request, $visitId, $serviceId)
         ]);
         
         $visitModel = Visit::with('groomingAgreement')->findOrFail($visitId);
-
+        //dd($validated);
         // Check if agreement is signed before proceeding
         if (!$visitModel->groomingAgreement) {
             return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'grooming'])
@@ -647,6 +647,7 @@ public function completeService(Request $request, $visitId, $serviceId)
         // 1. Find the selected service IDs and prices
         $selectedNames = $validated['grooming_type'];
         $selectedServices = Service::whereIn('serv_name', $selectedNames)->get();
+        $selectedServiceIds = $selectedServices->pluck('serv_id')->toArray();
 
         $missing = array_diff($selectedNames, $selectedServices->pluck('serv_name')->all());
         if (!empty($missing)) {
@@ -658,30 +659,51 @@ public function completeService(Request $request, $visitId, $serviceId)
         $existingServices = $visitModel->services()->get();
         $syncData = [];
         
-        foreach ($existingServices as $existingService) {
+       foreach ($existingServices as $existingService) {
+            // Skip grooming services that are being updated - we'll add them below with new data
+            if (in_array($existingService->serv_id, $selectedServiceIds)) {
+                continue;
+            }
+            
             $syncData[$existingService->serv_id] = [
                 'status' => $existingService->pivot->status ?? 'pending',
                 'completed_at' => $existingService->pivot->completed_at ?? null,
                 'quantity' => $existingService->pivot->quantity ?? 1,
                 'unit_price' => $existingService->pivot->unit_price ?? $existingService->serv_price,
-                'total_price' => $existingService->pivot->total_price ?? $existingService->serv_price,
+                'total_price' => $existingService->pivot->total_price ?? ($existingService->serv_price * ($existingService->pivot->quantity ?? 1)),
                 'created_at' => $existingService->pivot->created_at ?? now(),
                 'updated_at' => now(),
             ];
         }
 
+        // Determine grooming service status based on workflow
+        $groomingStatus = 'pending';
+        $groomingCompletedAt = null;
+        if (!empty($validated['start_time']) && !empty($validated['end_time'])) {
+            // Both times filled - mark as completed
+            $groomingStatus = 'completed';
+            $groomingCompletedAt = now();
+        } elseif (!empty($validated['start_time'])) {
+            // Only start time filled - in progress
+            $groomingStatus = 'pending';
+        }
+
         foreach ($selectedServices as $service) {
+            // Check if this service already exists in the existing services to preserve created_at
+            $existingService = $existingServices->firstWhere('serv_id', $service->serv_id);
+            $existingCreatedAt = $existingService?->pivot->created_at;
+            
             $syncData[$service->serv_id] = [
-                'status' => 'completed',
-                'completed_at' => now(),
+                'status' => $groomingStatus,
+                'completed_at' => $groomingCompletedAt,
                 'quantity' => 1,
                 'unit_price' => $service->serv_price,
                 'total_price' => $service->serv_price,
-                'created_at' => $syncData[$service->serv_id]['created_at'] ?? now(),
+                'created_at' => $existingCreatedAt ?? now(),
                 'updated_at' => now(),
             ];
         }
-
+        
         // 3. Sync all services (existing + grooming services)
         $visitModel->services()->sync($syncData);
 
@@ -710,7 +732,7 @@ public function completeService(Request $request, $visitId, $serviceId)
                 'service_package' => implode(', ', $selectedNames), 'add_ons' => null,
                 'groomer_name' => $validated['assigned_groomer'] ?? Auth::user()->user_name,
                 'start_time' => $validated['start_time'], 'end_time' => $validated['end_time'],
-                'status' => 'Completed', 'remarks' => $validated['instructions'],
+                'status' => $workflowStatus, 'remarks' => $validated['instructions'],
                 'updated_at' => now(),
             ]
         );
@@ -1361,7 +1383,7 @@ public function completeService(Request $request, $visitId, $serviceId)
         return $v;
     });
             
-        $availableGroomingServices = Service::where('serv_type', 'LIKE', '%' . $serviceType . '%') 
+        $availableGroomingServices = Service::where('serv_type', 'LIKE', '%' .$serviceType . '%') 
             // Only select the columns that actually exist in your tbl_serv
             ->select('serv_id', 'serv_name', 'serv_price') 
             ->orderBy('serv_name')
@@ -1375,12 +1397,34 @@ public function completeService(Request $request, $visitId, $serviceId)
             $min_weight = 0;
             $max_weight = 9999; // Default to max/no limit
 
-            // Regex to find patterns like (7.5 kl) below or (15 kg) above
-            // Handles kg/kl and spacing variations
-            if (preg_match('/\(([-\d\.]+)\s*k[gl]\)\s*below/i', $name, $matches)) {
-                $max_weight = (float)$matches[1];
+            // Parse weight range from service name - supports multiple formats:
+            // 1. "7.7kg to 15kg" or "7.7 kg to 15 kg" - range format
+            // 2. "7.7kg below" or "7.7kg bellow" - upper limit only
+            // 3. "22kg up" or "22kg above" - lower limit only
+            // 4. Handles kg/kl variations and various spellings
+            
+            // Pattern 1: Range format (e.g., "7.7kg to 15kg", "7.7 - 15kg", "7.7kg-15kg")
+            if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:to|-|–)\s*(\d+\.?\d*)\s*k[gl]?/i', $name, $matches)) {
+                $min_weight = (float)$matches[1];
+                $max_weight = (float)$matches[2];
+            }
+            // Pattern 2: Below/bellow format (e.g., "7.5kg below", "7.5 kl bellow")
+            else if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:below|bellow)/i', $name, $matches)) {
                 $min_weight = 0;
-            } else if (preg_match('/\(([-\d\.]+)\s*k[gl]\)\s*above/i', $name, $matches)) {
+                $max_weight = (float)$matches[1];
+            }
+            // Pattern 3: Up/above format (e.g., "22kg up", "15 kg above")
+            else if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:up|above)/i', $name, $matches)) {
+                $min_weight = (float)$matches[1];
+                $max_weight = 9999;
+            }
+            // Pattern 4: Parentheses format for backward compatibility
+            // (7.5 kg) below or (15 kg) above
+            else if (preg_match('/\((\d+\.?\d*)\s*k[gl]?\)\s*(?:below|bellow)/i', $name, $matches)) {
+                $min_weight = 0;
+                $max_weight = (float)$matches[1];
+            } 
+            else if (preg_match('/\((\d+\.?\d*)\s*k[gl]?\)\s*(?:up|above)/i', $name, $matches)) {
                 $min_weight = (float)$matches[1];
                 $max_weight = 9999;
             }
@@ -1395,27 +1439,37 @@ public function completeService(Request $request, $visitId, $serviceId)
             return $service;
         })
         // Server-side filter: only keep services within the pet's weight if available
-        ->when(!empty($petWeight) && is_numeric($petWeight), function ($col) use ($petWeight) {
-            return $col->filter(function ($s) use ($petWeight) {
-                return $petWeight >= ($s->min_weight ?? 0) && $petWeight <= ($s->max_weight ?? 9999);
-            })->values();
-        })
-        ->when(!is_null($petAgeMonths), function ($col) use ($petAgeMonths) {
-            return $col->filter(function ($s) use ($petAgeMonths) {
-                $minAge = $s->min_age_months;
-                $maxAge = $s->max_age_months;
-
-                if (!is_null($minAge) && $petAgeMonths < $minAge) {
-                    return false;
-                }
-
-                if (!is_null($maxAge) && $petAgeMonths > $maxAge) {
-                    return false;
-                }
-
+        ->filter(function ($service) use ($petWeight) {
+            // If pet weight is not available or invalid, show all services
+            if (empty($petWeight) || !is_numeric($petWeight)) {
                 return true;
-            })->values();
-        });
+            }
+            // Filter based on weight range
+            $minWeight = $service->min_weight ?? 0;
+            $maxWeight = $service->max_weight ?? 9999;
+            return $petWeight >= $minWeight && $petWeight <= $maxWeight;
+        })
+        ->filter(function ($service) use ($petAgeMonths) {
+            // If pet age is not available, show all services
+            if (is_null($petAgeMonths)) {
+                return true;
+            }
+            
+            $minAge = $service->min_age_months;
+            $maxAge = $service->max_age_months;
+
+            // Filter based on age range
+            if (!is_null($minAge) && $petAgeMonths < $minAge) {
+                return false;
+            }
+
+            if (!is_null($maxAge) && $petAgeMonths > $maxAge) {
+                return false;
+            }
+
+            return true;
+        })
+        ->values(); // Reset array keys after filtering
 
         $lookups = $this->getBranchLookups();
         $viewName = 'visits.' . $blade;
