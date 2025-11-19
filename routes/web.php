@@ -481,6 +481,7 @@ Route::get('/sales-management', [SalesManagementController::class, 'index'])->na
 Route::delete('/sales/billing/{id}', [SalesManagementController::class, 'destroyBilling'])->name('sales.destroyBilling');
 Route::post('/sales/billing/{id}/mark-paid', [SalesManagementController::class, 'markAsPaid'])->name('sales.markAsPaid');
 Route::get('/sales/transaction/{id}', [SalesManagementController::class, 'showTransaction'])->name('sales.transaction');
+Route::get('/sales/transaction/{id}/json', [SalesManagementController::class, 'showTransactionJson'])->name('sales.transaction.json');
 Route::get('/sales/print-transaction/{id}', [SalesManagementController::class, 'printTransaction'])->name('sales.printTransaction');
 Route::get('/sales/export', [SalesManagementController::class, 'export'])->name('sales.export');
 Route::get('/sales/billing/{id}/receipt', [SalesManagementController::class, 'showReceipt'])->name('sales.billing.receipt');

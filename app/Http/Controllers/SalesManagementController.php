@@ -15,6 +15,115 @@ use Carbon\Carbon;
 
 class SalesManagementController extends Controller
 {
+        /**
+     * Show details for a POS transaction (direct sale or billing payment not linked to visit)
+     */
+    public function showTransaction($id)
+    {
+        // Transaction ID format: SALE-<ord_id> or BILL-<bill_id>
+        if (strpos($id, 'SALE-') === 0) {
+            $ordId = str_replace('SALE-', '', $id);
+            $orders = Order::with(['product', 'user', 'owner'])
+                ->where('ord_id', $ordId)
+                ->get();
+            $transactionType = 'Direct Sale';
+            $billId = null;
+        } elseif (strpos($id, 'BILL-') === 0) {
+            $billId = str_replace('BILL-', '', $id);
+            $orders = Order::with(['product', 'user', 'owner'])
+                ->where('bill_id', $billId)
+                ->get();
+            $transactionType = 'Billing Payment';
+        } else {
+            abort(404, 'Invalid transaction ID');
+        }
+
+        if ($orders->isEmpty()) {
+            abort(404, 'Transaction not found');
+        }
+
+        // Render a simple transaction view (create resources/views/transaction-details.blade.php if needed)
+        return view('transaction-details', compact('orders', 'transactionType', 'billId', 'id'));
+    }
+
+    /**
+     * Export POS sales transactions as CSV
+     */
+    public function export(Request $request)
+    {
+        $activeBranchId = session('active_branch_id');
+        $user = auth()->user();
+        
+        if ($user->user_role !== 'superadmin') {
+            $activeBranchId = $user->branch_id;
+        }
+
+        // Build base query with branch filter
+        $query = Order::with(['product', 'user', 'owner', 'billing'])
+            ->whereHas('user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            });
+
+        // Apply date filters if provided
+        if ($request->filled('start_date')) {
+            $query->where('ord_date', '>=', $request->input('start_date'));
+        }
+        if ($request->filled('end_date')) {
+            $query->where('ord_date', '<=', $request->input('end_date') . ' 23:59:59');
+        }
+
+        // Only export POS sales (direct sales + billing payments NOT linked to visits)
+        // This matches the logic in the index method
+        $allOrders = $query->orderBy('ord_date', 'desc')->get();
+        
+        // Filter out orders that belong to visit-based billings
+        $orders = $allOrders->filter(function($order) {
+            // Include if no bill_id (direct sale)
+            if (!$order->bill_id) {
+                return true;
+            }
+            // Include if bill exists but has no visit_id (POS billing payment)
+            if ($order->billing && !$order->billing->visit_id) {
+                return true;
+            }
+            // Exclude visit-based billings
+            return false;
+        });
+
+        $filename = 'pos_sales_' . date('Ymd_His') . '.csv';
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"$filename\""
+        ];
+
+        $columns = ['Transaction ID', 'Date', 'Product', 'Quantity', 'Unit Price', 'Total', 'Customer', 'Cashier'];
+
+        $callback = function() use ($orders, $columns) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, $columns);
+            
+            foreach ($orders as $order) {
+                $transactionId = $order->bill_id ? ('BILL-' . $order->bill_id) : ('SALE-' . $order->ord_id);
+                $unitPrice = $order->product->prod_price ?? 0;
+                $total = $order->ord_quantity * $unitPrice;
+                
+                fputcsv($file, [
+                    $transactionId,
+                    Carbon::parse($order->ord_date)->format('Y-m-d H:i:s'),
+                    $order->product->prod_name ?? 'N/A',
+                    $order->ord_quantity,
+                    number_format($unitPrice, 2),
+                    number_format($total, 2),
+                    $order->owner->own_name ?? 'Walk-in Customer',
+                    $order->user->user_name ?? 'N/A',
+                ]);
+            }
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
     public function __construct()
     {
         $this->middleware('auth');
@@ -29,13 +138,15 @@ class SalesManagementController extends Controller
         }
 
         // Filter billings by branch through visit -> user relationship
-        // Also include billings that might not have a visit.user relationship
+        // ONLY show bills that are linked to visits (visit_id is NOT NULL)
+        // This ensures Billing Management tab only shows visit service bills
         $billings = Billing::with([
             'visit.pet.owner', 
             'visit.services',
             'visit.user.branch',
             'orders.product'
         ])
+        ->whereNotNull('visit_id') // ✅ Filter to only visit-based bills
         ->where(function($query) use ($activeBranchId) {
             // Try to filter by visit.user.branch_id
             $query->whereHas('visit.user', function($q) use ($activeBranchId) {
@@ -86,6 +197,13 @@ class SalesManagementController extends Controller
             
             // Check if this order is from a billing payment
             if ($order->bill_id) {
+                // ✅ Skip if this bill is linked to a visit (visit-based bills shown in Billing Management tab)
+                $billing = Billing::find($order->bill_id);
+                if ($billing && $billing->visit_id) {
+                    $processedOrderIds[] = $order->ord_id;
+                    continue; // Skip this order, it's a visit-based billing
+                }
+                
                 $transactionKey = 'BILL-' . $order->bill_id;
                 $transactionSource = 'Billing Payment';
                 
@@ -443,5 +561,58 @@ class SalesManagementController extends Controller
             Log::error('Billing deletion error: ' . $e->getMessage());
             return redirect()->route('sales.index')->with('error', 'Failed to delete billing record: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Get transaction details as JSON for modal display
+     */
+    public function showTransactionJson($id)
+    {
+        // Transaction ID format: SALE-<ord_id> or BILL-<bill_id>
+        if (strpos($id, 'SALE-') === 0) {
+            $ordId = str_replace('SALE-', '', $id);
+            $orders = Order::with(['product', 'user', 'owner'])
+                ->where('ord_id', $ordId)
+                ->get();
+            $transactionType = 'Direct Sale';
+        } elseif (strpos($id, 'BILL-') === 0) {
+            $billId = str_replace('BILL-', '', $id);
+            $orders = Order::with(['product', 'user', 'owner'])
+                ->where('bill_id', $billId)
+                ->get();
+            $transactionType = 'Billing Payment';
+        } else {
+            return response()->json(['error' => 'Invalid transaction ID'], 404);
+        }
+
+        if ($orders->isEmpty()) {
+            return response()->json(['error' => 'Transaction not found'], 404);
+        }
+
+        $firstOrder = $orders->first();
+        $orderData = [];
+        $total = 0;
+
+        foreach ($orders as $order) {
+            $unitPrice = $order->product->prod_price ?? 0;
+            $itemTotal = $order->ord_quantity * $unitPrice;
+            $total += $itemTotal;
+
+            $orderData[] = [
+                'product' => $order->product->prod_name ?? 'N/A',
+                'quantity' => $order->ord_quantity,
+                'unitPrice' => number_format($unitPrice, 2),
+                'total' => number_format($itemTotal, 2)
+            ];
+        }
+
+        return response()->json([
+            'transactionType' => $transactionType,
+            'date' => Carbon::parse($firstOrder->ord_date)->format('M d, Y h:i A'),
+            'customer' => $firstOrder->owner->own_name ?? 'Walk-in Customer',
+            'cashier' => $firstOrder->user->user_name ?? 'N/A',
+            'total' => number_format($total, 2),
+            'orders' => $orderData
+        ]);
     }
 }

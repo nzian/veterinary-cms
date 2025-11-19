@@ -66,6 +66,14 @@
 
         {{-- Billing Tab Content --}}
         <div id="billingContent" class="tab-content">
+            {{-- Description --}}
+            <div class="bg-blue-50 border border-blue-200 rounded-md px-4 py-2 mb-4">
+                <p class="text-sm text-gray-700">
+                    <i class="fas fa-info-circle text-blue-500 mr-2"></i>
+                    <strong>Visit Service Bills:</strong> Bills generated from completed visit services (grooming, boarding, vaccinations, etc.)
+                </p>
+            </div>
+            
             <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
                 <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="tab" value="billing">
@@ -389,6 +397,14 @@
 
         {{-- Orders Tab Content (Unchanged) --}}
         <div id="ordersContent" class="tab-content hidden">
+            {{-- Description --}}
+            <div class="bg-green-50 border border-green-200 rounded-md px-4 py-2 mb-4">
+                <p class="text-sm text-gray-700">
+                    <i class="fas fa-shopping-cart text-green-500 mr-2"></i>
+                    <strong>Direct POS Sales:</strong> Product sales made directly through the Point of Sale system (not linked to visit services)
+                </p>
+            </div>
+            
             <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
                 <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="tab" value="orders">
@@ -544,6 +560,48 @@
                     Showing {{ $paginator->firstItem() }} to {{ $paginator->lastItem() }} of {{ $paginator->total() }} transactions
                 </div>
             @endif
+        </div>
+    </div>
+</div>
+
+{{-- Transaction Details Modal --}}
+<div id="viewTransactionModal" class="fixed inset-0 flex justify-center items-center z-50 hidden bg-black bg-opacity-50">
+    <div class="bg-white w-full max-w-4xl rounded-lg shadow-lg relative max-h-[90vh] overflow-y-auto">
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4 border-b pb-4">
+                <h2 class="text-2xl font-bold">Transaction Details</h2>
+                <button onclick="closeTransactionModal()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+            
+            <div class="mb-4">
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div><span class="font-semibold">Transaction ID:</span> <span id="transactionId"></span></div>
+                    <div><span class="font-semibold">Transaction Type:</span> <span id="transactionType"></span></div>
+                    <div><span class="font-semibold">Date:</span> <span id="transactionDate"></span></div>
+                    <div><span class="font-semibold">Customer:</span> <span id="transactionCustomer"></span></div>
+                    <div><span class="font-semibold">Cashier:</span> <span id="transactionCashier"></span></div>
+                    <div><span class="font-semibold">Total Amount:</span> <span id="transactionTotal" class="font-bold text-green-600"></span></div>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="table-auto w-full border-collapse border text-sm">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="border px-4 py-2">#</th>
+                            <th class="border px-4 py-2">Product</th>
+                            <th class="border px-4 py-2">Quantity</th>
+                            <th class="border px-4 py-2">Unit Price</th>
+                            <th class="border px-4 py-2">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactionOrdersTable">
+                        <!-- Orders will be populated here -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
@@ -1342,9 +1400,45 @@ function exportSales() {
 }
 
 function viewTransaction(transactionId) {
-    // Store active tab before redirect
-    sessionStorage.setItem('activeTab', 'orders'); 
-    window.location.href = '/sales/transaction/' + transactionId;
+    // Fetch transaction details via AJAX and show in modal
+    fetch('/sales/transaction/' + transactionId + '/json')
+        .then(response => response.json())
+        .then(data => {
+            // Populate modal with transaction data
+            document.getElementById('transactionId').textContent = transactionId;
+            document.getElementById('transactionType').textContent = data.transactionType;
+            document.getElementById('transactionDate').textContent = data.date;
+            document.getElementById('transactionCustomer').textContent = data.customer;
+            document.getElementById('transactionCashier').textContent = data.cashier;
+            document.getElementById('transactionTotal').textContent = '₱' + data.total;
+            
+            // Populate orders table
+            const tbody = document.getElementById('transactionOrdersTable');
+            tbody.innerHTML = '';
+            data.orders.forEach((order, index) => {
+                const row = `
+                    <tr class="hover:bg-gray-50">
+                        <td class="border px-4 py-2">${index + 1}</td>
+                        <td class="border px-4 py-2">${order.product}</td>
+                        <td class="border px-4 py-2">${order.quantity}</td>
+                        <td class="border px-4 py-2">₱${order.unitPrice}</td>
+                        <td class="border px-4 py-2 font-semibold">₱${order.total}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+            
+            // Show modal
+            document.getElementById('viewTransactionModal').classList.remove('hidden');
+        })
+        .catch(error => {
+            console.error('Error fetching transaction:', error);
+            alert('Failed to load transaction details');
+        });
+}
+
+function closeTransactionModal() {
+    document.getElementById('viewTransactionModal').classList.add('hidden');
 }
 
 // Simple client-side table filters (Unchanged)
