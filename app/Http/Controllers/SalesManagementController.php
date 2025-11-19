@@ -571,9 +571,27 @@ class SalesManagementController extends Controller
         // Transaction ID format: SALE-<ord_id> or BILL-<bill_id>
         if (strpos($id, 'SALE-') === 0) {
             $ordId = str_replace('SALE-', '', $id);
+            // Get the main order first
+            $mainOrder = Order::with(['product', 'user', 'owner'])->find($ordId);
+            
+            if (!$mainOrder) {
+                return response()->json(['error' => 'Transaction not found'], 404);
+            }
+            
+            // Find all related orders (same transaction - within 1 second, same user, same customer)
+            $orderTime = Carbon::parse($mainOrder->ord_date);
             $orders = Order::with(['product', 'user', 'owner'])
-                ->where('ord_id', $ordId)
+                ->whereNull('bill_id') // Only direct sales
+                ->where(function($query) use ($mainOrder, $orderTime) {
+                    $query->where('user_id', $mainOrder->user_id)
+                          ->where('own_id', $mainOrder->own_id)
+                          ->whereBetween('ord_date', [
+                              $orderTime->copy()->subSecond()->format('Y-m-d H:i:s'),
+                              $orderTime->copy()->addSecond()->format('Y-m-d H:i:s')
+                          ]);
+                })
                 ->get();
+            
             $transactionType = 'Direct Sale';
         } elseif (strpos($id, 'BILL-') === 0) {
             $billId = str_replace('BILL-', '', $id);

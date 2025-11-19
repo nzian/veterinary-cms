@@ -262,11 +262,8 @@ Route::get('/branches/{id}', [BranchManagementController::class, 'show'])->name(
 Route::delete('/branches/{id}', [BranchManagementController::class, 'destroyBranch'])->name('branches-destroy');
 
 
-Route::get('/branch/switch/{id}', [BranchManagementController::class, 'switch'])->name('branch.switch');
-Route::get('/switch-branch/{id}', function ($id) {
-    Session::put('selected_branch_id', $id);
-    return redirect()->back();
-})->name('branch.switch');
+Route::get('/branch/switch/{id}', [BranchManagementController::class, 'switchBranch'])->name('branch.switch');
+Route::get('/branch/clear', [BranchManagementController::class, 'clearBranch'])->name('branch.clear');
 
 
 //Owner
