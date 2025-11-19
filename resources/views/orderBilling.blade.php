@@ -565,44 +565,96 @@
 </div>
 
 {{-- Transaction Details Modal --}}
-<div id="viewTransactionModal" class="fixed inset-0 flex justify-center items-center z-50 hidden bg-black bg-opacity-50">
-    <div class="bg-white w-full max-w-4xl rounded-lg shadow-lg relative max-h-[90vh] overflow-y-auto">
-        <div class="p-6">
-            <div class="flex justify-between items-center mb-4 border-b pb-4">
-                <h2 class="text-2xl font-bold">Transaction Details</h2>
-                <button onclick="closeTransactionModal()" class="text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times text-2xl"></i>
-                </button>
-            </div>
-            
-            <div class="mb-4">
-                <div class="grid grid-cols-2 gap-4 text-sm">
-                    <div><span class="font-semibold">Transaction ID:</span> <span id="transactionId"></span></div>
-                    <div><span class="font-semibold">Transaction Type:</span> <span id="transactionType"></span></div>
-                    <div><span class="font-semibold">Date:</span> <span id="transactionDate"></span></div>
-                    <div><span class="font-semibold">Customer:</span> <span id="transactionCustomer"></span></div>
-                    <div><span class="font-semibold">Cashier:</span> <span id="transactionCashier"></span></div>
-                    <div><span class="font-semibold">Total Amount:</span> <span id="transactionTotal" class="font-bold text-green-600"></span></div>
+<div id="viewTransactionModal" class="fixed inset-0 flex justify-center items-center z-50 hidden no-print bg-black bg-opacity-50">
+    <div class="bg-white w-full max-w-3xl p-0 rounded-lg shadow-lg relative max-h-[90vh] overflow-y-auto">
+        <div id="modalTransactionContent" class="billing-container bg-white p-10">
+            <div class="header flex items-center justify-between border-b-2 border-black pb-6 mb-6">
+                <div class="flex-shrink-0">
+                    <img src="{{ asset('images/pets2go.png') }}" alt="Pets2GO Logo" class="w-28 h-28 object-contain">
+                </div>
+                
+                <div class="flex-grow text-center">
+                    <div class="clinic-name text-2xl font-bold text-[#a86520] tracking-wide">
+                        PETS 2GO VETERINARY CLINIC
+                    </div>
+                    <div class="branch-name text-lg font-bold underline text-center mt-1" id="transactionBranchName">
+                        {{ auth()->user()->branch->branch_name ?? 'Main Branch' }}
+                    </div>
+                    <div class="clinic-details text-sm text-gray-700 mt-1 text-center leading-tight">
+                        <div id="transactionBranchAddress">{{ auth()->user()->branch->branch_address ?? '' }}</div>
+                        <div id="transactionBranchContact">{{ auth()->user()->branch->branch_contact ?? '' }}</div>
+                    </div>
                 </div>
             </div>
-            
-            <div class="overflow-x-auto">
-                <table class="table-auto w-full border-collapse border text-sm">
-                    <thead class="bg-gray-100">
-                        <tr>
-                            <th class="border px-4 py-2">#</th>
-                            <th class="border px-4 py-2">Product</th>
-                            <th class="border px-4 py-2">Quantity</th>
-                            <th class="border px-4 py-2">Unit Price</th>
-                            <th class="border px-4 py-2">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="transactionOrdersTable">
-                        <!-- Orders will be populated here -->
-                    </tbody>
-                </table>
+
+            <div class="billing-body">
+                <div class="text-center mb-6">
+                    <h2 class="text-xl font-bold text-gray-800">SALES TRANSACTION RECEIPT</h2>
+                </div>
+
+                <div class="customer-info mb-6">
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <div class="mb-2"><strong>DATE:</strong> <span id="transactionDate"></span></div>
+                            <div class="mb-2"><strong>CUSTOMER:</strong> <span id="transactionCustomer"></span></div>
+                            <div class="mb-2"><strong>CASHIER:</strong> <span id="transactionCashier"></span></div>
+                        </div>
+                        <div>
+                            <div class="mb-2"><strong>TRANSACTION ID:</strong> <span id="transactionId"></span></div>
+                            <div class="mb-2"><strong>TYPE:</strong> <span id="transactionType"></span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="products-section mb-6">
+                    <div class="section-title text-base font-bold mb-4 border-b pb-2 text-green-600">PRODUCTS PURCHASED</div>
+                    <table class="w-full text-sm">
+                        <thead class="border-b-2 border-gray-300">
+                            <tr class="text-left">
+                                <th class="py-2 px-2 w-12">#</th>
+                                <th class="py-2 px-2">Product</th>
+                                <th class="py-2 px-2 text-center w-20">Qty</th>
+                                <th class="py-2 px-2 text-right w-28">Unit Price</th>
+                                <th class="py-2 px-2 text-right w-32">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactionOrdersTable" class="divide-y divide-gray-200">
+                            <!-- Orders will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="total-section mb-8">
+                    <div class="mt-4 pt-4 border-t-2 border-gray-300">
+                        <div class="text-right">
+                            <div class="text-xl font-bold text-[#0f7ea0]">TOTAL AMOUNT: <span id="transactionTotal"></span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="footer text-center pt-8 border-t-2 border-black">
+                    <div class="thank-you text-sm">
+                        <div class="font-bold mb-2">Thank you for choosing Pets2GO Veterinary Clinic!</div>
+                        <div class="text-gray-600">Your pet's health is our priority</div>
+                    </div>
+                </div>
             </div>
         </div>
+        <div class="p-4 bg-gray-50 flex justify-between no-print">
+            <button onclick="printTransactionFromModal()" class="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600">
+                <i class="fas fa-print mr-2"></i> Print Receipt
+            </button>
+            <button onclick="closeTransactionModal()" 
+                class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                <i class="fas fa-times mr-2"></i> Close
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- Hidden Print Container for Transaction --}}
+<div id="printTransactionContainer" style="display: none;">
+    <div id="printTransactionContent" class="billing-container bg-white p-10">
     </div>
 </div>
 
@@ -847,11 +899,16 @@
     #printBillingContainer,
     #printBillingContainer *,
     #printBillingContent,
-    #printBillingContent * {
+    #printBillingContent *,
+    #printTransactionContainer,
+    #printTransactionContainer *,
+    #printTransactionContent,
+    #printTransactionContent * {
         visibility: visible !important;
     }
     
-    #printBillingContainer {
+    #printBillingContainer,
+    #printTransactionContainer {
         position: absolute !important;
         left: 0 !important;
         top: 0 !important;
@@ -861,7 +918,8 @@
         background: white !important;
     }
     
-    #printBillingContent {
+    #printBillingContent,
+    #printTransactionContent {
         position: relative !important;
         width: 100% !important;
         height: auto !important;
@@ -1355,6 +1413,9 @@ function directPrintBilling(button) {
 function printBillingFromModal() {
     if (!currentBillingData) return;
     
+    // Hide transaction container to avoid conflicts
+    document.getElementById('printTransactionContainer').style.display = 'none';
+    
     // Update the hidden print container with current data
     updateBillingContent('printBillingContent', currentBillingData);
     
@@ -1404,6 +1465,10 @@ function viewTransaction(transactionId) {
     fetch('/sales/transaction/' + transactionId + '/json')
         .then(response => response.json())
         .then(data => {
+            // Store transaction data globally for printing
+            window.currentTransactionData = data;
+            window.currentTransactionId = transactionId;
+            
             // Populate modal with transaction data
             document.getElementById('transactionId').textContent = transactionId;
             document.getElementById('transactionType').textContent = data.transactionType;
@@ -1412,17 +1477,17 @@ function viewTransaction(transactionId) {
             document.getElementById('transactionCashier').textContent = data.cashier;
             document.getElementById('transactionTotal').textContent = '₱' + data.total;
             
-            // Populate orders table
+            // Populate orders table with new layout
             const tbody = document.getElementById('transactionOrdersTable');
             tbody.innerHTML = '';
             data.orders.forEach((order, index) => {
                 const row = `
-                    <tr class="hover:bg-gray-50">
-                        <td class="border px-4 py-2">${index + 1}</td>
-                        <td class="border px-4 py-2">${order.product}</td>
-                        <td class="border px-4 py-2">${order.quantity}</td>
-                        <td class="border px-4 py-2">₱${order.unitPrice}</td>
-                        <td class="border px-4 py-2 font-semibold">₱${order.total}</td>
+                    <tr>
+                        <td class="py-2 px-2">${index + 1}</td>
+                        <td class="py-2 px-2">${order.product}</td>
+                        <td class="py-2 px-2 text-center">${order.quantity}</td>
+                        <td class="py-2 px-2 text-right">₱${order.unitPrice}</td>
+                        <td class="py-2 px-2 text-right font-semibold">₱${order.total}</td>
                     </tr>
                 `;
                 tbody.innerHTML += row;
@@ -1439,6 +1504,122 @@ function viewTransaction(transactionId) {
 
 function closeTransactionModal() {
     document.getElementById('viewTransactionModal').classList.add('hidden');
+}
+
+function printTransactionFromModal() {
+    if (!window.currentTransactionData) {
+        alert('No transaction data available');
+        return;
+    }
+    
+    const data = window.currentTransactionData;
+    const transactionId = window.currentTransactionId;
+    
+    // Build the print content
+    let productsHtml = '';
+    data.orders.forEach((order, index) => {
+        productsHtml += `
+            <tr>
+                <td class="py-2 px-2">${index + 1}</td>
+                <td class="py-2 px-2">${order.product}</td>
+                <td class="py-2 px-2 text-center">${order.quantity}</td>
+                <td class="py-2 px-2 text-right">₱${order.unitPrice}</td>
+                <td class="py-2 px-2 text-right font-semibold">₱${order.total}</td>
+            </tr>
+        `;
+    });
+    
+    const printContent = `
+        <div class="header flex items-center justify-between border-b-2 border-black pb-6 mb-6">
+            <div class="flex-shrink-0">
+                <img src="{{ asset('images/pets2go.png') }}" alt="Pets2GO Logo" class="w-28 h-28 object-contain">
+            </div>
+            <div class="flex-grow text-center">
+                <div class="clinic-name text-2xl font-bold text-[#a86520] tracking-wide">
+                    PETS 2GO VETERINARY CLINIC
+                </div>
+                <div class="branch-name text-lg font-bold underline text-center mt-1">
+                    ${document.getElementById('transactionBranchName').textContent}
+                </div>
+                <div class="clinic-details text-sm text-gray-700 mt-1 text-center leading-tight">
+                    <div>${document.getElementById('transactionBranchAddress').textContent}</div>
+                    <div>${document.getElementById('transactionBranchContact').textContent}</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="billing-body">
+            <div class="text-center mb-6">
+                <h2 class="text-xl font-bold text-gray-800">SALES TRANSACTION RECEIPT</h2>
+            </div>
+            
+            <div class="customer-info mb-6">
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <div class="mb-2"><strong>DATE:</strong> ${data.date}</div>
+                        <div class="mb-2"><strong>CUSTOMER:</strong> ${data.customer}</div>
+                        <div class="mb-2"><strong>CASHIER:</strong> ${data.cashier}</div>
+                    </div>
+                    <div>
+                        <div class="mb-2"><strong>TRANSACTION ID:</strong> ${transactionId}</div>
+                        <div class="mb-2"><strong>TYPE:</strong> ${data.transactionType}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="products-section mb-6">
+                <div class="section-title text-base font-bold mb-4 border-b pb-2 text-green-600">PRODUCTS PURCHASED</div>
+                <table class="w-full text-sm">
+                    <thead class="border-b-2 border-gray-300">
+                        <tr class="text-left">
+                            <th class="py-2 px-2 w-12">#</th>
+                            <th class="py-2 px-2">Product</th>
+                            <th class="py-2 px-2 text-center w-20">Qty</th>
+                            <th class="py-2 px-2 text-right w-28">Unit Price</th>
+                            <th class="py-2 px-2 text-right w-32">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        ${productsHtml}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="total-section mb-8">
+                <div class="mt-4 pt-4 border-t-2 border-gray-300">
+                    <div class="text-right">
+                        <div class="text-xl font-bold text-[#0f7ea0]">TOTAL AMOUNT: ₱${data.total}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="footer text-center pt-8 border-t-2 border-black">
+                <div class="thank-you text-sm">
+                    <div class="font-bold mb-2">Thank you for choosing Pets2GO Veterinary Clinic!</div>
+                    <div class="text-gray-600">Your pet's health is our priority</div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Update the hidden print container
+    document.getElementById('printTransactionContent').innerHTML = printContent;
+    
+    // Hide billing container to avoid conflicts
+    document.getElementById('printBillingContainer').style.display = 'none';
+    
+    
+    // Show the print container temporarily
+    const printContainer = document.getElementById('printTransactionContainer');
+    printContainer.style.display = 'block';
+    
+    // Trigger print
+    setTimeout(() => {
+        window.print();
+        // Hide the container again after printing
+        //document.getElementById('viewBillingModal').style.display = 'block';
+        printContainer.style.display = 'none';
+    }, 200);
 }
 
 // Simple client-side table filters (Unchanged)
