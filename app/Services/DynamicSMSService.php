@@ -7,9 +7,9 @@ use Illuminate\Support\Facades\Log;
 class DynamicSMSService
 {
     // Built-in PhilSMS Configuration - NO DATABASE NEEDED
-    private $apiKey = '1460|y6x2ozwUdq2tYYCq1gRr2ltFe42I7sNRYPuDT7wB';
+    private $apiKey ='206|xUk8okVvNTEODDKgJ1I9IYTGLfrrzfa3g6e2zJKJ8ee7ebb3';
     private $senderId = 'PHILSMS';
-    private $apiUrl = 'https://app.philsms.com/api/v3/sms/send';
+    private $apiUrl = 'https://dashboard.philsms.com/api/v3/';
     private $isActive = true;
 
     public function __construct()

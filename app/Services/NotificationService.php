@@ -307,15 +307,17 @@ class NotificationService
                 ->get();
 
             foreach ($rescheduledAppointments as $appointment) {
+                $petName = optional($appointment->pet)->pet_name ?? 'Pet';
+
                 $alerts[] = [
                     'id' => 'reschedule_' . $appointment->appoint_id,
                     'type' => 'reschedule_alert',
                     'icon' => 'fa-calendar-alt',
                     'color' => 'blue',
                     'title' => 'Appointment Rescheduled',
-                    'message' => 'Appointment for ' . ($appointment->pet->pet_name ?? 'Pet') . ' rescheduled to ' . Carbon::parse($appointment->appoint_date)->format('M d, Y') . ' at ' . $appointment->appoint_time,
+                    'message' => 'Appointment for ' . $petName . ' rescheduled to ' . Carbon::parse($appointment->appoint_date)->format('M d, Y') . ' at ' . $appointment->appoint_time,
                     'timestamp' => $appointment->updated_at,
-                    'route' => route('medical.index') . '?active_tab=appointments',
+                    'route' => route('care-continuity.index') . '?active_tab=appointments',
                     'is_read' => $this->isNotificationRead('reschedule_' . $appointment->appoint_id)
                 ];
             }
@@ -347,9 +349,10 @@ class NotificationService
                 ->get();
 
             foreach ($arrivedAppointments as $appointment) {
-                $petName = $appointment->pet->pet_name ?? 'Unknown Pet';
-                $ownerName = $appointment->pet->owner->own_name ?? 'Unknown Owner';
-                
+                $pet = optional($appointment->pet);
+                $petName = $pet->pet_name ?? 'Unknown Pet';
+                $ownerName = optional($pet->owner)->own_name ?? 'Unknown Owner';
+
                 $alerts[] = [
                     'id' => 'arrived_' . $appointment->appoint_id,
                     'type' => 'arrived_alert',
@@ -358,7 +361,7 @@ class NotificationService
                     'title' => 'Patient Arrived',
                     'message' => $petName . ' (Owner: ' . $ownerName . ') has arrived for their appointment',
                     'timestamp' => $appointment->updated_at,
-                    'route' => route('medical.index') . '?active_tab=appointments',
+                    'route' => route('care-continuity.index') . '?active_tab=appointments',
                     'is_read' => $this->isNotificationRead('arrived_' . $appointment->appoint_id)
                 ];
             }

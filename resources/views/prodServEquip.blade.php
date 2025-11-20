@@ -60,19 +60,21 @@
 @section('content')
     <div class="min-h-screen">
         <div class="max-w-7xl mx-auto bg-white p-6 rounded-lg shadow">
-            <div class="border-b border-gray-200 mb-6" id="main-tabs-container">
-                <button onclick="switchMainTab('productInventoryTab', 'products')" id="productInventoryBtn"
-                    class="py-2 px-4 text-sm font-semibold border-b-2 border-transparent hover:border-[#0f7ea0] hover:text-[#0f7ea0]">
-                    <h2 class=" text-xl">Products</h2>
-                </button>
-                <button onclick="switchMainTab('servicesTab', 'services')" id="servicesBtn"
-                    class="py-2 px-4 text-sm font-semibold border-b-2 border-transparent hover:border-[#0f7ea0] hover:text-[#0f7ea0]">
-                    <h2 class="text-xl">Services</h2>
-                </button>
-                <button onclick="switchMainTab('equipmentTab', 'equipment')" id="equipmentBtn"
-                    class="py-2 px-4 text-sm font-semibold border-b-2 border-transparent hover:border-[#0f7ea0] hover:text-[#0f7ea0]">
-                    <h2 class="text-xl">Equipment</h2>
-                </button>
+            <div class="border-b border-gray-200 mb-6 overflow-x-auto">
+                <div class="flex flex-nowrap min-w-max" id="main-tabs-container">
+                    <button onclick="switchMainTab('productInventoryTab', 'products')" id="productInventoryBtn"
+                        class="py-2 px-4 text-sm font-semibold border-b-2 border-transparent hover:border-[#0f7ea0] hover:text-[#0f7ea0] whitespace-nowrap">
+                        <h2 class="text-lg sm:text-xl">Products</h2>
+                    </button>
+                    <button onclick="switchMainTab('servicesTab', 'services')" id="servicesBtn"
+                        class="py-2 px-4 text-sm font-semibold border-b-2 border-transparent hover:border-[#0f7ea0] hover:text-[#0f7ea0] whitespace-nowrap">
+                        <h2 class="text-lg sm:text-xl">Services</h2>
+                    </button>
+                    <button onclick="switchMainTab('equipmentTab', 'equipment')" id="equipmentBtn"
+                        class="py-2 px-4 text-sm font-semibold border-b-2 border-transparent hover:border-[#0f7ea0] hover:text-[#0f7ea0] whitespace-nowrap">
+                        <h2 class="text-lg sm:text-xl">Equipment</h2>
+                    </button>
+                </div>
             </div>
 
             @if(session('success'))
@@ -84,33 +86,31 @@
             @endif
 
             <div id="productInventoryTab" class="main-tab-content">
-                <div class="flex justify-between items-center mb-4 gap-2 flex-wrap">
-                    <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
+                <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                    <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
                         <input type="hidden" name="tab" value="products">
-                        <label for="productsPerPage" class="text-sm text-black">Show</label>
+                        <label for="productsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
                         <select name="productsPerPage" id="productsPerPage" onchange="this.form.submit()"
-                            class="border border-gray-400 rounded px-2 py-1 text-sm">
+                            class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                             @foreach ([10, 20, 50, 100, 'all'] as $limit)
                                 <option value="{{ $limit }}" {{ request('productsPerPage') == $limit ? 'selected' : '' }}>
                                     {{ $limit === 'all' ? 'All' : $limit }}
                                 </option>
                             @endforeach
                         </select>
-                        <span>entries</span>
+                        <span class="whitespace-nowrap">entries</span>
                     </form>
-                    <div class="flex gap-2 items-center flex-wrap">
-                        <div class="relative">
-                            <input type="search" id="productsSearch" placeholder="Search products..." class="border border-gray-300 rounded px-3 py-2 text-sm pl-8">
-                            <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                        </div>
-                        <button onclick="openInventoryOverview()"
-                            class="bg-purple-600 text-white text-sm px-4 py-2 rounded hover:bg-purple-700">
-                            📊 Inventory Overview
+                    <div class="relative flex-1 min-w-[200px] max-w-xs">
+                        <input type="search" id="productsSearch" placeholder="Search products..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="openInventoryOverview()" class="bg-purple-600 text-white text-sm px-3 py-1.5 rounded hover:bg-purple-700 whitespace-nowrap">
+                            <i class="fas fa-chart-pie mr-1"></i> Inventory
                         </button>
                         @if(hasPermission('add_product', $can))
-                            <button onclick="openAddProductModal()"
-                                class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-                                + Add Product
+                            <button onclick="openAddProductModal()" class="bg-[#0f7ea0] text-white text-sm px-3 py-1.5 rounded hover:bg-[#0c6a86] whitespace-nowrap">
+                                <i class="fas fa-plus mr-1"></i> Add Product
                             </button>
                         @endif
                     </div>
@@ -127,7 +127,6 @@
                                 <th class="p-2 border">Description</th>
                                 <th class="p-2 border">Price</th>
                                 <th class="p-2 border">Stock</th>
-                                <th class="p-2 border">Reorder Level</th>
                                 <th class="p-2 border">Expiry Date</th>
                                 <th class="p-2 border">Branch</th>
                                 <th class="p-2 border">Actions</th>
@@ -157,19 +156,8 @@
                                         @endphp
                                         <div>
                                             <span class="{{ $stockStatus }}">{{ $product->prod_stocks ?? 0 }}</span>
-                                            @if(($product->prod_damaged ?? 0) > 0 || ($product->prod_pullout ?? 0) > 0)
-                                                <div class="text-xs mt-1">
-                                                    @if(($product->prod_damaged ?? 0) > 0)
-                                                        <span class="text-red-500">D: {{ $product->prod_damaged }}</span>
-                                                    @endif
-                                                    @if(($product->prod_pullout ?? 0) > 0)
-                                                        <span class="text-orange-500 ml-1">P: {{ $product->prod_pullout }}</span>
-                                                    @endif
-                                                </div>
-                                            @endif
                                         </div>
                                     </td>
-                                    <td class="p-2 border">{{ $product->prod_reorderlevel ?? 'N/A' }}</td>
                                     <td class="p-2 border">
                                         @if($product->prod_expiry)
                                             @php
@@ -276,39 +264,35 @@
             </div>
 
             <div id="servicesTab" class="main-tab-content hidden">
-                <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
-                    <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
+                <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                    <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
                         <input type="hidden" name="tab" value="services">
-                        <label for="servicesPerPage" class="text-sm text-black">Show</label>
+                        <label for="servicesPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
                         <select name="servicesPerPage" id="servicesPerPage" onchange="this.form.submit()"
-                            class="border border-gray-400 rounded px-2 py-1 text-sm">
+                            class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                             @foreach ([10, 20, 50, 100, 'all'] as $limit)
                                 <option value="{{ $limit }}" {{ request('servicesPerPage') == $limit ? 'selected' : '' }}>
                                     {{ $limit === 'all' ? 'All' : $limit }}
                                 </option>
                             @endforeach
                         </select>
-                        <span>entries</span>
+                        <span class="whitespace-nowrap">entries</span>
                     </form>
-                    <div class="flex gap-2 items-center flex-wrap">
-                        <div class="relative">
-                            <input type="search" id="servicesSearch" placeholder="Search services..." class="border border-gray-300 rounded px-3 py-2 text-sm pl-8">
-                            <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                        </div>
-                        <button onclick="openServiceInventoryOverview()"
-                            class="bg-purple-600 text-white text-sm px-4 py-2 rounded hover:bg-purple-700">
-                            <i class="fas fa-pills mr-1"></i> Service Inventory Overview
+                    <div class="relative flex-1 min-w-[200px] max-w-xs">
+                        <input type="search" id="servicesSearch" placeholder="Search services..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="openServiceInventoryOverview()" class="bg-purple-600 text-white text-sm px-3 py-1.5 rounded hover:bg-purple-700 whitespace-nowrap">
+                            <i class="fas fa-pills mr-1"></i> Inventory
                         </button>
                         @if(hasPermission('add_service', $can))
-                            <button onclick="openAddModal('service')"
-                                class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-                                + Add Service
+                            <button onclick="openAddModal('service')" class="bg-[#0f7ea0] text-white text-sm px-3 py-1.5 rounded hover:bg-[#0c6a86] whitespace-nowrap">
+                                <i class="fas fa-plus mr-1"></i> Add Service
                             </button>
                         @endif
                     </div>
                 </div>
-
-                <br>
 
                 <div class="overflow-x-auto">
                     <table class="w-full table-auto text-sm border text-center">
@@ -413,32 +397,29 @@
             </div>
 
             <div id="equipmentTab" class="main-tab-content hidden">
-                <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
-                    <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
+                <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                    <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
                         <input type="hidden" name="tab" value="equipment">
-                        <label for="equipmentPerPage" class="text-sm text-black">Show</label>
+                        <label for="equipmentPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
                         <select name="equipmentPerPage" id="equipmentPerPage" onchange="this.form.submit()"
-                            class="border border-gray-400 rounded px-2 py-1 text-sm">
+                            class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                             @foreach ([10, 20, 50, 100, 'all'] as $limit)
                                 <option value="{{ $limit }}" {{ request('equipmentPerPage') == $limit ? 'selected' : '' }}>
                                     {{ $limit === 'all' ? 'All' : $limit }}
                                 </option>
                             @endforeach
                         </select>
-                        <span>entries</span>
+                        <span class="whitespace-nowrap">entries</span>
                     </form>
-                    <div class="flex gap-2 items-center flex-wrap">
-                        <div class="relative">
-                            <input type="search" id="equipmentSearch" placeholder="Search equipment..." class="border border-gray-300 rounded px-3 py-2 text-sm pl-8">
-                            <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                        </div>
-                        @if(hasPermission('add_equipment', $can))
-                            <button onclick="openAddModal('equipment')"
-                                class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-                                + Add Equipment
-                            </button>
-                        @endif
+                    <div class="relative flex-1 min-w-[200px] max-w-xs">
+                        <input type="search" id="equipmentSearch" placeholder="Search equipment..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                     </div>
+                    @if(hasPermission('add_equipment', $can))
+                        <button onclick="openAddModal('equipment')" class="bg-[#0f7ea0] text-white text-sm px-3 py-1.5 rounded hover:bg-[#0c6a86] whitespace-nowrap">
+                            <i class="fas fa-plus mr-1"></i> Add Equipment
+                        </button>
+                    @endif
                 </div>
                 <br>
                 <div class="overflow-x-auto">
@@ -599,41 +580,6 @@
                 <h3 class="text-lg font-bold">Inventory Overview</h3>
                 <button onclick="closeInventoryModal()" class="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
             </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div class="bg-red-50 p-4 rounded-lg border-l-4 border-red-500">
-                    <h4 class="font-semibold text-red-800">Expired Items</h4>
-                    <p class="text-2xl font-bold text-red-600">
-                        {{ $products->filter(function ($p) {
-        return $p->prod_expiry && \Carbon\Carbon::parse($p->prod_expiry)->isPast();
-    })->count() }}
-                    </p>
-                </div>
-                <div class="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-500">
-                    <h4 class="font-semibold text-yellow-800">Expiring Soon</h4>
-                    <p class="text-2xl font-bold text-yellow-600">
-                        {{ $products->filter(function ($p) {
-        return $p->prod_expiry && \Carbon\Carbon::parse($p->prod_expiry)->diffInDays(now()) <= 30 && !\Carbon\Carbon::parse($p->prod_expiry)->isPast();
-    })->count() }}
-                    </p>
-                </div>
-                <div class="bg-orange-50 p-4 rounded-lg border-l-4 border-orange-500">
-                    <h4 class="font-semibold text-orange-800">Low Stock</h4>
-                    <p class="text-2xl font-bold text-orange-600">
-                        {{ $products->filter(function ($p) {
-        return $p->prod_stocks <= ($p->prod_reorderlevel ?? 10); })->count() }}
-                    </p>
-                </div>
-                <div class="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
-                    <h4 class="font-semibold text-green-800">Good Stock</h4>
-                    <p class="text-2xl font-bold text-green-600">
-                        {{ $products->filter(function ($p) {
-        return $p->prod_stocks > ($p->prod_reorderlevel ?? 10) && (!$p->prod_expiry || \Carbon\Carbon::parse($p->prod_expiry)->diffInDays(now()) > 30);
-    })->count() }}
-                    </p>
-                </div>
-            </div>
-
             <div class="overflow-x-auto">
                 <table class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
@@ -1468,14 +1414,29 @@
 
             // Fetch both inventory history AND service usage
             Promise.all([
-                fetch(`/inventory/${productId}/history`),
-                fetch(`/products/${productId}/service-usage`)
+                fetch(`/inventory/${productId}/history`).then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                }),
+                fetch(`/products/${productId}/service-usage`).then(response => {
+                    if (!response.ok) {
+                        console.warn('Failed to load service usage data, continuing without it');
+                        return { services_using_product: [], recent_service_usage: [], total_used_in_services: 0 };
+                    }
+                    return response.json();
+                })
             ])
-                .then(responses => Promise.all(responses.map(r => r.json())))
                 .then(([historyData, serviceData]) => {
-                    if (historyData.error || serviceData.error) {
-                        document.getElementById('inventoryHistoryContent').innerHTML = `<div class="text-red-500">${data.error}</div>`;
-                        return;
+                    if (historyData.error) {
+                        throw new Error(historyData.error);
+                    }
+                    
+                    // If service data has an error, we'll just log it but continue with empty data
+                    if (serviceData.error) {
+                        console.warn('Error in service usage data:', serviceData.error);
+                        serviceData = { services_using_product: [], recent_service_usage: [], total_used_in_services: 0 };
                     }
 
                     const product = historyData.product;
@@ -1492,26 +1453,26 @@
                 <div class="mb-6">
                     <h4 class="font-bold text-lg mb-3">Product: ${product.prod_name}</h4>
 
-                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-                        <div class="bg-blue-50 p-4 rounded-lg">
-                            <div class="text-sm text-blue-600">Current Stock</div>
-                            <div class="text-2xl font-bold text-blue-800">${stockAnalytics.current_stock}</div>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+                        <div class="bg-blue-50 p-3 rounded-lg">
+                            <div class="text-xs md:text-sm text-blue-600">Current Stock</div>
+                            <div class="text-xl md:text-2xl font-bold text-blue-800">${stockAnalytics.current_stock}</div>
                         </div>
-                        <div class="bg-yellow-50 p-4 rounded-lg">
-                            <div class="text-sm text-yellow-600">Reorder Level</div>
-                            <div class="text-2xl font-bold text-yellow-800">${stockAnalytics.reorder_level || 'N/A'}</div>
+                        <div class="bg-yellow-50 p-3 rounded-lg">
+                            <div class="text-xs md:text-sm text-yellow-600">Reorder Level</div>
+                            <div class="text-xl md:text-2xl font-bold text-yellow-800">${stockAnalytics.reorder_level || 'N/A'}</div>
                         </div>
-                        <div class="bg-red-50 p-4 rounded-lg">
-                            <div class="text-sm text-red-600">Damaged Items</div>
-                            <div class="text-2xl font-bold text-red-800">${damageAnalysis.total_damaged}</div>
+                        <div class="bg-red-50 p-3 rounded-lg">
+                            <div class="text-xs md:text-sm text-red-600">Damaged Items</div>
+                            <div class="text-xl md:text-2xl font-bold text-red-800">${damageAnalysis.total_damaged}</div>
                         </div>
-                        <div class="bg-purple-50 p-4 rounded-lg">
-                            <div class="text-sm text-purple-600">Used in Services</div>
-                            <div class="text-2xl font-bold text-purple-800">${totalUsedInServices}</div>
+                        <div class="bg-purple-50 p-3 rounded-lg">
+                            <div class="text-xs md:text-sm text-purple-600">Used in Services</div>
+                            <div class="text-xl md:text-2xl font-bold text-purple-800">${totalUsedInServices}</div>
                         </div>
-                        <div class="bg-green-50 p-4 rounded-lg">
-                            <div class="text-sm text-green-600">Days Until Reorder</div>
-                            <div class="text-2xl font-bold text-green-800">${stockAnalytics.days_until_reorder}</div>
+                        <div class="bg-green-50 p-3 rounded-lg md:col-span-1 lg:col-auto">
+                            <div class="text-xs md:text-sm text-green-600">Days Until Reorder</div>
+                            <div class="text-xl md:text-2xl font-bold text-green-800">${stockAnalytics.days_until_reorder}</div>
                         </div>
                     </div>
 
@@ -1605,13 +1566,21 @@
                                         movement.type === 'pullout' ? 'text-orange-600' : 'text-gray-600';
 
                         const movementDate = movement.date ? new Date(movement.date) : new Date();
-                        const displayQuantity = movement.quantity || 0;
+                        // Ensure quantity is treated as a number and handle negative values for pullouts
+                        const displayQuantity = typeof movement.quantity === 'number' ? movement.quantity : 
+                                             (movement.quantity ? parseFloat(movement.quantity) : 0);
+
+                        // Format the quantity with proper sign for display
+                        const quantitySign = displayQuantity > 0 ? '+' : '';
+                        const quantityClass = displayQuantity > 0 ? 'text-green-600' : 'text-red-600';
+                        const displayType = movement.type === 'pullout' ? 'Pull-out' : 
+                                         movement.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
                         content += `
                     <tr>
                         <td class="p-2 border">${movementDate.toLocaleDateString()}</td>
-                        <td class="p-2 border"><span class="${typeClass} capitalize font-semibold">${movement.type.replace('_', ' ') || 'adjustment'}</span></td>
-                        <td class="p-2 border ${displayQuantity > 0 ? 'text-green-600' : 'text-red-600'} font-bold">${displayQuantity > 0 ? '+' : ''}${displayQuantity}</td>
+                        <td class="p-2 border"><span class="${typeClass} capitalize font-semibold">${displayType}</span></td>
+                        <td class="p-2 border ${quantityClass} font-bold">${quantitySign}${displayQuantity}</td>
                         <td class="p-2 border">${movement.reference || 'N/A'}</td>
                         <td class="p-2 border">${movement.user || 'System'}</td>
                         <td class="p-2 border">${movement.notes || 'No notes'}</td>
@@ -1651,8 +1620,28 @@
                     document.getElementById('inventoryHistoryContent').innerHTML = content;
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    document.getElementById('inventoryHistoryContent').innerHTML = '<div class="text-red-500">Error loading inventory history</div>';
+                    console.error('Error loading inventory history:', error);
+                    const errorMessage = error.message || 'An unknown error occurred while loading inventory history';
+                    document.getElementById('inventoryHistoryContent').innerHTML = `
+                        <div class="p-4 bg-red-50 border-l-4 border-red-500">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-red-700">
+                                        ${errorMessage}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-4 text-center">
+                            <button onclick="viewInventoryHistory(${productId})" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                                Retry
+                            </button>
+                        </div>`;
                 });
         }
         function closeInventoryHistoryModal() {
@@ -1943,7 +1932,7 @@
                     </div>
 
                     <div class="mt-6">
-                        <h4 class="font-bold text-lg mb-3">Recent Appointments</h4>
+                        <h4 class="font-bold text-lg mb-3">Recent Visits</h4>
                         <div class="overflow-x-auto">
                             <table class="w-full text-sm border">
                                 <thead class="bg-gray-100">
@@ -1962,10 +1951,14 @@
                             const appointDate = appt.appoint_date ? new Date(appt.appoint_date) : new Date();
                             const statusColors = {
                                 'completed': 'bg-green-100 text-green-800',
+                                'complete': 'bg-green-100 text-green-800',
+                                'arrive': 'bg-blue-100 text-blue-800',
                                 'pending': 'bg-yellow-100 text-yellow-800',
-                                'cancelled': 'bg-red-100 text-red-800'
+                                'cancelled': 'bg-red-100 text-red-800',
+                                'canceled': 'bg-red-100 text-red-800'
                             };
-                            const statusClass = statusColors[appt.appoint_status] || 'bg-gray-100 text-gray-800';
+                            const statusKey = (appt.appoint_status || '').toString().toLowerCase();
+                            const statusClass = statusColors[statusKey] || 'bg-gray-100 text-gray-800';
 
                             content += `
                             <tr>
@@ -1979,7 +1972,7 @@
                             </tr>`;
                         });
                     } else {
-                        content += '<tr><td colspan="5" class="p-4 text-center text-gray-500">No recent appointments found</td></tr>';
+                        content += '<tr><td colspan="5" class="p-4 text-center text-gray-500">No recent visits found</td></tr>';
                     }
 
                     content += `

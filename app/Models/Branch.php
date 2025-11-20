@@ -45,5 +45,10 @@ public function equipment()
     return $this->hasMany(Equipment::class, 'branch_id', 'branch_id');
 }
 
+public function referralCompanies()
+{
+    return $this->hasMany(ReferralCompany::class, 'branch_id', 'branch_id');
+}
+
     
 }

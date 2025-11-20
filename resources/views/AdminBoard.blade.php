@@ -3,17 +3,25 @@
 <head>
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <meta charset="utf-8" />
-  <meta content="width=device-width, initial-scale=1" name="viewport" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, shrink-to-fit=no" />
   <title>Multi-Branch VCMS Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="/css/toast.css" rel="stylesheet" />
   
   <style>
+    html {
+      height: 100%;
+      overflow-x: hidden;
+    }
     body {
       font-family: 'Inter', sans-serif;
       margin: 0;
-      height: 100vh;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
     }
 
     ::-webkit-scrollbar {
@@ -183,10 +191,10 @@
 
 <body class="h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
   <!-- HEADER -->
-  <header class="flex items-center h-17 gradient-bg text-white shadow-xl relative z-50">
+  <header class="flex items-center h-16 md:h-17 gradient-bg text-white shadow-xl relative z-50">
     <!-- Logo Section -->
-    <div class="h-full flex items-center w-10 md:w-64 shrink-0" style="background-color: #ff8c42;">
-      <img src="{{ asset('images/header5.png') }}" class="h-15 md:h-16 object-contain w-full" alt="Logo" />
+    <div class="h-full flex items-center w-16 md:w-64 shrink-0" style="background-color: #ff8c42;">
+      <img src="{{ asset('images/header5.png') }}" class="h-14 md:h-16 object-contain w-full px-2 md:px-0" alt="Logo" />
     </div>
 
     @if(auth()->user()->user_role === 'superadmin')
@@ -434,6 +442,7 @@
                 ['route' => 'dashboard-index', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
                 ['route' => 'pet-management.index', 'icon' => 'fa-paw', 'label' => 'Pet Management'],
                 ['route' => 'medical.index', 'icon' => 'fa-stethoscope', 'label' => 'Visit & Service Management'],
+                ['route' => 'care-continuity.index', 'icon' => 'fa-heartbeat', 'label' => 'Care Continuity Management'],
                 ['route' => 'branch-reports.index', 'icon' => 'fa-chart-line', 'label' => 'Branch Reports'],
               ],
               'receptionist' => [
@@ -441,6 +450,7 @@
                 ['route' => 'prodservequip.index', 'icon' => 'fa-boxes', 'label' => 'Inventory Management'],
                 ['route' => 'pet-management.index', 'icon' => 'fa-paw', 'label' => 'Pet Management'],
                 ['route' => 'medical.index', 'icon' => 'fa-stethoscope', 'label' => 'Visit & Service Management'],
+                ['route' => 'care-continuity.index', 'icon' => 'fa-heartbeat', 'label' => 'Care Continuity Management'],
                 ['route' => 'sales.index', 'icon' => 'fa-cash-register', 'label' => 'Sales Management'],
                 ['route' => 'branch-reports.index', 'icon' => 'fa-chart-line', 'label' => 'Branch Reports'],
               ],

@@ -19,20 +19,30 @@
                     <div class="text-xs text-gray-500">Weight: {{ $visit->weight ? number_format($visit->weight, 2).' kg' : '—' }} • Temp: {{ $visit->temperature ? number_format($visit->temperature, 1).' °C' : '—' }}</div>
                     <div class="mt-3 inline-flex items-center gap-2 text-indigo-600 text-sm font-medium">View Full Profile <i class="fas fa-arrow-right"></i></div>
                 </div>
-                <div class="bg-white rounded-xl shadow-sm border p-4 cursor-pointer hover:shadow-md transition" onclick="openMedicalHistoryModal()">
-                    <div class="font-semibold text-gray-900 mb-2">Recent Medical History</div>
-                    <div class="space-y-2 max-h-40 overflow-y-auto text-xs">
-                        @forelse($petMedicalHistory as $record)
-                            <div class="border-l-2 pl-2 {{ $record->diagnosis ? 'border-red-400' : 'border-gray-300' }}">
-                                <div class="font-medium">{{ \Carbon\Carbon::parse($record->visit_date)->format('M j, Y') }}</div>
-                                <div class="text-gray-700 truncate">{{ $record->diagnosis ?? $record->treatment ?? 'Routine Visit' }}</div>
+               <div class="bg-white rounded-xl shadow-sm border p-4 cursor-pointer hover:shadow-md transition" onclick="openVisitHistoryModal()">
+                <div class="font-semibold text-gray-900 mb-2">Recent Visit History</div>
+                <div class="space-y-2 max-h-40 overflow-y-auto text-xs">
+                    @forelse($petMedicalHistory as $record)
+                        @php 
+                            $status = strtolower($record->visit_status ?? 'pending');
+                            $border = $status === 'completed' ? 'border-green-400' : ($status === 'arrived' ? 'border-blue-400' : 'border-gray-300');
+                        @endphp
+                        <div class="border-l-2 pl-2 {{ $border }}">
+                            <div class="font-medium flex justify-between items-center">
+                                {{ \Carbon\Carbon::parse($record->visit_date)->format('M j, Y') }}
+                                <span class="text-xs font-semibold px-1 py-0.5 rounded 
+                                    {{ $status === 'completed' ? 'bg-green-100 text-green-700' : ($status === 'arrived' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700') }}">
+                                    {{ ucfirst($status) }}
+                                </span>
                             </div>
-                        @empty
-                            <p class="text-gray-500 italic">No history</p>
-                        @endforelse
-                    </div>
-                    <div class="mt-3 inline-flex items-center gap-2 text-indigo-600 text-sm font-medium">View Full History <i class="fas fa-arrow-right"></i></div>
+                            <div class="text-gray-700 truncate" title="{{ $record->service_summary }}">{{ $record->service_summary ?? 'General Visit' }}</div>
+                        </div>
+                    @empty
+                        <p class="text-gray-500 italic">No previous service records found.</p>
+                    @endforelse
                 </div>
+                <div class="mt-3 inline-flex items-center gap-2 text-indigo-600 text-sm font-medium">View Full Service History <i class="fas fa-arrow-right"></i></div>
+            </div>
             </div>
 
             {{-- Row 3+: Main Content (full width) --}}
@@ -47,90 +57,149 @@
                     'room' => $serviceData->room_no ?? null,
                     'care_instructions' => $serviceData->feeding_schedule ?? null,
                     'monitoring_notes' => $serviceData->daily_notes ?? null,
-                    'billing_basis' => $__details['billing_basis'] ?? null,
-                    'rate' => $__details['rate'] ?? null,
+                    // Billing fields removed
                     'total_days' => $__details['total_days'] ?? null,
                     'weight' => $visit->weight,
                 ];
             }
-        @endphp
-        <form action="{{ route('medical.visits.boarding.save', $visit->visit_id) }}" method="POST" class="space-y-6">
-            @csrf
+            // Determine the selected service ID (prioritize: pivot table entry > old input > null)
+            $boardingService = $visit->services()->where('serv_type', 'boarding')->first();
+            $selectedServiceId = $boardingService ? $boardingService->serv_id : old('service_id');
+            @endphp
+            <form action="{{ route('medical.visits.boarding.save', $visit->visit_id) }}" method="POST" class="space-y-6">
+                @csrf
 
-            {{-- Boarding Details Card --}}
-            <div class="bg-white rounded-xl shadow-lg p-6">
-                <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-calendar-alt mr-2 text-teal-600"></i> Reservation Details</h2>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Check-in Date/Time <span class="text-red-500">*</span></label>
-                        <input type="datetime-local" name="checkin" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" required value="{{ old('checkin', $__board['checkin'] ?? ($__details['checkin'] ?? '')) }}" />
+                {{-- Boarding Details Card --}}
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-calendar-alt mr-2 text-teal-600"></i> Reservation & Service Details</h2>
+                    
+                    {{-- Service Selection & Dates --}}
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                        <div class="sm:col-span-3">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Boarding Service Type <span class="text-red-500">*</span></label>
+                            <select name="service_id" id="boarding_service_id" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" required>
+                                <option value="">-- Select Boarding Package --</option>
+                                @forelse($availableServices as $service)
+                                    @php
+                                        $isBoardingService = (isset($service->serv_type) && strtolower($service->serv_type) == 'boarding');
+                                        $isSelected = $selectedServiceId == $service->serv_id;
+                                    @endphp
+                                    @if($isBoardingService || !isset($service->serv_type)) 
+                                    <option value="{{ $service->serv_id }}" data-price="{{ $service->serv_price ?? 0 }}" {{ $isSelected ? 'selected' : '' }}>
+                                        {{ $service->serv_name ?? 'N/A' }} 
+                                        @if(isset($service->serv_price))
+                                            ({{ number_format($service->serv_price, 2) }} / day)
+                                        @endif
+                                    </option>
+                                    @endif
+                                @empty
+                                    <option value="" disabled>No Boarding Services Available</option>
+                                @endforelse
+                            </select>
+                            @error('service_id')
+                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                            @enderror
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Check-out Date/Time</label>
-                        <input type="datetime-local" name="checkout" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" value="{{ old('checkout', $__board['checkout'] ?? ($__details['checkout'] ?? '')) }}" />
+
+                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Check-in Date/Time <span class="text-red-500">*</span></label>
+                            <input type="datetime-local" name="checkin" id="checkin_date" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" required value="{{ old('checkin', $__board['checkin'] ?? ($__details['checkin'] ?? '')) }}" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Check-out Date/Time</label>
+                            <input type="datetime-local" name="checkout" id="checkout_date" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" value="{{ old('checkout', $__board['checkout'] ?? ($__details['checkout'] ?? '')) }}" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Cage / Room</label>
+                            <input type="text" name="room" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" placeholder="e.g. C-12" value="{{ old('room', $__board['room'] ?? ($__details['room'] ?? '')) }}" />
+                        </div>
+                        
+                        {{-- Kept for Auto Calculation Basis --}}
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Total Days / Hours</label>
+                            <input type="text" id="total_time_display" readonly class="w-full border border-gray-300 p-2 rounded-lg bg-gray-100 text-gray-600" placeholder="Calculated automatically" value="{{ old('total_days', $__board['total_days'] ?? ($__details['total_days'] ?? '')) }}" />
+                            <input type="hidden" name="total_days" id="total_days_hidden" value="{{ old('total_days', $__board['total_days'] ?? ($__details['total_days'] ?? '')) }}" />
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Cage / Room</label>
-                        <input type="text" name="room" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" placeholder="e.g. C-12" value="{{ old('room', $__board['room'] ?? ($__details['room'] ?? '')) }}" />
+
+                    <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="sm:col-span-1">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Feeding & Care Instructions</label>
+                            <textarea name="care_instructions" rows="3" class="w-full border border-gray-300 p-3 rounded-lg focus:border-teal-500 focus:ring-teal-500" placeholder="Diet, meds times, play time requests...">{{ old('care_instructions', $__board['care_instructions'] ?? ($__details['care_instructions'] ?? '')) }}</textarea>
+                        </div>
+                        <div class="sm:col-span-1">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Monitoring Notes / Daily Logs</label>
+                            <textarea name="monitoring_notes" rows="3" class="w-full border border-gray-300 p-3 rounded-lg focus:border-teal-500 focus:ring-teal-500" placeholder="Daily observations (appetite, mood, eliminations)...">{{ old('monitoring_notes', $__board['monitoring_notes'] ?? ($__details['monitoring_notes'] ?? '')) }}</textarea>
+                        </div>
                     </div>
+                    
+                    {{-- Billing Information --}}
+                    <h3 class="text-lg font-semibold text-gray-700 mt-6 mb-4 flex items-center border-t pt-4"><i class="fas fa-calculator mr-2 text-blue-600"></i> Billing Information</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-medium text-gray-700">Daily Rate:</span>
+                                <span id="dailyRateDisplay" class="font-semibold text-blue-700">₱0.00</span>
+                            </div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-medium text-gray-700">Duration:</span>
+                                <span id="durationDisplay" class="font-semibold text-blue-700">0 days</span>
+                            </div>
+                            <div class="border-t border-blue-200 my-2"></div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-base font-bold text-gray-800">Total Amount:</span>
+                                <span id="totalAmountDisplay" class="text-xl font-bold text-green-600">₱0.00</span>
+                            </div>
+                        </div>
+                        <div class="col-span-2">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Pet Weight (kg)</label>
+                                    <input type="text" readonly class="w-full border border-gray-300 p-2 rounded-lg bg-gray-100 text-gray-600" value="{{ $visit->weight ? number_format($visit->weight, 2) . ' kg' : 'N/A' }}" />
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Check-in Date</label>
+                                    <input type="text" id="checkinDisplay" readonly class="w-full border border-gray-300 p-2 rounded-lg bg-gray-100 text-gray-600" />
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Check-out Date</label>
+                                    <input type="text" id="checkoutDisplay" readonly class="w-full border border-gray-300 p-2 rounded-lg bg-gray-100 text-gray-600" />
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Service Type</label>
+                                    <input type="text" id="serviceTypeDisplay" readonly class="w-full border border-gray-300 p-2 rounded-lg bg-gray-100 text-gray-600" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {{-- End Pet Weight --}}
+                </div>
+                
+                {{-- Action Buttons --}}
+                <div class="flex justify-end gap-3 pt-4">
+                    {{-- REMOVED: Compute & Bill Button --}}
+                    <a href="{{ route('medical.index', ['tab' => 'boarding']) }}" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold transition">Cancel</a>
+                    <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
+                        <i class="fas fa-save mr-1"></i> Save Record & Complete
+                    </button>
                 </div>
 
-                <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="sm:col-span-1">
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Feeding & Care Instructions</label>
-                        <textarea name="care_instructions" rows="3" class="w-full border border-gray-300 p-3 rounded-lg focus:border-teal-500 focus:ring-teal-500" placeholder="Diet, meds times, play time requests...">{{ old('care_instructions', $__board['care_instructions'] ?? ($__details['care_instructions'] ?? '')) }}</textarea>
-                    </div>
-                    <div class="sm:col-span-1">
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Monitoring Notes / Daily Logs</label>
-                        <textarea name="monitoring_notes" rows="3" class="w-full border border-gray-300 p-3 rounded-lg focus:border-teal-500 focus:ring-teal-500" placeholder="Daily observations (appetite, mood, eliminations)...">{{ old('monitoring_notes', $__board['monitoring_notes'] ?? ($__details['monitoring_notes'] ?? '')) }}</textarea>
-                    </div>
-                </div>
-
-                <h3 class="text-lg font-semibold text-gray-700 mt-6 mb-4 flex items-center border-t pt-4"><i class="fas fa-calculator mr-2 text-blue-600"></i> Billing Information</h3>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Billing Basis</label>
-                        <select name="billing_basis" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500">
-                            @php($bb = old('billing_basis', $__board['billing_basis'] ?? ($__details['billing_basis'] ?? 'day')))
-                            <option value="day" {{ $bb==='day'?'selected':'' }}>Per Day</option>
-                            <option value="hour" {{ $bb==='hour'?'selected':'' }}>Per Hour</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Rate (Per basis)</label>
-                        <input type="number" step="0.01" name="rate" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" value="{{ old('rate', $__board['rate'] ?? ($__details['rate'] ?? '')) }}" />
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Total Days / Hours</label>
-                        <input type="number" step="0.1" name="total_days" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" placeholder="Auto-calculated (optional)" value="{{ old('total_days', $__board['total_days'] ?? ($__details['total_days'] ?? '')) }}" />
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Pet Weight (kg)</label>
-                        <input type="text" readonly class="w-full border border-gray-300 p-2 rounded-lg bg-gray-100 text-gray-600" value="{{ $visit->weight ? number_format($visit->weight, 2) . ' kg' : 'N/A' }}" />
-                    </div>
-                </div>
-            </div>
-
-            {{-- Action Buttons --}}
-            <div class="flex justify-end gap-3 pt-4">
-                <button type="button" class="px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-semibold shadow-md transition">
-                    <i class="fas fa-file-invoice-dollar mr-1"></i> Compute & Bill
-                </button>
-                <a href="{{ route('medical.index', ['tab' => 'boarding']) }}" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold transition">Cancel</a>
-                <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
-                    <i class="fas fa-save mr-1"></i> Save Record
-                </button>
-            </div>
-
-            <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
-            <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
-        </form>
+                <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
+<input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
+{{-- 💥 FIX 1: ADD HIDDEN FIELD FOR DAILY RATE --}}
+<input type="hidden" name="daily_rate" id="daily_rate_hidden" value="" />
+<input type="hidden" name="redirect_to" value="perform" />
+            </form>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Pet Profile Modal (Photo + Pet & Owner Info Only) -->
+{{-- Modals remain the same --}}
+
+{{-- Pet Profile Modal (Photo + Pet & Owner Info Only) --}}
 <div id="petProfileModal" class="fixed inset-0 bg-black/60 z-50 hidden">
   <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closePetProfileModal()}">
     <div class="bg-white rounded-xl shadow-2xl w-[600px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
@@ -139,7 +208,6 @@
         <button type="button" onclick="closePetProfileModal()" class="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded-md"><i class="fas fa-times mr-1"></i>Close</button>
       </div>
       <div class="p-6 space-y-4">
-        <!-- Pet Photo -->
         <div class="w-full rounded-lg border bg-gray-50 flex items-center justify-center overflow-hidden">
           @if(!empty($visit->pet->pet_photo))
             <img src="{{ asset('storage/'.$visit->pet->pet_photo) }}" alt="{{ $visit->pet->pet_name ?? 'Pet' }}" class="w-full h-80 object-cover"/>
@@ -150,7 +218,6 @@
           @endif
         </div>
 
-        <!-- Pet Information -->
         <div class="bg-white rounded-lg border p-4">
           <div class="font-semibold text-gray-800 text-lg mb-3 flex items-center gap-2">
             <i class="fas fa-dog text-blue-600"></i> Pet Information
@@ -187,7 +254,6 @@
           </div>
         </div>
 
-        <!-- Owner Information -->
         <div class="bg-white rounded-lg border p-4">
           <div class="font-semibold text-gray-800 text-lg mb-3 flex items-center gap-2">
             <i class="fas fa-user text-green-600"></i> Owner Information
@@ -212,7 +278,6 @@
   </div>
 </div>
 
-<!-- Medical History Modal (History Only) -->
 <div id="medicalHistoryModal" class="fixed inset-0 bg-black/60 z-50 hidden">
   <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closeMedicalHistoryModal()}">
     <div class="bg-white rounded-xl shadow-2xl w-[900px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
@@ -274,25 +339,147 @@
 </div>
 
 <script>
-  function openPetProfileModal() { 
-    const m = document.getElementById('petProfileModal'); 
-    if(m){ m.classList.remove('hidden'); } 
-  }
-  
-  function closePetProfileModal() { 
-    const m = document.getElementById('petProfileModal'); 
-    if(m){ m.classList.add('hidden'); } 
-  }
+    function openPetProfileModal() { 
+        const m = document.getElementById('petProfileModal'); 
+        if(m){ m.classList.remove('hidden'); } 
+    }
+    
+    function closePetProfileModal() { 
+        const m = document.getElementById('petProfileModal'); 
+        if(m){ m.classList.add('hidden'); } 
+    }
 
-  function openMedicalHistoryModal() { 
-    const m = document.getElementById('medicalHistoryModal'); 
-    if(m){ m.classList.remove('hidden'); } 
-  }
-  
-  function closeMedicalHistoryModal() { 
-    const m = document.getElementById('medicalHistoryModal'); 
-    if(m){ m.classList.add('hidden'); } 
-  }
+    function openMedicalHistoryModal() { 
+        const m = document.getElementById('medicalHistoryModal'); 
+        if(m){ m.classList.remove('hidden'); } 
+    }
+    
+    function closeMedicalHistoryModal() { 
+        const m = document.getElementById('medicalHistoryModal'); 
+        if(m){ m.classList.add('hidden'); } 
+    }
+
+    // JAVASCRIPT FOR AUTO-CALCULATING DURATION AND BILLING
+    document.addEventListener('DOMContentLoaded', function () {
+        const checkinDate = document.getElementById('checkin_date');
+        const checkoutDate = document.getElementById('checkout_date');
+        const totalTimeDisplay = document.getElementById('total_time_display');
+        const totalDaysHidden = document.getElementById('total_days_hidden');
+        const boardingServiceSelect = document.getElementById('boarding_service_id');
+        
+        // Billing display elements
+        const dailyRateDisplay = document.getElementById('dailyRateDisplay');
+        const durationDisplay = document.getElementById('durationDisplay');
+        const totalAmountDisplay = document.getElementById('totalAmountDisplay');
+        const checkinDisplay = document.getElementById('checkinDisplay');
+        const checkoutDisplay = document.getElementById('checkoutDisplay');
+        const serviceTypeDisplay = document.getElementById('serviceTypeDisplay');
+        
+        // Hidden input for the daily rate
+        const dailyRateHidden = document.getElementById('daily_rate_hidden');
+
+
+        // Format date for display
+        function formatDateForDisplay(dateString) {
+            if (!dateString) return 'N/A';
+            try {
+                const options = { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                };
+                return new Date(dateString).toLocaleString('en-US', options);
+            } catch (e) {
+                return 'Invalid Date';
+            }
+        }
+        
+        // Calculate duration and update billing
+        function calculateBilling() {
+    const checkin = checkinDate.value ? new Date(checkinDate.value) : null;
+    const checkout = checkoutDate.value ? new Date(checkoutDate.value) : null;
+    const selectedService = boardingServiceSelect ? boardingServiceSelect.options[boardingServiceSelect.selectedIndex] : null;
+    
+    // Get price from the selected option's data attribute
+    const servicePrice = selectedService && selectedService.dataset.price ? parseFloat(selectedService.dataset.price) : 0;
+    const serviceName = selectedService ? selectedService.text.split('(')[0].trim() : '';
+
+    // Update service type display
+    serviceTypeDisplay.value = serviceName || 'Not selected';
+    
+    // Update check-in/out displays
+    checkinDisplay.value = checkinDate.value ? formatDateForDisplay(checkinDate.value) : 'Not set';
+    checkoutDisplay.value = checkoutDate.value ? formatDateForDisplay(checkoutDate.value) : 'Not set';
+    
+    // Set initial state for calculations
+    let totalDays = 0;
+    let totalAmount = 0;
+    
+    // Calculate duration
+    if (checkin && checkout && checkout > checkin) {
+        const diffMs = checkout.getTime() - checkin.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        // CRITICAL FIX: Use Math.ceil to round up to the next full day for billing
+        totalDays = Math.ceil(diffDays); 
+        
+        // Calculate total amount: Daily Rate * Total Days
+        totalAmount = servicePrice * totalDays;
+        
+        // Update duration display
+        const daysText = totalDays === 1 ? 'day' : 'days';
+        totalTimeDisplay.value = `${totalDays} ${daysText}`;
+        
+    } else {
+        totalTimeDisplay.value = 'N/A';
+        // If dates are invalid, days are 0, amount is 0
+    }
+
+    // Update hidden inputs for form submission (CRITICAL FIX)
+    totalDaysHidden.value = totalDays;
+    if (dailyRateHidden) {
+        dailyRateHidden.value = servicePrice.toFixed(2);
+    }
+    
+    // Update billing display
+    dailyRateDisplay.textContent = `₱${servicePrice.toFixed(2)}`;
+    durationDisplay.textContent = `${totalDays} ${totalDays === 1 ? 'day' : 'days'}`;
+    totalAmountDisplay.textContent = `₱${totalAmount.toFixed(2)}`;
+}
+
+        // --- Event Listeners ---
+        
+        // Function to handle date changes consistently
+        const handleDateChange = (event) => {
+            const currentTarget = event.currentTarget;
+            if (currentTarget.id === 'checkout_date' && checkinDate.value && new Date(currentTarget.value) < new Date(checkinDate.value)) {
+                alert('Check-out date cannot be before check-in date');
+                currentTarget.value = checkinDate.value; // Reset to checkin date
+            } else if (currentTarget.id === 'checkin_date' && checkoutDate.value && new Date(checkoutDate.value) < new Date(currentTarget.value)) {
+                // If check-in is moved forward past checkout, adjust checkout too
+                checkoutDate.value = currentTarget.value;
+            }
+            calculateBilling();
+        };
+
+        // 1. Service Selection Change
+        if (boardingServiceSelect) {
+            boardingServiceSelect.addEventListener('change', calculateBilling);
+        }
+        
+        // 2. Date Changes (Unified Listener)
+        if (checkinDate) {
+            checkinDate.addEventListener('change', handleDateChange);
+        }
+        
+        if (checkoutDate) {
+            checkoutDate.addEventListener('change', handleDateChange);
+        }
+
+        // Initial calculation on page load
+        calculateBilling();
+    });
 </script>
 
 @endsection

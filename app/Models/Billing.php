@@ -29,6 +29,11 @@ class Billing extends Model
         'bill_status' => 'Pending',
     ];
 
+     public function payments()
+    {
+        return $this->hasMany(Payment::class, 'bill_id', 'bill_id');
+    }
+
     public function order()
 {
     return $this->belongsTo(Order::class, 'ord_id', 'ord_id');

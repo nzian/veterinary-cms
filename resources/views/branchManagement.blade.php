@@ -14,6 +14,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
                      <h2 class="font-bold text-xl">Users</h2>
                 </button>
+               
             </nav>
         </div>
 
@@ -212,6 +213,8 @@
                 </table>
             </div>
         </div>
+        
+            
     </div>
 </div>
 
@@ -612,6 +615,9 @@
     </div>
 </div>
 
+
+
+
 <script>
 // Tab switching functionality
 function switchTab(tabName) {
@@ -678,9 +684,12 @@ function openViewModal(branch) {
     document.getElementById('viewBranchModal').classList.remove('hidden');
 }
 
+
+
 function closeViewModal() {
     document.getElementById('viewBranchModal').classList.add('hidden');
 }
+
 
 // Tab switching for branch modal
 function switchBranchTab(tabName) {
@@ -926,6 +935,17 @@ function openAddModal() {
     document.getElementById('branchModal').classList.remove('hidden');
 }
 
+function openAddReferralCompanyModal() {
+    document.getElementById('referralCompanyModal').classList.remove('hidden');
+}
+function closeReferralCompanyModal() {
+    document.getElementById('referralCompanyModal').classList.add('hidden');
+}
+
+function closeEditReferralCompanyModal() {
+    document.getElementById('editReferralCompanyModal').classList.add('hidden');
+}
+
 function closeBranchModal() {
     document.getElementById('branchModal').classList.add('hidden');
 }
@@ -964,6 +984,7 @@ function closeAddUserToBranchModal() {
 
 // DOM Ready Functions
 document.addEventListener('DOMContentLoaded', function () {
+   
     // Edit branch buttons
     document.querySelectorAll('.editBranchBtn').forEach(btn => {
         btn.addEventListener('click', function () {

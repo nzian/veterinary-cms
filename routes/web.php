@@ -11,18 +11,37 @@ use App\Http\Controllers\SalesManagementController;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\GroomingAgreementController;
 use App\Http\Controllers\InitialAssessmentController;
+use App\Http\Controllers\BranchUserManagementController;
+use App\Http\Controllers\CareContinuityController;
+use App\Http\Controllers\MedicalManagementController;
+//Register
+use App\Http\Controllers\RegisterController;
+use App\Http\Controllers\LoginController;
+// Reset Pass
+use App\Http\Controllers\PasswordResetController;
+//Layout
+use App\Http\Controllers\AdminController;
 
+// POS Routes
+use App\Http\Controllers\POSController;
+use App\Http\Controllers\ProdServEquipController;
+use App\Http\Controllers\BranchReportController;
+use App\Http\Controllers\SMSSettingsController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\GlobalSearchController;
+use App\Http\Controllers\ReferralCompanyController;
+use App\Http\Controllers\SuperAdminDashboardController;
+use App\Models\ReferralCompany;
 
 Route::get('/', function () {
     return redirect('/login');
 });
-//Register
-use App\Http\Controllers\RegisterController;
+
 Route::get('/register', [RegisterController::class, 'showRegistrationForm'])->name('register');
 Route::post('/register', [RegisterController::class, 'register'])->name('register.submit');
 
 // Login 
-use App\Http\Controllers\LoginController;
+
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
@@ -44,18 +63,15 @@ Route::middleware(['auth'])->group(function () {
 });
 
 
-// Reset Pass
-use App\Http\Controllers\PasswordResetController;
+
 Route::get('/reset-password', [PasswordResetController::class, 'showResetForm'])->name('password.reset');
 Route::post('/reset-password', [PasswordResetController::class, 'update'])->name('password.update');
 
-//Layout
-use App\Http\Controllers\AdminController;
+
 Route::get('/admin', [AdminController::class, 'AdminBoard']);
 Route::get('/dashboard', [dashboardController::class, 'index'])->name('dashboard-index');
 
-// POS Routes
-use App\Http\Controllers\POSController;
+
 Route::get('/pos', [POSController::class, 'index'])->name('pos');
 Route::post('/pos', [POSController::class, 'store'])->name('pos.store'); 
 Route::post('/pos/pay-billing/{billingId}', [POSController::class, 'payBilling'])->name('pos.pay-billing'); // Pay existing bills
@@ -88,7 +104,7 @@ Route::get('/medical-management/pets/details', [MedicalManagementController::cla
 
 // Route for the new health card print function
 Route::get('/pet-management/pet/{id}/health-card', [PetManagementController::class, 'healthCard'])->name('pet-management.healthCard');
-use App\Http\Controllers\ProdServEquipController;
+
 Route::get('/services/inventory-overview', [ProdServEquipController::class, 'getServiceInventoryOverview'])
     ->name('services.inventory-overview');
 // Service-Product Management Routes
@@ -144,7 +160,7 @@ Route::get('medical-management/services/{serviceId}/products', [ProdServEquipCon
 
 // Route to save the specific vaccine details to the pivot table
 
-use App\Http\Controllers\MedicalManagementController;
+
 Route::prefix('medical-management')->group(function () {
     Route::get('/', [MedicalManagementController::class, 'index'])->name('medical.index');
 Route::put('appointments/{appointmentId}/record-vaccine-details', [MedicalManagementController::class, 'recordVaccineDetails'])
@@ -159,8 +175,13 @@ Route::put('appointments/{appointmentId}/record-vaccine-details', [MedicalManage
     Route::get('/appointments/{id}/details', [MedicalManagementController::class, 'getAppointmentDetails'])->name('medical.appointments.details');
     Route::get('/appointments/{id}', [MedicalManagementController::class, 'showAppointment'])->name('medical.appointments.show');
     Route::get('/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])->name('medical.appointments.show');
-    Route::get('/medical-management/appointments/{id}/for-prescription', [MedicalManagementController::class, 'getAppointmentForPrescription'])
-    ->name('medical.appointments.for-prescription');
+    Route::get('prescriptions', [MedicalManagementController::class, 'index'])
+    ->name('medical.prescriptions.index');
+    Route::post('/medical-management/prescriptions', [MedicalManagementController::class, 'storePrescription']);
+
+    //Route::get('/medical-management/prescriptions', [MedicalManagementController::class, 'prescriptions']);
+
+
 
     // Visit Records endpoints (JSON APIs for Pet Management tab)
     Route::get('/visit-records', [MedicalManagementController::class, 'listVisitRecords'])->name('visit-records.index');
@@ -171,6 +192,7 @@ Route::put('appointments/{appointmentId}/record-vaccine-details', [MedicalManage
      Route::put('/medical-management/appointments/{id}', [YourController::class, 'update'])->name('medical.appointments.update');
     Route::get('/medical-management/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])
     ->name('medical.appointments.show');
+    Route::post('/medical-management/appointments', [MedicalManagementController::class, 'storeAppointment'])->name('medical.appointments.store');
 
 
     // Prescription routes
@@ -217,6 +239,11 @@ Route::prefix('visits')->group(function () {
     Route::post('/visits/{visit}/surgical', [MedicalManagementController::class, 'saveSurgical'])->name('medical.visits.surgical.save');
     Route::post('/visits/{visit}/emergency', [MedicalManagementController::class, 'saveEmergency'])->name('medical.visits.emergency.save');
     Route::post('/visits/{visit}/agreement', [GroomingAgreementController::class, 'store'])->name('medical.visits.grooming.agreement.store');
+    Route::get('/visits/{visit}/agreement/print', [GroomingAgreementController::class, 'print'])
+        ->middleware('auth')
+        ->name('medical.visits.grooming.agreement.print');
+    Route::put('/visits/{visit}/grooming', [MedicalManagementController::class, 'updateGroomingService'])
+    ->name('medical.visits.grooming.update');
 });
 
 // Restore Attend/Perform Visit route so the Visits table Attend link works
@@ -235,11 +262,8 @@ Route::get('/branches/{id}', [BranchManagementController::class, 'show'])->name(
 Route::delete('/branches/{id}', [BranchManagementController::class, 'destroyBranch'])->name('branches-destroy');
 
 
-Route::get('/branch/switch/{id}', [BranchManagementController::class, 'switch'])->name('branch.switch');
-Route::get('/switch-branch/{id}', function ($id) {
-    Session::put('selected_branch_id', $id);
-    return redirect()->back();
-})->name('branch.switch');
+Route::get('/branch/switch/{id}', [BranchManagementController::class, 'switchBranch'])->name('branch.switch');
+Route::get('/branch/clear', [BranchManagementController::class, 'clearBranch'])->name('branch.clear');
 
 
 //Owner
@@ -291,7 +315,7 @@ Route::get('/reports/{reportType}/{recordId}/pdf', [ReportController::class, 'vi
 Route::get('/reports/{reportType}/{recordId}/pdf', [ReportController::class, 'generatePDF'])
     ->name('reports.pdf');
 
-use App\Http\Controllers\BranchReportController;
+
 Route::middleware(['auth'])->group(function() {
     Route::get('/branch-reports', [BranchReportController::class, 'index'])
         ->name('branch-reports.index');
@@ -313,6 +337,10 @@ Route::post('/billing/pay/{bill}', [BillingController::class, 'payBilling'])->na
 Route::get('/sales/billing/{id}', [SalesManagementController::class, 'showBilling'])->name('sales.billing.show');
 Route::get('/sales/billing/{id}/pdf', [SalesController::class, 'generateBillingPDF'])->name('sales.billing.pdf');
 
+Route::get('/api/products/available', [SalesManagementController::class, 'getAvailableProducts'])->middleware('auth');
+
+// Update the existing billing pay route or add if it doesn't exist
+Route::post('/sales/billing/{id}/pay', [SalesManagementController::class, 'markAsPaid'])->middleware('auth')->name('sales.billing.pay');
 ///Route::get('/prescriptions', [PrescriptionController::class, 'index'])->name('prescriptions.index');
 //Route::post('/prescriptions', [PrescriptionController::class, 'store'])->name('prescriptions.store');
 //Route::get('/prescriptions/{id}/edit', [PrescriptionController::class, 'edit'])->name('prescriptions.edit');
@@ -411,6 +439,14 @@ Route::middleware(['auth'])->group(function () {
 });
 
 Route::middleware(['auth'])->group(function () {
+
+
+    Route::get('referral-companies', [ReferralCompanyController::class, 'index'])->name('referralCompany.index');
+    Route::post('referral-companies', [ReferralCompanyController::class, 'store'])->name('referralCompany.store');
+    Route::get('referral-companies/{id}', [ReferralCompanyController::class, 'show'])->name('referralCompany.show');
+    Route::put('referral-companies/{referralCompany}', [ReferralCompanyController::class, 'update'])->name('referralCompany.update');
+    Route::delete('referral-companies/{referralCompany}', [ReferralCompanyController::class, 'destroy'])->name('referralCompany.destroy'); 
+
     // Branch Management
     Route::get('/branch-management', [BranchManagementController::class, 'index'])
         ->name('branch-management.index');
@@ -442,16 +478,23 @@ Route::get('/sales-management', [SalesManagementController::class, 'index'])->na
 Route::delete('/sales/billing/{id}', [SalesManagementController::class, 'destroyBilling'])->name('sales.destroyBilling');
 Route::post('/sales/billing/{id}/mark-paid', [SalesManagementController::class, 'markAsPaid'])->name('sales.markAsPaid');
 Route::get('/sales/transaction/{id}', [SalesManagementController::class, 'showTransaction'])->name('sales.transaction');
+Route::get('/sales/transaction/{id}/json', [SalesManagementController::class, 'showTransactionJson'])->name('sales.transaction.json');
 Route::get('/sales/print-transaction/{id}', [SalesManagementController::class, 'printTransaction'])->name('sales.printTransaction');
 Route::get('/sales/export', [SalesManagementController::class, 'export'])->name('sales.export');
-
-use App\Http\Controllers\SMSSettingsController;
+Route::get('/sales/billing/{id}/receipt', [SalesManagementController::class, 'showReceipt'])->name('sales.billing.receipt');
+Route::post('/sales/billing/{id}/pay', [SalesManagementController::class, 'markAsPaid'])->name('sales.billing.pay');
+Route::post('/sales/billing/{billing}/add-product', [SalesManagementController::class, 'addProductToBilling'])->name('sales.billing.addProduct');
+// Add this to your routes/web.php
+// NEW - Use this
+Route::post('/sales/billing/{billId}/add-products', [SalesManagementController::class, 'saveProductsToBilling'])->name('sales.billing.addProducts');
 Route::get('/sms-settings', [SMSSettingsController::class, 'index'])->name('sms-settings.index');
 Route::put('/sms-settings', [SMSSettingsController::class, 'update'])->name('sms-settings.update');
 Route::post('/sms-settings/test', [SMSSettingsController::class, 'testSMS'])->name('sms-settings.test');
 
+Route::post('/visits/{visit}/services/{service}/complete', [MedicalManagementController::class, 'completeService'])
+    ->name('visits.services.complete')
+    ->middleware('auth');
 
-use App\Http\Controllers\NotificationController;
 Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
 Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllRead');
 
@@ -463,7 +506,7 @@ Route::middleware(['auth'])->group(function () {
 });
 
 
-use App\Http\Controllers\GlobalSearchController;
+
 // Replace your existing global search route with this:
 Route::get('/global-search', [GlobalSearchController::class, 'search'])
     ->name('global.search')
@@ -471,7 +514,7 @@ Route::get('/global-search', [GlobalSearchController::class, 'search'])
 //Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'index'])->name('global.search');
 //Route::get('/search', [App\Http\Controllers\GlobalSearchController::class, 'redirect'])->name('global.search');
 
-use App\Http\Controllers\SuperAdminDashboardController;
+
 
 // Super Admin Routes
 Route::middleware(['auth'])->group(function () {
@@ -499,3 +542,27 @@ Route::controller(ActivityController::class)->group(function () {
 
 Route::post('/medical/initial-assessments', [InitialAssessmentController::class, 'store'])
     ->name('medical.initial_assessments.store');
+
+
+
+// Care Continuity Management Routes
+Route::prefix('care-continuity')->name('care-continuity.')->group(function () {
+    Route::get('/', [CareContinuityController::class, 'index'])->name('index');
+    
+    // Follow-up Appointments
+    Route::post('/appointments/store', [CareContinuityController::class, 'storeFollowUpAppointment'])->name('care.appointments.store');
+    Route::put('/appointments/{id}', [CareContinuityController::class, 'updateFollowUpAppointment'])->name('appointments.update');
+    Route::delete('/appointments/{id}', [CareContinuityController::class, 'destroyFollowUpAppointment'])->name('appointments.destroy');
+    Route::post('/appointments/{id}/create-visit', [CareContinuityController::class, 'createVisitFromAppointment'])->name('appointments.create-visit');
+    
+    // Prescriptions
+    Route::post('/prescriptions/store', [CareContinuityController::class, 'storeFollowUpPrescription'])->name('prescriptions.store');
+    Route::get('/prescriptions/{id}', [CareContinuityController::class, 'showPrescription'])->name('prescriptions.show');
+    Route::delete('/prescriptions/{id}', [CareContinuityController::class, 'destroyPrescription'])->name('prescriptions.destroy');
+    
+    // Referrals
+    Route::post('/referrals/store', [CareContinuityController::class, 'storeReferral'])->name('referrals.store');
+    Route::get('/referrals/{id}', [CareContinuityController::class, 'showReferral'])->name('referrals.show');
+    Route::delete('/referrals/{id}', [CareContinuityController::class, 'destroyReferral'])->name('referrals.destroy');
+    Route::post('/referrals/{id}/create-visit', [CareContinuityController::class, 'createVisitFromReferral'])->name('referrals.create-visit');
+});

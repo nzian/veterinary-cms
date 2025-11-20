@@ -91,7 +91,7 @@
     @endif
 
     {{-- Key Metrics - Mobile Responsive Grid --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         @php
             $keyMetrics = [
                 [
@@ -130,23 +130,23 @@
         @endphp
 
         @foreach ($keyMetrics as $metric)
-            <a href="{{ $metric['route'] }}" class="block transform transition-all duration-300 hover:scale-105">
-                <div class="relative overflow-hidden bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 hover:shadow-xl transition-all duration-300 group cursor-pointer">
+            <a href="{{ $metric['route'] }}" class="block transform transition-all duration-300 hover:scale-[1.02]">
+                <div class="h-full relative overflow-hidden bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-300 group cursor-pointer">
                     <div class="absolute inset-0 bg-gradient-to-br {{ $metric['color'] }} opacity-0 group-hover:opacity-10 transition-opacity"></div>
-                    <div class="p-4 sm:p-6">
-                        <div class="flex items-center justify-between mb-3 sm:mb-4">
-                            <div class="text-xl sm:text-2xl group-hover:scale-110 transition-transform">{{ $metric['icon'] }}</div>
-                            <span class="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                    <div class="p-3 sm:p-4">
+                        <div class="flex items-center justify-between mb-2 sm:mb-3">
+                            <div class="text-lg sm:text-xl group-hover:scale-110 transition-transform">{{ $metric['icon'] }}</div>
+                            <span class="text-[10px] sm:text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
                                 {{ $metric['change'] }}
                             </span>
                         </div>
-                        <div class="space-y-1">
-                            <p class="text-xs sm:text-sm font-medium text-gray-600 group-hover:text-gray-800 transition-colors">{{ $metric['label'] }}</p>
-                            <p class="text-xl sm:text-2xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{{ $metric['value'] }}</p>
+                        <div class="space-y-0.5">
+                            <p class="text-[11px] sm:text-xs font-medium text-gray-600 group-hover:text-gray-800 transition-colors truncate">{{ $metric['label'] }}</p>
+                            <p class="text-base sm:text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors truncate">{{ $metric['value'] }}</p>
                         </div>
-                        <div class="mt-2 sm:mt-3 text-xs text-gray-500 group-hover:text-blue-600 transition-colors flex items-center">
-                            <span>View details</span>
-                            <svg class="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div class="mt-1 sm:mt-2 text-[10px] sm:text-xs text-gray-500 group-hover:text-blue-600 transition-colors flex items-center">
+                            <span>View</span>
+                            <svg class="w-2.5 h-2.5 ml-0.5 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                             </svg>
                         </div>
@@ -370,26 +370,26 @@
         </div>
     </div>
 
-    {{-- Charts Section - Mobile Responsive --}}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+    {{-- Charts Section - Side by Side on All Screens --}}
+    <div class="flex flex-row gap-2 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
         {{-- Daily Revenue Chart --}}
-        <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
-            <div class="flex items-center justify-between mb-4 sm:mb-6">
-                <h3 class="text-base sm:text-lg font-semibold text-gray-900">Daily Revenue</h3>
-                <span class="text-xs sm:text-sm text-gray-500">Last 7 days</span>
+        <div class="flex-1 min-w-0 bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 md:p-6">
+            <div class="flex items-center justify-between mb-3 sm:mb-4 md:mb-6">
+                <h3 class="text-sm sm:text-base md:text-lg font-semibold text-gray-900">Daily Revenue</h3>
+                <span class="text-[10px] sm:text-xs md:text-sm text-gray-500">Last 7 days</span>
             </div>
-            <div class="h-48 sm:h-64">
+            <div class="h-40 sm:h-48 md:h-64">
                 <canvas id="dailyOrdersChart"></canvas>
             </div>
         </div>
         
         {{-- Monthly Overview --}}
-        <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
-            <div class="flex items-center justify-between mb-4 sm:mb-6">
-                <h3 class="text-base sm:text-lg font-semibold text-gray-900">Monthly Overview</h3>
-                <span class="text-xs sm:text-sm text-gray-500">This year</span>
+        <div class="flex-1 min-w-0 bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 md:p-6">
+            <div class="flex items-center justify-between mb-3 sm:mb-4 md:mb-6">
+                <h3 class="text-sm sm:text-base md:text-lg font-semibold text-gray-900">Monthly Overview</h3>
+                <span class="text-[10px] sm:text-xs md:text-sm text-gray-500">This year</span>
             </div>
-            <div class="h-48 sm:h-64">
+            <div class="h-40 sm:h-48 md:h-64">
                 <canvas id="monthlyOrdersChart"></canvas>
             </div>
         </div>
@@ -835,7 +835,7 @@
         
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
         
-        fetch(`/medical-management/appointments/${currentAppointment.id}`, {
+        fetch(`/care-continuity/appointments/${currentAppointment.id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',

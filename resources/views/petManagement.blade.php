@@ -73,14 +73,14 @@
                 <h2 class="font-bold text-xl">Pets</h2>
                 </button>
                 <!--<button onclick="switchTab('medical')" id="medical-tab" 
-              <!--  <button onclick="switchTab('medical')" id="medical-tab" 
+              <button onclick="switchTab('medical')" id="medical-tab" 
                     class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'medical' ? 'active' : '' }}">
                 <h2 class="font-bold text-xl">Medical History</h2>
                 </button>
                  <button onclick="switchTab('health-card')" id="health-card-tab" 
             class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'health-card' ? 'active' : '' }}">
             <h2 class="font-bold text-xl">Pet Health Card</h2>
-        </button>-->
+        </button>
                 <button onclick="switchTab('visit-record')" id="visit-record-tab" 
                     class="tab-button py-2 px-1 border-b-2 font-medium text-sm {{ request('tab') == 'visit-record' ? 'active' : '' }}">
                     <h2 class="font-bold text-xl">Visit Record</h2>
@@ -103,31 +103,29 @@
         
        {{-- Pet Owners Tab Content (Now First) --}}
 <div id="owners-content" class="tab-content {{ request('tab', 'owners') != 'owners' ? 'hidden' : '' }}">
-    <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
-        <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
-        <input type="hidden" name="tab" value="owners">
-        <label for="ownersPerPage" class="text-sm text-black">Show</label>
-        <select name="ownersPerPage" id="ownersPerPage" onchange="this.form.submit()"
-            class="border border-gray-400 rounded px-2 py-1 text-sm">
-            @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                <option value="{{ $limit }}" {{ request('ownersPerPage') == $limit ? 'selected' : '' }}>
-                    {{ $limit === 'all' ? 'All' : $limit }}
-                </option>
-            @endforeach
-        </select>
-        <span>entries</span>
-    </form>
-    <div class="flex items-center gap-2 flex-wrap">
-        <div class="relative">
-            <input type="search" id="ownersSearch" placeholder="Search owners..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+    <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+        <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
+            <input type="hidden" name="tab" value="owners">
+            <label for="ownersPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
+            <select name="ownersPerPage" id="ownersPerPage" onchange="this.form.submit()" 
+                class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                @foreach ([10, 20, 50, 100, 'all'] as $limit)
+                    <option value="{{ $limit }}" {{ request('ownersPerPage') == $limit ? 'selected' : '' }}>
+                        {{ $limit === 'all' ? 'All' : $limit }}
+                    </option>
+                @endforeach
+            </select>
+            <span class="whitespace-nowrap">entries</span>
+        </form>
+        <div class="relative flex-1 min-w-[200px] max-w-xs">
+            <input type="search" id="ownersSearch" placeholder="Search owners..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
             <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
         </div>
         @if(hasPermission('add_owner', $can))
-            <button onclick="openAddOwnerModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
+            <button onclick="openAddOwnerModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86] whitespace-nowrap">
                 + Add Pet Owner
             </button>
         @endif
-    </div>
 </div>
 
             <div class="overflow-x-auto mt-4">
@@ -225,28 +223,28 @@
 
         {{-- Pets Tab Content (Now Second) --}}
         <div id="pets-content" class="tab-content {{ request('tab') != 'pets' ? 'hidden' : '' }}">
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
-                <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
+            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="tab" value="pets">
-                    <label for="perPage" class="text-sm text-black">Show</label>
-                    <select name="perPage" id="perPage" onchange="this.form.submit()"
-                        class="border border-gray-400 rounded px-2 py-1 text-sm">
+                    <label for="perPage" class="whitespace-nowrap text-sm text-black">Show</label>
+                    <select name="perPage" id="perPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('perPage') == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
-                    <span>entries</span>
+                    <span class="whitespace-nowrap">entries</span>
                 </form>
-                <div class="relative">
-                    <input type="search" id="petsSearch" placeholder="Search pets..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                <div class="relative flex-1 min-w-[200px] max-w-xs">
+                    <input type="search" id="petsSearch" placeholder="Search pets..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
-                 {{-- 
-                <button onclick="openAddPetModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
-                    + Add Pet
-                </button>--}}
+                @if(hasPermission('add_pet', $can))
+                    <button onclick="openAddPetModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86] whitespace-nowrap">
+                        + Add Pet
+                    </button>
+                @endif
             </div>
 
             <div class="overflow-x-auto mt-4">
@@ -338,12 +336,6 @@
                <i class="fa-solid fa-notes-medical"></i>
             </button>
         @endif
-
-            <a href="{{ route('pet-management.healthCard', ['id' => $pet->pet_id]) }}" target="_blank"
-                                        class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs">
-                                        <i class="fas fa-print"></i> 
-                                    </a>
-
         @if(hasPermission('delete_pet', $can))
             <form action="{{ route('pet-management.destroyPet', $pet->pet_id) }}" method="POST"
                 onsubmit="return confirm('Are you sure you want to delete this pet?');" class="inline">
@@ -394,7 +386,7 @@
             </div>
         </div>
 
-        {{-- Medical History Tab Content (Now Third) --}}
+      <!--  {{-- Medical History Tab Content (Now Third) --}}
         <div id="medical-content" class="tab-content {{ request('tab') != 'medical' ? 'hidden' : '' }}">
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
@@ -600,8 +592,72 @@
             </div>
         </div>
         {{-- END CORRECTED TAB CONTENT --}}
-    </div> 
+    </div> -->
     
+    <script>
+    document.addEventListener('DOMContentLoaded', function(){
+        function persistKey(tab){ return `pm_search_${tab}`; }
+        function setPersist(tab, val){ try{ localStorage.setItem(persistKey(tab), val); }catch(e){} }
+        function getPersist(tab){ try{ return localStorage.getItem(persistKey(tab)) || ''; }catch(e){ return ''; } }
+
+        function filterBody(tbody, q){
+            const needle = String(q || '').toLowerCase();
+            tbody.querySelectorAll('tr').forEach(tr => {
+                const text = tr.textContent.toLowerCase();
+                tr.style.display = !needle || text.includes(needle) ? '' : 'none';
+            });
+        }
+
+        function setupFilter({inputId, tableSelector, tab, perPageSelectId, formSelector}){
+            const input = document.getElementById(inputId);
+            const table = document.querySelector(tableSelector);
+            const tbody = table ? table.querySelector('tbody') : null;
+            const sel = document.getElementById(perPageSelectId);
+            const form = formSelector ? document.querySelector(formSelector) : (sel ? sel.form : null);
+            if(!input || !tbody) return;
+
+            const last = getPersist(tab);
+            if(last){
+                input.value = last;
+                if (sel && sel.value !== 'all') {
+                    sel.value = 'all';
+                    if (form) form.submit();
+                    return;
+                }
+                filterBody(tbody, last);
+            }
+
+            input.addEventListener('input', function(){
+                const q = this.value.trim();
+                setPersist(tab, q);
+                if (q && sel && sel.value !== 'all') {
+                    sel.value = 'all';
+                    if (form) form.submit();
+                    return;
+                }
+                if (!tbody) return;
+                filterBody(tbody, q);
+            });
+        }
+
+        // Owners
+        setupFilter({
+            inputId: 'ownersSearch',
+            tableSelector: '#owners-content table',
+            tab: 'owners',
+            perPageSelectId: 'ownersPerPage',
+            formSelector: '#owners-content form[action]'
+        });
+        // Pets
+        setupFilter({
+            inputId: 'petsSearch',
+            tableSelector: '#pets-content table',
+            tab: 'pets',
+            perPageSelectId: 'perPage',
+            formSelector: '#pets-content form[action]'
+        });
+    });
+    </script>
     
 
     
@@ -1115,14 +1171,29 @@
             </div>
         </div>
 
-        {{-- Medical History Section --}}
+      {{-- NEW: Service-Type Tabs for Visits --}}
         <div class="mt-6">
-            <h3 class="text-lg font-semibold text-gray-800 mb-4">
-                <i class="fas fa-notes-medical mr-2"></i>Medical History
+            <h3 class="text-lg font-semibold text-gray-800 mb-3">
+                <i class="fas fa-history mr-2"></i>Visit History
             </h3>
-            <div class="space-y-3" id="petMedicalHistoryList">
-                {{-- Medical history will be populated here --}}
+            
+            <div id="petVisitsTabsContainer">
+                {{-- The content will be dynamically generated by JS --}}
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex space-x-2 overflow-x-auto" id="petVisitsTabBar">
+                        {{-- Tab Buttons populated by JS --}}
+                    </nav>
+                </div>
+                <div id="petVisitsContent" class="mt-4 space-y-4 max-h-96 overflow-y-auto pr-2">
+                    {{-- Tab Contents populated by JS --}}
+                </div>
             </div>
+
+            {{-- REMOVED: The old medical history list/section is now replaced by the tabs above --}}
+            {{-- <div class="space-y-3" id="petMedicalHistoryList"></div> --}}
+        </div>
+    </div>
+</div>
         </div>
     </div>
 </div>
@@ -1868,60 +1939,242 @@ function showEnhancedPetView(data) {
     const pet = data.pet;
     const modal = document.getElementById('enhancedViewPetModal');
     
-    // Format weight and temperature with 2 decimal places
-    const formatNumber = (num) => num ? parseFloat(num).toFixed(2) : null;
+    // Helper to safely format numbers for display
+    const formatNumber = (num) => num ? (parseFloat(num) ? parseFloat(num).toFixed(2) : num) : '--';
     
+    // 1. Update Pet Header Info
     document.getElementById('enhancedPetName').textContent = pet.pet_name;
     document.getElementById('enhancedPetBreed').textContent = pet.pet_species + ' - ' + pet.pet_breed;
     document.getElementById('enhancedPetAge').textContent = pet.pet_age;
     document.getElementById('enhancedPetGender').textContent = pet.pet_gender;
     document.getElementById('enhancedPetOwner').textContent = pet.owner ? pet.owner.own_name : 'N/A';
     
-    // Update weight and temperature with formatted values
+    // Update stats
     const weight = formatNumber(pet.pet_weight);
     const temperature = formatNumber(pet.pet_temperature);
-    document.getElementById('enhancedPetWeight').textContent = weight ? weight + ' kg' : '-- kg';
-    document.getElementById('enhancedPetTemperature').textContent = temperature ? temperature + '°C' : '--°C';
-    
-    if (pet.pet_photo) {
-        document.getElementById('enhancedPetPhoto').src = '/storage/' + pet.pet_photo;
-        document.getElementById('enhancedPetPhoto').classList.remove('hidden');
-        document.getElementById('enhancedPetNoPhoto').classList.add('hidden');
-    } else {
-        document.getElementById('enhancedPetPhoto').classList.add('hidden');
-        document.getElementById('enhancedPetNoPhoto').classList.remove('hidden');
-    }
-    
+    document.getElementById('enhancedPetWeight').textContent = weight + ' kg';
+    document.getElementById('enhancedPetTemperature').textContent = temperature + '°C';
     document.getElementById('petStatsVisits').textContent = data.stats.visits;
     document.getElementById('petStatsLastVisit').textContent = data.stats.lastVisit;
     
-    const medicalList = document.getElementById('petMedicalHistoryList');
-    medicalList.innerHTML = '';
-    
-    if (data.medicalHistory && data.medicalHistory.length > 0) {
-        data.medicalHistory.forEach(function(record) {
-            const div = document.createElement('div');
-            div.className = 'bg-white p-4 rounded-lg shadow border-l-4 border-blue-500';
-            
-            let vitals = '';
-            if (record.weight || record.temperature) {
-                vitals = '<div class="mt-3 p-3 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg"><div class="text-xs text-gray-600 mb-2 font-semibold">Vital Signs</div><div class="flex gap-4 text-sm">';
-                if (record.weight) vitals += '<span class="text-green-600 font-medium"><i class="fas fa-weight"></i> ' + record.weight + ' kg</span>';
-                if (record.temperature) vitals += '<span class="text-red-600 font-medium"><i class="fas fa-thermometer-half"></i> ' + record.temperature + '°C</span>';
-                vitals += '</div></div>';
-            }
-            
-            div.innerHTML = '<div class="flex justify-between items-start mb-2"><div class="text-sm text-gray-600"><i class="fas fa-calendar"></i> ' + record.visit_date + '</div><div class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">' + record.veterinarian_name + '</div></div><div class="font-semibold text-gray-800 mb-1">' + record.diagnosis + '</div><div class="text-sm text-gray-600">' + record.treatment + '</div>' + (record.medication ? '<div class="text-sm text-gray-500 mt-1"><i class="fas fa-pills"></i> ' + record.medication + '</div>' : '') + vitals;
-            
-            medicalList.appendChild(div);
-        });
+    // Update photo
+    const photoImg = document.getElementById('enhancedPetPhoto');
+    const noPhotoDiv = document.getElementById('enhancedPetNoPhoto');
+    if (pet.pet_photo) {
+        photoImg.src = '/storage/' + pet.pet_photo;
+        photoImg.classList.remove('hidden');
+        noPhotoDiv.classList.add('hidden');
     } else {
-        medicalList.innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fas fa-notes-medical text-3xl mb-2"></i><p>No medical history</p></div>';
+        photoImg.classList.add('hidden');
+        noPhotoDiv.classList.remove('hidden');
+    }
+
+    // 2. Build Service-Type Tabs (NEW LOGIC)
+    
+    const visits = data.visits || [];
+    const tabBar = document.getElementById('petVisitsTabBar');
+    const contentContainer = document.getElementById('petVisitsContent');
+
+    // Clear existing content
+    tabBar.innerHTML = '';
+    contentContainer.innerHTML = '';
+    
+    // Define the tab mapping (key is data property, value is display name)
+    const serviceTabs = {
+        'all': 'All Records',
+        'checkup': 'Checkup',
+        'vaccination': 'Vaccination',
+        'deworming': 'Deworming',
+        'grooming': 'Grooming',
+        'boarding': 'Boarding',
+        'diagnostic': 'Diagnostic',
+        'surgical': 'Surgical',
+        'emergency': 'Emergency',
+    };
+
+    // Helper to render the detailed visit card
+    function renderDetailedVisitCard(v) {
+        // Main Info
+        const svc = (v.services && v.services.length) ? v.services.map(s => s.serv_name).join(', ') : (v.visit_service_type || 'General');
+        const weight = formatNumber(v.weight) + ' kg';
+        const temp = formatNumber(v.temperature) + '°C';
+        const vetName = v.veterinarian.name;
+        const vetLicense = v.veterinarian.license;
+
+        let detailsHtml = '';
+
+        // Initial Assessment
+        if (v.initial_assessment) {
+            const ia = v.initial_assessment;
+            const hasSymptom = Object.values(ia).some(val => val === 1 || (typeof val === 'string' && val.length > 0));
+            detailsHtml += `<div class="bg-gray-100 p-3 rounded mt-2 border-l-4 border-yellow-500">
+                <h5 class="font-semibold text-sm mb-1 text-yellow-700"><i class="fas fa-clipboard-list mr-1"></i> Initial Assessment:</h5>
+                <ul class="list-disc list-inside ml-2 text-xs space-y-0.5">
+                    ${ia.is_sick ? `<li>Sick: Yes</li>` : ''}
+                    ${ia.been_treated ? `<li>Treated Before: Yes</li>` : ''}
+                    ${ia.table_food ? `<li>Table Food: Yes</li>` : ''}
+                    ${ia.feeding_frequency ? `<li>Feeding Freq: ${ia.feeding_frequency}</li>` : ''}
+                    ${ia.allergies ? `<li>Allergies: ${ia.allergies}</li>` : ''}
+                    ${ia.current_meds ? `<li>Meds: ${ia.current_meds}</li>` : ''}
+                    ${hasSymptom ? `<li class="font-medium text-red-700">Symptoms: ${ia.diarrhoea ? 'Diarrhoea, ' : ''}${ia.vomiting ? 'Vomiting, ' : ''}${ia.coughing ? 'Coughing, ' : ''}${ia.scratching ? 'Scratching, ' : ''}...</li>` : ''}
+                </ul>
+            </div>`;
+        }
+        
+        // Service Specific Records (Checkup, Vaccination, etc.)
+        Object.keys(serviceTabs).forEach(key => {
+            if (key !== 'all' && v[key] && Object.keys(v[key]).length > 1) { // Check if a service-specific record exists
+                const rec = v[key];
+                let content = '';
+                // Customize content based on service type
+                switch(key) {
+                    case 'checkup':
+                        content = `<p><strong>Findings:</strong> ${rec.findings || 'N/A'}</p><p><strong>Diagnosis:</strong> ${rec.diagnosis || 'N/A'}</p><p><strong>Treatment:</strong> ${rec.treatment || 'N/A'}</p>`;
+                        break;
+                    case 'vaccination':
+                        content = `<p><strong>Vaccine:</strong> ${rec.vaccine_name || 'N/A'}</p><p><strong>Administered:</strong> ${rec.date_administered}</p><p><strong>Next Due:</strong> ${rec.next_due_date || 'N/A'}</p><p><strong>Batch:</strong> ${rec.batch_no || 'N/A'}</p>`;
+                        break;
+                    case 'deworming':
+                        content = `<p><strong>Dewormer:</strong> ${rec.dewormer_name || 'N/A'}</p><p><strong>Dosage:</strong> ${rec.dosage || 'N/A'}</p><p><strong>Next Due:</strong> ${rec.next_due_date || 'N/A'}</p>`;
+                        break;
+                    // Add more cases for Grooming, Boarding, Diagnostic, Surgical, Emergency
+                    case 'grooming':
+                        content = `<p><strong>Notes:</strong> ${rec.grooming_notes || 'N/A'}</p><p><strong>Groomer:</strong> ${rec.assigned_groomer || 'N/A'}</p>`;
+                        break;
+                    case 'boarding':
+                        content = `<p><strong>Check-in:</strong> ${rec.start_date || 'N/A'}</p><p><strong>Check-out:</strong> ${rec.end_date || 'N/A'}</p><p><strong>Notes:</strong> ${rec.notes || 'N/A'}</p>`;
+                        break;
+                    case 'diagnostic':
+                        content = `<p><strong>Test:</strong> ${rec.test_name || 'N/A'}</p><p><strong>Result:</strong> ${rec.result || 'N/A'}</p><p><strong>Interpretation:</strong> ${rec.interpretation || 'N/A'}</p>`;
+                        break;
+                    case 'surgical':
+                        content = `<p><strong>Procedure:</strong> ${rec.procedure || 'N/A'}</p><p><strong>Surgeon:</strong> ${rec.surgeon_name || 'N/A'}</p><p><strong>Post-Op:</strong> ${rec.post_op_care || 'N/A'}</p>`;
+                        break;
+                    case 'emergency':
+                        content = `<p><strong>Complaint:</strong> ${rec.presenting_complaint || 'N/A'}</p><p><strong>Outcome:</strong> ${rec.outcome || 'N/A'}</p>`;
+                        break;
+                    default:
+                        content = 'Service-specific details available.';
+                }
+
+                detailsHtml += `<div class="bg-blue-50 p-3 rounded mt-2 border-l-4 border-blue-500">
+                    <h5 class="font-semibold text-sm mb-1 text-blue-700"><i class="fas fa-info-circle mr-1"></i> ${serviceTabs[key]} Details:</h5>
+                    <div class="text-xs space-y-0.5">${content}</div>
+                </div>`;
+            }
+        });
+        
+        // Prescriptions
+        if (v.prescriptions && v.prescriptions.length > 0) {
+            detailsHtml += `<div class="bg-pink-50 p-3 rounded mt-2 border-l-4 border-pink-500">
+                <h5 class="font-semibold text-sm mb-1 text-pink-700"><i class="fas fa-pills mr-1"></i> Prescriptions:</h5>
+                ${v.prescriptions.map(p => `
+                    <div class="text-xs mt-1">
+                        <p class="font-medium">${p.medications.map(m => `${m.name} (${m.dosage})`).join(', ')}</p>
+                        ${p.differential_diagnosis ? `<p><strong>Diagnosis:</strong> ${p.differential_diagnosis}</p>` : ''}
+                        ${p.notes ? `<p><strong>Notes:</strong> ${p.notes}</p>` : ''}
+                    </div>
+                `).join('<hr class="my-1 border-pink-200">')}
+            </div>`;
+        }
+        
+        // Referrals
+        if (v.referrals && v.referrals.length > 0) {
+            detailsHtml += `<div class="bg-orange-50 p-3 rounded mt-2 border-l-4 border-orange-500">
+                <h5 class="font-semibold text-sm mb-1 text-orange-700"><i class="fas fa-exchange-alt mr-1"></i> Referrals:</h5>
+                ${v.referrals.map(r => `
+                    <div class="text-xs mt-1">
+                        <p class="font-medium">To: ${r.ref_to_branch || 'N/A'} (From: ${r.ref_by_branch || 'N/A'})</p>
+                        <p><strong>Reason:</strong> ${r.ref_description}</p>
+                        ${r.tests_conducted ? `<p><strong>Tests:</strong> ${r.tests_conducted}</p>` : ''}
+                    </div>
+                `).join('<hr class="my-1 border-orange-200">')}
+            </div>`;
+        }
+
+        return `
+            <div data-visit-id="${v.visit_id}" class="visit-card bg-white p-4 rounded-lg shadow border-l-4 border-[#0f7ea0]">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="text-sm font-semibold text-gray-800"><i class="fas fa-calendar mr-1"></i> ${v.visit_date}</div>
+                    <span class="text-xs bg-gray-200 text-gray-800 px-2 py-1 rounded">${svc}</span>
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-sm text-gray-600 border-b pb-2 mb-2">
+                    <p><i class="fas fa-user-md mr-1"></i> ${vetName}</p>
+                    <p><i class="fas fa-weight-hanging mr-1"></i> ${weight}</p>
+                    <p><i class="fas fa-thermometer-half mr-1"></i> ${temp}</p>
+                    <p class="col-span-3 text-xs text-gray-500">License: ${vetLicense}</p>
+                </div>
+                ${detailsHtml}
+            </div>
+        `;
+    }
+
+    // Function to populate the content for the active tab
+    function populateTabContent(tabKey) {
+        contentContainer.innerHTML = '';
+        let filteredVisits = [];
+
+        if (tabKey === 'all') {
+            filteredVisits = visits;
+        } else {
+            // Filter logic: Check if the specific service record exists for the visit
+            filteredVisits = visits.filter(v => v[tabKey] && Object.keys(v[tabKey]).length > 1);
+
+            // Special case: Checkup should also include records with initial_assessment, as these are related
+            if (tabKey === 'checkup') {
+                filteredVisits = visits.filter(v => 
+                    (v['checkup'] && Object.keys(v['checkup']).length > 1) || // Has a dedicated checkup record
+                    v.initial_assessment // Has an initial assessment record
+                );
+            }
+        }
+
+        if (filteredVisits.length === 0) {
+            contentContainer.innerHTML = `<div class="text-center text-gray-500 py-8">No ${serviceTabs[tabKey]} records found.</div>`;
+        } else {
+            filteredVisits.forEach(v => {
+                contentContainer.innerHTML += renderDetailedVisitCard(v);
+            });
+        }
+    }
+
+    // Build Tab Buttons and Attach Events
+    Object.entries(serviceTabs).forEach(([key, name], index) => {
+        const button = document.createElement('button');
+        button.className = 'pet-visit-tab-button py-2 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-[#0f7ea0] hover:border-[#0f7ea0] transition-colors whitespace-nowrap';
+        button.textContent = name;
+        button.dataset.key = key;
+        
+        button.addEventListener('click', function() {
+            // Deactivate all buttons
+            tabBar.querySelectorAll('.pet-visit-tab-button').forEach(btn => {
+                btn.classList.remove('active', 'border-[#0f7ea0]', 'text-[#0f7ea0]');
+                btn.classList.add('text-gray-500', 'border-transparent');
+            });
+            // Activate current button
+            this.classList.add('active', 'border-[#0f7ea0]', 'text-[#0f7ea0]');
+            this.classList.remove('text-gray-500', 'border-transparent');
+            
+            // Populate content
+            populateTabContent(this.dataset.key);
+        });
+
+        tabBar.appendChild(button);
+    });
+
+    // Select the 'All Records' tab by default
+    const allTabButton = tabBar.querySelector('[data-key="all"]');
+    if (allTabButton) {
+        allTabButton.click();
+    } else {
+        // Fallback if 'All' tab doesn't exist
+        populateTabContent(Object.keys(serviceTabs)[0]);
+        tabBar.querySelector('.pet-visit-tab-button').classList.add('active', 'border-[#0f7ea0]', 'text-[#0f7ea0]');
     }
     
+    // Show the modal
     modal.classList.remove('hidden');
 }
-
     // --- Build visits tabs for service types (All / Checkup / Vaccination / Deworming / Grooming / Boarding / Diagnostic / Surgical / Emergency)
     try {
         const visits = data.visits || [];
@@ -2173,28 +2426,50 @@ function displayEnhancedOwnerModal(data) {
     document.getElementById('ownerStatsLastVisit').textContent = data.stats.lastVisit;
     
     // Display pets
-    const petsList = document.getElementById('ownerPetsList');
-    petsList.innerHTML = '';
-    
-    if (data.pets && data.pets.length > 0) {
-        data.pets.forEach(function(pet) {
-            const petCard = document.createElement('div');
-            petCard.className = 'bg-white p-4 rounded-lg shadow border hover:shadow-lg transition-shadow';
-            
-            const photoHtml = pet.pet_photo 
-                ? '<img src="/storage/' + pet.pet_photo + '" alt="' + pet.pet_name + '" class="w-16 h-16 object-cover rounded-full mx-auto mb-3">'
-                : '<div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-3"><i class="fas fa-paw text-gray-400"></i></div>';
-            
-            petCard.innerHTML = photoHtml + 
-                '<h4 class="font-semibold text-center text-gray-800">' + pet.pet_name + '</h4>' +
-                '<p class="text-sm text-gray-600 text-center">' + pet.pet_species + ' - ' + pet.pet_breed + '</p>' +
-                '<p class="text-xs text-gray-500 text-center mt-1">' + pet.pet_age + ' • ' + pet.pet_gender + '</p>';
-            
-            petsList.appendChild(petCard);
-        });
-    } else {
-        petsList.innerHTML = '<div class="col-span-full text-center text-gray-500 py-8"><i class="fas fa-paw text-3xl mb-2"></i><p>No pets registered</p></div>';
-    }
+   const petsList = document.getElementById('ownerPetsList');
+petsList.innerHTML = '';
+ 
+if (data.pets && data.pets.length > 0) {
+    data.pets.forEach(function(pet) {
+        const petCard = document.createElement('div');
+        // ADDED: cursor-pointer and click event to the pet card
+        petCard.className = 'bg-white p-4 rounded-lg shadow border hover:shadow-lg transition-shadow cursor-pointer'; 
+        
+        // ADDED: Data attributes for the viewPetDetails function
+        petCard.dataset.petId = pet.pet_id;
+        petCard.dataset.name = pet.pet_name;
+        petCard.dataset.gender = pet.pet_gender;
+        petCard.dataset.age = pet.pet_age;
+        petCard.dataset.species = pet.pet_species;
+        petCard.dataset.breed = pet.pet_breed;
+        // You'll need to fetch more data if you want to use the simple modal fallback:
+        // petCard.dataset.weight = pet.pet_weight; 
+        // petCard.dataset.temperature = pet.pet_temperature;
+        // petCard.dataset.photo = pet.pet_photo; 
+        // petCard.dataset.owner = pet.owner_name; 
+
+        // Important: Use the same logic as the table rows that successfully opens the modal
+        petCard.onclick = function() {
+            // First, close the current owner modal
+            closeEnhancedOwnerModal();
+            // Then, call the existing function to open the pet details modal
+            viewPetDetails(this); 
+        };
+        
+        const photoHtml = pet.pet_photo 
+            ? '<img src="/storage/' + pet.pet_photo + '" alt="' + pet.pet_name + '" class="w-16 h-16 object-cover rounded-full mx-auto mb-3">'
+            : '<div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-3"><i class="fas fa-paw text-gray-400"></i></div>';
+        
+        petCard.innerHTML = photoHtml + 
+            '<h4 class="font-semibold text-center text-gray-800">' + pet.pet_name + '</h4>' +
+            '<p class="text-sm text-gray-600 text-center">' + pet.pet_species + ' - ' + pet.pet_breed + '</p>' +
+            '<p class="text-xs text-gray-500 text-center mt-1">' + pet.pet_age + ' • ' + pet.pet_gender + '</p>';
+        
+        petsList.appendChild(petCard);
+    });
+} else {
+    petsList.innerHTML = '<div class="col-span-full text-center text-gray-500 py-8"><i class="fas fa-paw text-3xl mb-2"></i><p>No pets registered</p></div>';
+}
     
     const appointmentsList = document.getElementById('ownerAppointmentsList');
     appointmentsList.innerHTML = ''; // Clear previous content

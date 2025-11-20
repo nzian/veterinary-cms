@@ -38,7 +38,32 @@
             </div>
         </div>
 
-        {{-- Row 3+: Main Content (full width) --}}
+        {{--- ADDED ROW 3: Separate Action Buttons (Ordered as requested) ---}}
+        <div class="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap gap-4 justify-between sm:justify-start">
+            <button type="button" 
+                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_name ?? 'N/A' }}', 'Initial')"
+                    class="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 font-semibold shadow-md transition text-sm">
+                <i class="fas fa-notes-medical"></i> **Initial Assessment**
+            </button>
+            <button type="button" 
+                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_name ?? 'N/A' }}', 'Prescription')"
+                    class="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold shadow-md transition text-sm">
+                <i class="fas fa-prescription"></i> **Prescription**
+            </button>
+            <button type="button" 
+                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_name ?? 'N/A' }}', 'Appointment')"
+                    class="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold shadow-md transition text-sm">
+                <i class="fas fa-calendar-plus"></i> **Set Appointment**
+            </button>
+            <button type="button" 
+                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_name ?? 'N/A' }}', 'Referral')"
+                    class="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-semibold shadow-md transition text-sm">
+                <i class="fas fa-share"></i> **Referral**
+            </button>
+        </div>
+        {{--- END ADDED ROW 3 ---}}
+
+        {{-- Row 4+: Main Content (full width) --}}
         <div class="space-y-6">
 
             @php
@@ -89,12 +114,12 @@
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Attending Vet / Staff</label>
                             <input type="text" name="attended_by" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                   value="{{ old('attended_by', $__emerg['attended_by'] ?? (auth()->user()->user_name ?? '')) }}" />
+                                        value="{{ old('attended_by', $__emerg['attended_by'] ?? (auth()->user()->user_name ?? '')) }}" />
                         </div>
                         <div class="sm:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Triage Notes / Arrival Condition</label>
                             <textarea name="triage_notes" rows="3" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                      placeholder="Initial status (ABCs), triage level, client concerns...">{{ old('triage_notes', $__emerg['triage_notes'] ?? '') }}</textarea>
+                                            placeholder="Initial status (ABCs), triage level, client concerns...">{{ old('triage_notes', $__emerg['triage_notes'] ?? '') }}</textarea>
                         </div>
                     </div>
                 </div>
@@ -111,12 +136,12 @@
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Detailed Procedures Performed</label>
                             <textarea name="procedures" rows="3" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                      placeholder="Fluid therapy, catheter placement, intubation, wound management...">{{ old('procedures', $__emerg['procedures'] ?? '') }}</textarea>
+                                            placeholder="Fluid therapy, catheter placement, intubation, wound management...">{{ old('procedures', $__emerg['procedures'] ?? '') }}</textarea>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Immediate Medications Administered</label>
                             <textarea name="immediate_meds" rows="2" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                      placeholder="Drug, dosage, route, time.">{{ old('immediate_meds', $__emerg['immediate_meds'] ?? '') }}</textarea>
+                                            placeholder="Drug, dosage, route, time.">{{ old('immediate_meds', $__emerg['immediate_meds'] ?? '') }}</textarea>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Final Outcome</label>
@@ -132,12 +157,8 @@
                 </div>
 
                 {{-- Action Buttons --}}
-                <div class="flex justify-between items-center pt-4">
-                    <button type="button" 
-                            onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_id ?? 'N/A' }}', 'Emergency')"
-                            class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold shadow-md transition flex items-center gap-2">
-                        <i class="fas fa-tasks"></i> Service Actions
-                    </button>
+                <div class="flex justify-end items-center pt-4">
+                    {{-- REMOVED OLD SERVICE ACTIONS BUTTON --}}
                     
                     <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
                         <i class="fas fa-save mr-1"></i> Save Emergency Record
@@ -148,7 +169,6 @@
     </div>
 </div>
 
-<!-- Pet Profile Modal (Photo + Pet & Owner Info Only) -->
 <div id="petProfileModal" class="fixed inset-0 bg-black/60 z-50 hidden">
   <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closePetProfileModal()}">
     <div class="bg-white rounded-xl shadow-2xl w-[600px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
@@ -157,7 +177,6 @@
         <button type="button" onclick="closePetProfileModal()" class="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded-md"><i class="fas fa-times mr-1"></i>Close</button>
       </div>
       <div class="p-6 space-y-4">
-        <!-- Pet Photo -->
         <div class="w-full rounded-lg border bg-gray-50 flex items-center justify-center overflow-hidden">
           @if(!empty($visit->pet->pet_photo))
             <img src="{{ asset('storage/'.$visit->pet->pet_photo) }}" alt="{{ $visit->pet->pet_name ?? 'Pet' }}" class="w-full h-80 object-cover"/>
@@ -168,7 +187,6 @@
           @endif
         </div>
 
-        <!-- Pet Information -->
         <div class="bg-white rounded-lg border p-4">
           <div class="font-semibold text-gray-800 text-lg mb-3 flex items-center gap-2">
             <i class="fas fa-dog text-blue-600"></i> Pet Information
@@ -205,7 +223,6 @@
           </div>
         </div>
 
-        <!-- Owner Information -->
         <div class="bg-white rounded-lg border p-4">
           <div class="font-semibold text-gray-800 text-lg mb-3 flex items-center gap-2">
             <i class="fas fa-user text-green-600"></i> Owner Information
@@ -230,7 +247,6 @@
   </div>
 </div>
 
-<!-- Medical History Modal (History Only) -->
 <div id="medicalHistoryModal" class="fixed inset-0 bg-black/60 z-50 hidden">
   <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closeMedicalHistoryModal()}">
     <div class="bg-white rounded-xl shadow-2xl w-[900px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
@@ -291,31 +307,33 @@
   </div>
 </div>
 
-<script>
-  function openPetProfileModal() { 
-    const m = document.getElementById('petProfileModal'); 
-    if(m){ m.classList.remove('hidden'); } 
-  }
-  
-  function closePetProfileModal() { 
-    const m = document.getElementById('petProfileModal'); 
-    if(m){ m.classList.add('hidden'); } 
-  }
-
-  function openMedicalHistoryModal() { 
-    const m = document.getElementById('medicalHistoryModal'); 
-    if(m){ m.classList.remove('hidden'); } 
-  }
-  
-  function closeMedicalHistoryModal() { 
-    const m = document.getElementById('medicalHistoryModal'); 
-    if(m){ m.classList.add('hidden'); } 
-  }
-</script>
-
+{{-- All modals for the Service Actions included here (via the include) --}}
 @include('modals.service_activity_modal', [
     'allPets' => $allPets, 
     'allBranches' => $allBranches, 
     'allProducts' => $allProducts,
 ])
+
+<script>
+    function openPetProfileModal() { 
+        const m = document.getElementById('petProfileModal'); 
+        if(m){ m.classList.remove('hidden'); } 
+    }
+    
+    function closePetProfileModal() { 
+        const m = document.getElementById('petProfileModal'); 
+        if(m){ m.classList.add('hidden'); } 
+    }
+
+    function openMedicalHistoryModal() { 
+        const m = document.getElementById('medicalHistoryModal'); 
+        if(m){ m.classList.remove('hidden'); } 
+    }
+    
+    function closeMedicalHistoryModal() { 
+        const m = document.getElementById('medicalHistoryModal'); 
+        if(m){ m.classList.add('hidden'); } 
+    }
+</script>
+
 @endsection

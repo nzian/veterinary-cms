@@ -1,19 +1,65 @@
 @extends('AdminBoard')
 
 @section('content')
+@push('styles')
+<style>
+    .product-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    .product-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .product-card:hover {
+        border-color: #4299e1;
+        box-shadow: 0 0 0 1px #4299e1;
+    }
+    .product-card.selected {
+        border-color: #48bb78;
+        background-color: #f0fff4;
+    }
+    .product-card .price {
+        color: #2d3748;
+        font-weight: bold;
+    }
+    .product-card .stock {
+        font-size: 0.875rem;
+        color: #718096;
+    }
+    #selectedProducts {
+        margin-top: 1.5rem;
+    }
+    .selected-product {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .selected-product:last-child {
+        border-bottom: none;
+    }
+</style>
+@endpush
 @php
     // Calculate everything FIRST before using in the view
     $servicesTotal = 0;
-    if ($billing->appointment && $billing->appointment->services) {
-        $servicesTotal = $billing->appointment->services->sum('serv_price');
+    if ($billing->visit && $billing->visit->services) {
+        $servicesTotal = $billing->visit->services->sum('serv_price');
     }
 
     // Calculate prescription total and items
     $prescriptionTotal = 0;
     $prescriptionItems = [];
     
-    if ($billing->appointment && $billing->appointment->pet) {
-        $prescriptions = \App\Models\Prescription::where('pet_id', $billing->appointment->pet->pet_id)
+    if ($billing->visit && $billing->visit->pet) {
+        $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit->pet->pet_id)
             ->whereDate('prescription_date', '<=', $billing->bill_date)
             ->whereDate('prescription_date', '>=', date('Y-m-d', strtotime($billing->bill_date . ' -7 days')))
             ->get();
@@ -40,11 +86,67 @@
     }
     
     $grandTotal = $servicesTotal + $prescriptionTotal;
-    $totalItems = ($billing->appointment && $billing->appointment->services ? $billing->appointment->services->count() : 0) + count($prescriptionItems);
+    $totalItems = ($billing->visit && $billing->visit->services ? $billing->visit->services->count() : 0) + count($prescriptionItems);
     $billingStatus = strtolower($billing->bill_status ?? 'pending');
 @endphp
-<div class="min-h-screen px-2 sm:px-4 md:px-6 py-4">
+<div class="min-h-screen px-2 sm:px-4 md:px-6 py-4" x-data="billingApp()" x-init="init()">
+    <!-- Product Selection Modal -->
+    <div x-show="showProductModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Add Products to Billing</h3>
+                <button @click="showProductModal = false" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-grow">
+                <div class="mb-4">
+                    <input type="text" x-model="productSearch" placeholder="Search products..." 
+                           class="w-full p-2 border rounded-md" @input="searchProducts">
+                </div>
+                
+                <div x-show="loading" class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin text-blue-500"></i> Loading products...
+                </div>
+                
+                <div x-show="!loading && products.length === 0" class="text-center py-4 text-gray-500">
+                    No products found. Try a different search term.
+                </div>
+                
+                <div class="product-grid" x-show="!loading && products.length > 0">
+                    <template x-for="product in products" :key="product.prod_id">
+                        <div class="product-card" 
+                             :class="{ 'selected': isProductSelected(product.prod_id) }"
+                             @click="toggleProduct(product)">
+                            <div class="font-medium" x-text="product.prod_name"></div>
+                            <div class="price" x-text="'₱' + product.prod_price.toFixed(2)"></div>
+                            <div class="stock" x-text="'Stock: ' + product.prod_stocks"></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            <div class="p-4 border-t flex justify-end space-x-2">
+                <button @click="showProductModal = false" 
+                        class="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-100">
+                    Cancel
+                </button>
+                <button @click="addSelectedProducts" 
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                        :disabled="selectedProducts.length === 0">
+                    Add Selected Products
+                </button>
+            </div>
+        </div>
+    </div>
     <div class="max-w-6xl mx-auto bg-white p-4 sm:p-6 rounded-lg shadow">
+        <!-- Add Products Button -->
+        <div class="mb-6 flex justify-between items-center">
+            <h2 class="text-xl font-bold text-gray-800">Billing Details</h2>
+            <button @click="showProductModal = true" 
+                    class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center">
+                <i class="fas fa-plus-circle mr-2"></i> Add Products
+            </button>
+        </div>
         <!-- Header -->
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 md:gap-0">
             <div>
@@ -63,6 +165,19 @@
                 <button onclick="printBilling()" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded text-xs sm:text-sm">
                     <i class="fas fa-print mr-1"></i>
                 </button>
+                @if($billingStatus !== 'paid')
+                    <button type="button" id="openPayModal" class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-xs sm:text-sm">
+                        <i class="fas fa-cash-register mr-1"></i> Pay
+                    </button>
+                    <form id="payForm" method="POST" action="{{ route('sales.markAsPaid', $billing->bill_id) }}" class="hidden">
+                        @csrf
+                        <input type="hidden" name="cash_amount" id="cash_amount_field" value="0">
+                    </form>
+                @else
+                    <a href="{{ route('sales.billing.receipt', $billing->bill_id) }}" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-xs sm:text-sm">
+                        <i class="fas fa-receipt mr-1"></i> Receipt
+                    </a>
+                @endif
             </div>
         </div>
 
@@ -75,16 +190,16 @@
         @php
             // Calculate services total
             $servicesTotal = 0;
-            if ($billing->appointment && $billing->appointment->services) {
-                $servicesTotal = $billing->appointment->services->sum('serv_price');
+            if ($billing->visit && $billing->visit->services) {
+                $servicesTotal = $billing->visit->services->sum('serv_price');
             }
 
-            // Calculate prescription total and items
+            // Calculate prescription total and items - Only include available products with valid prices
             $prescriptionTotal = 0;
             $prescriptionItems = [];
             
-            if ($billing->appointment && $billing->appointment->pet) {
-                $prescriptions = \App\Models\Prescription::where('pet_id', $billing->appointment->pet->pet_id)
+            if ($billing->visit && $billing->visit->pet) {
+                $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit->pet->pet_id)
                     ->whereDate('prescription_date', '<=', $billing->bill_date)
                     ->whereDate('prescription_date', '>=', date('Y-m-d', strtotime($billing->bill_date . ' -7 days')))
                     ->get();
@@ -93,8 +208,12 @@
                     $medications = json_decode($prescription->medication, true) ?? [];
                     foreach ($medications as $medication) {
                         if (isset($medication['product_id']) && $medication['product_id']) {
+                            // Only include products that are active, in stock, and have a valid price
                             $product = \DB::table('tbl_prod')
                                 ->where('prod_id', $medication['product_id'])
+                                ->where('prod_status', 'active')
+                                ->where('prod_stock', '>', 0)
+                                ->where('prod_price', '>', 0)
                                 ->first();
                             
                             if ($product) {
@@ -111,7 +230,7 @@
             }
             
             $grandTotal = $servicesTotal + $prescriptionTotal;
-            $totalItems = ($billing->appointment && $billing->appointment->services ? $billing->appointment->services->count() : 0) + count($prescriptionItems);
+            $totalItems = ($billing->visit && $billing->visit->services ? $billing->visit->services->count() : 0) + count($prescriptionItems);
             $billingStatus = strtolower($billing->bill_status ?? 'pending');
         @endphp
 
@@ -146,17 +265,17 @@
                 <h3 class="font-semibold text-gray-800 text-sm sm:text-lg mb-2">Customer & Pet</h3>
                 <div class="space-y-1 text-xs sm:text-sm">
                     <div class="flex justify-between"><span class="text-gray-600">Owner:</span>
-                        <span class="font-medium">{{ $billing->appointment?->pet?->owner?->own_name ?? 'N/A' }}</span>
+                        <span class="font-medium">{{ $billing->visit?->pet?->owner?->own_name ?? 'N/A' }}</span>
                     </div>
-                    @if($billing->appointment?->pet?->owner?->own_email)
-                        <div class="flex justify-between"><span class="text-gray-600">Email:</span><span class="font-medium">{{ $billing->appointment->pet->owner->own_email }}</span></div>
+                    @if($billing->visit?->pet?->owner?->own_email)
+                        <div class="flex justify-between"><span class="text-gray-600">Email:</span><span class="font-medium">{{ $billing->visit->pet->owner->own_email }}</span></div>
                     @endif
-                    @if($billing->appointment?->pet?->owner?->own_phone)
-                        <div class="flex justify-between"><span class="text-gray-600">Phone:</span><span class="font-medium">{{ $billing->appointment->pet->owner->own_phone }}</span></div>
+                    @if($billing->visit?->pet?->owner?->own_phone)
+                        <div class="flex justify-between"><span class="text-gray-600">Phone:</span><span class="font-medium">{{ $billing->visit->pet->owner->own_phone }}</span></div>
                     @endif
-                    <div class="flex justify-between border-t pt-1 mt-1"><span class="text-gray-600">Pet Name:</span><span class="font-medium">{{ $billing->appointment?->pet?->pet_name ?? 'N/A' }}</span></div>
-                    <div class="flex justify-between"><span class="text-gray-600">Species:</span><span class="font-medium">{{ $billing->appointment?->pet?->pet_species ?? 'N/A' }}</span></div>
-                    <div class="flex justify-between"><span class="text-gray-600">Breed:</span><span class="font-medium">{{ $billing->appointment?->pet?->pet_breed ?? 'N/A' }}</span></div>
+                    <div class="flex justify-between border-t pt-1 mt-1"><span class="text-gray-600">Pet Name:</span><span class="font-medium">{{ $billing->visit?->pet?->pet_name ?? 'N/A' }}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-600">Species:</span><span class="font-medium">{{ $billing->visit?->pet?->pet_species ?? 'N/A' }}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-600">Breed:</span><span class="font-medium">{{ $billing->visit?->pet?->pet_breed ?? 'N/A' }}</span></div>
                 </div>
             </div>
         </div>
@@ -261,6 +380,116 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- POS-style Payment Modal -->
+<div id="billingPayModal" class="fixed inset-0 flex items-center justify-center hidden z-50 bg-black bg-opacity-30">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+        <div class="text-center mb-4">
+            <div class="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-money-bill-wave text-white text-xl"></i>
+            </div>
+            <h2 class="text-xl font-bold text-gray-800">Process Billing Payment</h2>
+            <p class="text-gray-500 text-sm">Enter the cash amount received</p>
+        </div>
+
+        <div class="space-y-3">
+            <div class="bg-blue-50 rounded-xl p-3 border border-blue-200">
+                <div class="text-sm text-gray-600 mb-2 font-semibold">Items</div>
+                <div class="max-h-28 overflow-y-auto space-y-1">
+                    @forelse($billing->orders as $o)
+                        <div class="flex justify-between text-sm">
+                            <span>{{ $o->product->prod_name ?? 'Item' }} x{{ $o->ord_quantity ?? 1 }}</span>
+                            @php $line = ($o->ord_price ?? optional($o->product)->prod_price ?? 0) * ($o->ord_quantity ?? 1); @endphp
+                            <span class="font-semibold">₱{{ number_format($line, 2) }}</span>
+                        </div>
+                    @empty
+                        <div class="text-center text-gray-500 text-sm">No items</div>
+                    @endforelse
+                </div>
+                <div class="border-t border-blue-200 mt-2 pt-2 flex justify-between font-bold">
+                    <span>Total</span>
+                    @php $ordersTotal = $billing->orders->sum(fn($o) => ($o->ord_price ?? optional($o->product)->prod_price ?? 0) * ($o->ord_quantity ?? 1)); @endphp
+                    <span id="billingTotal">₱{{ number_format($ordersTotal, 2) }}</span>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Cash Amount Received</label>
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₱</span>
+                    <input type="number" id="billingCashInput" min="0" step="0.01"
+                        class="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent text-lg font-semibold" />
+                </div>
+            </div>
+
+            <div class="bg-green-50 rounded-xl p-3 border-2 border-green-200">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Change</label>
+                <div id="billingChange" class="text-2xl font-bold text-green-600">₱0.00</div>
+            </div>
+        </div>
+
+        <div class="flex gap-3 mt-6">
+            <button type="button" id="cancelBillingPay" class="flex-1 px-4 py-2 bg-gray-500 text-white rounded-xl font-semibold">Cancel</button>
+            <button type="button" id="confirmBillingPay" class="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold">Confirm Payment</button>
+        </div>
+    </div>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script>
+    (function(){
+        const openBtn = document.getElementById('openPayModal');
+        const modal = document.getElementById('billingPayModal');
+        const cancelBtn = document.getElementById('cancelBillingPay');
+        const confirmBtn = document.getElementById('confirmBillingPay');
+        const cashInput = document.getElementById('billingCashInput');
+        const changeEl = document.getElementById('billingChange');
+        const totalText = document.getElementById('billingTotal');
+        const payForm = document.getElementById('payForm');
+
+        if (!openBtn) return;
+
+        const parsePeso = (txt) => parseFloat((txt||'').replace('₱','').replace(/,/g,'')) || 0;
+        const total = parsePeso(totalText?.textContent || '0');
+
+        openBtn.addEventListener('click', ()=>{
+            modal.classList.remove('hidden');
+            cashInput.value = '';
+            changeEl.textContent = '₱0.00';
+            changeEl.className = 'text-2xl font-bold text-green-600';
+            setTimeout(()=> cashInput.focus(), 150);
+        });
+
+        cancelBtn.addEventListener('click', ()=>{
+            modal.classList.add('hidden');
+        });
+
+        cashInput.addEventListener('input', ()=>{
+            const cash = parseFloat(cashInput.value || '0');
+            const change = cash - total;
+            if (cash >= total && total > 0) {
+                changeEl.textContent = `₱${change.toFixed(2)}`;
+                changeEl.className = 'text-2xl font-bold text-green-600';
+                confirmBtn.disabled = false;
+            } else {
+                changeEl.textContent = cash > 0 ? `₱${change.toFixed(2)}` : '₱0.00';
+                changeEl.className = 'text-2xl font-bold text-red-500';
+                confirmBtn.disabled = true;
+            }
+        });
+
+        let paying = false;
+        confirmBtn.addEventListener('click', ()=>{
+            if (paying) return;
+            const cash = parseFloat(cashInput.value || '0');
+            if (cash < total) { cashInput.focus(); return; }
+            paying = true; confirmBtn.disabled = true; cancelBtn.disabled = true;
+            // Submit to mark as paid (server handles visit completion and redirect)
+            const cashField = document.getElementById('cash_amount_field');
+            if (cashField) cashField.value = cash.toFixed(2);
+            payForm.submit();
+        });
+    })();
+    </script>
 </div>
 
 <!-- Hidden Print Container -->
@@ -480,5 +709,130 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 5000);
     }
 });
+
+// Alpine.js component for billing functionality
+function billingApp() {
+    return {
+        showProductModal: false,
+        products: [],
+        selectedProducts: [],
+        productSearch: '',
+        loading: false,
+        
+        init() {
+            // Initialize any required data
+            this.loadProducts();
+        },
+        
+        loadProducts() {
+            this.loading = true;
+            fetch('{{ route("sales.products.available") }}')
+                .then(response => response.json())
+                .then(data => {
+                    this.products = data.products || [];
+                    this.loading = false;
+                })
+                .catch(error => {
+                    console.error('Error loading products:', error);
+                    this.loading = false;
+                });
+        },
+        
+        searchProducts: _.debounce(function() {
+            if (this.productSearch.length < 2) {
+                this.loadProducts();
+                return;
+            }
+            
+            this.loading = true;
+            fetch(`{{ route("sales.products.available") }}?search=${encodeURIComponent(this.productSearch)}`)
+                .then(response => response.json())
+                .then(data => {
+                    this.products = data.products || [];
+                    this.loading = false;
+                })
+                .catch(error => {
+                    console.error('Error searching products:', error);
+                    this.loading = false;
+                });
+        }, 300),
+        
+        isProductSelected(productId) {
+            return this.selectedProducts.some(p => p.prod_id === productId);
+        },
+        
+        toggleProduct(product) {
+            const index = this.selectedProducts.findIndex(p => p.prod_id === product.prod_id);
+            if (index === -1) {
+                // Add product with default quantity of 1
+                this.selectedProducts.push({
+                    ...product,
+                    quantity: 1,
+                    price: product.prod_price
+                });
+            } else {
+                // Remove product
+                this.selectedProducts.splice(index, 1);
+            }
+        },
+        
+        updateQuantity(productId, value) {
+            const product = this.selectedProducts.find(p => p.prod_id === productId);
+            if (product) {
+                product.quantity = Math.max(1, parseInt(value) || 1);
+            }
+        },
+        
+        removeProduct(index) {
+            this.selectedProducts.splice(index, 1);
+        },
+        
+        addSelectedProducts() {
+            if (this.selectedProducts.length === 0) return;
+            
+            const productsToAdd = this.selectedProducts.map(product => ({
+                product_id: product.prod_id,
+                quantity: product.quantity,
+                price: product.price
+            }));
+            
+            fetch(`/sales/billing/{{ $billing->bill_id }}/add-product`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({ products: productsToAdd })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.message || 'Failed to add products');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding products:', error);
+                alert('An error occurred while adding products');
+            });
+        },
+        
+        formatPrice(price) {
+            return '₱' + parseFloat(price || 0).toFixed(2);
+        },
+        
+        get totalSelected() {
+            return this.selectedProducts.reduce((sum, product) => {
+                return sum + (product.price * product.quantity);
+            }, 0);
+        }
+    };
+}
 </script>
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+@endpush
+
 @endsection

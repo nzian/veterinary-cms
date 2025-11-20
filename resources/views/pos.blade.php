@@ -38,16 +38,16 @@
         .modern-btn:hover::before { left: 100%; }
 
         /* Product grid */
-        .product-card, .billing-card {
+        .product-card {
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
         }
-        .product-card:hover, .billing-card:hover { 
+        .product-card:hover { 
             transform: translateY(-4px) scale(1.02); 
             box-shadow: 0 15px 35px rgba(15, 126, 160, 0.2); 
         }
-        .product-card::after, .billing-card::after {
+        .product-card::after {
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -55,27 +55,7 @@
             opacity: 0;
             transition: opacity 0.3s ease;
         }
-        .product-card:hover::after, .billing-card:hover::after { opacity: 1; }
-
-        /* Tab styles */
-        .tab-button {
-            transition: all 0.3s ease;
-            position: relative;
-        }
-        .tab-button.active {
-            color: #ff8c42;
-            background: rgba(232, 187, 55, 0.1);
-        }
-        .tab-button.active::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #ff8c42, #ff8c42);
-            border-radius: 2px 2px 0 0;
-        }
+        .product-card:hover::after { opacity: 1; }
 
         /* Quantity input */
         .qty-control { transition: all 0.2s ease; }
@@ -107,7 +87,6 @@
 
 <div class="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
     <div class="max-w-7xl mx-auto">
-        <!-- Header Section -->
         <div class="glass-card rounded-2xl p-6 mb-6 shadow-xl">
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center gap-4">
@@ -115,8 +94,8 @@
                         <i class="fas fa-cash-register text-white text-xl"></i>
                     </div>
                     <div>
-                        <h1 class="text-2xl font-bold text-gray-800">Point of Sale System</h1>
-                        <p class="text-sm text-gray-500">Process billing payments and direct product sales</p>
+                        <h1 class="text-2xl font-bold text-gray-800">Product Point of Sale</h1>
+                        <p class="text-sm text-gray-500">Direct product sales to customers</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-3">
@@ -125,21 +104,20 @@
                     </div>
                 </div>
             </div>
-            <!-- Pet Owner Selection (for direct sales) -->
             <div class="bg-white/70 rounded-xl p-4 border border-white/50">
                 <label for="petOwner" class="block text-sm font-semibold text-gray-700 mb-2">
-                    <i class="fas fa-user mr-2 text-[#ff8c42]"></i>Select Customer (for direct sales)
+                    <i class="fas fa-user mr-2 text-[#ff8c42]"></i>Select Customer
                 </label>
                 <select id="petOwner" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#ff8c42] focus:border-transparent transition-all duration-300 bg-white shadow-sm">
-                    @foreach ($owners as $owner)
+                   @foreach ($owners as $owner)
                         <option value="{{ $owner->own_id }}">{{ $owner->own_name }}</option>
                     @endforeach
+
                 </select>
             </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Cart Section -->
             <div class="lg:col-span-2">
                 <div class="glass-card rounded-2xl shadow-xl overflow-hidden">
                     <div class="bg-gradient-to-r from-[#ff8c42] to-[#875e0cff] text-white p-6">
@@ -174,22 +152,14 @@
                 </div>
             </div>
 
-            <!-- Right Panel with Tabs -->
             <div class="lg:col-span-1">
                 <div class="glass-card rounded-2xl shadow-xl overflow-hidden">
-                    <!-- Tab Headers -->
                     <div class="bg-gradient-to-r from-[#ff8c42] to-[#875e0cff] text-white p-4">
-                        <div class="flex gap-2">
-                            <button id="productsTab" class="tab-button active flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300">
-                                <i class="fas fa-box-open mr-2"></i>Products
-                            </button>
-                            <button id="billingsTab" class="tab-button flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300">
-                                <i class="fas fa-file-invoice mr-2"></i>Pending Bills
-                            </button>
-                        </div>
+                        <h3 class="text-lg font-semibold">
+                            <i class="fas fa-box-open mr-2"></i>Products
+                        </h3>
                     </div>
 
-                    <!-- Products Tab Content -->
                     <div id="productsContent" class="tab-content">
                         <div class="p-4 border-b border-gray-200">
                             <div class="relative">
@@ -209,55 +179,21 @@
                                     data-price="{{ $item->prod_price }}"
                                     data-stock="{{ $item->prod_stocks }}"
                                     data-type="{{ $item->prod_category }}">
-                                    <div class="flex items-center justify-between">
-                                        <div>
-                                            <h4 class="font-semibold text-gray-800 text-sm mb-1">{{ $item->prod_name }}</h4>
-                                            <p class="text-[#ff8c42] font-bold">₱{{ number_format($item->prod_price, 2) }}</p>
-                                            <p class="text-xs text-gray-500">Stock: {{ $item->prod_stocks }}</p>
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <h4 class="font-semibold text-gray-800 text-sm mb-1">{{ $item->prod_name }}</h4>
+                                                <p class="text-[#ff8c42] font-bold">₱{{ number_format($item->prod_price, 2) }}</p>
+                                                <p class="text-xs text-gray-500">Stock: {{ $item->prod_stocks }}</p>
+                                            </div>
+                                            <div class="w-10 h-10 bg-gradient-to-br from-[#ff8c42] to-[#875e0cff] rounded-lg flex items-center justify-center">
+                                                <i class="fas fa-plus text-white text-sm"></i>
+                                            </div>
                                         </div>
-                                        <div class="w-10 h-10 bg-gradient-to-br from-[#ff8c42] to-[#875e0cff] rounded-lg flex items-center justify-center">
-                                            <i class="fas fa-plus text-white text-sm"></i>
-                                        </div>
-                                    </div>
                                 </button>
                             @empty
                                 <div class="text-center py-8 text-gray-500">
                                     <i class="fas fa-box-open text-4xl mb-4 opacity-50"></i>
                                     <p>No products available</p>
-                                </div>
-                            @endforelse
-                        </div>
-                    </div>
-
-                    <!-- Billings Tab Content -->
-                    <div id="billingsContent" class="tab-content hidden">
-                        <div class="p-4 border-b border-gray-200">
-                            <h3 class="font-semibold text-gray-800">Pending Billings</h3>
-                            <p class="text-xs text-gray-500">Click to pay existing bills</p>
-                        </div>
-                        <div id="billingContainer" class="p-4 grid grid-cols-1 gap-3 max-h-96 overflow-y-auto bg-white custom-scrollbar">
-                            @forelse ($billings as $bill)
-                                <button type="button"
-                                    class="billing-card bg-white border-2 border-gray-100 rounded-xl p-4 text-left hover:border-[#ff8c42] transition-all duration-300 shadow-sm"
-                                    data-id="{{ $bill->bill_id }}"
-                                    data-total="{{ $bill->calculated_total }}"
-                                    data-owner="{{ $bill->appointment?->pet?->owner?->own_name ?? 'N/A' }}"
-                                    data-pet="{{ $bill->appointment?->pet?->pet_name ?? 'N/A' }}">
-                                    <div class="flex items-center justify-between">
-                                        <div>
-                                            <h4 class="font-semibold text-gray-800 text-sm mb-1">Bill #{{ $bill->bill_id }}</h4>
-                                            <p class="text-[#ff8c42] font-bold">₱{{ number_format($bill->calculated_total, 2) }}</p>
-                                            <p class="text-xs text-gray-500">{{ $bill->appointment?->pet?->owner?->own_name ?? 'N/A' }} - {{ $bill->appointment?->pet?->pet_name ?? 'N/A' }}</p>
-                                        </div>
-                                        <div class="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center">
-                                            <i class="fas fa-dollar-sign text-white text-sm"></i>
-                                        </div>
-                                    </div>
-                                </button>
-                            @empty
-                                <div class="text-center py-8 text-gray-500">
-                                    <i class="fas fa-file-invoice text-4xl mb-4 opacity-50"></i>
-                                    <p>No pending bills</p>
                                 </div>
                             @endforelse
                         </div>
@@ -268,8 +204,7 @@
     </div>
 </div>
 
-<!-- Payment Modal -->
-<div id="paymentModal" class="fixed inset-0 flex items-center justify-center hidden z-50">
+<div id="paymentModal" class="fixed inset-0 flex items-center justify-center hidden z-50 bg-black bg-opacity-30">
     <div class="glass-card rounded-2xl p-8 w-96 shadow-2xl slide-in">
         <div class="text-center mb-6">
             <div class="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
@@ -280,14 +215,14 @@
         </div>
         <div class="space-y-4">
             <div class="bg-blue-50 rounded-xl p-4 border border-blue-200" id="paymentDetails">
-                <div class="text-sm text-gray-600 mb-2">Payment Details</div>
-                <div id="paymentItemsList"></div>
+                <div class="text-sm text-gray-600 mb-2 font-semibold">Items for Purchase</div>
+                <div id="paymentItemsList" class="max-h-24 overflow-y-auto custom-scrollbar space-y-1"></div>
                 <div class="border-t border-blue-300 mt-2 pt-2">
-                    <div class="font-bold text-lg">Total: <span id="paymentTotal">₱0.00</span></div>
+                    <div class="font-bold text-xl">Total: <span id="paymentTotal">₱0.00</span></div>
                 </div>
             </div>
             <div>
-                <label for="cashAmount" class="block text-sm font-semibold text-gray-700 mb-2">Cash Amount</label>
+                <label for="cashAmount" class="block text-sm font-semibold text-gray-700 mb-2">Cash Amount Received</label>
                 <div class="relative">
                     <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₱</span>
                     <input type="number" id="cashAmount" min="0" step="0.01"
@@ -306,8 +241,7 @@
     </div>
 </div>
 
-<!-- Success Modal -->
-<div id="successModal" class="fixed inset-0 flex items-center justify-center hidden z-50">
+<div id="successModal" class="fixed inset-0 flex items-center justify-center hidden z-50 bg-black bg-opacity-30">
     <div class="glass-card rounded-2xl p-8 w-96 shadow-2xl slide-in">
         <div class="text-center">
             <div class="w-20 h-20 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
@@ -319,16 +253,17 @@
                 <div class="text-sm text-gray-600 mb-1">Change Given</div>
                 <div class="text-2xl font-bold text-green-600" id="successChange">₱0.00</div>
             </div>
-            <button id="closeSuccess" class="modern-btn ripple px-8 py-3 bg-gradient-to-r from-[#ff8c42] to-[#f88e28] text-white rounded-xl font-semibold shadow-lg">Continue</button>
+            <button id="closeSuccess" class="w-full modern-btn ripple px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-blue-700 transition-all duration-300">
+                <i class="fas fa-print mr-2"></i>Print Receipt
+            </button>
         </div>
     </div>
 </div>
 
-<<script>
+@push('scripts')
+<script>
 document.addEventListener("DOMContentLoaded", function () {
     const searchInput = document.getElementById("searchItem");
-    const productButtons = document.querySelectorAll(".product-btn");
-    const billingButtons = document.querySelectorAll(".billing-card");
     const posItems = document.getElementById("posItems");
     const totalQtyEl = document.getElementById("totalQty");
     const grandTotalEl = document.getElementById("grandTotal");
@@ -341,32 +276,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const cancelPaymentBtn = document.getElementById("cancelPayment");
     const confirmPaymentBtn = document.getElementById("confirmPayment");
     const closeSuccessBtn = document.getElementById("closeSuccess");
+    const productButtons = document.querySelectorAll('.product-btn'); // **FIXED: Correctly select initial buttons**
 
-    // Tab switching
-    const productsTab = document.getElementById("productsTab");
-    const billingsTab = document.getElementById("billingsTab");
-    const productsContent = document.getElementById("productsContent");
-    const billingsContent = document.getElementById("billingsContent");
-
-    let isPayingBill = false;
-    let currentBillId = null;
-    let paymentInProgress = false; // Add this flag
-
-    // Tab functionality
-    productsTab.addEventListener("click", () => {
-        productsTab.classList.add("active");
-        billingsTab.classList.remove("active");
-        productsContent.classList.remove("hidden");
-        billingsContent.classList.add("hidden");
-        isPayingBill = false;
-    });
-
-    billingsTab.addEventListener("click", () => {
-        billingsTab.classList.add("active");
-        productsTab.classList.remove("active");
-        billingsContent.classList.remove("hidden");
-        productsContent.classList.add("hidden");
-    });
+    let paymentInProgress = false; // Add this flag for double-click prevention
 
     function updateTotals() {
         let totalQty = 0, grandTotal = 0;
@@ -384,8 +296,16 @@ document.addEventListener("DOMContentLoaded", function () {
         
         totalQtyEl.textContent = totalQty;
         grandTotalEl.textContent = `₱${grandTotal.toFixed(2)}`;
+        
+        // Update subtotal in current transaction data if it exists
+        if (window.currentTransaction) {
+             window.currentTransaction.total = grandTotal;
+             window.currentTransaction.subtotal = grandTotal;
+             window.currentTransaction.totalItems = totalQty;
+        }
     }
 
+    // Function to attach/re-attach event listeners to dynamically added cart elements
     function rebindButtons() {
         // Minus buttons
         document.querySelectorAll(".btn-minus").forEach(btn => {
@@ -430,12 +350,14 @@ document.addEventListener("DOMContentLoaded", function () {
         document.querySelectorAll(".qty").forEach(input => {
             input.onchange = function() {
                 const maxStock = parseInt(this.dataset.stock) || 999;
-                const value = parseInt(this.value);
+                let value = parseInt(this.value);
                 
                 if (value > maxStock) {
+                    value = maxStock;
                     this.value = maxStock;
                     alert(`Maximum stock available: ${maxStock}`);
-                } else if (value < 1) {
+                } else if (value < 1 || isNaN(value)) {
+                    value = 1;
                     this.value = 1;
                 }
                 updateTotals();
@@ -497,136 +419,141 @@ document.addEventListener("DOMContentLoaded", function () {
         updateTotals();
     }
 
+    // *** NEW/FIXED printReceipt function ***
     function printReceipt(transactionData) {
+        // Helper function to format date/time
+        function formatDateTime(date) {
+            const d = new Date(date);
+            const options = { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true };
+            return d.toLocaleDateString('en-US', options).replace(',', '') + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        }
+
+       
+        const itemsSection = transactionData.items.map(item => `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px;">
+                <div style="flex: 1;">
+                    <strong>${item.name}</strong><br>
+                    <small style="color: #666;">${item.quantity} &times; ₱${item.price.toFixed(2)}</small>
+                </div>
+                <div style="text-align: right; font-weight: bold;">
+                    ₱${(item.price * item.quantity).toFixed(2)}
+                </div>
+            </div>
+        `).join('');
+
+        // --- Start of Receipt HTML (Using Inline Styles & JS Variables) ---
         const receiptContent = `
             <!DOCTYPE html>
             <html>
             <head>
                 <title>Receipt</title>
                 <style>
-                    body { font-family: 'Courier New', monospace; margin: 0; padding: 20px; background: white; font-size: 12px; }
-                    .receipt { max-width: 300px; margin: 0 auto; border: 1px solid #ddd; padding: 15px; background: white; }
-                    .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }
-                    .header h1 { margin: 0; font-size: 16px; font-weight: bold; }
-                    .header p { margin: 3px 0; font-size: 11px; }
-                    .customer-info { margin-bottom: 15px; font-size: 11px; border-bottom: 1px dashed #999; padding-bottom: 10px; }
-                    .items { border-bottom: 1px dashed #999; padding-bottom: 10px; margin-bottom: 15px; }
-                    .item { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 11px; }
-                    .item-details { flex: 1; }
-                    .item-name { font-weight: bold; margin-bottom: 2px; }
-                    .item-qty-price { font-size: 10px; color: #666; }
-                    .item-total { text-align: right; min-width: 60px; font-weight: bold; }
-                    .totals { font-size: 12px; margin-bottom: 15px; }
-                    .total-row { display: flex; justify-content: space-between; margin-bottom: 5px; padding: 2px 0; }
-                    .total-row.grand-total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; border-bottom: 1px solid #000; padding: 8px 0; margin-top: 10px; }
-                    .payment-info { text-align: center; margin: 15px 0; font-size: 12px; }
-                    .payment-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
-                    .change-amount { font-size: 16px; font-weight: bold; color: #000; }
-                    .footer { text-align: center; margin-top: 20px; font-size: 10px; color: #666; }
-                    .divider { border-top: 1px dashed #999; margin: 10px 0; }
-                    @media print { body { padding: 0; } .receipt { border: none; box-shadow: none; max-width: none; margin: 0; } }
+                    /* Base Styles for thermal look */
+                    body { 
+                        font-family: 'Courier New', monospace; /* Thermal receipt font */
+                        margin: 0; 
+                        padding: 0; 
+                        font-size: 12px;
+                    }
+                    .receipt-container { 
+                        max-width: 300px; 
+                        margin: 0 auto; 
+                        padding: 15px; 
+                    }
+                    .logo {
+                        width: 60px; 
+                        height: 60px; 
+                        object-fit: contain; 
+                        margin: 0 auto 5px auto; 
+                        display: block;
+                    }
+                    .header { 
+                        text-align: center; 
+                        border-bottom: 2px solid #000; 
+                        padding-bottom: 10px; 
+                        margin-bottom: 15px; 
+                    }
+                    h2 { margin: 0; font-size: 16px; }
                 </style>
             </head>
-            <body onload="window.print(); window.close();">
-                <div class="receipt">
+            <body onload="setTimeout(function(){ window.print(); window.onafterprint = function(){ window.close(); }; }, 100);">
+                <div class="receipt-container">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <img src="images/pets2go.png" alt="Pets2GO Logo" class="logo">
+                        
+                        <div style="font-size: 18px; font-weight: bold; color: #a86520; margin-bottom: 5px;">PETS 2GO VETERINARY CLINIC</div>
+                    </div>
+                    
                     <div class="header">
-                        <h1>VETERINARY CLINIC</h1>
-                        <p>Point of Sale System</p>
-                        <p>Receipt #${transactionData.receiptNumber || new Date().getTime()}</p>
-                        <p>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
+                        <h2 style="margin: 0; font-size: 16px;">TRANSACTION RECEIPT</h2>
+                        <p style="margin: 5px 0; font-size: 13px;">Transaction ID: #${transactionData.receiptNumber}</p>
+                        <p style="margin: 5px 0; font-size: 12px;">${formatDateTime(new Date())}</p>
                     </div>
-                    <div class="customer-info">
-                        <div><strong>Customer:</strong> ${transactionData.customerName || 'Walk-in Customer'}</div>
-                        <div><strong>Cashier:</strong> ${transactionData.cashier || 'System'}</div>
-                        <div><strong>Transaction Type:</strong> ${transactionData.type || 'Direct Sale'}</div>
+                    
+                    <div style="margin-bottom: 15px; font-size: 13px;">
+                        <p style="margin: 3px 0;"><strong>Customer:</strong> ${transactionData.customerName || 'Walk-in Customer'}</p>
+                        <p style="margin: 3px 0;"><strong>Cashier:</strong> POS Cashier</p>
                     </div>
-                    <div class="items">
-                        ${transactionData.items.map(item => `
-                            <div class="item">
-                                <div class="item-details">
-                                    <div class="item-name">${item.name}</div>
-                                    <div class="item-qty-price">${item.quantity} × ₱${item.price.toFixed(2)}</div>
-                                </div>
-                                <div class="item-total">₱${(item.quantity * item.price).toFixed(2)}</div>
-                            </div>
-                        `).join('')}
+                    
+                    <div style="border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 10px 0; margin-bottom: 15px;">
+                        ${itemsSection}
                     </div>
-                    <div class="totals">
-                        <div class="total-row"><span>Subtotal:</span><span>₱${transactionData.subtotal.toFixed(2)}</span></div>
-                        <div class="total-row"><span>Total Items:</span><span>${transactionData.totalItems}</span></div>
-                        <div class="total-row grand-total"><span>TOTAL:</span><span>₱${transactionData.total.toFixed(2)}</span></div>
+                    
+                    <div style="text-align: right; margin-bottom: 10px;">
+                        <p style="margin: 3px 0; font-size: 14px;"><strong>Subtotal:</strong> ₱${transactionData.subtotal.toFixed(2)}</p>
                     </div>
-                    <div class="payment-info">
-                        <div class="payment-row"><span>Cash Received:</span><span>₱${transactionData.cash.toFixed(2)}</span></div>
-                        <div class="payment-row"><span>Change:</span><span class="change-amount">₱${transactionData.change.toFixed(2)}</span></div>
+
+                    <div style="text-align: center; font-size: 16px; font-weight: bold; border-top: 2px solid #000; padding-top: 10px; margin-bottom: 10px;">
+                        <p style="margin: 5px 0;">TOTAL: ₱${transactionData.total.toFixed(2)}</p>
+                        <p style="font-size: 13px; font-weight: normal; margin: 5px 0;">Payment: CASH</p>
+                        <p style="font-size: 12px; font-weight: normal; margin: 5px 0;">Total Items: ${transactionData.totalItems}</p>
                     </div>
-                    <div class="divider"></div>
-                    <div class="footer">
-                        <p>Thank you for your purchase!</p>
-                        <p>Please keep this receipt for your records</p>
-                        <div class="divider"></div>
-                        <p>This serves as your official receipt</p>
-                        <p>For inquiries, please contact us</p>
+                    
+                    <div style="display: flex; justify-content: space-between; margin-top: 10px; font-size: 13px; font-weight: bold;">
+                        <span>CASH RECEIVED:</span>
+                        <span style="text-align: right;">₱${transactionData.cash.toFixed(2)}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 5px; padding-bottom: 10px; border-bottom: 1px dashed #999; font-size: 15px; font-weight: bold; color: #000;">
+                        <span>CHANGE:</span>
+                        <span style="text-align: right;">₱${transactionData.change.toFixed(2)}</span>
+                    </div>
+
+                    <div style="text-align: center; margin-top: 20px; padding-top: 15px; border-top: 1px dashed #999; font-size: 11px; color: #666;">
+                        <p style="margin: 5px 0; font-weight: bold;">Thank you for your purchase!</p>
+                        <p style="margin: 5px 0;">Your pet's health is our priority</p>
+                        <p style="margin: 10px 0 5px 0;">Generated: ${formatDateTime(new Date())}</p>
                     </div>
                 </div>
             </body>
             </html>
         `;
+        // --- End of Receipt HTML ---
         
         const printWindow = window.open('', '_blank', 'width=400,height=600,scrollbars=yes');
         printWindow.document.write(receiptContent);
         printWindow.document.close();
     }
+    // *** END of printReceipt function ***
 
-    // Add product to cart
+    // *** FIX: Add product to cart listener binding (This section was fine) ***
     productButtons.forEach(btn => {
-        btn.addEventListener("click", function () {
-            const { id, name, price, type, stock } = this.dataset;
-            const stockNum = parseInt(stock);
+        btn.addEventListener('click', function() {
+            const id = this.dataset.id;
+            const name = this.dataset.name;
+            const price = parseFloat(this.dataset.price);
+            const type = this.dataset.type || 'product';
+            const stock = parseInt(this.dataset.stock) || 0;
             
-            if (stockNum <= 0) {
-                alert("This item is out of stock!");
+            if (stock <= 0) {
+                alert('This item is out of stock!');
                 return;
             }
             
+            // Add visual feedback
             this.style.transform = 'scale(0.95)';
             setTimeout(() => this.style.transform = '', 150);
             
-            createPOSRow(name, parseFloat(price), id, type, stockNum);
-            isPayingBill = false;
-        });
-    });
-
-    // Handle billing payment
-    billingButtons.forEach(btn => {
-        btn.addEventListener("click", function () {
-            const billId = this.dataset.id;
-            const total = parseFloat(this.dataset.total);
-            const owner = this.dataset.owner;
-            const pet = this.dataset.pet;
-            
-            posItems.innerHTML = "";
-            updateTotals();
-            
-            isPayingBill = true;
-            currentBillId = billId;
-            
-            document.getElementById("paymentModalTitle").textContent = "Pay Billing";
-            document.getElementById("paymentModalSubtitle").textContent = `Bill #${billId} - ${owner} (${pet})`;
-            document.getElementById("paymentItemsList").innerHTML = `
-                <div class="text-sm">
-                    <div><strong>Owner:</strong> ${owner}</div>
-                    <div><strong>Pet:</strong> ${pet}</div>
-                    <div><strong>Bill ID:</strong> #${billId}</div>
-                </div>
-            `;
-            document.getElementById("paymentTotal").textContent = `₱${total.toFixed(2)}`;
-            
-            cashInput.value = "";
-            changeAmountDisplay.textContent = "₱0.00";
-            changeAmountDisplay.className = "text-3xl font-bold text-green-600";
-            paymentModal.classList.remove("hidden");
-            setTimeout(() => cashInput.focus(), 300);
+            createPOSRow(name, price, id, type, stock);
         });
     });
 
@@ -644,40 +571,52 @@ document.addEventListener("DOMContentLoaded", function () {
         if (confirm("Are you sure you want to clear all items from the cart?")) {
             posItems.innerHTML = "";
             updateTotals();
-            isPayingBill = false;
-            currentBillId = null;
         }
     });
 
-    // Pay Now button
+    // Pay Now button (Triggers Modal)
     payNowBtn.addEventListener("click", () => {
         const grandTotal = parseFloat(grandTotalEl.textContent.replace("₱", "").replace(",", ""));
-        
-        if (isPayingBill && currentBillId) {
-            alert("Please use the billing payment option from the Pending Bills tab.");
-            return;
-        }
         
         if (grandTotal === 0) {
             alert("Please add items to cart first.");
             return;
         }
         
-        isPayingBill = false;
+        // Update payment modal content
+        document.getElementById("paymentModalTitle").textContent = "Process Product Sale";
+        document.getElementById("paymentModalSubtitle").textContent = "Enter the cash amount received for the products";
         
-        document.getElementById("paymentModalTitle").textContent = "Process Payment";
-        document.getElementById("paymentModalSubtitle").textContent = "Enter the cash amount received";
-        
+        const items = [];
         const cartItems = Array.from(document.querySelectorAll(".pos-row")).map(row => {
             const name = row.querySelector(".item-name div").textContent;
-            const qty = row.querySelector(".qty").value;
+            const qty = parseInt(row.querySelector(".qty").value);
             const price = parseFloat(row.querySelector(".price").dataset.price);
-            return `<div class="text-sm">${name} x${qty} = ₱${(price * qty).toFixed(2)}</div>`;
+            
+            items.push({
+                name: name,
+                quantity: qty,
+                price: price,
+                id: row.dataset.id,
+                type: row.dataset.type
+            });
+
+            return `<div class="flex justify-between text-sm"><span>${name} x${qty}</span><span class="font-semibold">₱${(price * qty).toFixed(2)}</span></div>`;
         }).join('');
         
         document.getElementById("paymentItemsList").innerHTML = cartItems;
         document.getElementById("paymentTotal").textContent = `₱${grandTotal.toFixed(2)}`;
         
+        // Store transaction details for confirmation/receipt
+        window.currentTransaction = {
+            total: grandTotal,
+            items: items,
+            subtotal: grandTotal,
+            totalItems: items.reduce((sum, item) => sum + item.quantity, 0),
+            receiptNumber: 'POS-' + new Date().getTime().toString().slice(-6),
+            type: 'Direct Sale'
+        };
+
         cashInput.value = "";
         changeAmountDisplay.textContent = "₱0.00";
         changeAmountDisplay.className = "text-3xl font-bold text-green-600";
@@ -689,8 +628,6 @@ document.addEventListener("DOMContentLoaded", function () {
     cancelPaymentBtn.addEventListener("click", () => {
         paymentModal.classList.add("hidden");
         paymentInProgress = false;
-        isPayingBill = false;
-        currentBillId = null;
     });
 
     // Calculate change
@@ -702,21 +639,19 @@ document.addEventListener("DOMContentLoaded", function () {
         if (cash >= total && total > 0) {
             changeAmountDisplay.textContent = `₱${change.toFixed(2)}`;
             changeAmountDisplay.className = "text-3xl font-bold text-green-600";
+            confirmPaymentBtn.disabled = false;
         } else {
             changeAmountDisplay.textContent = cash > 0 ? `₱${change.toFixed(2)}` : "₱0.00";
             changeAmountDisplay.className = "text-3xl font-bold text-red-500";
+            confirmPaymentBtn.disabled = true; // Disable if cash is less than total
         }
     });
 
-    // SINGLE Confirm Payment Handler
+    // Confirm Payment Handler (Direct Sale)
     confirmPaymentBtn.addEventListener("click", function() {
-        // Prevent double submission
-        if (paymentInProgress) {
-            console.log("Payment already in progress");
-            return false;
-        }
+        if (paymentInProgress) return false;
 
-        const total = parseFloat(document.getElementById("paymentTotal").textContent.replace("₱", "").replace(",", ""));
+        const total = window.currentTransaction.total;
         const cash = parseFloat(cashInput.value) || 0;
         const change = cash - total;
         
@@ -726,144 +661,79 @@ document.addEventListener("DOMContentLoaded", function () {
             return false;
         }
 
-        // Lock immediately
         paymentInProgress = true;
         confirmPaymentBtn.disabled = true;
         cancelPaymentBtn.disabled = true;
         confirmPaymentBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
 
-        // Prepare receipt data
-        let receiptData = {
-            receiptNumber: new Date().getTime(),
-            cash: cash,
-            total: total,
-            change: change,
-            customerName: 'Walk-in Customer',
-            cashier: 'POS System',
-            items: [],
-            subtotal: total,
-            totalItems: 0,
-            type: 'Direct Sale'
-        };
+        const items = window.currentTransaction.items.map(item => ({
+            product_id: parseInt(item.id),
+            type: item.type,
+            quantity: item.quantity,
+            price: item.price
+        }));
 
-        if (isPayingBill && currentBillId) {
-            // Billing payment
-            receiptData.type = 'Bill Payment';
-            receiptData.items = [{ name: `Bill #${currentBillId}`, quantity: 1, price: total }];
-            receiptData.totalItems = 1;
-            receiptData.customerName = document.querySelector(`[data-id="${currentBillId}"]`).dataset.owner;
+        const selectedOwner = document.getElementById("petOwner");
+        const ownerId = selectedOwner.value;
 
-            fetch(`/pos/pay-billing/${currentBillId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({ cash: cash, total: total })
+        fetch("/pos", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                items: items,
+                cash: cash,
+                total: total,
+                owner_id: ownerId !== "0" ? parseInt(ownerId) : null
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    paymentModal.classList.add("hidden");
-                    document.getElementById("successMessage").textContent = `Bill #${currentBillId} paid successfully!`;
-                    document.getElementById("successChange").textContent = `₱${change.toFixed(2)}`;
-                    successModal.classList.remove("hidden");
-                    printReceipt(receiptData);
-                    document.querySelector(`[data-id="${currentBillId}"]`)?.remove();
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                paymentModal.classList.add("hidden");
+                document.getElementById("successMessage").textContent = "Direct sale completed successfully!";
+                document.getElementById("successChange").textContent = `₱${data.change.toFixed(2)}`;
+                successModal.classList.remove("hidden");
+                
+                // Finalize receipt data with actual change from server
+                window.currentTransaction.change = data.change;
+                window.currentTransaction.cash = cash;
+                if (ownerId !== "0") {
+                    window.currentTransaction.customerName = selectedOwner.options[selectedOwner.selectedIndex].text;
                 } else {
-                    throw new Error(data.message || 'Payment failed');
+                     window.currentTransaction.customerName = 'Walk-in Customer';
                 }
-            })
-            .catch(error => {
-                console.error("Billing payment error:", error);
-                alert(error.message || "Payment failed. Please try again.");
-            })
-            .finally(() => {
-                confirmPaymentBtn.innerHTML = '<i class="fas fa-credit-card mr-2"></i>Confirm Payment';
-                confirmPaymentBtn.disabled = false;
-                cancelPaymentBtn.disabled = false;
-                paymentInProgress = false;
-            });
-        } else {
-            // Direct sale
-            const items = Array.from(document.querySelectorAll(".pos-row")).map(row => ({
-                product_id: parseInt(row.dataset.id),
-                type: row.dataset.type,
-                name: row.querySelector(".item-name div").textContent,
-                quantity: parseInt(row.querySelector(".qty").value),
-                price: parseFloat(row.querySelector(".price").dataset.price)
-            }));
-
-            if (items.length === 0) {
-                alert("No items in cart.");
-                confirmPaymentBtn.innerHTML = '<i class="fas fa-credit-card mr-2"></i>Confirm Payment';
-                confirmPaymentBtn.disabled = false;
-                cancelPaymentBtn.disabled = false;
-                paymentInProgress = false;
-                return;
+                
+                // Print is now triggered immediately after successful server response
+                printReceipt(window.currentTransaction);
+            } else {
+                throw new Error(data.message || 'Payment failed');
             }
-
-            receiptData.items = items.map(item => ({ name: item.name, quantity: item.quantity, price: item.price }));
-            receiptData.totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-            
-            const selectedOwner = document.getElementById("petOwner");
-            if (selectedOwner.value !== "0") {
-                receiptData.customerName = selectedOwner.options[selectedOwner.selectedIndex].text;
-            }
-
-            const ownerId = document.getElementById("petOwner").value;
-
-            fetch("/pos", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    items: items,
-                    cash: cash,
-                    total: total,
-                    owner_id: ownerId !== "0" ? parseInt(ownerId) : null
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    paymentModal.classList.add("hidden");
-                    document.getElementById("successMessage").textContent = "Direct sale completed successfully!";
-                    document.getElementById("successChange").textContent = `₱${data.change.toFixed(2)}`;
-                    successModal.classList.remove("hidden");
-                    receiptData.change = data.change;
-                    printReceipt(receiptData);
-                } else {
-                    throw new Error(data.message || 'Payment failed');
-                }
-            })
-            .catch(error => {
-                console.error("Payment error:", error);
-                alert(error.message || "Payment failed. Please try again.");
-            })
-            .finally(() => {
-                confirmPaymentBtn.innerHTML = '<i class="fas fa-credit-card mr-2"></i>Confirm Payment';
-                confirmPaymentBtn.disabled = false;
-                cancelPaymentBtn.disabled = false;
-                paymentInProgress = false;
-            });
-        }
+        })
+        .catch(error => {
+            console.error("Payment error:", error);
+            alert(error.message || "Payment failed. Please try again.");
+        })
+        .finally(() => {
+            confirmPaymentBtn.innerHTML = '<i class="fas fa-credit-card mr-2"></i>Confirm Payment';
+            confirmPaymentBtn.disabled = false;
+            cancelPaymentBtn.disabled = false;
+            paymentInProgress = false;
+        });
         
         return false;
     });
 
     // Close success modal
+    // Since printReceipt is now called on Confirm, this button should just close the modal and reset.
     closeSuccessBtn.addEventListener("click", () => {
         successModal.classList.add("hidden");
         posItems.innerHTML = "";
         updateTotals();
         document.getElementById("petOwner").selectedIndex = 0;
-        isPayingBill = false;
-        currentBillId = null;
     });
 
     // Close modals when clicking outside
@@ -873,9 +743,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 modal.classList.add("hidden");
             }
         });
-    });
+        });
 
-    updateTotals();
-});
-</script>
-@endsection
+        updateTotals(); // Initial update
+    });
+    </script>
+    @endpush
+    @endsection

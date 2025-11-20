@@ -37,16 +37,16 @@
 @endphp
 
 @section('content')
-<div class="min-h-screen">
+<div class="min-h-screen bg-gray-50">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <div class="max-w-7xl mx-auto bg-white p-6 rounded-lg shadow">
+    <div class="max-w-7xl mx-auto bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow-sm">
         
         {{-- Tab Navigation --}}
-        <div class="border-b border-gray-200 mb-6">
-            <nav class="-mb-px flex space-x-8 items-center">
+        <div class="border-b border-gray-200 mb-4 sm:mb-6 overflow-x-auto">
+            <nav class="-mb-px flex space-x-2 sm:space-x-4 md:space-x-6 items-center" style="min-width: max-content;">
                 <button onclick="showTab('visits')" id="visits-tab" 
-                    class="tab-button py-2 px-1 border-b-2 font-medium text-sm active">
-                    <h2 class="font-bold text-xl">Visits</h2>
+                    class="tab-button py-2 px-1 sm:px-2 border-b-2 font-medium text-sm sm:text-base active whitespace-nowrap">
+                    <span class="font-bold text-lg sm:text-xl">Visits</span>
                 </button>
                 <button onclick="showTab('vaccination')" id="vaccination-tab" 
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
@@ -83,6 +83,94 @@
             </nav>
         </div>
 
+        <!-- ==================== APPOINTMENTS TAB ==================== -->
+        <div id="appointmentsContent" class="tab-content hidden">
+            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
+                    <input type="hidden" name="active_tab" value="appointments">
+                    <label for="perPage" class="text-sm text-black">Show</label>
+                    <select name="perPage" id="perPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                        @foreach ([10, 20, 50, 100, 'all'] as $limit)
+                            <option value="{{ $limit }}" {{ request('perPage') == $limit ? 'selected' : '' }}>
+                                {{ $limit === 'all' ? 'All' : $limit }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <span>entries</span>
+                </form>
+            </div>
+            <br>
+
+            <div class="overflow-x-auto">
+                <table class="w-full table-auto text-sm border text-center">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="border px-2 py-2">#</th>
+                            <th class="border px-4 py-2">Date</th>
+                            <th class="border px-4 py-2">Type</th>
+                            <th class="border px-4 py-2">Time</th>
+                            <th class="border px-4 py-2">Pet</th>
+                            <th class="border px-4 py-2">Owner</th>
+                            <th class="border px-4 py-2">Contact</th>
+                            <th class="border px-4 py-2">Status</th>
+                            <th class="border px-4 py-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($appointments as $index => $appointment)
+                            <tr>
+                                <td class="border px-2 py-2">
+                                    @if(method_exists($appointments, 'firstItem'))
+                                        {{ $appointments->firstItem() + $index }}
+                                    @else
+                                        {{ $index + 1 }}
+                                    @endif
+                                </td>
+                                <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($appointment->appoint_date)->format('F j, Y') }}</td>
+                                <td class="border px-4 py-2">{{ $appointment->appoint_type }}</td>
+                                <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($appointment->appoint_time)->format('h:i A') }}</td>
+                                <td class="border px-4 py-2">{{ $appointment->pet?->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_contactnum }}</td>
+                                <td class="border px-4 py-2">
+                                    <span class="px-2 py-1 rounded text-xs 
+                                        {{ $appointment->appoint_status == 'completed' ? 'bg-green-100 text-green-800' : 
+                                           ($appointment->appoint_status == 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                                           ($appointment->appoint_status == 'refer' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800')) }}">
+                                        {{ ucfirst($appointment->appoint_status) }}
+                                    </span>
+                                </td>
+                                <td class="border px-2 py-1">
+                                    <div class="flex justify-center items-center gap-1">
+                                        <button onclick="viewAppointment({{ $appointment->appoint_id }})"
+                                            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="9" class="text-center text-gray-500 py-4">No appointments found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            @if(isset($appointments) && method_exists($appointments, 'links'))
+            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+                <div>
+                    Showing {{ $appointments->firstItem() }} to {{ $appointments->lastItem() }} of
+                    {{ $appointments->total() }} entries
+                </div>
+                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
+                    {{ $appointments->appends(['active_tab' => 'appointments'])->links() }}
+                </div>
+            </div>
+            @endif
+        </div>
+
         {{-- Success/Error Messages --}}
         @if(session('success'))
             <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded mb-4 text-sm">
@@ -106,28 +194,29 @@
         @endif
 
         <div id="visitsContent" class="tab-content">
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
+            <!-- Show Entries and Search -->
+            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="active_tab" value="visits">
-                    <label for="visitPerPage" class="text-sm text-black">Show</label>
-                    <select name="visitPerPage" id="visitPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                    <label for="visitPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
+                    <select name="visitPerPage" id="visitPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('visitPerPage') == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
-                    <span>entries</span>
+                    <span class="whitespace-nowrap">entries</span>
                 </form>
-                <div class="flex items-center gap-2 flex-wrap">
-                    <div class="relative">
-                        <input type="search" id="visitsSearch" placeholder="Search visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
-                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                    </div>
-                    @if(auth()->check() && in_array(auth()->user()->user_role, ['receptionist']))
-                    <button onclick="openAddVisitModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">+ Add Visit</button>
-                    @endif
+                <div class="relative flex-1 min-w-[200px] max-w-xs">
+                    <input type="search" id="visitsSearch" placeholder="Search visits..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                    <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
+                @if(auth()->check() && in_array(auth()->user()->user_role, ['receptionist']))
+                <button onclick="openAddVisitModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86] whitespace-nowrap ml-2">
+                    + Add Visit
+                </button>
+                @endif
             </div>
             <br>
 
@@ -178,7 +267,10 @@
                                 <td class="border px-4 py-2">{{ is_object($visit->patient_type) && method_exists($visit->patient_type, 'value') ? $visit->patient_type->value : $visit->patient_type }}</td>
                                 <td class="border px-4 py-2">
                                     @php
-                                        $__types = ($visit->services ? $visit->services->pluck('serv_type')->filter()->map(function($t){ return strtolower(trim($t)); })->unique()->values()->all() : []);
+                                        $__types = [];
+                                        if ($visit->services && method_exists($visit->services, 'count') && $visit->services->count() > 0) {
+                                            $__types = $visit->services->pluck('serv_type')->filter()->map(function($t){ return strtolower(trim($t)); })->unique()->values()->all();
+                                        }
                                         $__summary = $visit->visit_service_type ?? ($visit->service_type ?? ($visit->serv_type ?? null));
                                     @endphp
                                     {{ !empty($__types) ? implode(', ', $__types) : ($__summary ?: '-') }}
@@ -233,21 +325,21 @@
         </div>
 
         <div id="checkupContent" class="tab-content hidden">
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
-                    <input type="hidden" name="tab" value="checkup">
-                    <label for="consultationVisitsPerPage" class="text-sm text-black">Show</label>
-                    <select name="consultationVisitsPerPage" id="consultationVisitsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
+                    <input type="hidden" name="active_tab" value="checkup">
+                    <label for="checkupPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
+                    <select name="checkupPerPage" id="checkupPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                            <option value="{{ $limit }}" {{ request('consultationVisitsPerPage') == $limit ? 'selected' : '' }}>
+                            <option value="{{ $limit }}" {{ request('checkupPerPage') == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
-                    <span>entries</span>
+                    <span class="whitespace-nowrap">entries</span>
                 </form>
-                <div class="relative">
-                    <input type="search" id="checkupSearch" placeholder="Search check-up visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                <div class="relative flex-1 min-w-[200px] max-w-xs">
+                    <input type="search" id="checkupSearch" placeholder="Search check-up visits..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
             </div>
@@ -287,7 +379,6 @@
                                         <button type="button" onclick="openInitialAssessment({{ $c->visit_id }}, {{ $c->pet_id }}, '{{ $c->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
-                                        <button type="button" onclick="advanceWorkflow({{ $c->visit_id }}, this, 'check-up')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
                             </tr>
@@ -313,21 +404,21 @@
         </div>
 
         <div id="dewormingContent" class="tab-content hidden">
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
+            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="tab" value="deworming">
-                    <label for="dewormingVisitsPerPage" class="text-sm text-black">Show</label>
-                    <select name="dewormingVisitsPerPage" id="dewormingVisitsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                    <label for="dewormingVisitsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
+                    <select name="dewormingVisitsPerPage" id="dewormingVisitsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('dewormingVisitsPerPage') == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
-                    <span>entries</span>
+                    <span class="whitespace-nowrap">entries</span>
                 </form>
-                <div class="relative">
-                    <input type="search" id="dewormingSearch" placeholder="Search deworming visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                <div class="relative flex-1 min-w-[200px] max-w-xs">
+                    <input type="search" id="dewormingSearch" placeholder="Search deworming visits..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
             </div>
@@ -367,7 +458,6 @@
                                         <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
-                                        <button type="button" onclick="advanceWorkflow({{ $d->visit_id }}, this, 'deworming')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
                             </tr>
@@ -393,21 +483,21 @@
         </div>
 
         <div id="diagnosticsContent" class="tab-content hidden">
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
+            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="tab" value="diagnostics">
-                    <label for="diagnosticsVisitsPerPage" class="text-sm text-black">Show</label>
-                    <select name="diagnosticsVisitsPerPage" id="diagnosticsVisitsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                    <label for="diagnosticsVisitsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
+                    <select name="diagnosticsVisitsPerPage" id="diagnosticsVisitsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('diagnosticsVisitsPerPage') == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
-                    <span>entries</span>
+                    <span class="whitespace-nowrap">entries</span>
                 </form>
-                <div class="relative">
-                    <input type="search" id="diagnosticsSearch" placeholder="Search diagnostics visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                <div class="relative flex-1 min-w-[200px] max-w-xs">
+                    <input type="search" id="diagnosticsSearch" placeholder="Search diagnostics visits..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
             </div>
@@ -447,7 +537,6 @@
                                         <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
-                                        <button type="button" onclick="advanceWorkflow({{ $d->visit_id }}, this)" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
                             </tr>
@@ -473,21 +562,21 @@
         </div>
 
         <div id="surgicalContent" class="tab-content hidden">
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
+            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="tab" value="surgical">
-                    <label for="surgicalVisitsPerPage" class="text-sm text-black">Show</label>
-                    <select name="surgicalVisitsPerPage" id="surgicalVisitsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                    <label for="surgicalVisitsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
+                    <select name="surgicalVisitsPerPage" id="surgicalVisitsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('surgicalVisitsPerPage') == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
-                    <span>entries</span>
+                    <span class="whitespace-nowrap">entries</span>
                 </form>
-                <div class="relative">
-                    <input type="search" id="surgicalSearch" placeholder="Search surgical visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                <div class="relative flex-1 min-w-[200px] max-w-xs">
+                    <input type="search" id="surgicalSearch" placeholder="Search surgical visits..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
             </div>
@@ -527,7 +616,6 @@
                                         <button type="button" onclick="openInitialAssessment({{ $s->visit_id }}, {{ $s->pet_id }}, '{{ $s->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
-                                        <button type="button" onclick="advanceWorkflow({{ $s->visit_id }}, this, 'surgical')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
                             </tr>
@@ -553,21 +641,21 @@
         </div>
 
         <div id="emergencyContent" class="tab-content hidden">
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
+            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="tab" value="emergency">
-                    <label for="emergencyVisitsPerPage" class="text-sm text-black">Show</label>
-                    <select name="emergencyVisitsPerPage" id="emergencyVisitsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                    <label for="emergencyVisitsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
+                    <select name="emergencyVisitsPerPage" id="emergencyVisitsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('emergencyVisitsPerPage') == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
-                    <span>entries</span>
+                    <span class="whitespace-nowrap">entries</span>
                 </form>
-                <div class="relative">
-                    <input type="search" id="emergencySearch" placeholder="Search emergency visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                <div class="relative flex-1 min-w-[200px] max-w-xs">
+                    <input type="search" id="emergencySearch" placeholder="Search emergency visits..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
             </div>
@@ -604,7 +692,6 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $e->visit_id]) }}?type=emergency" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="advanceWorkflow({{ $e->visit_id }}, this, 'emergency')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
                             </tr>
@@ -630,21 +717,21 @@
         </div>
 
         <div id="vaccinationContent" class="tab-content hidden">
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
+            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="tab" value="vaccination">
-                    <label for="vaccinationVisitsPerPage" class="text-sm text-black">Show</label>
-                    <select name="vaccinationVisitsPerPage" id="vaccinationVisitsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                    <label for="vaccinationVisitsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
+                    <select name="vaccinationVisitsPerPage" id="vaccinationVisitsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('vaccinationVisitsPerPage') == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
-                    <span>entries</span>
+                    <span class="whitespace-nowrap">entries</span>
                 </form>
-                <div class="relative">
-                    <input type="search" id="vaccinationSearch" placeholder="Search vaccination visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                <div class="relative flex-1 min-w-[200px] max-w-xs">
+                    <input type="search" id="vaccinationSearch" placeholder="Search vaccination visits..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
             </div>
@@ -681,7 +768,6 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $v->visit_id]) }}?type=vaccination" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="advanceWorkflow({{ $v->visit_id }}, this, 'vaccination')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
                                     </div>
                                 </td>
                             </tr>
@@ -707,21 +793,21 @@
         </div>
 
         <div id="groomingContent" class="tab-content hidden">
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
+            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="tab" value="grooming">
-                    <label for="groomingVisitsPerPage" class="text-sm text-black">Show</label>
-                    <select name="groomingVisitsPerPage" id="groomingVisitsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                    <label for="groomingVisitsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
+                    <select name="groomingVisitsPerPage" id="groomingVisitsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('groomingVisitsPerPage') == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
-                    <span>entries</span>
+                    <span class="whitespace-nowrap">entries</span>
                 </form>
-                <div class="relative">
-                    <input type="search" id="groomingSearch" placeholder="Search grooming visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                <div class="relative flex-1 min-w-[200px] max-w-xs">
+                    <input type="search" id="groomingSearch" placeholder="Search grooming visits..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
             </div>
@@ -758,7 +844,7 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $g->visit_id]) }}?type=grooming" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="advanceWorkflow({{ $g->visit_id }}, this, 'grooming')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
+                                       
                                     </div>
                                 </td>
                             </tr>
@@ -784,21 +870,21 @@
         </div>
 
         <div id="boardingContent" class="tab-content hidden">
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black gap-2 flex-wrap">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex items-center space-x-2">
+            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="tab" value="boarding">
-                    <label for="boardingVisitsPerPage" class="text-sm text-black">Show</label>
-                    <select name="boardingVisitsPerPage" id="boardingVisitsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                    <label for="boardingVisitsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
+                    <select name="boardingVisitsPerPage" id="boardingVisitsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('boardingVisitsPerPage') == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
-                    <span>entries</span>
+                    <span class="whitespace-nowrap">entries</span>
                 </form>
-                <div class="relative">
-                    <input type="search" id="boardingSearch" placeholder="Search boarding visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                <div class="relative flex-1 min-w-[200px] max-w-xs">
+                    <input type="search" id="boardingSearch" placeholder="Search boarding visits..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
             </div>
@@ -835,7 +921,7 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $b->visit_id]) }}?type=boarding" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="advanceWorkflow({{ $b->visit_id }}, this, 'boarding')" class="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-xs" title="update status">Update</button>
+                                       
                                     </div>
                                 </td>
                             </tr>
@@ -963,7 +1049,7 @@
             </div>
         </div>
 
-        @php
+       @php
             $__petsPayload = [];
             foreach (($filteredPets ?? []) as $__p) {
                 $__petsPayload[] = [
@@ -984,6 +1070,25 @@
 </div>
 
 <style>
+/* Responsive Table Styles */
+@media (max-width: 767px) {
+    .responsive-table {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .responsive-table table {
+        min-width: 640px;
+    }
+    
+    /* Hide less important columns on mobile */
+    .hidden-mobile {
+        display: none;
+    }
+}
+
 /* Tab Styles */
 .tab-button {
     border-bottom-color: transparent;
@@ -1144,7 +1249,6 @@ async function advanceWorkflow(visitId, btn, type){
     }
 }
 
-// Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     setupCSRF();
     
@@ -1168,6 +1272,64 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch { return []; }
     })();
 
+    // 🛑 SERVICE PAIRING RULES (Cannot Be Paired With)
+    const servicePairingRules = {
+        'surgical': ['grooming', 'vaccination', 'deworming', 'boarding'],
+        'emergency': ['check up', 'grooming', 'vaccination', 'deworming', 'surgical', 'boarding'],
+        'vaccination': ['surgical', 'grooming'],
+        'boarding': ['surgical', 'emergency'],
+        'diagnostics': ['grooming', 'deworming'],
+        'deworming': ['vaccination'],
+        // Explicitly allowed pairings are handled by NOT listing them here.
+        // E.g., Check-up not listed means it can be paired with anything not listed in other rules.
+    };
+
+    function updateServicePairing(serviceGroupElement) {
+        const checkboxes = serviceGroupElement.querySelectorAll('input[type="checkbox"]');
+        const selectedServices = Array.from(checkboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+
+        checkboxes.forEach(cb => {
+            const service = cb.value;
+            let shouldBeDisabled = false;
+
+            // Check if any *selected* service makes the *current* service incompatible
+            for (const selected of selectedServices) {
+                // Check if the current service is in the restricted list of an *already selected* service
+                if (selected in servicePairingRules && servicePairingRules[selected].includes(service)) {
+                    shouldBeDisabled = true;
+                    break;
+                }
+                // Check for reverse restriction (if the current service restricts the selected one)
+                // This is generally covered by checking both services' rules, but explicit check adds robustness
+                if (service !== selected && service in servicePairingRules && servicePairingRules[service].includes(selected)) {
+                     // Only disable the currently unselected service if the conflict is with a *currently selected* service
+                     // If the service is ALREADY selected, we only disable new conflicting services.
+                    if (!cb.checked) {
+                        shouldBeDisabled = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!cb.checked) {
+                // Disable if it conflicts with any currently selected service
+                if (shouldBeDisabled) {
+                    cb.disabled = true;
+                    cb.title = `Cannot be paired with selected services: ${selectedServices.join(', ')}`;
+                } else {
+                    cb.disabled = false;
+                    cb.title = '';
+                }
+            } else {
+                // Selected services should never disable themselves
+                cb.disabled = false; 
+                cb.title = '';
+            }
+        });
+    }
+
     function renderOwnerPets(ownerId) {
         const container = document.getElementById('add_owner_pets_container');
         if (!container) return;
@@ -1179,11 +1341,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         container.innerHTML = pets.map(p => {
-            // Fixed serv_type options
+            // Fixed serv_type options (normalized to lowercase)
             const fixedTypes = ['boarding','check up','deworming','diagnostics','emergency','grooming','surgical','vaccination'];
             const serviceCheckboxes = fixedTypes.map(type => `
                 <label class='inline-flex items-center mr-3 mb-1'>
-                    <input type="checkbox" name="service_type[${p.pet_id}][]" value="${type}" class="service-checkbox mr-1"> ${type}
+                    <input type="checkbox" name="service_type[${p.pet_id}][]" value="${type}" class="service-checkbox mr-1"> ${capitalizeFirstLetter(type)}
                 </label>
             `).join('');
             
@@ -1220,16 +1382,30 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>`;
         }).join('');
 
-        // Auto-check the pet when any service type is selected
+        // Add event listeners for pairing logic and auto-check
         const groups = container.querySelectorAll('[data-service-group]');
         groups.forEach(g => {
             const pet = g.getAttribute('data-service-group');
             const petBox = container.querySelector(`input.pet-check[data-pet="${pet}"]`);
-            g.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            
+            const serviceCheckboxes = g.querySelectorAll('input[type="checkbox"]');
+
+            serviceCheckboxes.forEach(cb => {
+                // 1. Service Pairing Logic
                 cb.addEventListener('change', () => {
-                    if (cb.checked && petBox && !petBox.checked) petBox.checked = true;
+                    updateServicePairing(g);
+                });
+
+                // 2. Auto-check the pet logic
+                cb.addEventListener('change', () => {
+                    if (cb.checked && petBox && !petBox.checked) {
+                        petBox.checked = true;
+                    }
                 });
             });
+
+            // Initial run of the pairing logic
+            updateServicePairing(g);
         });
     }
 

@@ -5,6 +5,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\BranchDataScope;
 use App\Enums\PatientType;
+use App\Services\VisitBillingService;
 
 
 class Visit extends Model
@@ -79,11 +80,6 @@ class Visit extends Model
     }
 
 
-    public function services()
-    {
-        return $this->belongsToMany(Service::class, 'tbl_visit_service', 'visit_id', 'serv_id')->withTimestamps();
-    }
-
     public function pet()
     {
         return $this->belongsTo(Pet::class, 'pet_id', 'pet_id');
@@ -108,4 +104,107 @@ class Visit extends Model
     {
         return $this->hasOne(GroomingAgreement::class, 'visit_id');
     }
+
+    public function initialAssessment()
+{
+    return $this->hasOne(\App\Models\InitialAssessment::class, 'visit_id', 'visit_id');
+}
+
+public function services()
+{
+    return $this->belongsToMany(Service::class, 'tbl_visit_service', 'visit_id', 'serv_id')
+                ->using(VisitService::class)
+                ->withPivot(['status', 'completed_at', 'coat_condition', 'skin_issues', 'notes', 'quantity', 'unit_price', 'total_price'])
+                ->withTimestamps();
+}
+
+public function pendingServices()
+{
+    // Include services with NULL status or 'pending' status
+    return $this->services()->where(function($query) {
+        $query->wherePivot('status', 'pending')
+              ->orWhereRaw('tbl_visit_service.status IS NULL');
+    });
+}
+
+public function completedServices()
+{
+    return $this->services()->wherePivot('status', 'completed');
+}
+
+public function checkAllServicesCompleted()
+{
+    // Refresh to get latest service statuses
+    $this->refresh();
+    
+    // Get all services for this visit directly from pivot table to ensure fresh data
+    $pivotRecords = \Illuminate\Support\Facades\DB::table('tbl_visit_service')
+        ->where('visit_id', $this->visit_id)
+        ->get();
+    
+    // If no services, return false
+    if ($pivotRecords->isEmpty()) {
+        return false;
+    }
+    
+    // Check if ALL services are completed
+    $allCompleted = $pivotRecords->every(function($pivot) {
+        $status = $pivot->status ?? null;
+        return $status === 'completed';
+    });
+    
+    if ($allCompleted) {
+        // Update workflow status to Completed
+        $this->workflow_status = 'Completed';
+        $this->visit_status = 'arrived'; // Keep as arrived until payment
+        $this->save();
+        
+        // Refresh to check if billing already exists
+        $this->refresh();
+        
+        // Check if billing exists by querying directly
+        $existingBilling = \Illuminate\Support\Facades\DB::table('tbl_bill')
+            ->where('visit_id', $this->visit_id)
+            ->first();
+        
+        // Generate billing if not exists using VisitBillingService
+        if (!$existingBilling) {
+            try {
+                $billing = (new \App\Services\VisitBillingService())->createFromVisit($this);
+                if ($billing && $billing->bill_id) {
+                    \Illuminate\Support\Facades\Log::info("Billing created for visit {$this->visit_id}: Bill ID {$billing->bill_id}");
+                    // Reload the relationship
+                    $this->load('billing');
+                } else {
+                    \Illuminate\Support\Facades\Log::error("Billing creation returned null for visit {$this->visit_id}");
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Billing creation failed for visit ' . $this->visit_id . ': ' . $e->getMessage());
+                \Illuminate\Support\Facades\Log::error('Stack trace: ' . $e->getTraceAsString());
+                // Return false to indicate billing was not created
+                return false;
+            }
+        } else {
+            \Illuminate\Support\Facades\Log::info("Billing already exists for visit {$this->visit_id}: Bill ID {$existingBilling->bill_id}");
+        }
+        return true;
+    }
+    return false;
+}
+
+public function generateBilling()
+{
+    return \App\Models\Billing::create([
+        'bill_date' => now()->toDateString(),
+        'visit_id' => $this->visit_id,
+        'bill_status' => 'pending',
+        'branch_id' => $this->user->branch_id ?? session('active_branch_id'),
+        'total_amount' => $this->calculateTotal(),
+    ]);
+}
+
+protected function calculateTotal()
+{
+    return $this->services->sum('price'); // Assuming price is stored in services table
+}
 }

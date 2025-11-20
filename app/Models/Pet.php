@@ -71,4 +71,8 @@ public function getBranchIdColumn()
     {
         return 'user_id'; // We filter Pet records based on the user_id that created them
     }
+public function referrals()
+    {
+        return $this->hasMany(Referral::class, 'pet_id', 'pet_id');
+    }
 }

@@ -46,11 +46,11 @@
                     <h3 class="text-xl font-bold text-gray-800">Grooming Agreement Consent</h3>
                     @if($visit->groomingAgreement)
                         <span class="text-sm px-3 py-1 rounded-full bg-green-100 text-green-800 font-semibold flex items-center gap-1">
-                            <i class="fas fa-check-circle"></i> Signed
+                            <i class="fas fa-check-circle"></i> **Signed**
                         </span>
                     @else
                         <span class="text-sm px-3 py-1 rounded-full bg-red-100 text-red-800 font-semibold flex items-center gap-1">
-                            <i class="fas fa-exclamation-triangle"></i> PENDING
+                            <i class="fas fa-exclamation-triangle"></i> **PENDING**
                         </span>
                     @endif
                 </div>
@@ -89,7 +89,12 @@
                             </div>
                             <div class="col-span-2">
                                 <div class="text-sm text-gray-600">Signature:</div>
-                                <img src="{{ asset('storage/'.$visit->groomingAgreement->signature_path) }}" alt="Signature" class="h-24 border rounded bg-white"/>
+                                {{-- Use optional URL if the path exists --}}
+                                @if($visit->groomingAgreement->signature_path)
+                                    <img src="{{ asset('storage/'.$visit->groomingAgreement->signature_path) }}" alt="Signature" class="h-24 border rounded bg-white"/>
+                                @else
+                                    <div class="h-24 border rounded bg-white flex items-center justify-center text-gray-500 text-xs">Signature not available</div>
+                                @endif
                             </div>
                         </div>
 
@@ -104,19 +109,34 @@
                             </div>
                         </div>
 
-                        <div class="mt-4 flex justify-end">
-                            <button type="button" onclick="window.print()" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">Print Agreement</button>
-                        </div>
+                       <button type="button"
+                               class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+                               onclick="openPrintWindow('{{ route('medical.visits.grooming.agreement.print', ['visit' => $visit->visit_id]) }}')">
+                           <i class="fas fa-print mr-2"></i> Print Agreement
+                       </button>
+    </div>
                     </div>
                 @endif
             </div>
 
             @php
-                $__groom = [];
+                $__groom = [
+                    'grooming_type' => [],
+                    'instructions' => null,
+                    'start_time' => null,
+                    'end_time' => null,
+                    'assigned_groomer' => auth()->user()->user_name ?? null,
+                ];
+
                 if (isset($serviceData) && $serviceData) {
+                    $presetServices = collect(explode(',', $serviceData->service_package ?? ''))
+                        ->map(fn ($name) => trim($name))
+                        ->filter()
+                        ->values()
+                        ->all();
+
                     $__groom = [
-                        'grooming_type' => $serviceData->service_package ?? null,
-                        'additional_services' => $serviceData->add_ons ?? null,
+                        'grooming_type' => $presetServices,
                         'instructions' => $serviceData->remarks ?? null,
                         'start_time' => $serviceData->start_time ? \Carbon\Carbon::parse($serviceData->start_time)->format('Y-m-d\TH:i') : null,
                         'end_time' => $serviceData->end_time ? \Carbon\Carbon::parse($serviceData->end_time)->format('Y-m-d\TH:i') : null,
@@ -125,81 +145,136 @@
                 }
             @endphp
             
-            <form action="{{ route('medical.visits.grooming.save', $visit->visit_id) }}" method="POST" class="space-y-6">
-                @csrf
-                <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
-                <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
-                <input type="hidden" name="weight" value="{{ $visit->weight }}">
+            {{--------------------------------------------------}}
+            {{-- START: Service Record (Visible only if signed) --}}
+            {{--------------------------------------------------}}
+            @if($visit->groomingAgreement)
+                <form action="{{ route('medical.visits.grooming.save', $visit->visit_id) }}" method="POST" class="space-y-6">
+                    @csrf
+                    <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
+                    <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
+                    <input type="hidden" name="weight" value="{{ $visit->weight }}">
+                    <input type="hidden" name="redirect_to" value="perform">
 
-                {{-- Grooming Details Card --}}
-                <div class="bg-white rounded-xl shadow-lg p-6">
-                    <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-file-medical-alt mr-2 text-blue-600"></i> Service Record</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Assigned Groomer</label>
-                            <input type="text" name="assigned_groomer" value="{{ old('assigned_groomer', $__groom['assigned_groomer'] ?? (auth()->user()->user_name ?? '')) }}" 
-                                class="w-full border border-gray-300 p-3 rounded-lg" required/>
-                        </div>
+                    {{-- 🌟 FIX: Define $currentWeight and display strings once for all HTML/JS references --}}
+                    @php
+                        $currentWeight = $visit->weight ?? 0;
+                        $weightNumeric = (float) $currentWeight; 
                         
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Grooming Type / Package <span class="text-red-500">*</span></label>
-                            <select name="grooming_type" class="w-full border border-gray-300 p-3 rounded-lg" required>
-                                <option value="">Select service type</option>
-                                @foreach($availableServices as $service)
-                                    <option value="{{ $service->serv_name }}" {{ ($__groom['grooming_type'] ?? '') === $service->serv_name ? 'selected' : '' }}>
-                                        {{ $service->serv_name }} (₱{{ number_format($service->serv_price, 2) }})
-                                    </option>
-                                @endforeach
-                            </select>
-                            <p class="text-xs text-gray-500 mt-1">Pricing based on pet size/weight: <strong>{{ $visit->weight ?? 'N/A' }} kg</strong>.</p>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Add-ons</label>
-                            <input type="text" name="additional_services" placeholder="Ear cleaning, nail trim, etc." 
-                                value="{{ old('additional_services', $__groom['additional_services'] ?? '') }}"
-                                class="w-full border border-gray-300 p-3 rounded-lg"/>
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-3">
+                        // Formatted strings for HTML/JS display:
+                        $weightNote = $currentWeight !== 0 ? number_format($weightNumeric, 2).' kg' : 'N/A (Weight missing)';
+                        $weightDisplayString = $currentWeight !== 0 ? number_format($weightNumeric, 2) . ' kg' : 'N/A (Weight missing)';
+                    @endphp
+                    
+                    {{-- Grooming Details Card --}}
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-file-medical-alt mr-2 text-blue-600"></i> Service Record</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            
+                            {{-- Assigned Groomer Input --}}
                             <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-1">Start Time</label>
-                                <input type="datetime-local" name="start_time" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                    value="{{ old('start_time', $__groom['start_time'] ?? '') }}"/>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Assigned Groomer</label>
+                                <input type="text" name="assigned_groomer" value="{{ old('assigned_groomer', $__groom['assigned_groomer'] ?? (auth()->user()->user_name ?? '')) }}" 
+                                    class="w-full border border-gray-300 p-3 rounded-lg" required/>
                             </div>
+                            
+                            {{-- Grooming Package Multi-select (weight & age aware) --}}
                             <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-1">End Time</label>
-                                <input type="datetime-local" name="end_time" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                    value="{{ old('end_time', $__groom['end_time'] ?? '') }}"/>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                                    Grooming Packages <span class="text-red-500 font-bold">*</span> <span class="text-red-600 text-xs font-normal">(required)</span>
+                                    <span class="block text-xs text-gray-500 font-normal">Hold Ctrl/Cmd to choose multiple services.</span>
+                                </label>
+                                @php
+                                    $preselectedServices = old('grooming_type', $__groom['grooming_type'] ?? []);
+                                    if (!is_array($preselectedServices)) {
+                                        $preselectedServices = array_filter(array_map('trim', explode(',', (string) $preselectedServices)));
+                                    }
+                                @endphp
+                                <select name="grooming_type[]" id="grooming_type_select" class="w-full border border-gray-300 p-3 rounded-lg min-h-[180px]" multiple required>
+                                    {{-- Store service data in data attributes for JS to read --}}
+                                    @forelse($availableServices as $service)
+                                        @php
+                                            $isSelected = in_array($service->serv_name, $preselectedServices);
+                                        @endphp
+                                        <option 
+                                            value="{{ $service->serv_name }}" 
+                                            data-min-weight="{{ $service->min_weight ?? 0 }}"
+                                            data-max-weight="{{ $service->max_weight ?? 9999 }}"
+                                            data-min-age="{{ $service->min_age_months ?? '' }}"
+                                            data-max-age="{{ $service->max_age_months ?? '' }}"
+                                            {{ $isSelected ? 'selected' : '' }}
+                                            class="grooming-option"
+                                        >
+                                            {{ $service->serv_name }} (₱{{ number_format($service->serv_price, 2) }})
+                                        </option>
+                                    @empty
+                                        <option disabled>No grooming packages match the pet's age/weight.</option>
+                                    @endforelse
+                                </select>
+                                
+                                {{-- Display Pet's Weight --}}
+                                <p class="text-xs text-gray-500 mt-1">
+                                    Pet's Current Weight: 
+                                    <strong id="pet_current_weight" data-weight="{{ $weightNumeric }}">
+                                        {{ $weightNote }}
+                                    </strong>
+                                </p>
+                                <p id="weight_warning" class="text-xs text-red-500 mt-1 font-semibold hidden">
+                                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                                    Some packages are disabled because of weight or age restrictions.
+                                </p>
                             </div>
-                        </div>
-                        
-                        <div class="sm:col-span-2">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Notes / Observations</label>
-                            <textarea name="instructions" rows="3" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                placeholder="Matting status, behavior during groom, any adverse findings.">{{ old('instructions', $__groom['instructions'] ?? '') }}</textarea>
+
+                            {{-- Start/End Time --}}
+                            <div class="grid grid-cols-1 gap-3">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Start Time</label>
+                                    <input type="datetime-local" name="start_time" class="w-full border border-gray-300 p-3 rounded-lg" 
+                                        value="{{ old('start_time', $__groom['start_time'] ?? '') }}"/>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">End Time</label>
+                                    <input type="datetime-local" name="end_time" class="w-full border border-gray-300 p-3 rounded-lg" 
+                                        value="{{ old('end_time', $__groom['end_time'] ?? '') }}"/>
+                                </div>
+                            </div>
+                            
+                            {{-- Notes/Observations Textarea --}}
+                            <div class="sm:col-span-2">
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Notes / Observations</label>
+                                <textarea name="instructions" rows="3" class="w-full border border-gray-300 p-3 rounded-lg" 
+                                    placeholder="Matting status, behavior during groom, any adverse findings.">{{ old('instructions', $__groom['instructions'] ?? '') }}</textarea>
+                            </div>
+                            
                         </div>
                     </div>
-                </div>
 
-                {{-- Action Buttons --}}
-                <div class="flex justify-between items-center pt-4">
-                    <button type="button" 
-                            onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_id ?? 'N/A' }}', 'Grooming')"
-                            class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold shadow-md transition flex items-center gap-2">
-                        <i class="fas fa-tasks"></i> Service Actions
-                    </button>
-                    
-                    <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
-                        <i class="fas fa-save mr-1"></i> Save Grooming Record
-                    </button>
+                    {{-- Action Buttons --}}
+                    <div class="flex justify-between items-center pt-4">
+                      
+                        
+                        <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
+                            <i class="fas fa-save mr-1"></i> Save Grooming Record
+                        </button>
+                    </div>
+                </form>
+            @else
+                {{-- Display message if not signed, to block the form above --}}
+                <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded-xl text-yellow-800 shadow-lg">
+                    <div class="flex items-center">
+                        <i class="fas fa-lock text-2xl mr-3"></i>
+                        <h4 class="font-bold">Service Record Blocked</h4>
+                    </div>
+                    <p class="mt-2 text-sm">The grooming record section is locked until the **Grooming Agreement Consent** is signed by the owner or representative above.</p>
                 </div>
-            </form>
+            @endif
+            {{--------------------------------------------------}}
+            {{-- END: Service Record (Visible only if signed) --}}
+            {{--------------------------------------------------}}
         </div>
     </div>
 </div>
 
-<!-- Pet Profile Modal (Photo + Pet & Owner Info Only) -->
 <div id="petProfileModal" class="fixed inset-0 bg-black/60 z-50 hidden">
   <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closePetProfileModal()}">
     <div class="bg-white rounded-xl shadow-2xl w-[600px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
@@ -208,8 +283,7 @@
         <button type="button" onclick="closePetProfileModal()" class="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded-md"><i class="fas fa-times mr-1"></i>Close</button>
       </div>
       <div class="p-6 space-y-4">
-        <!-- Pet Photo -->
-        <div class="w-full rounded-lg border bg-gray-50 flex items-center justify-center overflow-hidden">
+                <div class="w-full rounded-lg border bg-gray-50 flex items-center justify-center overflow-hidden">
           @if(!empty($visit->pet->pet_photo))
             <img src="{{ asset('storage/'.$visit->pet->pet_photo) }}" alt="{{ $visit->pet->pet_name ?? 'Pet' }}" class="w-full h-80 object-cover"/>
           @else
@@ -219,8 +293,7 @@
           @endif
         </div>
 
-        <!-- Pet Information -->
-        <div class="bg-white rounded-lg border p-4">
+                <div class="bg-white rounded-lg border p-4">
           <div class="font-semibold text-gray-800 text-lg mb-3 flex items-center gap-2">
             <i class="fas fa-dog text-blue-600"></i> Pet Information
           </div>
@@ -256,8 +329,7 @@
           </div>
         </div>
 
-        <!-- Owner Information -->
-        <div class="bg-white rounded-lg border p-4">
+                <div class="bg-white rounded-lg border p-4">
           <div class="font-semibold text-gray-800 text-lg mb-3 flex items-center gap-2">
             <i class="fas fa-user text-green-600"></i> Owner Information
           </div>
@@ -281,7 +353,6 @@
   </div>
 </div>
 
-<!-- Medical History Modal (History Only) -->
 <div id="medicalHistoryModal" class="fixed inset-0 bg-black/60 z-50 hidden">
   <div class="w-full h-full flex items-center justify-center p-4" onclick="if(event.target===this){closeMedicalHistoryModal()}">
     <div class="bg-white rounded-xl shadow-2xl w-[900px] max-w-[95vw] max-h-[95vh] overflow-auto" onclick="event.stopPropagation()">
@@ -337,9 +408,9 @@
             </div>
           @endforelse
         </div>
+        </div>
       </div>
     </div>
-  </div>
 </div>
 
 <script>
@@ -364,160 +435,244 @@
   }
 </script>
 
-{{-- Grooming Agreement Modal (CRITICAL: Full HTML and JS required for interaction) --}}
-<div id="groomingAgreementModal" class="hidden fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-70">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto p-6 relative">
-        <div class="flex justify-between items-center mb-4 sticky top-0 bg-white z-10 border-b pb-2">
-            <h3 class="text-xl font-bold text-red-600">Grooming Agreement & Liability Waiver</h3>
-            <button type="button" onclick="closeAgreementModal()" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+{{-- Replace the entire Grooming Agreement Modal section with this fixed version --}}
+
+{{-- Grooming Agreement Modal (FIXED DOCUMENT FORMAT) --}}
+<div id="groomingAgreementModal" class="hidden fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-70 p-4">
+    <div class="bg-gray-100 rounded-xl shadow-2xl w-full max-w-5xl max-h-[95vh] overflow-y-auto relative">
+        {{-- Modal Header (Sticky) --}}
+        <div class="sticky top-0 bg-white z-10 px-6 py-4 border-b-2 border-gray-300 flex justify-between items-center rounded-t-xl">
+            <h3 class="text-xl font-bold text-red-600 flex items-center gap-2">
+                <i class="fas fa-file-signature"></i>
+                Grooming Agreement & Liability Waiver
+            </h3>
+            <button type="button" onclick="closeAgreementModal()" class="text-gray-500 hover:text-gray-800 text-3xl leading-none px-2">&times;</button>
         </div>
         
-        {{-- Agreement Form Container --}}
-        <form id="agreementForm" action="{{ route('medical.visits.grooming.agreement.store', $visit->visit_id) }}" method="POST" class="space-y-4">
-            @csrf
-            {{-- Hidden fields for data submission --}}
-            <input type="hidden" name="signature_data" id="modal_signature_data">
-            <input type="hidden" name="signer_name" value="{{ $visit->pet->owner->own_name ?? 'Guest Owner' }}">
-
-            {{-- CSS for the document structure (Inline for exact replication) --}}
-            <style>
-                .doc-container{max-width:900px;margin:0 auto;background:#fff;border:2px solid #333;padding:32px; font-family: sans-serif;}
-                .doc-header{border-bottom:2px solid #333;text-align:center;padding-bottom:16px;margin-bottom:20px}
-                .doc-header h1{font-size:22px;font-weight:800;letter-spacing:1px}
-                .doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:10px}
-                .doc-label{font-weight:700;font-size:11px;text-transform:uppercase;margin-bottom:4px}
-                .doc-input{border:none;padding:4px 0;font-size:14px;font-family:Courier New,monospace;width:100%;background:transparent}
-                .doc-input[readonly]{color:#111}
-                .doc-3col-owner{display:grid;grid-template-columns:1fr 2fr 1fr;gap:12px}
-                .doc-history{width:100%;border-collapse:collapse;border:1px solid #333}
-                .doc-history th{background:#f0f0f0;padding:10px;border:1px solid #333;text-align:left;font-size:12px}
-                .doc-history td{border:1px solid #333;padding:8px;vertical-align:top}
-                .doc-terms{margin-top:16px;line-height:1.7}
-                .doc-term{font-size:13px;text-align:justify;margin-bottom:10px}
-                .doc-sign{display:flex;gap:24px;align-items:flex-end;margin-top:20px;border-top:2px solid #333;padding-top:16px}
-                .doc-sigbox{flex:1}
-                .doc-siglabel{text-align:center;font-size:12px;font-weight:700;margin-top:4px}
-            </style>
-
-            <div class="doc-container">
-                <div class="header mb-4 w-full">
-                    <div class="p-4 rounded-lg w-full" style="background-color: #f88e28;">
-                        <img src="{{ asset('images/header.jpg') }}" alt="Pets2GO Veterinary Clinic Header" class="w-full h-auto object-contain" style="max-height: 120px; min-height: 80px;">
-                    </div>
-                </div>
-                <div class="doc-header"><h1>GROOMING AGREEMENT CONSENT</h1></div>
-
-                <div class="doc-grid">
-                    <div>
-                        <div class="doc-label">Date and Time</div>
-                        <input class="doc-input" type="text" readonly value="{{ now()->format('F j, Y g:i A') }}">
-                    </div>
+        {{-- Document Container with Proper Paper Look --}}
+        <div class="p-6">
+            <div class="bg-white shadow-lg border-2 border-gray-800 mx-auto" style="max-width: 850px;">
+                {{-- Clinic Header --}}
+                <div class="p-4" style="background-color: #f88e28;">
+                    <img src="{{ asset('images/header.jpg') }}" alt="Pets2GO Veterinary Clinic Header" class="w-full h-auto object-contain" style="max-height: 100px;">
                 </div>
 
-                <div class="doc-3col-owner" style="margin-top:6px">
-                    <div>
-                        <div class="doc-label">Owner's Name</div>
-                        <input class="doc-input" type="text" readonly value="{{ $visit->pet->owner->own_name ?? '' }}">
+                {{-- Document Content --}}
+                <div class="p-8">
+                    {{-- Document Title --}}
+                    <div class="text-center border-b-2 border-gray-800 pb-4 mb-6">
+                        <h1 class="text-2xl font-extrabold tracking-wide uppercase">Grooming Agreement Consent</h1>
                     </div>
-                    <div>
-                        <div class="doc-label">Address</div>
-                        <div class="doc-input">{{ $visit->pet->owner->own_location ?? '' }}</div>
-                    </div>
-                    <div>
-                        <div class="doc-label">Phone Number</div>
-                        <input class="doc-input" type="text" readonly value="{{ $visit->pet->owner->own_contactnum ?? '' }}">
-                    </div>
-                </div>
 
-                <div class="doc-3col-owner">
-                    <div>
-                        <div class="doc-label">Name of Pet</div>
-                        <input class="doc-input" type="text" readonly value="{{ $visit->pet->pet_name ?? '' }}">
-                    </div>
-                    <div>
-                        <div class="doc-label">Species</div>
-                        <input class="doc-input" type="text" readonly value="{{ $visit->pet->pet_species ?? '' }}">
-                    </div>
-                    <div>
-                        <div class="doc-label">Gender</div>
-                        <input class="doc-input" type="text" readonly value="{{ $visit->pet->pet_gender ?? '' }}">
-                    </div>
-                </div>
-
-                <div class="doc-3col-owner mb-4">
-                    <div>
-                        <div class="doc-label">Pet Age</div>
-                        <input class="doc-input" type="text" readonly value="{{ $visit->pet->pet_age ?? '' }}">
-                    </div>
-                    <div>
-                        <div class="doc-label">Breed</div>
-                        <input class="doc-input" type="text" readonly value="{{ $visit->pet->pet_breed ?? '' }}">
-                    </div>
-                    <div>
-                        <div class="doc-label">Color Markings</div>
-                        <input class="doc-input" type="text" name="color_markings" id="modal_color_markings" placeholder="e.g. Black with white paws">
-                    </div>
-                </div>
-
-                <div style="text-align:center;font-weight:800;margin:16px 0;text-transform:uppercase">History</div>
-                <table class="doc-history">
-                    <thead>
-                        <tr>
-                            <th style="width:50%">Before Grooming (Notes)</th>
-                            <th style="width:50%">After Grooming (Notes)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>
-                                <textarea name="history_before" id="modal_history_before" rows="6" style="width:100%;border:none;outline:none;resize:vertical;font-family: sans-serif;" placeholder="E.g., Severe matting, aggressive behavior, pre-existing warts/lumps"></textarea>
-                            </td>
-                            <td>
-                                <textarea name="history_after" id="modal_history_after" rows="6" style="width:100%;border:none;outline:none;resize:vertical;font-family: sans-serif;" placeholder="E.g., No reaction, shaved cleanly, needed sedation (not applicable for agreement)"></textarea>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <div class="doc-terms">
-                    <div class="doc-term">1. I certify that I am the owner of (or person responsible for) the pet described above.</div>
-                    <div class="doc-term">2. I understand that grooming entails hair trimming, bathing, nail clipping and ear cleaning. No physical examination or check up is included in the process of grooming. All pets shall be presented healthy and regular handling procedures will be instituted, unless I inform the staff beforehand of any pre-existing medical conditions.</div>
-                    <div class="doc-term">3. Grooming can be stressful to animals; however, the grooming staff will use reasonable precautions against injury, escape or death of my pet. I am aware that sometimes skin reactions may arise due to my pet's skin sensitivity. Therefore, the establishment shall not be held liable for any problem that may transpire from either stress or reaction brought about by grooming of my pet, provided reasonable care and precautions were strictly followed. I understand that any problem that may develop with my pet will be treated as deemed best by the staff veterinarian and I assume full responsibility for the treatment expense involved.</div>
-                    <div class="doc-term">4. The groomers make no claim of expertise in grooming any particular breed. Groomers will make reasonable effort to conform to my grooming requests; however, no guarantees are made that the exact grooming cut can be followed.</div>
-                    <div class="doc-term">5. Grooming may take a few hours to complete and pets will be served on a FIRST COME FIRST SERVED basis.</div>
-                    <div class="doc-term" style="text-align:center;font-weight:800;margin-top:10px">After carefully reading the above, I have signed an agreement.</div>
-                </div>
-
-                <div class="doc-sign">
-                    <div class="doc-sigbox">
-                        <div class="doc-label">Signature</div>
-                        <div class="bg-white border rounded">
-                            <canvas id="modal-signature-pad" class="w-full" style="height: 140px;"></canvas>
+                    <form id="agreementForm" class="space-y-4">
+                        @csrf
+                        {{-- Date and Time --}}
+                        <div class="grid grid-cols-2 gap-6 mb-4">
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Date and Time</label>
+                                <div class="border-b border-gray-400 pb-1 font-mono text-sm">{{ now()->format('F j, Y g:i A') }}</div>
+                            </div>
                         </div>
-                        <div class="doc-siglabel">Signature of Owner/Representative</div>
-                    </div>
-                    <div class="doc-sigbox">
-                        <div class="doc-label">Signer Name</div>
-                        <input class="doc-input" type="text" id="modal_signer_name" value="{{ $visit->pet->owner->own_name ?? '' }}" placeholder="Owner / Representative">
-                        <div class="doc-label" style="margin-top:16px">Date</div>
-                        <input class="doc-input" type="text" readonly value="{{ now()->format('F j, Y') }}">
-                    </div>
-                </div>
 
-                <div class="mt-4 flex items-center gap-2">
-                    <input type="checkbox" name="checkbox_acknowledge" id="modal_checkbox_acknowledge" value="1" required>
-                    <span class="text-sm">I have carefully read the above and agree.</span>
+                        {{-- Owner Information --}}
+                        <div class="grid grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Owner's Name</label>
+                                <div class="border-b border-gray-400 pb-1 font-mono text-sm">{{ $visit->pet->owner->own_name ?? '' }}</div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Address</label>
+                                <div class="border-b border-gray-400 pb-1 font-mono text-sm">{{ $visit->pet->owner->own_location ?? '' }}</div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Phone Number</label>
+                                <div class="border-b border-gray-400 pb-1 font-mono text-sm">{{ $visit->pet->owner->own_contactnum ?? '' }}</div>
+                            </div>
+                        </div>
+
+                        {{-- Pet Information --}}
+                        <div class="grid grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Name of Pet</label>
+                                <div class="border-b border-gray-400 pb-1 font-mono text-sm">{{ $visit->pet->pet_name ?? '' }}</div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Species</label>
+                                <div class="border-b border-gray-400 pb-1 font-mono text-sm">{{ $visit->pet->pet_species ?? '' }}</div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Gender</label>
+                                <div class="border-b border-gray-400 pb-1 font-mono text-sm">{{ $visit->pet->pet_gender ?? '' }}</div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-4 mb-6">
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Pet Age</label>
+                                <div class="border-b border-gray-400 pb-1 font-mono text-sm">{{ $visit->pet->pet_age ?? '' }}</div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Breed</label>
+                                <div class="border-b border-gray-400 pb-1 font-mono text-sm">{{ $visit->pet->pet_breed ?? '' }}</div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Color Markings</label>
+                                <input type="text" name="color_markings" id="modal_color_markings" 
+                                            class="w-full border-b border-gray-400 focus:border-blue-600 outline-none pb-1 font-mono text-sm bg-transparent" 
+                                            placeholder="e.g. Black with white paws">
+                            </div>
+                        </div>
+
+                        {{-- History Section --}}
+                        <div class="mb-6">
+                            <div class="text-center font-extrabold text-sm uppercase mb-3 text-gray-800">History</div>
+                            <table class="w-full border-2 border-gray-800">
+                                <thead>
+                                    <tr class="bg-gray-100">
+                                        <th class="border border-gray-800 p-3 text-left text-xs font-bold uppercase">Before Grooming (Notes)</th>
+                                        <th class="border border-gray-800 p-3 text-left text-xs font-bold uppercase">After Grooming (Notes)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td class="border border-gray-800 p-2">
+                                            <textarea name="history_before" id="modal_history_before" rows="6" 
+                                                        class="w-full outline-none resize-vertical text-sm p-2" 
+                                                        placeholder="E.g., Severe matting, aggressive behavior, pre-existing warts/lumps"></textarea>
+                                        </td>
+                                        <td class="border border-gray-800 p-2">
+                                            <textarea name="history_after" id="modal_history_after" rows="6" 
+                                                        class="w-full outline-none resize-vertical text-sm p-2" 
+                                                        placeholder="E.g., No reaction, shaved cleanly"></textarea>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {{-- Terms and Conditions --}}
+                        <div class="space-y-3 text-justify text-sm leading-relaxed mb-6">
+                            <p><strong>1.</strong> I certify that I am the owner of (or person responsible for) the pet described above.</p>
+                            
+                            <p><strong>2.</strong> I understand that grooming entails hair trimming, bathing, nail clipping and ear cleaning. No physical examination or check up is included in the process of grooming. All pets shall be presented healthy and regular handling procedures will be instituted, unless I inform the staff beforehand of any pre-existing medical conditions.</p>
+                            
+                            <p><strong>3.</strong> Grooming can be stressful to animals; however, the grooming staff will use reasonable precautions against injury, escape or death of my pet. I am aware that sometimes skin reactions may arise due to my pet's skin sensitivity. Therefore, the establishment shall not be held liable for any problem that may transpire from either stress or reaction brought about by grooming of my pet, provided reasonable care and precautions were strictly followed. I understand that any problem that may develop with my pet will be treated as deemed best by the staff veterinarian and I assume full responsibility for the treatment expense involved.</p>
+                            
+                            <p><strong>4.</strong> The groomers make no claim of expertise in grooming any particular breed. Groomers will make reasonable effort to conform to my grooming requests; however, no guarantees are made that the exact grooming cut can be followed.</p>
+                            
+                            <p><strong>5.</strong> Grooming may take a few hours to complete and pets will be served on a FIRST COME FIRST SERVED basis.</p>
+                            
+                            <p class="text-center font-extrabold mt-6">After carefully reading the above, I have signed an agreement.</p>
+                        </div>
+
+                        {{-- Signature Section --}}
+                        <div class="border-t-2 border-gray-800 pt-6 grid grid-cols-2 gap-8">
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-700 mb-2">Signature</label>
+                                <div class="border-2 border-gray-800 bg-white rounded">
+                                    <canvas id="modal-signature-pad" class="w-full" style="height: 160px;"></canvas>
+                                </div>
+                                <div class="text-center text-xs font-bold mt-2 uppercase">Signature of Owner/Representative</div>
+                            </div>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Signer Name</label>
+                                    <input type="text" id="modal_signer_name" 
+                                                value="{{ $visit->pet->owner->own_name ?? '' }}" 
+                                                class="w-full border-b-2 border-gray-400 focus:border-blue-600 outline-none pb-1 font-mono text-sm bg-transparent" 
+                                                placeholder="Owner / Representative" required>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Date</label>
+                                    <div class="border-b-2 border-gray-400 pb-1 font-mono text-sm">{{ now()->format('F j, Y') }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Acknowledgment Checkbox --}}
+                        <div class="flex items-start gap-3 mt-6 p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded">
+                            <input type="checkbox" name="checkbox_acknowledge" id="modal_checkbox_acknowledge" 
+                                        value="1" required class="mt-1 w-5 h-5">
+                            <label for="modal_checkbox_acknowledge" class="text-sm font-medium text-gray-800">
+                                I have carefully read and understood all the terms and conditions stated above, and I agree to them.
+                            </label>
+                        </div>
+                    </form>
                 </div>
             </div>
 
-            <div class="flex justify-between mt-4 print-hide">
-                <button type="button" onclick="closeAgreementModal()" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">Cancel</button>
-                <button type="button" id="modal-sig-clear" class="px-4 py-2 bg-gray-200 rounded">Clear Signature</button>
-                <button type="button" id="submitAgreementBtn" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Sign Agreement</button>
+            {{-- Action Buttons --}}
+            <div class="flex justify-between items-center mt-6 max-w-[850px] mx-auto">
+                <button type="button" onclick="closeAgreementModal()" 
+                        class="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold transition">
+                    <i class="fas fa-times mr-1"></i> Cancel
+                </button>
+                <button type="button" id="modal-sig-clear" 
+                        class="px-6 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 font-semibold transition">
+                    <i class="fas fa-eraser mr-1"></i> Clear Signature
+                </button>
+                <button type="button" id="submitAgreementBtn" 
+                        class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold transition shadow-lg">
+                    <i class="fas fa-signature mr-1"></i> Sign Agreement
+                </button>
             </div>
-        </form>
+        </div>
     </div>
 </div>
+
+<style>
+/* Print Styles for Agreement */
+@media print {
+    /* --- 1. SET LEGAL PAPER SIZE --- */
+    /* This rule is crucial to ensure legal sizing in the print dialog */
+    @page {
+        size: legal; /* 8.5 in x 14 in */
+        margin: 0.5in; /* Set margins for professional look */
+    }
+
+    /* --- 2. HIDE EVERYTHING ON THE PAGE EXCEPT THE MODAL --- */
+    body > *:not(#groomingAgreementModal) {
+        display: none !important;
+    }
+    
+    /* --- 3. SHOW AND FORMAT THE MODAL CONTENT FOR PRINTING --- */
+    #groomingAgreementModal {
+        /* Override fixed positioning for printing context */
+        position: static !important;
+        display: block !important; 
+        background: none !important; /* Hide background overlay */
+        padding: 0 !important;
+        margin: 0 auto; /* Center content on the legal page */
+        overflow: visible !important; /* Allow content to flow across pages */
+        box-shadow: none !important;
+        max-height: none !important;
+    }
+    
+    /* Ensure the inner document wrapper is visible and positioned */
+    #groomingAgreementModal > div { /* The w-full max-w-5xl div */
+        position: static !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+        background: none !important;
+    }
+    
+    /* Hide modal controls (header/footer) inside the printed output */
+    #groomingAgreementModal .sticky {
+        display: none; 
+    }
+    #groomingAgreementModal > div:first-child > div:last-child > div:last-child {
+        display: none; /* Hide action buttons */
+    }
+
+    /* Fix image in signed section to show signature instead of canvas */
+    #modal-signature-pad {
+        display: none !important; /* Hide canvas placeholder */
+    }
+}
+</style>
 
 @include('modals.service_activity_modal', [
     'allPets' => $allPets, 
@@ -528,15 +683,27 @@
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
 <script>
+    window.openPrintWindow = function(url) {
+        const printWindow = window.open(url, '_blank', 'noopener');
+        if (!printWindow) {
+            alert('Please allow pop-ups to print the grooming agreement. Opening in the current tab instead.');
+            window.location.href = url;
+        }
+    };
+
+    // Grooming agreement modal + validation logic
     document.addEventListener('DOMContentLoaded', function() {
+        // ... (All your existing DOMContentLoaded logic for validation, signing, etc.)
         const agreementModal = document.getElementById('groomingAgreementModal');
         const submitBtn = document.getElementById('submitAgreementBtn');
         const canvas = document.getElementById('modal-signature-pad');
-        
+        const petWeightElement = document.getElementById('pet_current_weight');
+        const groomingSelect = document.getElementById('grooming_type_select');
+        const weightWarning = document.getElementById('weight_warning');
+
         let signaturePad = null;
 
         // --- Signature Pad Setup ---
-        
         if (canvas) {
             function resizeCanvas() {
                 const ratio = Math.max(window.devicePixelRatio || 1, 1);
@@ -566,30 +733,27 @@
                 if (signaturePad) signaturePad.clear();
             });
             
-            // Re-initialize pad when the modal is opened
-            agreementModal.addEventListener('transitionend', function() {
+            const observer = new MutationObserver((mutationsList, observer) => {
                 if (!agreementModal.classList.contains('hidden')) {
-                    initializeSignaturePad();
+                    window.requestAnimationFrame(() => {
+                        setTimeout(() => {
+                            initializeSignaturePad();
+                        }, 50);
+                    });
                 }
             });
+            observer.observe(agreementModal, { attributes: true, attributeFilter: ['class'] });
             window.addEventListener('resize', resizeCanvas);
-            
-            // Initial call if the script loads late
             initializeSignaturePad();
         }
 
         // --- Modal Control Functions ---
-        
         window.openAgreementModal = function() {
             agreementModal.classList.remove('hidden');
             agreementModal.classList.add('flex');
-            
-            // Pre-populate fields from the main form (assuming they exist)
-            document.getElementById('modal_history_before').value = document.querySelector('textarea[name="instructions"]').value || '';
+            const notesTextarea = document.querySelector('textarea[name="instructions"]');
+            document.getElementById('modal_history_before').value = notesTextarea ? notesTextarea.value : '';
             document.getElementById('modal_signer_name').value = '{{ $visit->pet->owner->own_name ?? 'Guest Owner' }}';
-            
-            // Re-initialize pad when opening
-            if (canvas) initializeSignaturePad(); 
         };
 
         window.closeAgreementModal = function() {
@@ -598,12 +762,11 @@
             if (signaturePad) signaturePad.clear();
         };
 
-        // --- Form Submission Logic for Agreement ---
-
+        // --- Agreement Submission Logic ---
+        const finalSubmitForm = document.getElementById('agreement-form-data'); 
         if (submitBtn) {
             submitBtn.addEventListener('click', function(e) {
                 e.preventDefault();
-                
                 if (signaturePad && signaturePad.isEmpty()) {
                     alert('Please provide a signature before submitting the agreement.');
                     return;
@@ -612,22 +775,70 @@
                     alert('You must acknowledge and agree to the terms.');
                     return;
                 }
-                
-                // 1. Capture signature and other required fields into hidden fields
-                document.getElementById('signature_data').value = signaturePad.toDataURL('image/png');
-                
-                // 2. Map textarea content to hidden fields for backend consumption
-                document.getElementById('history_before_hidden').value = document.getElementById('modal_history_before').value;
-                document.getElementById('history_after_hidden').value = document.getElementById('modal_history_after').value;
-                document.getElementById('color_markings_hidden').value = document.getElementById('modal_color_markings').value;
-
-                // 3. Optional: Disable button and submit
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
-                
-                // Submit the actual form that holds the hidden inputs
-                document.getElementById('agreementForm').submit();
+                finalSubmitForm.querySelector('#signature_data').value = signaturePad.toDataURL('image/png');
+                finalSubmitForm.querySelector('#signer_name_hidden').value = document.getElementById('modal_signer_name').value;
+                finalSubmitForm.querySelector('#history_before_hidden').value = document.getElementById('modal_history_before').value;
+                finalSubmitForm.querySelector('#history_after_hidden').value = document.getElementById('modal_history_after').value;
+                finalSubmitForm.querySelector('#color_markings_hidden').value = document.getElementById('modal_color_markings').value;
+                this.disabled = true;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+                finalSubmitForm.submit(); 
             });
+        }
+
+        // --- Weight Validation Logic ---
+        if (petWeightElement && groomingSelect) {
+            const petWeight = parseFloat(petWeightElement.getAttribute('data-weight'));
+            const weightDisplay = petWeightElement.innerText.trim(); 
+
+            function validateGroomingPackages() {
+                let disabledCount = 0;
+                let enabledCount = 0;
+                const weightUnavailable = isNaN(petWeight) || petWeight <= 0;
+
+                Array.from(groomingSelect.options).forEach(option => {
+                    if (option.value === "") return; 
+                    const minWeight = parseFloat(option.getAttribute('data-min-weight'));
+                    const maxWeight = parseFloat(option.getAttribute('data-max-weight'));
+
+                    let isOutsideRange = false;
+                    if (!weightUnavailable) {
+                        isOutsideRange = (petWeight < minWeight || petWeight > maxWeight);
+                    }
+
+                    option.disabled = isOutsideRange;
+
+                    if (isOutsideRange) {
+                        option.style.backgroundColor = '#fca5a5'; 
+                        option.style.color = '#7f1d1d';
+                        disabledCount++;
+                    } else {
+                        option.style.backgroundColor = '';
+                        option.style.color = '';
+                        enabledCount++;
+                    }
+                });
+                
+                Array.from(groomingSelect.selectedOptions).forEach(option => {
+                    if (option.disabled) {
+                        option.selected = false;
+                    }
+                });
+
+                if (weightUnavailable) {
+                    weightWarning.innerText = 'Pet weight is not recorded. Please record the pet\'s weight for accurate service selection.';
+                    weightWarning.classList.remove('hidden');
+                } else if (enabledCount === 0) {
+                    weightWarning.innerText = `No packages available for the current weight (${weightDisplay}).`;
+                    weightWarning.classList.remove('hidden');
+                } else if (disabledCount > 0) {
+                    weightWarning.innerText = `Some service packages are disabled as the pet's weight (${weightDisplay}) falls outside their allowed range.`;
+                    weightWarning.classList.remove('hidden');
+                } else {
+                    weightWarning.classList.add('hidden');
+                }
+            }
+            validateGroomingPackages();
         }
     });
 </script>

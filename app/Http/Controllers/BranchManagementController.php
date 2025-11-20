@@ -3,19 +3,30 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use App\Models\Branch;
 use App\Models\User;
+use App\Models\ReferralCompany;
 
 class BranchManagementController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('auth');
+    }
+
     public function index(Request $request)
     {
         try {
             $branches = Branch::with('users')->get();
             
             $users = User::with('branch')->get();
+
+            $referralCompanies = ReferralCompany::with('branch')->get();
+            //dd($referralCompanies);
             
-            return view('branchManagement', compact('branches', 'users'));
+            return view('branchManagement', compact('branches', 'users', 'referralCompanies'));
         } catch (\Exception $e) {
             dd('Error in controller: ' . $e->getMessage());
         }
@@ -174,6 +185,8 @@ class BranchManagementController extends Controller
             'user_licenseNum' => 'nullable|string|max:100|required_if:user_role,veterinarian',
         ]);
 
+        //dd($validated);
+
         $updateData = [
             'user_name' => $validated['user_name'],
             'user_email' => $validated['user_email'],
@@ -184,7 +197,7 @@ class BranchManagementController extends Controller
         ];
 
         if ($request->filled('user_password')) {
-            $updateData['user_password'] = bcrypt($validated['user_password']);
+            $updateData['user_password'] = $validated['user_password'];
         }
 
         $user->update($updateData);

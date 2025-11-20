@@ -6,6 +6,7 @@ use App\Models\Service as ServiceModel;
 
 use App\Models\Product;
 use App\Models\ServiceProduct;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Appointment;
 use App\Models\InventoryTransaction;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,62 @@ use Illuminate\Support\Facades\Log;
 
 class InventoryService
 {
+    /**
+     * Deduct quantity from a product's inventory
+     * 
+     * @param int $productId The ID of the product to deduct from
+     * @param int $quantity The quantity to deduct
+     * @param string $reference The reference number/description for the transaction
+     * @param string $type The type of transaction (e.g., 'Prescription', 'Service')
+     * @return bool True if successful, false otherwise
+     */
+    public function deductFromInventory($productId, $quantity, $reference, $type = 'Manual'): bool
+    {
+        try {
+            DB::beginTransaction();
+
+            // Get the product with a lock for update to prevent race conditions
+            $product = Product::lockForUpdate()->find($productId);
+            
+            if (!$product) {
+                throw new \Exception("Product with ID {$productId} not found");
+            }
+
+            // Check if we have enough stock
+            if ($product->prod_stocks < $quantity) {
+                throw new \Exception("Insufficient stock for product {$product->prod_name}");
+            }
+
+            // Deduct the quantity
+            $product->prod_stocks -= $quantity;
+            $product->save();
+
+            // Record the transaction
+            $transaction = new InventoryTransaction();
+            $transaction->prod_id = $productId;
+            $transaction->transaction_type = $type;
+            $transaction->quantity_change = -1 * $quantity;
+            $transaction->reference = $reference;
+           // $transaction->transaction_date = now();
+            $transaction->performed_by = Auth::id();
+            $transaction->save();
+
+            DB::commit();
+            
+            // Check if stock is below reorder level and log a warning
+            if ($product->prod_stocks <= $product->prod_reorderlevel) {
+                Log::warning("Product {$product->prod_name} is at or below reorder level. Current stock: {$product->prod_stocks}");
+            }
+
+            return true;
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Error deducting from inventory: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
     /**
      * Deduct products used in appointment services
      */
@@ -121,7 +178,7 @@ class InventoryService
                         'reference' => "Appointment #{$appointment->appoint_id}",
                         'serv_id' => $service->serv_id,
                         'appoint_id' => $appointment->appoint_id,
-                        'user_id' => auth()->id(),
+                        'user_id' => Auth::id(),
                         'notes' => "Used in service: {$serviceName}",
                         'created_at' => now(),
                     ]);
@@ -212,7 +269,7 @@ class InventoryService
     'reference' => "Appoint #{$appointmentId} Vaccine Record",
     'serv_id' => $serviceId,
             'appoint_id' => $appointmentId,
-            'user_id' => auth()->id(),
+            'user_id' => Auth::id(),
             'notes' => "Used in specific vaccine recording.",
             'created_at' => now(),
         ]);

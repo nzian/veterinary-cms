@@ -1,3 +1,6 @@
+{{-- Toast Container --}}
+<div id="toastContainer" class="toast-container"></div>
+
 <div id="serviceActivityModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
     {{-- MODAL CONTAINER: Added max-h-[95vh] and overflow-y-auto --}}
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto p-6">
@@ -45,7 +48,7 @@
                 <form id="activityAppointmentForm" action="{{ route('medical.appointments.store') }}" method="POST" class="space-y-4 border border-blue-200 p-4 rounded-lg bg-blue-50">
                     @csrf
                     <input type="hidden" name="pet_id" id="activity_appoint_pet_id">
-                    <input type="hidden" name="appoint_status" value="pending">
+                    <input type="hidden" name="appoint_status" value="Scheduled">
                     <input type="hidden" name="active_tab" value="visits">
                     
                     <div class="grid grid-cols-2 gap-4">
@@ -86,7 +89,7 @@
             {{-- Initial Assessment Tab Content --}}
             <div id="activity_initial_content" class="activity-tab-content hidden space-y-4">
                 <h4 class="text-lg font-semibold text-indigo-600">Initial Assessment</h4>
-                <form id="activityInitialAssessmentForm" onsubmit="return handleInitialAssessmentSubmit(event)" class="space-y-4 border border-indigo-200 p-4 rounded-lg bg-indigo-50">
+                <form id="activityInitialAssessmentForm" action="{{ route('medical.initial_assessments.store') }}" method="POST" onsubmit="return handleInitialAssessmentSubmit(event)" class="space-y-4 border border-indigo-200 p-4 rounded-lg bg-indigo-50">
                     @csrf
                     <input type="hidden" name="pet_id" id="activity_initial_pet_id" value="{{ $visit->pet_id ?? '' }}">
                     <input type="hidden" name="visit_id" id="activity_initial_visit_id" value="{{ $visit->visit_id ?? '' }}">
@@ -356,7 +359,8 @@
                 <h4 class="text-lg font-semibold text-red-600">Create New Referral</h4>
                 <form id="activityReferralForm" action="{{ route('medical.referrals.store') }}" method="POST" class="space-y-4 border border-red-200 p-4 rounded-lg bg-red-50">
                     @csrf
-                    <input type="hidden" name="appointment_id" id="activity_referral_appoint_id" value="{{ $visit->visit_id ?? '' }}">
+                    <input type="hidden" name="visit_id" id="activity_referral_visit_id" value="{{ $visit->visit_id ?? '' }}">
+                    <input type="hidden" name="pet_id" id="activity_referral_pet_id" value="{{ $visit->pet_id ?? '' }}">
                     <input type="hidden" name="active_tab" value="visits">
 
                     <div class="grid grid-cols-2 gap-4">
@@ -371,6 +375,7 @@
                                 @foreach($allBranches as $branch)
                                     <option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>
                                 @endforeach
+                                <option value="9999999">External Clinic</option>
                             </select>
                         </div>
                     </div>
@@ -571,16 +576,46 @@
         // Finalize data
         document.getElementById('activity_medications_json').value = JSON.stringify(medications);
         form.action = "{{ route('medical.prescriptions.store') }}"; // Set the correct submission route
+        form.method = 'POST';
         
         // Submit the form
         const submitBtn = form.querySelector('button[type="submit"]');
+
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Saving...';
         
         form.submit();
     }
 
-    function handleInitialAssessmentSubmit(e) {
+    // Toast notification function
+function showToast(type, message) {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast-notification ${type === 'success' ? 'toast-success' : 'toast-error'}`;
+    
+    // Create toast content with icon
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+    toast.innerHTML = `
+        <div class="flex items-center">
+            <i class="fas ${icon} mr-2"></i>
+            <span>${message}</span>
+        </div>
+    `;
+
+    container.appendChild(toast);
+
+    // Remove toast after 3 seconds with fade out animation
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.5s ease-out forwards';
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.remove();
+            }
+        }, 500);
+    }, 3000);
+}
+
+function handleInitialAssessmentSubmit(e) {
     e.preventDefault();
     const form = e.target;
     const formData = new FormData(form);
@@ -606,11 +641,10 @@
             // Show success message
             showToast('success', data.message || 'Initial assessment saved successfully!');
             
-            // Close the modal or reset form
+            // Close the modal after a delay
             setTimeout(() => {
-                const modal = document.getElementById('activityModal');
-                if (modal) modal.classList.add('hidden');
-            }, 1500);
+                closeActivityModal();
+            }, 2000);
         } else {
             throw new Error(data.message || 'Failed to save initial assessment');
         }
