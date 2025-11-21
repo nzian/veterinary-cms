@@ -12,16 +12,16 @@
     @php
         $reportOptions = [
             // Main Reports
-            'appointments' => 'Appointment Management',
+            'visits' => 'Visit Management',
             'owner_pets' => 'Pet Owner and Their Pets',
-            'appointment_billing' => 'Appointment with Billing & Payment',
+            'visit_billing' => 'Visit with Billing & Payment',
             'product_purchases' => 'Product Purchase Report',
             'referrals' => 'Inter-Branch Referrals',
             
             // Service & Scheduling Reports
-            'service_appointments' => 'Services in Appointments',
-            'branch_appointments' => 'Branch Appointment Schedule',
-            'multi_service_appointments' => 'Multiple Services Appointments',
+            'visit_services' => 'Services in Visits',
+            'branch_visits' => 'Branch Visit Schedule',
+            'multi_service_visits' => 'Multiple Services Visits',
             
             // Financial Reports
             'billing_orders' => 'Billing with Orders',
@@ -134,7 +134,7 @@
                                     @endphp
                                     @foreach($recordKeys as $key)
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            @if($reportType === 'appointments' && $key === 'veterinarian')
+                                            @if(($reportType === 'visits' || $reportType === 'visit_services' || $reportType === 'branch_visits') && $key === 'veterinarian')
                                                 Veterinarian
                                             @elseif($reportType === 'branch_payments' && $key === 'total_payments_count')
                                                 Total Payments (Count)
@@ -170,8 +170,8 @@
                                                         $displayValue = $value;
                                                     } elseif ($reportType === 'branch_users' && $key === 'user_contactNum') {
                                                         $displayValue = $value;
-                                                    } elseif ($reportType === 'branch_appointments' && $key === 'appoint_time') {
-                                                        $displayValue = $value;
+                                                    } elseif ($reportType === 'branch_visits' && $key === 'visit_date') {
+                                                        $displayValue = date('M d, Y', strtotime($value));
                                                     } elseif ($reportType === 'prescriptions' && $key === 'raw_medication_data') {
                                                         // FIX: Updated logic to concatenate product_name and instructions with a semicolon (;)
                                                         $medications = json_decode($value, true);

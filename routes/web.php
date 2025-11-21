@@ -477,6 +477,7 @@ Route::delete('/user-management/{id}', [BranchManagementController::class, 'dest
 Route::get('/sales-management', [SalesManagementController::class, 'index'])->name('sales.index');
 Route::delete('/sales/billing/{id}', [SalesManagementController::class, 'destroyBilling'])->name('sales.destroyBilling');
 Route::post('/sales/billing/{id}/mark-paid', [SalesManagementController::class, 'markAsPaid'])->name('sales.markAsPaid');
+Route::get('/sales/transaction/{id}/json', [SalesManagementController::class, 'showTransactionJson'])->name('sales.transaction.json');
 Route::get('/sales/transaction/{id}', [SalesManagementController::class, 'showTransaction'])->name('sales.transaction');
 Route::get('/sales/transaction/{id}/json', [SalesManagementController::class, 'showTransactionJson'])->name('sales.transaction.json');
 Route::get('/sales/print-transaction/{id}', [SalesManagementController::class, 'printTransaction'])->name('sales.printTransaction');

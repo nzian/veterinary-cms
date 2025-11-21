@@ -760,6 +760,100 @@
         </div>
 </div>
 
+{{-- Transaction Details Modal --}}
+<div id="viewTransactionModal" class="fixed inset-0 flex justify-center items-center z-50 hidden no-print bg-black bg-opacity-50">
+    <div class="bg-white w-full max-w-3xl p-0 rounded-lg shadow-lg relative max-h-[90vh] overflow-y-auto">
+        <div id="modalTransactionContent" class="billing-container bg-white p-10">
+            <div class="header flex items-center justify-between border-b-2 border-black pb-6 mb-6">
+                <div class="flex-shrink-0">
+                    <img src="{{ asset('images/pets2go.png') }}" alt="Pets2GO Logo" class="w-28 h-28 object-contain">
+                </div>
+                
+                <div class="flex-grow text-center">
+                    <div class="clinic-name text-2xl font-bold text-[#a86520] tracking-wide">
+                        PETS 2GO VETERINARY CLINIC
+                    </div>
+                    <div class="branch-name text-lg font-bold underline text-center mt-1" id="transactionBranchName">
+                        {{ auth()->user()->branch->branch_name ?? 'Main Branch' }}
+                    </div>
+                    <div class="clinic-details text-sm text-gray-700 mt-1 text-center leading-tight">
+                        <div id="transactionBranchAddress">{{ auth()->user()->branch->branch_address ?? '' }}</div>
+                        <div id="transactionBranchContact">{{ auth()->user()->branch->branch_contact ?? '' }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="billing-body">
+                <div class="text-center mb-6">
+                    <h2 class="text-xl font-bold text-gray-800">SALES TRANSACTION RECEIPT</h2>
+                </div>
+
+                <div class="customer-info mb-6">
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <div class="mb-2"><strong>DATE:</strong> <span id="transactionDate"></span></div>
+                            <div class="mb-2"><strong>CUSTOMER:</strong> <span id="transactionCustomer"></span></div>
+                            <div class="mb-2"><strong>CASHIER:</strong> <span id="transactionCashier"></span></div>
+                        </div>
+                        <div>
+                            <div class="mb-2"><strong>TRANSACTION ID:</strong> <span id="transactionId"></span></div>
+                            <div class="mb-2"><strong>TYPE:</strong> <span id="transactionType"></span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="products-section mb-6">
+                    <div class="section-title text-base font-bold mb-4 border-b pb-2 text-green-600">PRODUCTS PURCHASED</div>
+                    <table class="w-full text-sm">
+                        <thead class="border-b-2 border-gray-300">
+                            <tr class="text-left">
+                                <th class="py-2 px-2 w-12">#</th>
+                                <th class="py-2 px-2">Product</th>
+                                <th class="py-2 px-2 text-center w-20">Qty</th>
+                                <th class="py-2 px-2 text-right w-28">Unit Price</th>
+                                <th class="py-2 px-2 text-right w-32">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactionOrdersTable" class="divide-y divide-gray-200">
+                            <!-- Orders will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="total-section mb-8">
+                    <div class="mt-4 pt-4 border-t-2 border-gray-300">
+                        <div class="text-right">
+                            <div class="text-xl font-bold text-[#0f7ea0]">TOTAL AMOUNT: <span id="transactionTotal"></span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="footer text-center pt-8 border-t-2 border-black">
+                    <div class="thank-you text-sm">
+                        <div class="font-bold mb-2">Thank you for choosing Pets2GO Veterinary Clinic!</div>
+                        <div class="text-gray-600">Your pet's health is our priority</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="p-4 bg-gray-50 flex justify-between no-print">
+            <button onclick="printTransactionFromModal()" class="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600">
+                <i class="fas fa-print mr-2"></i> Print Receipt
+            </button>
+            <button onclick="closeTransactionModal()" 
+                class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                <i class="fas fa-times mr-2"></i> Close
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- Hidden Print Container for Transaction --}}
+<div id="printTransactionContainer" style="display: none;">
+    <div id="printTransactionContent" class="billing-container bg-white p-10">
+    </div>
+</div>
+
 {{-- Payment Modal (POS-style) (Unchanged) --}}
 <div id="billingPaymentModal" class="fixed inset-0 flex items-center justify-center hidden z-50 bg-black bg-opacity-50">
     <div class="bg-white rounded-2xl p-8 w-96 shadow-2xl">
@@ -913,7 +1007,6 @@
         left: 0 !important;
         top: 0 !important;
         width: 100% !important;
-        height: 100% !important;
         display: block !important;
         background: white !important;
     }
@@ -926,8 +1019,12 @@
         background: white !important;
         border: 2px solid #000 !important;
         padding: 30px !important;
-        margin: 0 !important;
+        margin: 0 auto !important;
         box-sizing: border-box !important;
+        max-width: 100%;
+    }
+    
+    #printBillingContent .footer {
         page-break-inside: avoid;
     }
     
@@ -1476,6 +1573,11 @@ function viewTransaction(transactionId) {
             document.getElementById('transactionCustomer').textContent = data.customer;
             document.getElementById('transactionCashier').textContent = data.cashier;
             document.getElementById('transactionTotal').textContent = '₱' + data.total;
+            
+            // Populate branch info
+            document.getElementById('transactionBranchName').textContent = data.branch.name;
+            document.getElementById('transactionBranchAddress').textContent = data.branch.address;
+            document.getElementById('transactionBranchContact').textContent = data.branch.contact;
             
             // Populate orders table with new layout
             const tbody = document.getElementById('transactionOrdersTable');
