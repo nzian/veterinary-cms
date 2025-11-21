@@ -262,11 +262,8 @@ Route::get('/branches/{id}', [BranchManagementController::class, 'show'])->name(
 Route::delete('/branches/{id}', [BranchManagementController::class, 'destroyBranch'])->name('branches-destroy');
 
 
-Route::get('/branch/switch/{id}', [BranchManagementController::class, 'switch'])->name('branch.switch');
-Route::get('/switch-branch/{id}', function ($id) {
-    Session::put('selected_branch_id', $id);
-    return redirect()->back();
-})->name('branch.switch');
+Route::get('/branch/switch/{id}', [BranchManagementController::class, 'switchBranch'])->name('branch.switch');
+Route::get('/branch/clear', [BranchManagementController::class, 'clearBranch'])->name('branch.clear');
 
 
 //Owner
@@ -482,6 +479,7 @@ Route::delete('/sales/billing/{id}', [SalesManagementController::class, 'destroy
 Route::post('/sales/billing/{id}/mark-paid', [SalesManagementController::class, 'markAsPaid'])->name('sales.markAsPaid');
 Route::get('/sales/transaction/{id}/json', [SalesManagementController::class, 'showTransactionJson'])->name('sales.transaction.json');
 Route::get('/sales/transaction/{id}', [SalesManagementController::class, 'showTransaction'])->name('sales.transaction');
+Route::get('/sales/transaction/{id}/json', [SalesManagementController::class, 'showTransactionJson'])->name('sales.transaction.json');
 Route::get('/sales/print-transaction/{id}', [SalesManagementController::class, 'printTransaction'])->name('sales.printTransaction');
 Route::get('/sales/export', [SalesManagementController::class, 'export'])->name('sales.export');
 Route::get('/sales/billing/{id}/receipt', [SalesManagementController::class, 'showReceipt'])->name('sales.billing.receipt');
