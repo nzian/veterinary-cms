@@ -113,7 +113,7 @@ class BranchReportController extends Controller
                         ->join('tbl_user', 'tbl_visit_record.user_id', '=', 'tbl_user.user_id')
                         ->join('tbl_branch', 'tbl_user.branch_id', '=', 'tbl_branch.branch_id')
                         ->leftJoin('tbl_visit_service', 'tbl_visit_record.visit_id', '=', 'tbl_visit_service.visit_id')
-                        ->leftJoin('tbl_serv', 'tbl_visit_record_service.serv_id', '=', 'tbl_serv.serv_id')
+                        ->leftJoin('tbl_serv', 'tbl_visit_service.serv_id', '=', 'tbl_serv.serv_id')
                         ->whereBetween('tbl_bill.bill_date', [$startDate, $endDate])
                         ->where('tbl_user.branch_id', $branchId)
                         ->select(
