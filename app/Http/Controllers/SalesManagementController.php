@@ -444,4 +444,109 @@ class SalesManagementController extends Controller
             return redirect()->route('sales.index')->with('error', 'Failed to delete billing record: ' . $e->getMessage());
         }
     }
+
+    public function showTransactionJson($id)
+    {
+        try {
+            // Parse transaction ID (format: BILL-123 or SALE-456)
+            $transactionParts = explode('-', $id);
+            $transactionType = $transactionParts[0] ?? null;
+            $transactionId = $transactionParts[1] ?? null;
+
+            if (!$transactionType || !$transactionId) {
+                return response()->json(['error' => 'Invalid transaction ID format'], 400);
+            }
+
+            $orders = collect();
+            $billing = null;
+            $source = 'Direct Sale';
+
+            if ($transactionType === 'BILL') {
+                // Get all orders with the same bill_id
+                $orders = Order::with(['product', 'user.branch', 'owner'])
+                    ->where('bill_id', $transactionId)
+                    ->get();
+                
+                $billing = Billing::with(['visit.pet.owner'])->find($transactionId);
+                $source = 'Billing Payment';
+            } else {
+                // Direct sale - get the main order and related orders within 1 second
+                $mainOrder = Order::with(['product', 'user.branch', 'owner'])
+                    ->find($transactionId);
+                
+                if (!$mainOrder) {
+                    return response()->json(['error' => 'Transaction not found'], 404);
+                }
+
+                $orderTime = Carbon::parse($mainOrder->ord_date);
+                $startTime = $orderTime->copy()->subSecond();
+                $endTime = $orderTime->copy()->addSecond();
+
+                $orders = Order::with(['product', 'user.branch', 'owner'])
+                    ->whereNull('bill_id')
+                    ->whereBetween('ord_date', [$startTime, $endTime])
+                    ->where('user_id', $mainOrder->user_id)
+                    ->where(function($q) use ($mainOrder) {
+                        $q->where('own_id', $mainOrder->own_id)
+                          ->orWhereNull('own_id');
+                    })
+                    ->get();
+            }
+
+            if ($orders->isEmpty()) {
+                return response()->json(['error' => 'No orders found for this transaction'], 404);
+            }
+
+            $firstOrder = $orders->first();
+            
+            // Prepare order items
+            $orderItems = $orders->map(function($order) {
+                $unitPrice = $order->product->prod_price ?? 0;
+                $total = $order->ord_quantity * $unitPrice;
+                
+                return [
+                    'product' => $order->product->prod_name ?? 'Unknown Product',
+                    'quantity' => $order->ord_quantity,
+                    'unitPrice' => number_format($unitPrice, 2),
+                    'total' => number_format($total, 2)
+                ];
+            });
+
+            // Calculate total
+            $total = $orders->sum(function($order) {
+                return $order->ord_quantity * ($order->product->prod_price ?? 0);
+            });
+
+            // Determine customer
+            if ($billing && $billing->visit) {
+                $owner = $billing->visit->pet->owner;
+                $customer = $owner->own_fname . ' ' . $owner->own_lname;
+            } elseif ($firstOrder->owner) {
+                $customer = $firstOrder->owner->own_fname . ' ' . $firstOrder->owner->own_lname;
+            } else {
+                $customer = 'Walk-in Customer';
+            }
+
+            // Get branch info from user
+            $branch = $firstOrder->user->branch ?? null;
+            
+            return response()->json([
+                'transactionType' => $source,
+                'date' => Carbon::parse($firstOrder->ord_date)->format('F j, Y g:i A'),
+                'customer' => $customer,
+                'cashier' => $firstOrder->user->name ?? 'Unknown',
+                'total' => number_format($total, 2),
+                'orders' => $orderItems,
+                'branch' => [
+                    'name' => $branch->branch_name ?? 'Main Branch',
+                    'address' => $branch->branch_address ?? 'N/A',
+                    'contact' => $branch->branch_contactno ?? 'N/A'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Transaction JSON error: ' . $e->getMessage() . ' | Line: ' . $e->getLine());
+            return response()->json(['error' => 'Failed to load transaction details: ' . $e->getMessage()], 500);
+        }
+    }
 }
