@@ -174,17 +174,26 @@
 
         function getField($record, ...$fields) {
             foreach ($fields as $field) {
+                // Handle dot notation (e.g., 'user.branch.branch_name')
+                if (strpos($field, '.') !== false) {
+                    $parts = explode('.', $field);
+                    $value = $record;
+                    foreach ($parts as $part) {
+                        if (is_object($value) && isset($value->$part)) {
+                            $value = $value->$part;
+                        } else {
+                            $value = null;
+                            break;
+                        }
+                    }
+                    if ($value !== null && $value !== '') {
+                        return $value;
+                    }
+                    continue;
+                }
+                
+                // Direct field access
                 if (is_object($record) && isset($record->$field) && $record->$field !== null && $record->$field !== '') {
-                    // Special handling for relational data nested in controller fetch, if necessary
-                    if ($field === 'owner_name' && isset($record->owner->own_name)) return $record->owner->own_name;
-                    if ($field === 'owner_contact' && isset($record->owner->own_contactnum)) return $record->owner->own_contactnum;
-                    if ($field === 'pet_name' && isset($record->pet->pet_name)) return $record->pet->pet_name;
-                    if ($field === 'pet_species' && isset($record->pet->pet_species)) return $record->pet->pet_species;
-                    if ($field === 'pet_breed' && isset($record->pet->pet_breed)) return $record->pet->pet_breed;
-                    if ($field === 'pet_gender' && isset($record->pet->pet_gender)) return $record->pet->pet_gender;
-                    if ($field === 'branch_name' && isset($record->branch->branch_name)) return $record->branch->branch_name;
-
-                    // Fallback to direct field
                     return $record->$field;
                 }
             }
@@ -201,8 +210,89 @@
         **Branch:** {{ $branch->branch_name ?? 'N/A' }} | **Generated:** {{ \Carbon\Carbon::now()->format('F d, Y h:i A') }}
     </p>
 
-    {{-- 1. APPOINTMENTS REPORT (Includes Pets data for eloquent models) --}}
-    @if($reportType === 'appointments')
+    {{-- 1. VISITS REPORT --}}
+    @if($reportType === 'visits')
+        <div class="section">
+            <div class="section-header">Visit Information</div>
+            <table>
+                <tr>
+                    <td class="label">Visit ID</td>
+                    <td class="value">{{ getField($record, 'visit_id') ?? 'N/A' }}</td>
+                    <td class="label">Branch</td>
+                    <td class="value">{{ getField($record, 'user.branch.branch_name') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Visit Date</td>
+                    <td class="value">{{ formatDate(getField($record, 'visit_date')) }}</td>
+                    <td class="label">Patient Type</td>
+                    <td class="value">
+                        @php
+                            $patientType = getField($record, 'patient_type');
+                            if (is_object($patientType) && method_exists($patientType, 'value')) {
+                                echo ucfirst($patientType->value);
+                            } elseif (is_string($patientType)) {
+                                echo ucfirst($patientType);
+                            } else {
+                                echo 'N/A';
+                            }
+                        @endphp
+                    </td>
+                </tr>
+                <tr>
+                    <td class="label">Status</td>
+                    <td class="value">
+                        <span class="status-badge {{ getStatusClass(getField($record, 'visit_status')) }}">
+                            {{ ucfirst(getField($record, 'visit_status') ?? 'N/A') }}
+                        </span>
+                    </td>
+                    <td class="label">Veterinarian</td>
+                    <td class="value">{{ getField($record, 'user.name') ?? 'N/A' }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="section">
+            <div class="section-header orange">Patient & Owner Information</div>
+            <table>
+                <tr>
+                    <td class="label">Owner Name</td>
+                    <td class="value">{{ getField($record, 'pet.owner.own_name') ?? 'N/A' }}</td>
+                    <td class="label">Contact Number</td>
+                    <td class="value">{{ getField($record, 'pet.owner.own_contactnum') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Pet Name</td>
+                    <td class="value">{{ getField($record, 'pet.pet_name') ?? 'N/A' }}</td>
+                    <td class="label">Species</td>
+                    <td class="value">{{ getField($record, 'pet.pet_species') ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Breed</td>
+                    <td class="value">{{ getField($record, 'pet.pet_breed') ?? 'N/A' }}</td>
+                    <td class="label">Age</td>
+                    <td class="value">{{ getField($record, 'pet.pet_age') ?? 'N/A' }} years</td>
+                </tr>
+            </table>
+        </div>
+
+        @if($record->services && $record->services->isNotEmpty())
+        <div class="section">
+            <div class="section-header green">Services Provided</div>
+            <table>
+                <tr>
+                    <td class="label" style="width: 100%; font-weight: bold; text-align: center;">Service Name</td>
+                </tr>
+                @foreach($record->services as $service)
+                <tr>
+                    <td class="value">{{ $service->serv_name ?? 'N/A' }}</td>
+                </tr>
+                @endforeach
+            </table>
+        </div>
+        @endif
+
+    {{-- 2. APPOINTMENTS REPORT (Includes Pets data for eloquent models) --}}
+    @elseif($reportType === 'appointments')
         <div class="section">
             <div class="section-header">Appointment & Handler Information</div>
             <table>
@@ -257,7 +347,7 @@
             <div class="text-area">{{ getField($record, 'appoint_description') }}</div>
         </div>
         @endif
-    {{-- 2. PETS REPORT --}}
+    {{-- 3. PETS REPORT --}}
     @elseif($reportType === 'pets')
         <div class="section">
             <div class="section-header">Owner Information</div>

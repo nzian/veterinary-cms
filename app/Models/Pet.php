@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Branch;
 use App\Models\Owner;
 use App\Models\Appointment;
+use App\Models\Visit;
 use App\Traits\BranchDataScope; 
 
 use Illuminate\Database\Eloquent\Model;
@@ -50,6 +51,11 @@ class Pet extends Model
     public function appointments()
     {
         return $this->hasMany(Appointment::class, 'pet_id');
+    }
+
+    public function visits()
+    {
+        return $this->hasMany(Visit::class, 'pet_id', 'pet_id');
     }
 
     public function branch()

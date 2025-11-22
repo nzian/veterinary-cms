@@ -11,7 +11,7 @@ use App\Models\Pet;
 use App\Models\Order;
 use App\Models\Owner;
 use App\Models\Referral;
-use App\Models\Appointment;
+use App\Models\Visit;
 use Carbon\Carbon;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Auth;
@@ -37,7 +37,7 @@ class BranchReportController extends Controller
         }
 
         // Get filter parameters
-        $reportType = $request->get('report', 'appointments');
+        $reportType = $request->get('report', 'visits');
         $startDate = $request->get('start_date', Carbon::now()->startOfMonth()->format('Y-m-d'));
         $endDate = $request->get('end_date', Carbon::now()->format('Y-m-d'));
 
@@ -46,40 +46,41 @@ class BranchReportController extends Controller
 
         // Generate reports based on type - ALL FILTERED BY BRANCH
         switch($reportType) {
-            case 'appointments':
-                $reports['appointments'] = [
-                    'title' => 'Appointment Management Report',
-                    'description' => 'Complete appointment records for ' . $branch->branch_name,
-                    'data' => Appointment::whereBetween('appoint_date', [$startDate, $endDate])
+            case 'visits':
+                $reports['visits'] = [
+                    'title' => 'Visit Management Report',
+                    'description' => 'Complete visit records for ' . $branch->branch_name,
+                    'data' => Visit::whereBetween('visit_date', [$startDate, $endDate])
                         ->whereHas('user', function($q) use ($branchId) {
                             $q->where('branch_id', $branchId);
                         })
-                        ->with(['pet.owner', 'user.branch'])
+                        ->with(['pet.owner', 'user.branch', 'services'])
                         ->get()
-                        ->map(function($appointment) {
+                        ->map(function($visit) {
                             return (object)[
-                                'appoint_id' => $appointment->appoint_id,
-                                'owner_name' => $appointment->pet->owner->own_name ?? 'N/A',
-                                'owner_contact' => $appointment->pet->owner->own_contactnum ?? 'N/A',
-                                'pet_name' => $appointment->pet->pet_name ?? 'N/A',
-                                'pet_breed' => $appointment->pet->pet_breed ?? 'N/A',
-                                'branch_name' => $appointment->user->branch->branch_name ?? 'N/A',
-                                'appointment_date' => $appointment->appoint_date,
-                                'appointment_time' => $appointment->appoint_time,
-                                'veterinarian' => $appointment->user->name ?? 'N/A',
-                                'status' => $appointment->appoint_status
+                                'visit_id' => $visit->visit_id,
+                                'owner_name' => $visit->pet->owner->own_name ?? 'N/A',
+                                'owner_contact' => $visit->pet->owner->own_contactnum ?? 'N/A',
+                                'pet_name' => $visit->pet->pet_name ?? 'N/A',
+                                'pet_breed' => $visit->pet->pet_breed ?? 'N/A',
+                                'branch_name' => $visit->user->branch->branch_name ?? 'N/A',
+                                'visit_date' => $visit->visit_date,
+                                'patient_type' => $visit->patient_type,
+                                'veterinarian' => $visit->user->name ?? 'N/A',
+                                'status' => $visit->visit_status,
+                                'services' => $visit->services->pluck('serv_name')->join(', ')
                             ];
                         })
                 ];
                 break;
 
             case 'pets':
-                // FIX: Filter pets by appointments that belong to the branch
+                // Filter pets by visits that belong to the branch
                 $reports['pets'] = [
                     'title' => 'Pet Registration Report',
                     'description' => 'Registered pets at ' . $branch->branch_name,
                     'data' => Pet::whereBetween('pet_registration', [$startDate, $endDate])
-                        ->whereHas('appointments', function($q) use ($branchId) {
+                        ->whereHas('visits', function($q) use ($branchId) {
                             $q->whereHas('user', function($userQuery) use ($branchId) {
                                 $userQuery->where('branch_id', $branchId);
                             });
@@ -327,19 +328,19 @@ class BranchReportController extends Controller
     private function getRecordForPDF($reportType, $id, $branchId)
     {
         switch($reportType) {
-            case 'appointments':
+            case 'visits':
                 // Eager load everything needed for the universal view
-                return Appointment::where('appoint_id', $id)
+                return Visit::where('visit_id', $id)
                     ->whereHas('user', function($q) use ($branchId) {
                         $q->where('branch_id', $branchId);
                     })
-                    ->with(['pet.owner', 'user.branch'])
+                    ->with(['pet.owner', 'user.branch', 'services'])
                     ->first();
 
             case 'pets':
                 // Need owner data and context for branch check
                 return Pet::where('pet_id', $id)
-                    ->whereHas('appointments', function($q) use ($branchId) {
+                    ->whereHas('visits', function($q) use ($branchId) {
                         $q->whereHas('user', function($userQuery) use ($branchId) {
                             $userQuery->where('branch_id', $branchId);
                         });
@@ -349,20 +350,20 @@ class BranchReportController extends Controller
             
             case 'referrals':
                 return Referral::where('ref_id', $id)
-                    ->whereHas('appointment.user', function($q) use ($branchId) {
+                    ->whereHas('visit.user', function($q) use ($branchId) {
                         $q->where('branch_id', $branchId);
                     })
-                    ->with(['appointment.pet.owner', 'appointment.user.branch'])
+                    ->with(['visit.pet.owner', 'visit.user.branch'])
                     ->first();
 
             case 'billing':
                 // Use a DB raw query to group billing details for the single bill ID
                 return DB::table('tbl_bill')
                     ->where('tbl_bill.bill_id', $id)
-                    ->join('tbl_appoint', 'tbl_bill.appoint_id', '=', 'tbl_appoint.appoint_id')
-                    ->join('tbl_pet', 'tbl_appoint.pet_id', '=', 'tbl_pet.pet_id')
+                    ->join('tbl_visit_record', 'tbl_bill.visit_id', '=', 'tbl_visit_record.visit_id')
+                    ->join('tbl_pet', 'tbl_visit_record.pet_id', '=', 'tbl_pet.pet_id')
                     ->join('tbl_own', 'tbl_pet.own_id', '=', 'tbl_own.own_id')
-                    ->join('tbl_user', 'tbl_appoint.user_id', '=', 'tbl_user.user_id')
+                    ->join('tbl_user', 'tbl_visit_record.user_id', '=', 'tbl_user.user_id')
                     ->join('tbl_branch', 'tbl_user.branch_id', '=', 'tbl_branch.branch_id')
                     ->where('tbl_user.branch_id', $branchId)
                     ->select(
@@ -370,9 +371,9 @@ class BranchReportController extends Controller
                         'tbl_own.own_name', 
                         'tbl_own.own_contactnum', 
                         'tbl_pet.pet_name',
-                        'tbl_appoint.appoint_date',
+                        'tbl_visit_record.visit_date',
                         'tbl_branch.branch_name',
-                        DB::raw('(SELECT COALESCE(SUM(s.serv_price), 0) FROM tbl_appoint_serv aps JOIN tbl_serv s ON aps.serv_id = s.serv_id WHERE aps.appoint_id = tbl_appoint.appoint_id) as pay_total')
+                        DB::raw('(SELECT COALESCE(SUM(s.serv_price), 0) FROM tbl_visit_service vs JOIN tbl_serv s ON vs.serv_id = s.serv_id WHERE vs.visit_id = tbl_visit_record.visit_id) as pay_total')
                     )
                     ->first();
 
@@ -421,7 +422,7 @@ class BranchReportController extends Controller
 
         // Define titles for each report type
         $titles = [
-            'appointments' => 'Appointment Report',
+            'visits' => 'Visit Report',
             'pets' => 'Pet Registration Report',
             'referrals' => 'Referral Report',
             'billing' => 'Billing Statement',
