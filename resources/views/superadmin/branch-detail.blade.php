@@ -314,11 +314,11 @@
                 <div class="stat-icon-branch" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
                     <i class="fas fa-calendar-check"></i>
                 </div>
-                <div class="stat-value-branch">{{ $totalAppointments }}</div>
-                <div class="stat-label-branch">Appointments</div>
+                <div class="stat-value-branch">{{ $totalVisits ?? 0 }}</div>
+                <div class="stat-label-branch">Visits</div>
                 <div class="badge-custom" style="background: #fef3c7; color: #92400e;">
                     <i class="fas fa-clock"></i>
-                    Today: {{ $todayAppointments }}
+                    Today: {{ $todayVisits ?? 0 }}
                 </div>
             </div>
         </div>

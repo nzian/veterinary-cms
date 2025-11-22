@@ -14,6 +14,7 @@ use App\Models\Order;
 use App\Models\Owner;
 use App\Models\Referral;
 use App\Models\Appointment;
+use App\Models\Visit;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 use App\Traits\BranchFilterable;
@@ -229,12 +230,12 @@ $totalOwners = Owner::whereIn('user_id', $branchUserIds)->count();
         $totalServices = Service::where('branch_id', $activeBranchId)->count();
         $totalProducts = Product::where('branch_id', $activeBranchId)->count();
         
-        // Filter appointments by user's branch
-        $totalAppointments = Appointment::whereHas('user', function($q) use ($activeBranchId) {
+        // Filter visits by user's branch
+        $totalVisits = Visit::whereHas('user', function($q) use ($activeBranchId) {
             $q->where('branch_id', $activeBranchId);
         })->count();
         
-        $todaysAppointments = Appointment::whereDate('appoint_date', $today)
+        $todaysVisits = Visit::whereDate('visit_date', $today)
             ->whereHas('user', function($q) use ($activeBranchId) {
                 $q->where('branch_id', $activeBranchId);
             })->count();
@@ -343,8 +344,8 @@ $totalOwners = Owner::whereIn('user_id', $branchUserIds)->count();
             'totalProducts',
             'totalOrders',
             'totalBranches',
-            'totalAppointments',
-            'todaysAppointments',
+            'totalVisits',
+            'todaysVisits',
             'recentAppointments',
             'dailySales',
             'orderDates',

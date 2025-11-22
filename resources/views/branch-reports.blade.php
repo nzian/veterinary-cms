@@ -4,7 +4,7 @@
 <div class="min-h-screen bg-gray-50">
     <div class="max-w-7xl mx-auto p-6">
         <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <form method="GET" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <form method="GET" id="reportForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Report Type</label>
                     <select name="report" id="reportSelect" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
@@ -386,7 +386,7 @@
 
 <script>
 function exportReport() {
-    const form = document.querySelector('form');
+    const form = document.getElementById('reportForm');
     const exportForm = document.createElement('form');
     exportForm.method = 'GET';
     exportForm.action = '{{ route("branch-reports.export") }}';
