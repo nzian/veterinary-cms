@@ -478,6 +478,7 @@ class ProdServEquipController extends Controller
         $branches = Branch::all();
 
         $allProducts = Product::select('prod_id', 'prod_name', 'prod_stocks', 'prod_category')
+                ->where('prod_type', 'Consumable')
                 ->orderBy('prod_name')
                 ->get();
 
@@ -490,6 +491,7 @@ class ProdServEquipController extends Controller
         $validated = $request->validate([
             'prod_name' => 'required|string|max:255',
             'prod_category' => 'nullable|string|max:255',
+            'prod_type' => 'required|in:Sale,Consumable',
             'prod_description' => 'required|string|max:1000',
             'prod_price' => 'required|numeric|min:0',
             'prod_stocks' => 'nullable|integer|min:0',
@@ -533,6 +535,7 @@ class ProdServEquipController extends Controller
         $validated = $request->validate([
             'prod_name' => 'required|string|max:255',
             'prod_category' => 'nullable|string|max:255',
+            'prod_type' => 'required|in:Sale,Consumable',
             'prod_description' => 'required|string|max:1000',
             'prod_price' => 'required|numeric|min:0',
             'prod_reorderlevel' => 'nullable|integer|min:0',

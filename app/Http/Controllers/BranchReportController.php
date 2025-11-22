@@ -40,7 +40,7 @@ class BranchReportController extends Controller
         $reportType = $request->get('report', 'visits');
         $startDate = $request->get('start_date', Carbon::now()->startOfMonth()->format('Y-m-d'));
         $endDate = $request->get('end_date', Carbon::now()->format('Y-m-d'));
-
+        //dd($startDate, $endDate);
         // Initialize reports array
         $reports = [];
 
@@ -292,32 +292,282 @@ class BranchReportController extends Controller
 
     public function export(Request $request)
     {
-        // ... (export function remains unchanged, as it handles CSV export)
+        //dd($request->all());
         $user = auth()->user();
         $branchId = $user->branch_id;
-        $reportType = $request->get('report', 'appointments');
-        $startDate = $request->get('start_date');
-        $endDate = $request->get('end_date');
+        $branch = Branch::find($branchId);
+        $reportType = $request->get('report', 'visits');
+        $startDate = $request->get('start_date', Carbon::now()->startOfMonth()->format('Y-m-d'));
+        $endDate = $request->get('end_date', Carbon::now()->format('Y-m-d'));
 
-        $filename = $reportType . '_report_' . $branchId . '_' . date('Y-m-d') . '.csv';
+        $filename = $reportType . '_report_' . $branch->branch_name . '_' . date('Y-m-d') . '.csv';
         
         $headers = [
             'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"$filename\"",
         ];
 
-        // This would require recreating the report generation logic here to avoid code duplication
-        // For brevity, assuming $this->index generates reports and we can fetch data, or 
-        // passing the query to a dedicated export service. 
-        // However, sticking to the provided implementation for now:
-        // A proper implementation would re-run the relevant query based on $reportType, 
-        // $startDate, $endDate, and $branchId to get the data to populate the CSV.
-        // For the sake of modification, I will leave the original callback (which seems incomplete/placeholder).
-
-        $callback = function() use ($reportType, $startDate, $endDate, $branchId) {
+        $callback = function() use ($reportType, $startDate, $endDate, $branchId, $branch) {
             $file = fopen('php://output', 'w');
-            fputcsv($file, ['Branch Report Export']);
-            // NOTE: You would need the data fetching logic here to populate the CSV properly.
+            
+            // Add UTF-8 BOM for Excel compatibility
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+            
+            switch($reportType) {
+                case 'visits':
+                    fputcsv($file, ['Visit ID', 'Visit Date', 'Patient Type', 'Owner Name', 'Contact', 'Pet Name', 'Breed', 'Veterinarian', 'Status', 'Services', 'Branch']);
+                    
+                    Visit::whereBetween('visit_date', [$startDate, $endDate])
+                        ->whereHas('user', function($q) use ($branchId) {
+                            $q->where('branch_id', $branchId);
+                        })
+                        ->with(['pet.owner', 'user.branch', 'services'])
+                        ->chunk(100, function($visits) use ($file) {
+                            foreach($visits as $visit) {
+                                fputcsv($file, [
+                                    $visit->visit_id,
+                                    $visit->visit_date,
+                                    is_object($visit->patient_type) ? $visit->patient_type->value : $visit->patient_type,
+                                    $visit->pet->owner->own_name ?? 'N/A',
+                                    $visit->pet->owner->own_contactnum ?? 'N/A',
+                                    $visit->pet->pet_name ?? 'N/A',
+                                    $visit->pet->pet_breed ?? 'N/A',
+                                    $visit->user->name ?? 'N/A',
+                                    $visit->visit_status,
+                                    $visit->services->pluck('serv_name')->join(', '),
+                                    $visit->user->branch->branch_name ?? 'N/A'
+                                ]);
+                            }
+                        });
+                    break;
+
+                case 'pets':
+                    fputcsv($file, ['Pet ID', 'Registration Date', 'Owner Name', 'Contact', 'Pet Name', 'Species', 'Breed', 'Age', 'Gender']);
+                    
+                    Pet::whereBetween('pet_registration', [$startDate, $endDate])
+                        ->whereHas('visits', function($q) use ($branchId) {
+                            $q->whereHas('user', function($userQuery) use ($branchId) {
+                                $userQuery->where('branch_id', $branchId);
+                            });
+                        })
+                        ->with('owner')
+                        ->chunk(100, function($pets) use ($file) {
+                            foreach($pets as $pet) {
+                                fputcsv($file, [
+                                    $pet->pet_id,
+                                    $pet->pet_registration,
+                                    $pet->owner->own_name ?? 'N/A',
+                                    $pet->owner->own_contactnum ?? 'N/A',
+                                    $pet->pet_name,
+                                    $pet->pet_species,
+                                    $pet->pet_breed,
+                                    $pet->pet_age,
+                                    $pet->pet_gender
+                                ]);
+                            }
+                        });
+                    break;
+
+                case 'billing':
+                    fputcsv($file, ['Bill ID', 'Bill Date', 'Customer Name', 'Pet Name', 'Service Date', 'Total Amount', 'Payment Status', 'Branch']);
+                    
+                    DB::table('tbl_bill')
+                        ->join('tbl_visit_record', 'tbl_bill.visit_id', '=', 'tbl_visit_record.visit_id')
+                        ->join('tbl_pet', 'tbl_visit_record.pet_id', '=', 'tbl_pet.pet_id')
+                        ->join('tbl_own', 'tbl_pet.own_id', '=', 'tbl_own.own_id')
+                        ->join('tbl_user', 'tbl_visit_record.user_id', '=', 'tbl_user.user_id')
+                        ->join('tbl_branch', 'tbl_user.branch_id', '=', 'tbl_branch.branch_id')
+                        ->leftJoin('tbl_visit_service', 'tbl_visit_record.visit_id', '=', 'tbl_visit_service.visit_id')
+                        ->leftJoin('tbl_serv', 'tbl_visit_service.serv_id', '=', 'tbl_serv.serv_id')
+                        ->whereBetween('tbl_bill.bill_date', [$startDate, $endDate])
+                        ->where('tbl_user.branch_id', $branchId)
+                        ->select(
+                            'tbl_bill.bill_id',
+                            'tbl_bill.bill_date',
+                            'tbl_own.own_name',
+                            'tbl_pet.pet_name',
+                            'tbl_visit_record.visit_date',
+                            DB::raw('COALESCE(SUM(tbl_serv.serv_price), 0) as pay_total'),
+                            'tbl_branch.branch_name',
+                            'tbl_bill.bill_status'
+                        )
+                        ->groupBy(
+                            'tbl_bill.bill_id',
+                            'tbl_bill.bill_date',
+                            'tbl_own.own_name',
+                            'tbl_pet.pet_name',
+                            'tbl_visit_record.visit_date',
+                            'tbl_branch.branch_name',
+                            'tbl_bill.bill_status'
+                        )
+                        ->chunk(100, function($bills) use ($file) {
+                            foreach($bills as $bill) {
+                                fputcsv($file, [
+                                    $bill->bill_id,
+                                    $bill->bill_date,
+                                    $bill->own_name,
+                                    $bill->pet_name,
+                                    $bill->visit_date,
+                                    $bill->pay_total,
+                                    $bill->bill_status,
+                                    $bill->branch_name
+                                ]);
+                            }
+                        });
+                    break;
+
+                case 'sales':
+                    fputcsv($file, ['Order ID', 'Sale Date', 'Customer Name', 'Product Name', 'Quantity Sold', 'Unit Price', 'Total Amount', 'Cashier']);
+                    
+                    Order::whereBetween('ord_date', [$startDate, $endDate])
+                        ->whereHas('user', function($q) use ($branchId) {
+                            $q->where('branch_id', $branchId);
+                        })
+                        ->with(['product', 'owner', 'user'])
+                        ->chunk(100, function($orders) use ($file) {
+                            foreach($orders as $order) {
+                                fputcsv($file, [
+                                    $order->ord_id,
+                                    $order->ord_date,
+                                    $order->owner->own_name ?? 'Walk-in',
+                                    $order->product->prod_name ?? 'N/A',
+                                    $order->ord_quantity,
+                                    $order->product->prod_price ?? 0,
+                                    $order->ord_total,
+                                    $order->user->name ?? 'N/A'
+                                ]);
+                            }
+                        });
+                    break;
+
+                case 'referrals':
+                    fputcsv($file, ['Referral ID', 'Referral Date', 'Owner Name', 'Pet Name', 'Referral Reason', 'Referred By', 'Referred To']);
+                    
+                    Referral::whereBetween('ref_date', [$startDate, $endDate])
+                        ->whereHas('appointment.user', function($q) use ($branchId) {
+                            $q->where('branch_id', $branchId);
+                        })
+                        ->with(['appointment.pet.owner', 'appointment.user'])
+                        ->chunk(100, function($referrals) use ($file) {
+                            foreach($referrals as $referral) {
+                                fputcsv($file, [
+                                    $referral->ref_id,
+                                    $referral->ref_date,
+                                    $referral->appointment->pet->owner->own_name ?? 'N/A',
+                                    $referral->appointment->pet->pet_name ?? 'N/A',
+                                    $referral->ref_description,
+                                    $referral->appointment->user->name ?? 'N/A',
+                                    $referral->ref_to
+                                ]);
+                            }
+                        });
+                    break;
+
+                case 'equipment':
+                    fputcsv($file, ['Equipment ID', 'Equipment Name', 'Description', 'Quantity', 'Stock Status', 'Branch']);
+                    
+                    DB::table('tbl_equipment')
+                        ->join('tbl_branch', 'tbl_equipment.branch_id', '=', 'tbl_branch.branch_id')
+                        ->where('tbl_equipment.branch_id', $branchId)
+                        ->select(
+                            'tbl_equipment.equipment_id',
+                            'tbl_equipment.equipment_name',
+                            'tbl_equipment.equipment_description',
+                            'tbl_equipment.equipment_quantity',
+                            'tbl_branch.branch_name',
+                            DB::raw("CASE 
+                                WHEN equipment_quantity > 10 THEN 'Good Stock'
+                                WHEN equipment_quantity BETWEEN 1 AND 10 THEN 'Low Stock'
+                                ELSE 'Out of Stock'
+                            END as stock_status")
+                        )
+                        ->chunk(100, function($equipment) use ($file) {
+                            foreach($equipment as $item) {
+                                fputcsv($file, [
+                                    $item->equipment_id,
+                                    $item->equipment_name,
+                                    $item->equipment_description,
+                                    $item->equipment_quantity,
+                                    $item->stock_status,
+                                    $item->branch_name
+                                ]);
+                            }
+                        });
+                    break;
+
+                case 'services':
+                    fputcsv($file, ['Service ID', 'Service Name', 'Description', 'Price', 'Branch', 'Status']);
+                    
+                    Service::where('branch_id', $branchId)
+                        ->with('branch')
+                        ->chunk(100, function($services) use ($file) {
+                            foreach($services as $service) {
+                                fputcsv($file, [
+                                    $service->serv_id,
+                                    $service->serv_name,
+                                    $service->serv_description,
+                                    $service->serv_price,
+                                    $service->branch->branch_name ?? 'N/A',
+                                    'Active'
+                                ]);
+                            }
+                        });
+                    break;
+
+                case 'inventory':
+                    fputcsv($file, ['Product ID', 'Product Name', 'Description', 'Quantity', 'Unit Price', 'Stock Status', 'Branch']);
+                    
+                    Product::where('branch_id', $branchId)
+                        ->with('branch')
+                        ->chunk(100, function($products) use ($file) {
+                            foreach($products as $product) {
+                                $quantity = $product->prod_quantity ?? $product->prod_stocks ?? 0;
+                                $status = $quantity > 20 ? 'Good Stock' : ($quantity > 0 ? 'Low Stock' : 'Out of Stock');
+                                
+                                fputcsv($file, [
+                                    $product->prod_id,
+                                    $product->prod_name,
+                                    $product->prod_description,
+                                    $quantity,
+                                    $product->prod_price,
+                                    $status,
+                                    $product->branch->branch_name ?? 'N/A'
+                                ]);
+                            }
+                        });
+                    break;
+
+                case 'revenue':
+                    fputcsv($file, ['Branch', 'Period Start', 'Period End', 'Total Revenue', 'Total Transactions']);
+                    
+                    $totalRevenue = Order::whereBetween('ord_date', [$startDate, $endDate])
+                        ->whereHas('user', function($q) use ($branchId) {
+                            $q->where('branch_id', $branchId);
+                        })
+                        ->sum('ord_total');
+                    
+                    $totalTransactions = Order::whereBetween('ord_date', [$startDate, $endDate])
+                        ->whereHas('user', function($q) use ($branchId) {
+                            $q->where('branch_id', $branchId);
+                        })
+                        ->count();
+                    
+                    fputcsv($file, [
+                        $branch->branch_name,
+                        $startDate,
+                        $endDate,
+                        $totalRevenue,
+                        $totalTransactions
+                    ]);
+                    break;
+
+                default:
+                    fputcsv($file, ['Error']);
+                    fputcsv($file, ['Invalid report type: ' . $reportType]);
+                    fputcsv($file, ['Valid types are: visits, pets, billing, sales, referrals, equipment, services, inventory, revenue']);
+                    break;
+            }
+            
             fclose($file);
         };
 
@@ -329,7 +579,7 @@ class BranchReportController extends Controller
     {
         switch($reportType) {
             case 'visits':
-                // Eager load everything needed for the universal view
+                 // Eager load everything needed for the universal view
                 return Visit::where('visit_id', $id)
                     ->whereHas('user', function($q) use ($branchId) {
                         $q->where('branch_id', $branchId);

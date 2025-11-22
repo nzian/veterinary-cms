@@ -48,8 +48,10 @@ class POSController extends Controller
         ]);
 
         // 3. FETCH AND FILTER PRODUCTS (Items)
+        // Only show products marked as 'Sale' type for POS
         $itemsQuery = Product::select('prod_id', 'prod_name', 'prod_price', 'prod_stocks', 'prod_category')
             ->where('prod_stocks', '>', 0)
+            ->where('prod_type', 'Sale')
             ->orderBy('prod_name', 'asc');
 
         if ($activeBranchId) {

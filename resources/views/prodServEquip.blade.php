@@ -124,6 +124,7 @@
                                 <th class="p-2 border">Image</th>
                                 <th class="p-2 border">Name</th>
                                 <th class="p-2 border">Category</th>
+                                <th class="p-2 border">Type</th>
                                 <th class="p-2 border">Description</th>
                                 <th class="p-2 border">Price</th>
                                 <th class="p-2 border">Stock</th>
@@ -145,6 +146,11 @@
                                     </td>
                                     <td class="p-2 border font-medium">{{ $product->prod_name }}</td>
                                     <td class="p-2 border">{{ $product->prod_category }}</td>
+                                    <td class="p-2 border">
+                                        <span class="px-2 py-1 text-xs rounded-full {{ $product->prod_type === 'Sale' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700' }}">
+                                            {{ $product->prod_type }}
+                                        </span>
+                                    </td>
                                     <td class="p-2 border">{{ Str::limit($product->prod_description, 30) }}</td>
                                     <td class="p-2 border">₱{{ number_format($product->prod_price, 2) }}</td>
                                     <td class="p-2 border">
@@ -677,12 +683,12 @@
             <input type="hidden" id="currentServiceId">
 
             <div class="bg-gray-50 p-4 rounded-lg mb-4">
-                <h4 class="font-semibold mb-3">Add Product to Service</h4>
+                <h4 class="font-semibold mb-3">Add Consumable Product to Service</h4>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Select Product</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Select Consumable Product</label>
                         <select id="productSelect" class="border p-2 w-full rounded">
-                            <option value="">-- Select Product --</option>
+                            <option value="">-- Select Consumable Product --</option>
                             @foreach($allProducts as $product)
                                 <option value="{{ $product->prod_id }}" data-name="{{ $product->prod_name }}"
                                     data-stock="{{ $product->prod_stocks }}" data-category="{{ $product->prod_category }}">
@@ -690,6 +696,7 @@
                                 </option>
                             @endforeach
                         </select>
+                        <small class="text-gray-500">Only Consumable products can be linked to services</small>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Quantity Used</label>
@@ -1675,6 +1682,14 @@
                 </select>
             </div>
             <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Product Type *</label>
+                <select name="prod_type" class="border p-2 w-full rounded" required>
+                    <option value="Sale">Sale (Available for POS)</option>
+                    <option value="Consumable">Consumable (Used in Services)</option>
+                </select>
+                <small class="text-gray-500">Sale products appear in POS, Consumable products are deducted when services are used</small>
+            </div>
+            <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Price *</label>
                 <input type="number" step="0.01" name="prod_price" placeholder="Enter price" class="border p-2 w-full rounded" required>
             </div>
@@ -1744,6 +1759,14 @@
                     <option value="Hygiene & Sanitation" ${data.prod_category === 'Hygiene & Sanitation' ? 'selected' : ''}>Hygiene & Sanitation</option>
                     <option value="Pet Care Equipment" ${data.prod_category === 'Pet Care Equipment' ? 'selected' : ''}>Pet Care Equipment</option>
                 </select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Product Type *</label>
+                <select name="prod_type" class="border p-2 w-full rounded" required>
+                    <option value="Sale" ${data.prod_type === 'Sale' ? 'selected' : ''}>Sale (Available for POS)</option>
+                    <option value="Consumable" ${data.prod_type === 'Consumable' ? 'selected' : ''}>Consumable (Used in Services)</option>
+                </select>
+                <small class="text-gray-500">Sale products appear in POS, Consumable products are deducted when services are used</small>
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Price *</label>

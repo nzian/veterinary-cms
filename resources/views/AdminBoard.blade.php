@@ -488,9 +488,7 @@
 
     <!-- MAIN CONTENT -->
     <main class="flex-1 overflow-y-auto bg-gradient-to-br from-gray-50 to-gray-100 relative">
-          @yield('content')
-        </div>
-      </div>
+      @yield('content')
     </main>
   </div>
 

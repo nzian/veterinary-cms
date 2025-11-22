@@ -12,6 +12,7 @@ use App\Models\Order;
 use App\Models\Owner;
 use App\Models\User;
 use App\Models\Appointment;
+use App\Models\Visit;
 use Carbon\Carbon;
 
 class SuperAdminDashboardController extends Controller
@@ -42,7 +43,7 @@ class SuperAdminDashboardController extends Controller
                 $q->where('branch_id', $branch->branch_id);
             })->sum('ord_total');
 
-            $branchAppointments = Appointment::whereHas('user', function($q) use ($branch) {
+            $branchVisits = Visit::whereHas('user', function($q) use ($branch) {
                 $q->where('branch_id', $branch->branch_id);
             })->count();
 
@@ -55,7 +56,7 @@ class SuperAdminDashboardController extends Controller
                 'services_count' => $branch->services_count,
                 'products_count' => $branch->products_count,
                 'total_revenue' => $branchOrders,
-                'appointments_count' => $branchAppointments,
+                'visits_count' => $branchVisits,
             ];
         });
 
@@ -107,13 +108,30 @@ class SuperAdminDashboardController extends Controller
 
         // Branch Statistics Summary
         $branchStats = [
-            'total_appointments' => Appointment::count(),
-            'today_appointments' => Appointment::whereDate('appoint_date', $today)->count(),
+            'total_visits' => Visit::count(),
+            'today_visits' => Visit::whereDate('visit_date', $today)->count(),
             'total_services' => Service::count(),
             'total_products' => Product::count(),
             'total_pets' => Pet::count(),
             'total_owners' => Owner::count(),
         ];
+
+        // Visit Overview by Status
+        $visitsByStatus = Visit::selectRaw('visit_status, COUNT(*) as count')
+            ->groupBy('visit_status')
+            ->get()
+            ->pluck('count', 'visit_status')
+            ->toArray();
+
+        // Visit Overview by Patient Type
+        $visitsByPatientType = Visit::selectRaw('patient_type, COUNT(*) as count')
+            ->groupBy('patient_type')
+            ->get()
+            ->mapWithKeys(function($item) {
+                $patientType = is_object($item->patient_type) ? $item->patient_type->value : $item->patient_type;
+                return [$patientType => $item->count];
+            })
+            ->toArray();
 
         // Recent Activities Across All Branches
         $recentOrders = Order::with(['user.branch'])
@@ -163,6 +181,8 @@ class SuperAdminDashboardController extends Controller
             'recentAppointments',
             'staffDistribution',
             'appointmentsByStatus',
+            'visitsByStatus',
+            'visitsByPatientType',
             'months'
         ));
     }
@@ -187,13 +207,13 @@ class SuperAdminDashboardController extends Controller
             $q->where('branch_id', $branchId);
         })->whereDate('ord_date', $today)->sum('ord_total');
 
-        $totalAppointments = Appointment::whereHas('user', function($q) use ($branchId) {
+        $totalVisits = Visit::whereHas('user', function($q) use ($branchId) {
             $q->where('branch_id', $branchId);
         })->count();
 
-        $todayAppointments = Appointment::whereHas('user', function($q) use ($branchId) {
+        $todayVisits = Visit::whereHas('user', function($q) use ($branchId) {
             $q->where('branch_id', $branchId);
-        })->whereDate('appoint_date', $today)->count();
+        })->whereDate('visit_date', $today)->count();
 
         // Monthly performance
         $monthlyRevenue = [];
@@ -217,8 +237,8 @@ class SuperAdminDashboardController extends Controller
             'branch',
             'branchRevenue',
             'todayRevenue',
-            'totalAppointments',
-            'todayAppointments',
+            'totalVisits',
+            'todayVisits',
             'monthlyRevenue',
             'months'
         ));

@@ -84,13 +84,13 @@
                 'route' => route('branch-user-management.index')
             ],
             [
-                'label' => 'Appointments',
-                'value' => $branchStats['total_appointments'],
+                'label' => 'Total Visits',
+                'value' => $branchStats['total_visits'],
                 'icon' => '📅',
                 'color' => 'from-amber-500 to-amber-600',
-                'subtext' => 'Today: ' . $branchStats['today_appointments'],
+                'subtext' => 'Today: ' . $branchStats['today_visits'],
                 'change' => '+12%',
-                'route' => route('medical.index')
+                'route' => route('medical.index') . '?tab=visits'
             ],
         ];
     @endphp
@@ -311,6 +311,54 @@
                     @endforeach
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    <!-- Visit Overview Section -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+        <!-- Visit by Status -->
+        <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
+            <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-4">Visit Overview by Status</h3>
+            <div class="space-y-3">
+                @foreach($visitsByStatus ?? [] as $status => $count)
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-3 h-3 rounded-full 
+                            {{ $status === 'completed' ? 'bg-green-500' : '' }}
+                            {{ $status === 'pending' ? 'bg-yellow-500' : '' }}
+                            {{ $status === 'cancelled' ? 'bg-red-500' : '' }}
+                            {{ $status === 'arrived' ? 'bg-blue-500' : '' }}"></div>
+                        <span class="text-sm font-medium text-gray-700 capitalize">{{ $status }}</span>
+                    </div>
+                    <span class="text-sm font-bold text-gray-900">{{ number_format($count) }}</span>
+                </div>
+                @endforeach
+                @if(empty($visitsByStatus))
+                <p class="text-sm text-gray-500 text-center py-4">No visit data available</p>
+                @endif
+            </div>
+        </div>
+
+        <!-- Visit by Patient Type -->
+        <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
+            <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-4">Visit Overview by Patient Type</h3>
+            <div class="space-y-3">
+                @foreach($visitsByPatientType ?? [] as $patientType => $count)
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-3 h-3 rounded-full 
+                            {{ strtolower($patientType) === 'inpatient' ? 'bg-purple-500' : 'bg-teal-500' }}"></div>
+                        <span class="text-sm font-medium text-gray-700 capitalize">
+                            {{ is_object($patientType) ? $patientType->value : $patientType }}
+                        </span>
+                    </div>
+                    <span class="text-sm font-bold text-gray-900">{{ number_format($count) }}</span>
+                </div>
+                @endforeach
+                @if(empty($visitsByPatientType))
+                <p class="text-sm text-gray-500 text-center py-4">No visit data available</p>
+                @endif
+            </div>
         </div>
     </div>
 

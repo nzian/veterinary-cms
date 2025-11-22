@@ -18,13 +18,14 @@ class Product extends Model
         'prod_description',
         'prod_price',
         'prod_category',
+        'prod_type',
         'prod_stocks',
         'prod_reorderlevel',
         'prod_image',
         'prod_damaged',
         'prod_pullout',
         'prod_expiry',
-        'branch_id',
+        'branch_id'
     ];
 
     public function services()

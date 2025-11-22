@@ -95,20 +95,20 @@
         @php
             $keyMetrics = [
                 [
-                    'label' => 'Total Appointments', 
-                    'value' => $totalAppointments,
+                    'label' => 'Total Visits', 
+                    'value' => $totalVisits,
                     'icon' => '📅',
                     'color' => 'from-blue-500 to-blue-600',
                     'change' => '+12%',
-                    'route' => route('medical.index') . '?tab=appointments'
+                    'route' => route('medical.index') . '?tab=visits'
                 ],
                 [
-                    'label' => "Today's Appointments", 
-                    'value' => $todaysAppointments,
+                    'label' => "Today's Visits", 
+                    'value' => $todaysVisits,
                     'icon' => '🕒',
                     'color' => 'from-emerald-500 to-emerald-600',
                     'change' => '+8%',
-                    'route' => route('medical.index') . '?tab=appointments'
+                    'route' => route('medical.index') . '?tab=visits'
                 ],
                 [
                     'label' => 'Total Pet Owners', 
