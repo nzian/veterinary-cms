@@ -10,7 +10,7 @@
                     <select name="report" id="reportSelect" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                         @php
                             $reportOptions = [
-                                'appointments' => 'Appointment Management',
+                                'visits' => 'Visit Management',
                                 'pets' => 'Pet Registration',
                                 'billing' => 'Financial Billing',
                                 'sales' => 'Product Sales',
@@ -94,13 +94,14 @@
                         <table class="min-w-full divide-y divide-gray-200" id="reportTable">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    @if($reportType === 'appointments')
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Appointment ID</th>
+                                    @if($reportType === 'visits')
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visit ID</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner Name</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet Name</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visit Date</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient Type</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Services</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Veterinarian</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -176,13 +177,20 @@
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @foreach($currentReport['data'] as $row)
                                     <tr class="hover:bg-gray-50">
-                                        @if($reportType === 'appointments')
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $row->appoint_id }}</td>
+                                        @if($reportType === 'visits')
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $row->visit_id }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $row->owner_name }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->owner_contact }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $row->pet_name }}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ \Carbon\Carbon::parse($row->appointment_date)->format('M d, Y') }}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ \Carbon\Carbon::parse($row->appointment_time)->format('h:i A') }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ \Carbon\Carbon::parse($row->visit_date)->format('M d, Y') }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                                    {{ is_string($row->patient_type) ? ucfirst($row->patient_type) : ($row->patient_type->value ?? 'N/A') }}
+                                                </span>
+                                            </td>
+                                            <td class="px-6 py-4 text-sm text-gray-500" style="max-width: 200px; white-space: normal;">
+                                                {{ $row->services ?: 'No services' }}
+                                            </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $row->veterinarian }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
@@ -193,7 +201,7 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="openDetailedPDF('appointments', '{{ $row->appoint_id }}')" 
+                                                    <button onclick="openDetailedPDF('visits', '{{ $row->visit_id }}')" 
                                                             class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
