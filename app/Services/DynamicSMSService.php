@@ -9,7 +9,7 @@ class DynamicSMSService
     // Built-in PhilSMS Configuration - NO DATABASE NEEDED
     private $apiKey ='206|xUk8okVvNTEODDKgJ1I9IYTGLfrrzfa3g6e2zJKJ8ee7ebb3';
     private $senderId = 'PHILSMS';
-    private $apiUrl = 'https://dashboard.philsms.com/api/v3/';
+    private $apiUrl = 'https://dashboard.philsms.com/api/v3/sms/send';
     private $isActive = true;
 
     public function __construct()
