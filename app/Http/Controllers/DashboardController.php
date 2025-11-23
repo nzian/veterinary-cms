@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use App\Models\Branch;
 use App\Models\Product;
 use App\Models\Service;
@@ -15,6 +16,8 @@ use App\Models\Owner;
 use App\Models\Referral;
 use App\Models\Appointment;
 use App\Models\Visit;
+use App\Models\Billing;
+use App\Models\Payment;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 use App\Traits\BranchFilterable;
@@ -84,61 +87,40 @@ $totalOwners = Owner::whereIn('user_id', $branchUserIds)->count();
         // 3. Up To Date threshold (General Tracking): 30 days from now.
         $thirtyDaysFromNow = now()->addDays(30); 
         
-        // 1. Get Vaccination Service ID(s) based on name keywords
-        $vaccinationServiceIds = Service::where(function($query) {
-            $query->where('serv_name', 'LIKE', '%Vaccination%')
-                ->orWhere('serv_name', 'LIKE', '%Vaccine%')
-                ->orWhere('serv_name', 'LIKE', '%Immunization%')
-                ->orWhere(function($q) {
-                    $q->where('serv_type', 'Preventive Care')
-                        ->where('serv_name', 'Vaccination');
-                });
-        })->pluck('serv_id')->toArray();
-        
-        // 2. Fetch all appointments related to Vaccination service in this branch
-        $vaccinationAppointments = Appointment::with([
-            'pet.owner', 
-            // Eager load services and the pivot data for vaccine/product ID
-            'services' => function ($query) {
-                $query->withPivot('prod_id', 'vacc_next_dose');
-            }
-        ])
-        ->whereHas('user', function($q) use ($activeBranchId) {
-            $q->where('branch_id', $activeBranchId);
-        })
-        ->whereHas('services', function($q) use ($vaccinationServiceIds) {
-            $q->whereIn('tbl_appoint_serv.serv_id', $vaccinationServiceIds);
-        })
-        ->where('appoint_status', '!=', 'cancelled')
-        ->orderBy('appoint_date', 'desc')
-        ->get();
+        // Fetch vaccination records from tbl_vaccination_record table
+        $vaccinationRecords = DB::table('tbl_vaccination_record as vr')
+            ->join('tbl_pet as p', 'vr.pet_id', '=', 'p.pet_id')
+            ->join('tbl_own as o', 'p.own_id', '=', 'o.own_id')
+            ->join('tbl_visit_record as v', 'vr.visit_id', '=', 'v.visit_id')
+            ->join('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+            ->where('u.branch_id', $activeBranchId)
+            ->select(
+                'vr.pet_id',
+                'p.pet_name',
+                'p.pet_species',
+                'o.own_name as owner_name',
+                'vr.vaccine_name',
+                'vr.date_administered',
+                'vr.next_due_date',
+                DB::raw('MAX(vr.date_administered) as last_vaccination')
+            )
+            ->groupBy('vr.pet_id', 'p.pet_name', 'p.pet_species', 'o.own_name', 'vr.vaccine_name', 'vr.date_administered', 'vr.next_due_date')
+            ->orderBy('vr.date_administered', 'desc')
+            ->get();
 
-        // 3. Process and Group by pet to get the latest vaccination record
-        $latestVaccinationsPerPet = $vaccinationAppointments->groupBy('pet_id')->map(function($petVaccinations) use ($vaccinationServiceIds) {
-            $latest = $petVaccinations->sortByDesc('appoint_date')->first();
-            $vaccService = $latest->services->whereIn('serv_id', $vaccinationServiceIds)->first();
-            
-            // --- Determine Next Due Date and Specific Vaccine Name ---
-            // A. Next Due Date: Use pivot data if available, otherwise default to 12 months from appointment date.
-            $nextDueDate = $vaccService->pivot->vacc_next_dose 
-                             ? Carbon::parse($vaccService->pivot->vacc_next_dose) 
-                             : Carbon::parse($latest->appoint_date)->copy()->addMonths(12);
-
-            // B. Vaccine Name: Use the prod_id on the pivot to fetch the Product Name.
-            $vaccineProdName = 'General Vaccine';
-            if ($vaccService->pivot->prod_id) {
-                $product = Product::find($vaccService->pivot->prod_id);
-                $vaccineProdName = $product->prod_name ?? 'Product Missing';
-            }
+        // Process and Group by pet to get the latest vaccination record
+        $latestVaccinationsPerPet = $vaccinationRecords->groupBy('pet_id')->map(function($petVaccinations) {
+            $latest = $petVaccinations->sortByDesc('date_administered')->first();
+            $nextDueDate = $latest->next_due_date ? Carbon::parse($latest->next_due_date) : Carbon::parse($latest->date_administered)->copy()->addMonths(12);
 
             return [
                 'pet_id' => $latest->pet_id,
-                'pet_name' => $latest->pet->pet_name ?? 'Unknown',
-                'pet_species' => $latest->pet->pet_species ?? 'N/A', // Added species
-                'owner_name' => $latest->pet->owner->own_name ?? 'Unknown',
-                'last_vaccination' => $latest->appoint_date,
+                'pet_name' => $latest->pet_name ?? 'Unknown',
+                'pet_species' => $latest->pet_species ?? 'N/A',
+                'owner_name' => $latest->owner_name ?? 'Unknown',
+                'last_vaccination' => $latest->date_administered,
                 'next_due_date' => $nextDueDate,
-                'vaccine_name' => $vaccineProdName,
+                'vaccine_name' => $latest->vaccine_name ?? 'General Vaccine',
                 'days_until_due' => now()->diffInDays($nextDueDate, false),
             ];
         })->values();
@@ -192,22 +174,16 @@ $totalOwners = Owner::whereIn('user_id', $branchUserIds)->count();
             })
             ->values();
         
-        // 6. Get vaccination types distribution
-        // ... (This section remains unchanged)
-
-        $vaccinationTypesData = DB::table('tbl_appoint_serv as tas')
-            ->whereIn('tas.serv_id', $vaccinationServiceIds) // Only check vaccination services
-            ->whereNotNull('tas.prod_id') // Must have a recorded product
-            ->join('tbl_prod as tprod', 'tas.prod_id', '=', 'tprod.prod_id') // Join to Product table
-            ->join('tbl_appoint as ta', 'tas.appoint_id', '=', 'ta.appoint_id')
-            ->join('tbl_user as tu', 'ta.user_id', '=', 'tu.user_id')
-            ->where('tu.branch_id', $activeBranchId)
-            ->whereIn('ta.appoint_status', ['completed', 'arrived'])
+        // 6. Get vaccination types distribution from vaccination records
+        $vaccinationTypesData = DB::table('tbl_vaccination_record as vr')
+            ->join('tbl_visit_record as v', 'vr.visit_id', '=', 'v.visit_id')
+            ->join('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+            ->where('u.branch_id', $activeBranchId)
             ->select(
-                'tprod.prod_name as vaccine_name',
+                'vr.vaccine_name',
                 DB::raw('COUNT(*) as count')
             )
-            ->groupBy('tprod.prod_name')
+            ->groupBy('vr.vaccine_name')
             ->orderBy('count', 'desc')
             ->limit(5)
             ->get();
@@ -262,36 +238,58 @@ $totalOwners = Owner::whereIn('user_id', $branchUserIds)->count();
             ->limit(5)
             ->get();
 
-        // 7-Day Sales - filtered by branch
+        // 7-Day Revenue - filtered by branch (POS sales + Visit billing payments)
         $orderDates = [];
         $orderTotals = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = Carbon::today()->subDays($i);
             $orderDates[] = $date->format('M d');
-            $total = Order::whereDate('ord_date', $date)
+            
+            // POS Sales (direct orders)
+            $posTotal = Order::whereDate('ord_date', $date)
                 ->whereHas('user', function($q) use ($activeBranchId) {
                     $q->where('branch_id', $activeBranchId);
                 })
                 ->sum('ord_total');
-            $orderTotals[] = $total;
+            
+            // Visit Billing Payments
+            $visitPayments = Payment::whereDate('created_at', $date)
+                ->whereHas('billing', function($q) use ($activeBranchId) {
+                    $q->where('branch_id', $activeBranchId);
+                })
+                ->sum('pay_total');
+            
+            $orderTotals[] = $posTotal + $visitPayments;
         }
 
-        // Monthly Sales - filtered by branch
-        $monthlySales = Order::selectRaw('MONTH(ord_date) as month, SUM(ord_total) as total')
+        // Monthly Revenue - filtered by branch (POS sales + Visit billing payments)
+        // Get POS sales by month
+        $posMonthly = Order::selectRaw('MONTH(ord_date) as month, SUM(ord_total) as total')
             ->whereYear('ord_date', now()->year)
             ->whereHas('user', function($q) use ($activeBranchId) {
                 $q->where('branch_id', $activeBranchId);
             })
             ->groupBy(DB::raw('MONTH(ord_date)'))
-            ->orderBy(DB::raw('MONTH(ord_date)'))
-            ->get();
+            ->get()
+            ->keyBy('month');
+
+        // Get visit billing payments by month
+        $paymentMonthly = Payment::selectRaw('MONTH(created_at) as month, SUM(pay_total) as total')
+            ->whereYear('created_at', now()->year)
+            ->whereHas('billing', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            })
+            ->groupBy(DB::raw('MONTH(created_at)'))
+            ->get()
+            ->keyBy('month');
 
         $months = [];
         $monthlySalesTotals = [];
         for ($i = 1; $i <= 12; $i++) {
             $months[] = Carbon::create()->month($i)->format('F');
-            $monthData = $monthlySales->firstWhere('month', $i);
-            $monthlySalesTotals[] = $monthData ? (float) $monthData->total : 0;
+            $posTotal = $posMonthly->get($i)->total ?? 0;
+            $paymentTotal = $paymentMonthly->get($i)->total ?? 0;
+            $monthlySalesTotals[] = (float) ($posTotal + $paymentTotal);
         }
 
         // Complete appointment data for calendar

@@ -122,6 +122,7 @@
             @php
                 $__groom = [
                     'grooming_type' => [],
+                    'addon_services' => [],
                     'instructions' => null,
                     'start_time' => null,
                     'end_time' => null,
@@ -129,14 +130,18 @@
                 ];
 
                 if (isset($serviceData) && $serviceData) {
-                    $presetServices = collect(explode(',', $serviceData->service_package ?? ''))
+                    // For single package select, just get the first package or the entire string
+                    $presetService = trim($serviceData->service_package ?? '');
+                    
+                    $presetAddons = collect(explode(',', $serviceData->add_ons ?? ''))
                         ->map(fn ($name) => trim($name))
                         ->filter()
                         ->values()
                         ->all();
 
                     $__groom = [
-                        'grooming_type' => $presetServices,
+                        'grooming_type' => [$presetService], // Wrap in array for compatibility
+                        'addon_services' => $presetAddons,
                         'instructions' => $serviceData->remarks ?? null,
                         'start_time' => $serviceData->start_time ? \Carbon\Carbon::parse($serviceData->start_time)->format('Y-m-d\TH:i') : null,
                         'end_time' => $serviceData->end_time ? \Carbon\Carbon::parse($serviceData->end_time)->format('Y-m-d\TH:i') : null,
@@ -178,31 +183,28 @@
                                     class="w-full border border-gray-300 p-3 rounded-lg" required/>
                             </div>
                             
-                            {{-- Grooming Package Multi-select (weight & age aware) --}}
+                            {{-- Grooming Package Select (weight & age aware) --}}
                             <div>
                                 <label class="block text-sm font-semibold text-gray-700 mb-1">
-                                    Grooming Packages <span class="text-red-500 font-bold">*</span> <span class="text-red-600 text-xs font-normal">(required)</span>
-                                    <span class="block text-xs text-gray-500 font-normal">Hold Ctrl/Cmd to choose multiple services.</span>
+                                    Grooming Package <span class="text-red-500 font-bold">*</span> <span class="text-red-600 text-xs font-normal">(required)</span>
                                 </label>
                                 @php
-                                    $preselectedServices = old('grooming_type', $__groom['grooming_type'] ?? []);
-                                    if (!is_array($preselectedServices)) {
-                                        $preselectedServices = array_filter(array_map('trim', explode(',', (string) $preselectedServices)));
+                                    $preselectedService = old('grooming_type', $__groom['grooming_type'][0] ?? '');
+                                    if (is_array($preselectedService)) {
+                                        $preselectedService = $preselectedService[0] ?? '';
                                     }
                                 @endphp
-                                <select name="grooming_type[]" id="grooming_type_select" class="w-full border border-gray-300 p-3 rounded-lg min-h-[180px]" multiple required>
+                                <select name="grooming_type" id="grooming_type_select" class="w-full border border-gray-300 p-3 rounded-lg" required>
+                                    <option value="">-- Select a grooming package --</option>
                                     {{-- Store service data in data attributes for JS to read --}}
                                     @forelse($availableServices as $service)
-                                        @php
-                                            $isSelected = in_array($service->serv_name, $preselectedServices);
-                                        @endphp
                                         <option 
                                             value="{{ $service->serv_name }}" 
                                             data-min-weight="{{ $service->min_weight ?? 0 }}"
                                             data-max-weight="{{ $service->max_weight ?? 9999 }}"
                                             data-min-age="{{ $service->min_age_months ?? '' }}"
                                             data-max-age="{{ $service->max_age_months ?? '' }}"
-                                            {{ $isSelected ? 'selected' : '' }}
+                                            {{ $preselectedService == $service->serv_name ? 'selected' : '' }}
                                             class="grooming-option"
                                         >
                                             {{ $service->serv_name }} (₱{{ number_format($service->serv_price, 2) }})
@@ -222,6 +224,43 @@
                                 <p id="weight_warning" class="text-xs text-red-500 mt-1 font-semibold hidden">
                                     <i class="fas fa-exclamation-triangle mr-1"></i>
                                     Some packages are disabled because of weight or age restrictions.
+                                </p>
+                            </div>
+
+                            {{-- Add-ons Multi-select --}}
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                                    Add-on Services <span class="text-xs text-gray-500 font-normal">(optional)</span>
+                                    <span class="block text-xs text-gray-500 font-normal">Hold Ctrl/Cmd to choose multiple add-ons.</span>
+                                </label>
+                                @php
+                                    $preselectedAddons = old('addon_services', $__groom['addon_services'] ?? []);
+                                    if (!is_array($preselectedAddons)) {
+                                        $preselectedAddons = array_filter(array_map('trim', explode(',', (string) $preselectedAddons)));
+                                    }
+                                @endphp
+                                <select name="addon_services[]" id="addon_services_select" class="w-full border border-gray-300 p-3 rounded-lg min-h-[180px]" multiple>
+                                    @forelse($availableAddons as $addon)
+                                        @php
+                                            $isAddonSelected = in_array($addon->serv_name, $preselectedAddons);
+                                        @endphp
+                                        <option 
+                                            value="{{ $addon->serv_name }}" 
+                                            data-min-weight="{{ $addon->min_weight ?? 0 }}"
+                                            data-max-weight="{{ $addon->max_weight ?? 9999 }}"
+                                            data-min-age="{{ $addon->min_age_months ?? '' }}"
+                                            data-max-age="{{ $addon->max_age_months ?? '' }}"
+                                            {{ $isAddonSelected ? 'selected' : '' }}
+                                            class="addon-option"
+                                        >
+                                            {{ $addon->serv_name }} (₱{{ number_format($addon->serv_price, 2) }})
+                                        </option>
+                                    @empty
+                                        <option disabled>No add-on services available.</option>
+                                    @endforelse
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">
+                                    Select any additional services for this grooming session.
                                 </p>
                             </div>
 
@@ -674,12 +713,6 @@
 }
 </style>
 
-@include('modals.service_activity_modal', [
-    'allPets' => $allPets, 
-    'allBranches' => $allBranches, 
-    'allProducts' => $allProducts,
-])
-
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
 <script>
@@ -699,6 +732,7 @@
         const canvas = document.getElementById('modal-signature-pad');
         const petWeightElement = document.getElementById('pet_current_weight');
         const groomingSelect = document.getElementById('grooming_type_select');
+        const addonSelect = document.getElementById('addon_services_select');
         const weightWarning = document.getElementById('weight_warning');
 
         let signaturePad = null;
@@ -787,17 +821,19 @@
         }
 
         // --- Weight Validation Logic ---
-        if (petWeightElement && groomingSelect) {
+        if (petWeightElement && (groomingSelect || addonSelect)) {
             const petWeight = parseFloat(petWeightElement.getAttribute('data-weight'));
             const weightDisplay = petWeightElement.innerText.trim(); 
 
-            function validateGroomingPackages() {
+            function validateServiceOptions(selectElement) {
                 let disabledCount = 0;
                 let enabledCount = 0;
                 const weightUnavailable = isNaN(petWeight) || petWeight <= 0;
 
-                Array.from(groomingSelect.options).forEach(option => {
-                    if (option.value === "") return; 
+                if (!selectElement) return { disabledCount, enabledCount };
+
+                Array.from(selectElement.options).forEach(option => {
+                    if (option.value === "" || option.disabled) return; 
                     const minWeight = parseFloat(option.getAttribute('data-min-weight'));
                     const maxWeight = parseFloat(option.getAttribute('data-max-weight'));
 
@@ -819,26 +855,49 @@
                     }
                 });
                 
-                Array.from(groomingSelect.selectedOptions).forEach(option => {
+                Array.from(selectElement.selectedOptions).forEach(option => {
                     if (option.disabled) {
                         option.selected = false;
                     }
                 });
 
+                return { disabledCount, enabledCount };
+            }
+
+            function validateAllGroomingServices() {
+                const weightUnavailable = isNaN(petWeight) || petWeight <= 0;
+                let totalDisabled = 0;
+                let totalEnabled = 0;
+
+                // Validate grooming packages
+                if (groomingSelect) {
+                    const packagesResult = validateServiceOptions(groomingSelect);
+                    totalDisabled += packagesResult.disabledCount;
+                    totalEnabled += packagesResult.enabledCount;
+                }
+
+                // Validate add-ons
+                if (addonSelect) {
+                    const addonsResult = validateServiceOptions(addonSelect);
+                    totalDisabled += addonsResult.disabledCount;
+                    totalEnabled += addonsResult.enabledCount;
+                }
+
                 if (weightUnavailable) {
                     weightWarning.innerText = 'Pet weight is not recorded. Please record the pet\'s weight for accurate service selection.';
                     weightWarning.classList.remove('hidden');
-                } else if (enabledCount === 0) {
-                    weightWarning.innerText = `No packages available for the current weight (${weightDisplay}).`;
+                } else if (totalEnabled === 0) {
+                    weightWarning.innerText = `No services available for the current weight (${weightDisplay}).`;
                     weightWarning.classList.remove('hidden');
-                } else if (disabledCount > 0) {
-                    weightWarning.innerText = `Some service packages are disabled as the pet's weight (${weightDisplay}) falls outside their allowed range.`;
+                } else if (totalDisabled > 0) {
+                    weightWarning.innerText = `Some services are disabled as the pet's weight (${weightDisplay}) falls outside their allowed range.`;
                     weightWarning.classList.remove('hidden');
                 } else {
                     weightWarning.classList.add('hidden');
                 }
             }
-            validateGroomingPackages();
+            
+            validateAllGroomingServices();
         }
     });
 </script>

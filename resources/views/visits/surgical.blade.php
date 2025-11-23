@@ -123,11 +123,7 @@
 
                 {{-- Action Buttons --}}
                 <div class="flex justify-between items-center pt-4">
-                    <button type="button" 
-                            onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_id ?? 'N/A' }}', 'Surgical')"
-                            class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold shadow-md transition flex items-center gap-2">
-                        <i class="fas fa-tasks"></i> Service Actions
-                    </button>
+                   
                     
                     <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
                         <i class="fas fa-save mr-1"></i> Save Surgical Record
@@ -302,10 +298,4 @@
     if(m){ m.classList.add('hidden'); } 
   }
 </script>
-
-@include('modals.service_activity_modal', [
-    'allPets' => $allPets, 
-    'allBranches' => $allBranches, 
-    'allProducts' => $allProducts,
-])
 @endsection

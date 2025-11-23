@@ -625,8 +625,9 @@ public function completeService(Request $request, $visitId, $serviceId)
     public function saveGrooming(Request $request, $visitId)
     {
         $validated = $request->validate([
-            'grooming_type' => ['required','array','min:1'],
-            'grooming_type.*' => ['string','max:255'],
+            'grooming_type' => ['required','string','max:255'],
+            'addon_services' => ['nullable','array'],
+            'addon_services.*' => ['string','max:255'],
             'instructions' => ['nullable','string'],
             'start_time' => ['nullable','date'], 
             'end_time' => ['nullable','date','after_or_equal:start_time'],
@@ -644,12 +645,15 @@ public function completeService(Request $request, $visitId, $serviceId)
         try {
             DB::beginTransaction();
         
-        // 1. Find the selected service IDs and prices
-        $selectedNames = $validated['grooming_type'];
-        $selectedServices = Service::whereIn('serv_name', $selectedNames)->get();
+        // 1. Find the selected service IDs and prices (package + add-ons)
+        $selectedPackageName = $validated['grooming_type']; // Single package
+        $selectedAddonNames = $validated['addon_services'] ?? [];
+        $allSelectedNames = array_merge([$selectedPackageName], $selectedAddonNames);
+        
+        $selectedServices = Service::whereIn('serv_name', $allSelectedNames)->get();
         $selectedServiceIds = $selectedServices->pluck('serv_id')->toArray();
 
-        $missing = array_diff($selectedNames, $selectedServices->pluck('serv_name')->all());
+        $missing = array_diff($allSelectedNames, $selectedServices->pluck('serv_name')->all());
         if (!empty($missing)) {
             Log::warning('Grooming save failed: Some selected services were not found.', ['missing' => $missing]);
             throw new \Exception('One or more selected grooming services were not found.');
@@ -729,7 +733,8 @@ public function completeService(Request $request, $visitId, $serviceId)
         DB::table('tbl_grooming_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
             [
-                'service_package' => implode(', ', $selectedNames), 'add_ons' => null,
+                'service_package' => $selectedPackageName, // Single package
+                'add_ons' => !empty($selectedAddonNames) ? implode(', ', $selectedAddonNames) : null,
                 'groomer_name' => $validated['assigned_groomer'] ?? Auth::user()->user_name,
                 'start_time' => $validated['start_time'], 'end_time' => $validated['end_time'],
                 'status' => $workflowStatus, 'remarks' => $validated['instructions'],
@@ -1129,7 +1134,7 @@ public function completeService(Request $request, $visitId, $serviceId)
                     'weight' => $request->input("weight.$petId") ?? null,
                     'temperature' => $request->input("temperature.$petId") ?? null,
                     'patient_type' => $validated['patient_type'],
-                    'visit_status' => 'pending',
+                    'visit_status' => 'arrived',
                     'workflow_status' => 'Pending',
                 ];
 
@@ -1388,11 +1393,26 @@ public function completeService(Request $request, $visitId, $serviceId)
             ->select('serv_id', 'serv_name', 'serv_price') 
             ->orderBy('serv_name')
             ->get();
+        
+        // Separate packages and add-ons
+        $groomingPackages = $availableGroomingServices->filter(function($service) {
+            // Filter for "Bath and Blow Dry" or "Grooming" in service name (exclude add-ons)
+            return (stripos($service->serv_name, 'Bath and Blow Dry') !== false || 
+                    stripos($service->serv_name, 'Grooming') !== false) &&
+                   stripos($service->serv_name, 'Add on') === false &&
+                   stripos($service->serv_name, 'Add-on') === false;
+        })->unique('serv_name')->values();
+        
+        $groomingAddons = $availableGroomingServices->filter(function($service) {
+            // Filter for "Add on" or "Add-on" in service name
+            return stripos($service->serv_name, 'Add on') !== false || 
+                   stripos($service->serv_name, 'Add-on') !== false;
+        })->unique('serv_name')->values();
             
         // 2. Map the collection to extract weight limits from the 'serv_name' string
         $petWeight = optional($visit)->weight; // may be null
         $petAgeMonths = $this->calculatePetAgeInMonths(optional($visit)->pet);
-        $availableServices = $availableGroomingServices->map(function ($service) {
+        $availableServices = $groomingPackages->map(function ($service) {
             $name = $service->serv_name;
             $min_weight = 0;
             $max_weight = 9999; // Default to max/no limit
@@ -1471,6 +1491,71 @@ public function completeService(Request $request, $visitId, $serviceId)
         })
         ->values(); // Reset array keys after filtering
 
+        // Map add-ons with weight/age extraction
+        $availableAddons = $groomingAddons->map(function ($service) {
+            $name = $service->serv_name;
+            $min_weight = 0;
+            $max_weight = 9999;
+
+            // Parse weight range from service name
+            if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:to|-|–)\s*(\d+\.?\d*)\s*k[gl]?/i', $name, $matches)) {
+                $min_weight = (float)$matches[1];
+                $max_weight = (float)$matches[2];
+            }
+            else if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:below|bellow)/i', $name, $matches)) {
+                $min_weight = 0;
+                $max_weight = (float)$matches[1];
+            }
+            else if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:up|above)/i', $name, $matches)) {
+                $min_weight = (float)$matches[1];
+                $max_weight = 9999;
+            }
+            else if (preg_match('/\((\d+\.?\d*)\s*k[gl]?\)\s*(?:below|bellow)/i', $name, $matches)) {
+                $min_weight = 0;
+                $max_weight = (float)$matches[1];
+            } 
+            else if (preg_match('/\((\d+\.?\d*)\s*k[gl]?\)\s*(?:up|above)/i', $name, $matches)) {
+                $min_weight = (float)$matches[1];
+                $max_weight = 9999;
+            }
+
+            [$minAge, $maxAge] = $this->extractAgeRangeFromServiceLabel($name);
+
+            $service->min_weight = $min_weight;
+            $service->max_weight = $max_weight;
+            $service->min_age_months = $minAge;
+            $service->max_age_months = $maxAge;
+
+            return $service;
+        })
+        ->filter(function ($service) use ($petWeight) {
+            if (empty($petWeight) || !is_numeric($petWeight)) {
+                return true;
+            }
+            $minWeight = $service->min_weight ?? 0;
+            $maxWeight = $service->max_weight ?? 9999;
+            return $petWeight >= $minWeight && $petWeight <= $maxWeight;
+        })
+        ->filter(function ($service) use ($petAgeMonths) {
+            if (is_null($petAgeMonths)) {
+                return true;
+            }
+            
+            $minAge = $service->min_age_months;
+            $maxAge = $service->max_age_months;
+
+            if (!is_null($minAge) && $petAgeMonths < $minAge) {
+                return false;
+            }
+
+            if (!is_null($maxAge) && $petAgeMonths > $maxAge) {
+                return false;
+            }
+
+            return true;
+        })
+        ->values();
+
         $lookups = $this->getBranchLookups();
         $viewName = 'visits.' . $blade;
         
@@ -1499,9 +1584,14 @@ public function completeService(Request $request, $visitId, $serviceId)
                             ->orderBy('user_name')
                             ->get();
         
+        // Initialize availableAddons as empty collection if not grooming view
+        if ($blade !== 'grooming') {
+            $availableAddons = collect();
+        }
+        
         // Pass the new variable 'veterinarians' to the view
         //dd($viewName);
-        return view($viewName, array_merge(compact('visit', 'serviceData', 'petMedicalHistory', 'availableServices','vaccines', 'veterinarians'), $lookups));
+        return view($viewName, array_merge(compact('visit', 'serviceData', 'petMedicalHistory', 'availableServices','vaccines', 'veterinarians', 'availableAddons'), $lookups));
     }
     // ==================== APPOINTMENT METHODS (Full Implementations) ====================
 
