@@ -24,13 +24,13 @@
             'edit_owner' => false,
             'delete_owner' => false,
             'view_pets' => true,
-            'add_pet' => true,
-            'edit_pet' => true,
+            'add_pet' => false, // Restrict add pet
+            'edit_pet' => false, // Restrict edit pet
             'delete_pet' => false,
-            'view_medical' => true,
-            'add_medical' => true,
-            'edit_medical' => true,
-            'delete_medical' => true,
+            'view_medical' => false,
+            'add_medical' => false,
+            'edit_medical' => false,
+            'delete_medical' => false,
         ],
         'receptionist' => [
             'view_owners' => true,

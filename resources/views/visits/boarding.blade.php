@@ -178,12 +178,15 @@
                 </div>
                 
                 {{-- Action Buttons --}}
-                <div class="flex justify-end gap-3 pt-4">
-                    {{-- REMOVED: Compute & Bill Button --}}
-                    <a href="{{ route('medical.index', ['tab' => 'boarding']) }}" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold transition">Cancel</a>
-                    <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
-                        <i class="fas fa-save mr-1"></i> Save Record & Complete
-                    </button>
+                <div class="flex justify-between items-end pt-4">
+                  
+                    
+                    <div class="flex gap-3">
+                        <a href="{{ route('medical.index', ['tab' => 'boarding']) }}" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold transition">Cancel</a>
+                        <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
+                            <i class="fas fa-save mr-1"></i> Save Record & Complete
+                        </button>
+                    </div>
                 </div>
 
                 <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">

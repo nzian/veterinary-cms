@@ -293,6 +293,33 @@
                                         <button type="button" onclick="openInitialAssessment({{ $visit->visit_id }}, {{ $visit->pet_id }}, '{{ $visit->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @php
+                                            // Check if prescription exists for this visit's pet on the same date
+                                            $visitPrescription = \App\Models\Prescription::where('pet_id', $visit->pet_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($visit->visit_date))
+                                                ->first();
+                                        @endphp
+                                        @if($visitPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $visitPrescription->prescription_id }}"
+                                            data-pet="{{ $visitPrescription->pet->pet_name }}"
+                                            data-species="{{ $visitPrescription->pet->pet_species }}"
+                                            data-breed="{{ $visitPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $visitPrescription->pet->pet_weight }}"
+                                            data-age="{{ $visitPrescription->pet->pet_age }}"
+                                            data-temp="{{ $visitPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $visitPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($visitPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $visitPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $visitPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $visitPrescription->notes }}"
+                                            data-branch-name="{{ $visitPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $visitPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $visitPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                         @if(hasPermission('edit_appointment', $can))
                                         <button onclick="openEditVisitModal({{ $visit->visit_id }}, false)" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs" title="edit">
                                             <i class="fas fa-pen"></i>
@@ -701,6 +728,9 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $e->visit_id]) }}?type=emergency" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
+                                        <button type="button" onclick="openInitialAssessment({{ $e->visit_id }}, {{ $e->pet->pet_id }}, '{{ $e->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                            <i class="fas fa-notes-medical"></i>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -777,6 +807,9 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $v->visit_id]) }}?type=vaccination" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
+                                        <button type="button" onclick="openInitialAssessment({{ $v->visit_id }}, {{ $v->pet->pet_id }}, '{{ $v->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                            <i class="fas fa-notes-medical"></i>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -853,6 +886,9 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $g->visit_id]) }}?type=grooming" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
+                                        <button type="button" onclick="openInitialAssessment({{ $g->visit_id }}, {{ $g->pet->pet_id }}, '{{ $g->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                            <i class="fas fa-notes-medical"></i>
+                                        </button>
                                        
                                     </div>
                                 </td>
@@ -930,6 +966,9 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $b->visit_id]) }}?type=boarding" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
+                                        <button type="button" onclick="openInitialAssessment({{ $b->visit_id }}, {{ $b->pet->pet_id }}, '{{ $b->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                            <i class="fas fa-notes-medical"></i>
+                                        </button>
                                        
                                     </div>
                                 </td>
