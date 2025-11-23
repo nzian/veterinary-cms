@@ -202,10 +202,4 @@
         </div>
     </div>
 </div>
-
-@include('modals.service_activity_modal', [
-    'allPets' => $allPets, 
-    'allBranches' => $allBranches, 
-    'allProducts' => $allProducts,
-])
 @endsection

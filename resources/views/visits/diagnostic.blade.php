@@ -38,30 +38,7 @@
             </div>
         </div>
 
-        {{--- ADDED ROW 3: Separate Action Buttons (Ordered as requested) ---}}
-        <div class="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap gap-4 justify-between sm:justify-start">
-            <button type="button" 
-                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_name ?? 'N/A' }}', 'Initial')"
-                    class="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-notes-medical"></i> **Initial Assessment**
-            </button>
-            <button type="button" 
-                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_name ?? 'N/A' }}', 'Prescription')"
-                    class="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-prescription"></i> **Prescription**
-            </button>
-            <button type="button" 
-                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_name ?? 'N/A' }}', 'Appointment')"
-                    class="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-calendar-plus"></i> **Set Appointment**
-            </button>
-            <button type="button" 
-                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_name ?? 'N/A' }}', 'Referral')"
-                    class="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-share"></i> **Referral**
-            </button>
-        </div>
-        {{--- END ADDED ROW 3 ---}}
+       
 
         {{-- Row 4+: Main Content (full width) --}}
         <div class="space-y-6">
@@ -275,13 +252,6 @@
     </div>
   </div>
 </div>
-
-{{-- All modals for the Service Actions included here (via the include) --}}
-@include('modals.service_activity_modal', [
-    'allPets' => $allPets, 
-    'allBranches' => $allBranches, 
-    'allProducts' => $allProducts,
-])
 
 <script>
     function openPetProfileModal() { 

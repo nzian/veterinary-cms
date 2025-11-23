@@ -19,13 +19,13 @@ class BranchManagementController extends Controller
     public function index(Request $request)
     {
         try {
-            $branches = Branch::with('users')->get();
+            $branches = Branch::with('users')->orderBy('branch_id', 'desc')->get();
             
-            $users = User::with('branch')->get();
+            $users = User::with('branch')->orderBy('user_id', 'desc')->get();
 
-            $referralCompanies = ReferralCompany::with('branch')->get();
+            $referralCompanies = ReferralCompany::with('branch')->orderBy('id', 'desc')->get();
             //dd($referralCompanies);
-            
+            //dd($branches);
             return view('branchManagement', compact('branches', 'users', 'referralCompanies'));
         } catch (\Exception $e) {
             dd('Error in controller: ' . $e->getMessage());

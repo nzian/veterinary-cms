@@ -356,7 +356,7 @@
                 </div>
                 <div class="flex items-center gap-1.5 sm:gap-2">
                     <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-yellow-100 border border-yellow-300 rounded"></span> 
-                    <span class="text-xs sm:text-sm">Pending</span>
+                    <span class="text-xs sm:text-sm">Scheduled</span>
                 </div>
                 <div class="flex items-center gap-1.5 sm:gap-2">
                     <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-orange-100 border border-orange-300 rounded"></span> 
@@ -557,7 +557,10 @@
     const visitModal = document.getElementById('visitModal');
 
     function formatDate(date) {
-        return date.toISOString().split('T')[0];
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     }
 
     function getStatusColor(status) {

@@ -38,30 +38,7 @@
             </div>
         </div>
 
-        {{--- ROW 3: Separate Action Buttons ---}}
-        <div class="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap gap-4 justify-between sm:justify-start">
-            <button type="button" 
-                    onclick="openInitialAssessmentModal('{{ $visit->pet_id }}', '{{ $visit->visit_id }}')"
-                    class="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-notes-medical"></i> **Initial Assessment**
-            </button>
-            <button type="button" 
-                    onclick="openPrescriptionModal('{{ $visit->pet_id }}')"
-                    class="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-prescription"></i> **Prescription**
-            </button>
-            <button type="button" 
-                    onclick="openAppointmentModal('{{ $visit->pet_id }}', 'Deworming Follow-up')"
-                    class="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-calendar-plus"></i> **Set Appointment**
-            </button>
-            <button type="button" 
-                    onclick="openReferralModal('{{ $visit->visit_id }}')"
-                    class="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-share"></i> **Referral**
-            </button>
-        </div>
-        {{--- END ROW 3 ---}}
+      
 
         {{-- Row 4+: Main Content (full width) --}}
         <div class="space-y-6">

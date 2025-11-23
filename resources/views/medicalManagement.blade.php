@@ -44,14 +44,13 @@
         {{-- Tab Navigation --}}
         <div class="border-b border-gray-200 mb-4 sm:mb-6 overflow-x-auto">
             <nav class="-mb-px flex space-x-2 sm:space-x-4 md:space-x-6 items-center" style="min-width: max-content;">
+                @if($userRole === 'receptionist')
                 <button onclick="showTab('visits')" id="visits-tab" 
                     class="tab-button py-2 px-1 sm:px-2 border-b-2 font-medium text-sm sm:text-base active whitespace-nowrap">
                     <span class="font-bold text-lg sm:text-xl">Visits</span>
                 </button>
-                <button onclick="showTab('vaccination')" id="vaccination-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
-                    <h2 class="font-bold text-xl">Vaccination</h2>
-                </button>
+                @endif
+                
                 <button onclick="showTab('grooming')" id="grooming-tab" 
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
                     <h2 class="font-bold text-xl">Grooming</h2>
@@ -60,26 +59,33 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
                     <h2 class="font-bold text-xl">Boarding</h2>
                 </button>
+                
+                @if($userRole === 'veterinarian')
                 <button onclick="showTab('checkup')" id="checkup-tab" 
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
                     <h2 class="font-bold text-xl">Check-up</h2>
+                </button>
+                <button onclick="showTab('vaccination')" id="vaccination-tab" 
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    <h2 class="font-bold text-xl">Vaccination</h2>
                 </button>
                 <button onclick="showTab('deworming')" id="deworming-tab" 
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
                     <h2 class="font-bold text-xl">Deworming</h2>
                 </button>
-                <button onclick="showTab('diagnostics')" id="diagnostics-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
-                    <h2 class="font-bold text-xl">Diagnostics</h2>
-                </button>
                 <button onclick="showTab('surgical')" id="surgical-tab" 
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
                     <h2 class="font-bold text-xl">Surgical</h2>
+                </button>
+                <button onclick="showTab('diagnostics')" id="diagnostics-tab" 
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    <h2 class="font-bold text-xl">Diagnostics</h2>
                 </button>
                 <button onclick="showTab('emergency')" id="emergency-tab" 
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
                     <h2 class="font-bold text-xl">Emergency</h2>
                 </button>
+                @endif
             </nav>
         </div>
 
@@ -1034,13 +1040,20 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium">Status</label>
-                            <select name="visit_status" id="edit_visit_status" class="border border-gray-300 rounded px-3 py-2 w-full">
-                                <option value="arrived">Arrived</option>
-                                <option value="completed">Completed</option>
-                                <option value="cancelled">Cancelled</option>
-                            </select>
+                            <input type="text" name="visit_status" id="edit_visit_status" class="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100" readonly>
                         </div>
                     </div>
+                    
+                    <div class="border-t pt-4 mt-4">
+                        <label class="block text-sm font-medium mb-2">Services</label>
+                        <div class="space-y-2 mb-3" id="edit_services_list">
+                            <!-- Services will be populated here -->
+                        </div>
+                        <button type="button" onclick="addServiceToEdit()" class="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600">
+                            <i class="fas fa-plus mr-1"></i> Add Service Type
+                        </button>
+                    </div>
+                    
                     <div class="flex justify-end gap-2 pt-2">
                         <button type="button" onclick="closeEditVisitModal()" class="px-4 py-2 border rounded">Cancel</button>
                         <button type="submit" class="px-4 py-2 bg-[#0f7ea0] text-white rounded">Update</button>
@@ -1194,10 +1207,28 @@ function openEditVisitModal(visitId, attending) {
         if (weightInput) weightInput.value = v.weight ?? '';
         if (tempInput) tempInput.value = v.temperature ?? '';
         if (typeSelect) typeSelect.value = capitalizeFirstLetter(v.patient_type) ?? 'Outpatient';
-        if (statusSelect && v.visit_status) {
-            statusSelect.value = v.visit_status;
-        } else if (statusSelect && attending) {
-            statusSelect.value = 'arrived';
+        if (statusSelect) {
+            statusSelect.value = capitalizeFirstLetter(v.visit_status || 'pending');
+        }
+
+        // Load service types
+        const servicesList = document.getElementById('edit_services_list');
+        if (servicesList) {
+            servicesList.innerHTML = '';
+            if (v.services && v.services.length > 0) {
+                // Get unique service types from services
+                const serviceTypesSet = new Set();
+                v.services.forEach(service => {
+                    const serviceType = (service.serv_type || service.serv_name || '').toLowerCase();
+                    if (serviceType) {
+                        serviceTypesSet.add(serviceType);
+                    }
+                });
+                // Add a row for each unique service type
+                serviceTypesSet.forEach(serviceType => {
+                    addServiceToEditRow(serviceType);
+                });
+            }
         }
 
         modal.classList.remove('hidden');
@@ -1216,6 +1247,58 @@ function closeEditVisitModal() {
     if (!modal) return;
     modal.classList.add('hidden');
     modal.classList.remove('flex');
+}
+
+// Service management functions for edit visit
+let editServiceCounter = 0;
+
+function addServiceToEdit() {
+    const servicesList = document.getElementById('edit_services_list');
+    if (!servicesList) return;
+    
+    const serviceTypes = ['boarding', 'check up', 'deworming', 'diagnostics', 'emergency', 'grooming', 'surgical', 'vaccination'];
+    
+    const rowId = `edit_service_row_${editServiceCounter++}`;
+    const row = document.createElement('div');
+    row.id = rowId;
+    row.className = 'flex gap-2 items-center';
+    row.innerHTML = `
+        <select name="service_type[]" class="border border-gray-300 rounded px-3 py-2 flex-1" required>
+            <option value="">Select Service Type</option>
+            ${serviceTypes.map(type => `<option value="${type}">${capitalizeFirstLetter(type)}</option>`).join('')}
+        </select>
+        <button type="button" onclick="removeEditServiceRow('${rowId}')" class="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+            <i class="fas fa-trash"></i>
+        </button>
+    `;
+    servicesList.appendChild(row);
+}
+
+function addServiceToEditRow(serviceType) {
+    const servicesList = document.getElementById('edit_services_list');
+    if (!servicesList) return;
+    
+    const serviceTypes = ['boarding', 'check up', 'deworming', 'diagnostics', 'emergency', 'grooming', 'surgical', 'vaccination'];
+    
+    const rowId = `edit_service_row_${editServiceCounter++}`;
+    const row = document.createElement('div');
+    row.id = rowId;
+    row.className = 'flex gap-2 items-center';
+    row.innerHTML = `
+        <select name="service_type[]" class="border border-gray-300 rounded px-3 py-2 flex-1" required>
+            <option value="">Select Service Type</option>
+            ${serviceTypes.map(type => `<option value="${type}" ${type === serviceType ? 'selected' : ''}>${capitalizeFirstLetter(type)}</option>`).join('')}
+        </select>
+        <button type="button" onclick="removeEditServiceRow('${rowId}')" class="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+            <i class="fas fa-trash"></i>
+        </button>
+    `;
+    servicesList.appendChild(row);
+}
+
+function removeEditServiceRow(rowId) {
+    const row = document.getElementById(rowId);
+    if (row) row.remove();
 }
 
 // Advance workflow status inline for service tabs
@@ -1252,15 +1335,29 @@ async function advanceWorkflow(visitId, btn, type){
 document.addEventListener('DOMContentLoaded', function() {
     setupCSRF();
     
-    // Default to Visits tab on load
+    // Default tab based on user role
     try { 
-        // Read the 'tab' URL parameter, or default to 'visits'
+        // Read the 'tab' URL parameter, or default based on role
         const urlParams = new URLSearchParams(window.location.search);
-        const activeTab = urlParams.get('tab') || 'visits';
+        const userRole = '{{ $userRole }}';
+        let defaultTab = 'grooming'; // default for all
+        if (userRole === 'receptionist') {
+            defaultTab = 'visits';
+        } else if (userRole === 'veterinarian') {
+            defaultTab = 'checkup';
+        }
+        const activeTab = urlParams.get('tab') || defaultTab;
         showTab(activeTab); 
     } catch(e) {
-        // Fallback in case of an issue
-        showTab('visits');
+        // Fallback based on role
+        const userRole = '{{ $userRole }}';
+        if (userRole === 'receptionist') {
+            showTab('visits');
+        } else if (userRole === 'veterinarian') {
+            showTab('checkup');
+        } else {
+            showTab('grooming');
+        }
     }
     
     const ownerSelect = document.getElementById('add_owner_id');

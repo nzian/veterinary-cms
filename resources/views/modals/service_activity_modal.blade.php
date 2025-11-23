@@ -23,17 +23,17 @@
             {{-- Tab Buttons for Actions --}}
             <div class="col-span-2 flex justify-start items-end">
                 <nav class="flex space-x-4">
-                    <button type="button" onclick="switchActivityTab('appointment')" data-tab="appointment" class="activity-tab-btn py-2 px-4 border-b-2 font-semibold text-sm active border-purple-600 text-purple-600 hover:border-purple-800">
-                        <i class="fas fa-calendar-plus mr-1"></i> Appointment
+                    <button type="button" onclick="switchActivityTab('initial')" data-tab="initial" class="activity-tab-btn py-2 px-4 font-semibold text-sm active bg-blue-600 text-white rounded-t-lg hover:bg-blue-700">
+                        <i class="fas fa-notes-medical mr-1"></i> Initial Assessment
                     </button>
-                    <button type="button" onclick="switchActivityTab('prescription')" data-tab="prescription" class="activity-tab-btn py-2 px-4 border-b-2 font-semibold text-sm border-transparent text-gray-600 hover:text-green-600">
+                    <button type="button" onclick="switchActivityTab('prescription')" data-tab="prescription" class="activity-tab-btn py-2 px-4 font-semibold text-sm bg-gray-200 text-gray-600 rounded-t-lg hover:bg-blue-600 hover:text-white">
                         <i class="fas fa-prescription mr-1"></i> Prescription
                     </button>
-                    <button type="button" onclick="switchActivityTab('referral')" data-tab="referral" class="activity-tab-btn py-2 px-4 border-b-2 font-semibold text-sm border-transparent text-gray-600 hover:text-red-600">
-                        <i class="fas fa-share mr-1"></i> Referral
+                    <button type="button" onclick="switchActivityTab('appointment')" data-tab="appointment" class="activity-tab-btn py-2 px-4 font-semibold text-sm bg-gray-200 text-gray-600 rounded-t-lg hover:bg-blue-600 hover:text-white">
+                        <i class="fas fa-calendar-plus mr-1"></i> Appointment
                     </button>
-                    <button type="button" onclick="switchActivityTab('initial')" data-tab="initial" class="activity-tab-btn py-2 px-4 border-b-2 font-semibold text-sm border-transparent text-gray-600 hover:text-indigo-600">
-                        <i class="fas fa-notes-medical mr-1"></i> Initial Assessment
+                    <button type="button" onclick="switchActivityTab('referral')" data-tab="referral" class="activity-tab-btn py-2 px-4 font-semibold text-sm bg-gray-200 text-gray-600 rounded-t-lg hover:bg-blue-600 hover:text-white">
+                        <i class="fas fa-share mr-1"></i> Referral
                     </button>
                 </nav>
             </div>
@@ -405,11 +405,14 @@
             content.classList.add('hidden');
         });
         document.querySelectorAll('.activity-tab-btn').forEach(button => {
-            button.classList.remove('active');
+            button.classList.remove('active', 'bg-blue-600', 'text-white');
+            button.classList.add('bg-gray-200', 'text-gray-600');
         });
         
         document.getElementById(`activity_${tabName}_content`).classList.remove('hidden');
-        document.querySelector(`.activity-tab-btn[data-tab="${tabName}"]`).classList.add('active');
+        const activeButton = document.querySelector(`.activity-tab-btn[data-tab="${tabName}"]`);
+        activeButton.classList.add('active', 'bg-blue-600', 'text-white');
+        activeButton.classList.remove('bg-gray-200', 'text-gray-600');
     }
 
     function openActivityModal(petId, ownerId, currentService) {
