@@ -457,6 +457,7 @@ class ProdServEquipController extends Controller
         $equipmentPerPage = $equipmentPerPage === 'all' ? PHP_INT_MAX : (int)$equipmentPerPage;
 
         $products = Product::with('branch')
+            ->where('prod_category', '!=', 'Service')
             ->when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
                 $query->where('branch_id', $activeBranchId);
             })

@@ -484,7 +484,7 @@ class SalesManagementController extends Controller
                 foreach ($unpaidOrders as $order) {
                     if ($order->product) {
                         // Decrease the product stock
-                        $order->product->decrement('prod_stock', $order->ord_quantity);
+                        $order->product->decrement('prod_stocks', $order->ord_quantity);
                     }
                 }
                 

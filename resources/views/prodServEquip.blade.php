@@ -1656,9 +1656,13 @@
         }
 
         // PRODUCT MODAL FUNCTIONS
-        function openAddProductModal() {
+        function openAddProductModal(context = 'product', serviceId = null) {
             document.getElementById('productModal').classList.remove('hidden');
             document.getElementById('productModalTitle').innerText = 'Add Product';
+
+            // Determine default product type based on context
+            const isServiceProduct = context === 'service_product_inline';
+            const defaultType = isServiceProduct ? 'Consumable' : 'Sale';
 
             let fields = `
             <div class="mb-4">
@@ -1683,11 +1687,11 @@
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Product Type *</label>
-                <select name="prod_type" class="border p-2 w-full rounded" required>
-                    <option value="Sale">Sale (Available for POS)</option>
-                    <option value="Consumable">Consumable (Used in Services)</option>
+                <select name="prod_type" class="border p-2 w-full rounded ${isServiceProduct ? 'bg-gray-100' : ''}" required ${isServiceProduct ? 'readonly onclick="return false;"' : ''}>
+                    <option value="Sale" ${defaultType === 'Sale' ? 'selected' : ''}>Sale (Available for POS)</option>
+                    <option value="Consumable" ${defaultType === 'Consumable' ? 'selected' : ''}>Consumable (Used in Services)</option>
                 </select>
-                <small class="text-gray-500">Sale products appear in POS, Consumable products are deducted when services are used</small>
+                <small class="text-gray-500">${isServiceProduct ? 'Service products are always Consumable type' : 'Sale products appear in POS, Consumable products are deducted when services are used'}</small>
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Price *</label>
