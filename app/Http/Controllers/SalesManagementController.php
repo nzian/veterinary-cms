@@ -467,6 +467,12 @@ class SalesManagementController extends Controller
             $billing->bill_status = $billingStatus;
             $billing->save();
 
+            // Update visit status to completed when billing is fully paid
+            if ($isFullyPaid && $billing->visit) {
+                $billing->visit->visit_status = 'completed';
+                $billing->visit->save();
+            }
+
             // Update associated orders if fully paid (only update those not already paid)
             if ($isFullyPaid) {
                 // Update payment status for unpaid orders
@@ -478,7 +484,7 @@ class SalesManagementController extends Controller
                 foreach ($unpaidOrders as $order) {
                     if ($order->product) {
                         // Decrease the product stock
-                        $order->product->decrement('prod_stock', $order->ord_quantity);
+                        $order->product->decrement('prod_stocks', $order->ord_quantity);
                     }
                 }
                 

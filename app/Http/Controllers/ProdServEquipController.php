@@ -457,21 +457,25 @@ class ProdServEquipController extends Controller
         $equipmentPerPage = $equipmentPerPage === 'all' ? PHP_INT_MAX : (int)$equipmentPerPage;
 
         $products = Product::with('branch')
+            ->where('prod_category', '!=', 'Service')
             ->when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
                 $query->where('branch_id', $activeBranchId);
             })
+            ->orderBy('prod_id', 'desc')
             ->paginate($productsPerPage, ['*'], 'productsPage')
             ->appends($request->except('productsPage'));
 
         $services = Service::when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
                 $query->where('branch_id', $activeBranchId);
             })
+            ->orderBy('serv_id', 'desc')
             ->paginate($servicesPerPage, ['*'], 'servicesPage')
             ->appends($request->except('servicesPage'));
 
         $equipment = Equipment::when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
                 $query->where('branch_id', $activeBranchId);
             })
+            ->orderBy('equipment_id', 'desc')
             ->paginate($equipmentPerPage, ['*'], 'equipmentPage')
             ->appends($request->except('equipmentPage'));
 
@@ -479,7 +483,7 @@ class ProdServEquipController extends Controller
 
         $allProducts = Product::select('prod_id', 'prod_name', 'prod_stocks', 'prod_category')
                 ->where('prod_type', 'Consumable')
-                ->orderBy('prod_name')
+                ->orderBy('prod_id', 'desc')
                 ->get();
 
         return view('prodServEquip', compact('products', 'branches', 'services', 'equipment','allProducts'));

@@ -380,9 +380,9 @@ class ReportController extends Controller
             )
             ->groupBy('o.own_id', 'o.own_name', 'o.own_contactnum', 'o.own_location');
 
-        // Assuming a `created_at` field or similar on `tbl_own`
-        if ($startDate) $query->whereDate('o.created_at', '>=', $startDate); 
-        if ($endDate) $query->whereDate('o.created_at', '<=', $endDate);
+        // Filter by pet registration date
+        if ($startDate) $query->whereDate('p.pet_registration', '>=', $startDate); 
+        if ($endDate) $query->whereDate('p.pet_registration', '<=', $endDate);
 
         return $query->get();
     }
