@@ -14,16 +14,18 @@ class AppointmentSMSService
         $this->philSMS = $philSMS;
     }
     
-    public function handleFollowUpAppointment($appointmentId)
+    /**
+     * Handle SMS notification for newly created appointment
+     */
+    public function sendAppointmentCreatedSMS($appointmentId)
     {
-        // Get appointment with relationships - matching your existing structure
         $appointment = Appointment::with(['pet.owner', 'user'])->find($appointmentId);
         
-        if (!$appointment || strtolower($appointment->appoint_type) !== 'follow-up') {
+        if (!$appointment) {
+            Log::warning("Appointment not found for SMS: {$appointmentId}");
             return false;
         }
         
-        // Get phone number from owner's contact
         $phoneNumber = $appointment->pet->owner->own_contactnum ?? null;
         
         if (!$phoneNumber) {
@@ -31,72 +33,96 @@ class AppointmentSMSService
             return false;
         }
         
-        // Send immediate creation confirmation SMS
-        $this->sendCreationSMS($appointment, $phoneNumber);
-        
-        // Schedule reminder SMS notifications using Laravel jobs
-        $this->scheduleReminderSMS($appointment, $phoneNumber);
-        
-        return true;
+        $message = $this->getCreationTemplate($appointment);
+        return $this->sendSMS($phoneNumber, $message, $appointmentId, 'creation');
     }
     
-    private function sendCreationSMS($appointment, $phoneNumber)
+    /**
+     * Handle SMS notification for rescheduled appointment
+     */
+    public function sendAppointmentRescheduledSMS($appointmentId, $oldDate = null, $oldTime = null)
     {
-        $message = $this->getCreationTemplate($appointment);
+        $appointment = Appointment::with(['pet.owner', 'user'])->find($appointmentId);
         
+        if (!$appointment) {
+            Log::warning("Appointment not found for reschedule SMS: {$appointmentId}");
+            return false;
+        }
+        
+        $phoneNumber = $appointment->pet->owner->own_contactnum ?? null;
+        
+        if (!$phoneNumber) {
+            Log::warning("No phone number found for appointment ID: {$appointmentId}");
+            return false;
+        }
+        
+        $message = $this->getRescheduleTemplate($appointment, $oldDate, $oldTime);
+        return $this->sendSMS($phoneNumber, $message, $appointmentId, 'reschedule');
+    }
+    
+    /**
+     * Legacy method for backward compatibility
+     */
+    public function handleFollowUpAppointment($appointmentId)
+    {
+        return $this->sendAppointmentCreatedSMS($appointmentId);
+    }
+    
+    /**
+     * Send SMS helper method
+     */
+    private function sendSMS($phoneNumber, $message, $appointmentId, $type = 'general')
+    {
         try {
             $result = $this->philSMS->send($phoneNumber, $message);
             
             if ($result['success']) {
-                Log::info("Creation SMS sent successfully for appointment ID: {$appointment->appoint_id}");
+                Log::info("SMS ({$type}) sent successfully for appointment ID: {$appointmentId}");
+                return true;
             } else {
-                Log::error("Creation SMS failed for appointment ID: {$appointment->appoint_id} - " . $result['error']);
+                Log::error("SMS ({$type}) failed for appointment ID: {$appointmentId} - " . ($result['error'] ?? 'Unknown error'));
+                return false;
             }
         } catch (\Exception $e) {
-            Log::error("Creation SMS exception for appointment ID: {$appointment->appoint_id} - " . $e->getMessage());
+            Log::error("SMS ({$type}) exception for appointment ID: {$appointmentId} - " . $e->getMessage());
+            return false;
         }
     }
     
-    private function scheduleReminderSMS($appointment, $phoneNumber)
-{
-    // Skip scheduling - just log what would have been scheduled
-    Log::info("Would schedule SMS reminders for appointment {$appointment->appoint_id} but queue is disabled");
-    
-    // Or you could send all SMS immediately (not recommended)
-    // $this->philSMS->send($phoneNumber, $this->get24HourTemplate($appointment));
-    // $this->philSMS->send($phoneNumber, $this->get1HourTemplate($appointment));
-}
-    
+    /**
+     * Get SMS template for appointment creation
+     */
     private function getCreationTemplate($appointment)
     {
         $doctorName = $appointment->user->name ?? 'Doctor';
         $petName = $appointment->pet->pet_name ?? 'Pet';
         $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
+        $appointType = $appointment->appoint_type ?? 'appointment';
+        $branchName = $appointment->user->branch->branch_name ?? 'our clinic';
         
-        return "Hello {$ownerName}, your follow-up appointment for {$petName} has been confirmed for " .
-               Carbon::parse($appointment->appoint_date . ' ' . $appointment->appoint_time)->format('M j, Y \a\t g:i A') .
-               " with Dr. {$doctorName}. Thank you for choosing our clinic.";
+        $dateTime = Carbon::parse($appointment->appoint_date . ' ' . $appointment->appoint_time)->format('M j, Y \a\t g:i A');
+        
+        return "Hello {$ownerName}, your {$appointType} for {$petName} has been confirmed for {$dateTime} with Dr. {$doctorName} at {$branchName}. Please arrive 15 minutes early. Thank you!";
     }
     
-    private function get24HourTemplate($appointment)
+    /**
+     * Get SMS template for appointment rescheduling
+     */
+    private function getRescheduleTemplate($appointment, $oldDate = null, $oldTime = null)
     {
         $doctorName = $appointment->user->name ?? 'Doctor';
         $petName = $appointment->pet->pet_name ?? 'Pet';
         $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
+        $appointType = $appointment->appoint_type ?? 'appointment';
+        $branchName = $appointment->user->branch->branch_name ?? 'our clinic';
         
-        return "Reminder: {$ownerName}, you have a follow-up appointment for {$petName} tomorrow, " .
-               Carbon::parse($appointment->appoint_date . ' ' . $appointment->appoint_time)->format('M j, Y \a\t g:i A') .
-               " with Dr. {$doctorName}. Please arrive 15 minutes early.";
-    }
-    
-    private function get1HourTemplate($appointment)
-    {
-        $doctorName = $appointment->user->name ?? 'Doctor';
-        $petName = $appointment->pet->pet_name ?? 'Pet';
-        $ownerName = $appointment->pet->owner->own_name ?? 'Pet Owner';
+        $newDateTime = Carbon::parse($appointment->appoint_date . ' ' . $appointment->appoint_time)->format('M j, Y \a\t g:i A');
         
-        return "Final reminder: {$ownerName}, your follow-up appointment for {$petName} with Dr. {$doctorName} is in 1 hour at " .
-               Carbon::parse($appointment->appoint_time)->format('g:i A') . 
-               ". Please arrive on time. Thank you!";
+        if ($oldDate && $oldTime) {
+            $oldDateTime = Carbon::parse($oldDate . ' ' . $oldTime)->format('M j, Y \a\t g:i A');
+            return "Hello {$ownerName}, your {$appointType} for {$petName} has been rescheduled from {$oldDateTime} to {$newDateTime} with Dr. {$doctorName} at {$branchName}. Please arrive 15 minutes early. Thank you!";
+        }
+        
+        return "Hello {$ownerName}, your {$appointType} for {$petName} has been rescheduled to {$newDateTime} with Dr. {$doctorName} at {$branchName}. Please arrive 15 minutes early. Thank you!";
     }
 }

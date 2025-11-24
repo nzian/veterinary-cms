@@ -15,12 +15,16 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use App\Services\DynamicSMSService;
 
 class CareContinuityController extends Controller
 {
-    public function __construct()
+    protected $smsService;
+
+    public function __construct(DynamicSMSService $smsService)
     {
         $this->middleware('auth');
+        $this->smsService = $smsService;
     }
     /**
      * Display the Care Continuity Management page
@@ -134,7 +138,14 @@ class CareContinuityController extends Controller
         $validated['user_id'] = Auth::id();
         $validated['appoint_status'] = 'pending';
 
-        Appointment::create($validated);
+        $appointment = Appointment::create($validated);
+
+        // Send SMS notification for new appointment
+        try {
+            $this->smsService->sendFollowUpSMS($appointment);
+        } catch (\Exception $e) {
+            Log::warning("Failed to send SMS for appointment {$appointment->appoint_id}: " . $e->getMessage());
+        }
 
         $activeTab = $request->input('active_tab', 'appointments');
         return redirect()->route('care-continuity.index', ['active_tab' => $activeTab])
@@ -153,11 +164,23 @@ class CareContinuityController extends Controller
             'appoint_time' => 'required',
         ]);
 
+        // Store old values for SMS notification
+        $oldDate = $appointment->appoint_date;
+        $oldTime = $appointment->appoint_time;
+
         // Rescheduling-only: update date/time and force status
         $appointment->appoint_date = $validated['appoint_date'];
         $appointment->appoint_time = $validated['appoint_time'];
         $appointment->appoint_status = 'rescheduled';
         $appointment->save();
+
+        // Send SMS notification for rescheduled appointment
+        try {
+            $this->smsService->sendRescheduleSMS($appointment);
+        } catch (\Exception $e) {
+            Log::warning("Failed to send reschedule SMS for appointment {$appointment->appoint_id}: " . $e->getMessage());
+        }
+
         // If this is an AJAX/JSON request (e.g., from Dashboard), return JSON instead of redirect
         if ($request->expectsJson()) {
             return response()->json([
@@ -279,6 +302,13 @@ class CareContinuityController extends Controller
                 'appoint_type' => 'Referral',
                 'user_id' => Auth::id(),
             ]);
+
+            // Send SMS notification for referral appointment
+            try {
+                $this->smsService->sendNewAppointmentSMS($appointment);
+            } catch (\Exception $e) {
+                Log::warning("Failed to send SMS for referral appointment {$appointment->appoint_id}: " . $e->getMessage());
+            }
 
             Referral::create([
                 'appoint_id' => $appointment->appoint_id,

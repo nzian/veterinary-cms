@@ -755,9 +755,9 @@
 </div>
 
 {{-- Hidden Print Container for Billing (Unchanged) --}}
-<div id="printBillingContainer" style="display: none;">
+<div id="printBillingContainer">
     <div id="printBillingContent" class="billing-container bg-white p-10">
-        </div>
+    </div>
 </div>
 
 {{-- Transaction Details Modal --}}
@@ -1565,9 +1565,12 @@ function directPrintBilling(button) {
     // Small delay to ensure content is rendered, then print
     setTimeout(() => {
         window.print();
-        // Hide the container again after printing
-        printContainer.style.display = 'none';
-    }, 2000);
+        // Clear content and hide after printing
+        setTimeout(() => {
+            document.getElementById('printBillingContent').innerHTML = '';
+           // printContainer.style.display = 'none';
+        }, 100);
+    }, 200);
 }
 
 function printBillingFromModal() {
@@ -1586,8 +1589,11 @@ function printBillingFromModal() {
     // Trigger print
     setTimeout(() => {
         window.print();
-        // Hide the container again after printing
-        printContainer.style.display = 'none';
+        // Clear content and hide after printing
+        setTimeout(() => {
+            document.getElementById('printBillingContent').innerHTML = '';
+            printContainer.style.display = 'none';
+        }, 100);
     }, 200);
 }
 
@@ -1781,9 +1787,11 @@ function printTransactionFromModal() {
     // Trigger print
     setTimeout(() => {
         window.print();
-        // Hide the container again after printing
-        //document.getElementById('viewBillingModal').style.display = 'block';
-        printContainer.style.display = 'none';
+        // Clear content and hide after printing
+        setTimeout(() => {
+            document.getElementById('printTransactionContent').innerHTML = '';
+           // printContainer.style.display = 'none';
+        }, 100);
     }, 200);
 }
 

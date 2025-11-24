@@ -28,16 +28,19 @@ use Carbon\Carbon;
 use App\Services\VisitBillingService;
 use App\Services\NotificationService; 
 use App\Services\InventoryService; 
+use App\Services\DynamicSMSService;
 use App\Models\InventoryHistory as InventoryHistoryModel;
 
 class MedicalManagementController extends Controller
 {
     protected $inventoryService;
+    protected $smsService;
 
-    public function __construct(InventoryService $inventoryService)
+    public function __construct(InventoryService $inventoryService, DynamicSMSService $smsService)
     {
         $this->middleware('auth');
         $this->inventoryService = $inventoryService;
+        $this->smsService = $smsService;
     }
 public function updateServiceStatus(Request $request, $visitId, $serviceId)
     {
@@ -1684,6 +1687,13 @@ public function completeService(Request $request, $visitId, $serviceId)
 
         $appointment = Appointment::create($validated);
         
+        // Send SMS notification for new appointment
+        try {
+            $this->smsService->sendNewAppointmentSMS($appointment);
+        } catch (\Exception $e) {
+            Log::warning("Failed to send SMS for appointment {$appointment->appoint_id}: " . $e->getMessage());
+        }
+        
         // Assuming History and Service Sync Logic is restored/handled elsewhere
         
         $activeTab = $request->input('tab', 'appointments');
@@ -1709,7 +1719,21 @@ public function completeService(Request $request, $visitId, $serviceId)
             'appoint_description' => 'nullable|string', 'services' => 'array', 'services.*' => 'exists:tbl_serv,serv_id',
         ]);
 
+        // Store old values for SMS notification
+        $oldDate = $appointment->appoint_date;
+        $oldTime = $appointment->appoint_time;
+        $isRescheduled = ($validated['appoint_date'] !== $oldDate || $validated['appoint_time'] !== $oldTime);
+
         // ... (Original Update and Inventory Logic)
+        
+        // Send SMS notification if rescheduled
+        if ($isRescheduled && $validated['appoint_status'] === 'rescheduled') {
+            try {
+                $this->smsService->sendRescheduleSMS($appointment);
+            } catch (\Exception $e) {
+                Log::warning("Failed to send reschedule SMS for appointment {$appointment->appoint_id}: " . $e->getMessage());
+            }
+        }
         
         $activeTab = $request->input('tab', 'appointments');
         return redirect()->route('medical.index', ['tab' => $activeTab])
@@ -2145,6 +2169,13 @@ public function completeService(Request $request, $visitId, $serviceId)
             ]);
             
             Log::info("Auto-scheduled follow-up appointment #{$appointment->appoint_id} for pet {$visit->pet_id}");
+            
+            // Send SMS notification for auto-scheduled appointment
+            try {
+                $this->smsService->sendFollowUpSMS($appointment);
+            } catch (\Exception $e) {
+                Log::warning("Failed to send SMS for auto-scheduled appointment {$appointment->appoint_id}: " . $e->getMessage());
+            }
             
             return $appointment;
         } catch (\Exception $e) {
