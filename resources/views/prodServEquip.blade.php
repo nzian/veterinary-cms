@@ -327,10 +327,11 @@
                                             </button>
                                             
                                             {{-- ✅ NEW ADDITION: Dedicated button in the actions column --}}
-                                            @if(hasPermission('add_product', $can))
+                                            {{-- Hidden per requirement: "Inventory - hide Add Consumable Product button in Service Tab" --}}
+                                            @if(false && hasPermission('add_product', $can))
                                             <button onclick="openAddProductModal('service_product_inline', {{ $service->serv_id }})"
                                                 class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 text-xs"
-                                                title="Add Consumable Product for Service">
+                                                title="Add Consumable Product for Service" style="display: none;">
                                                 <i class="fas fa-flask"></i>
                                             </button>
                                             @endif
@@ -2261,8 +2262,14 @@
                     </select>
                 </div>
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
-                    <input type="number" name="equipment_quantity" value="${data.equipment_quantity}" class="border p-2 w-full rounded" required>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Current Quantity</label>
+                    <input type="number" name="equipment_quantity" value="${data.equipment_quantity}" class="border p-2 w-full rounded bg-gray-100" readonly>
+                    <small class="text-gray-500">Current stock level</small>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Quantity to Deduct</label>
+                    <input type="number" name="quantity_used" min="0" max="${data.equipment_quantity}" value="0" class="border p-2 w-full rounded">
+                    <small class="text-gray-500">Enter quantity used/removed (will be deducted from current stock)</small>
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Equipment Image</label>

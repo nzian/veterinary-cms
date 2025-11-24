@@ -324,7 +324,7 @@ $totalOwners = Owner::whereIn('user_id', $branchUserIds)->count();
             });
 
         // Recent Referrals - filtered by branch
-       $recentReferrals = Referral::with(['appointment.pet.owner', 'appointment.services'])
+       $recentReferrals = Referral::with(['appointment.pet.owner', 'appointment.services', 'pet.owner'])
             ->where(function($q) use ($activeBranchId) {
                 $q->where('ref_to', $activeBranchId)
                     ->orWhere('ref_by', $activeBranchId);

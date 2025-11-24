@@ -1136,10 +1136,21 @@ class ProdServEquipController extends Controller
         'equipment_status' => 'nullable|string|max:50',
         'equipment_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         'branch_id' => 'required|exists:tbl_branch,branch_id', 
-        'tab' => 'nullable|string|in:products,services,equipment' 
+        'tab' => 'nullable|string|in:products,services,equipment',
+        'quantity_used' => 'nullable|integer|min:0' 
     ]);
 
     $equipment = Equipment::findOrFail($id);
+
+    // Handle quantity deduction if quantity_used is provided
+    if ($request->filled('quantity_used') && $request->quantity_used > 0) {
+        $quantityUsed = (int) $request->quantity_used;
+        $currentQuantity = $equipment->equipment_quantity;
+        
+        // Calculate new quantity (deduct used quantity)
+        $newQuantity = max(0, $currentQuantity - $quantityUsed);
+        $validated['equipment_quantity'] = $newQuantity;
+    }
 
     if ($request->hasFile('equipment_image')) {
         if ($equipment->equipment_image) {

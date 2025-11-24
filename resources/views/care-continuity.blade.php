@@ -443,8 +443,8 @@
                                     @endif
                                 </td>
                                 <td class="border px-2 py-2">{{ \Carbon\Carbon::parse($referral->ref_date)->format('F j, Y') }}</td>
-                                <td class="border px-2 py-2">{{ $referral->appointment?->pet?->pet_name ?? 'N/A' }}</td>
-                                <td class="border px-2 py-2">{{ $referral->appointment?->pet?->owner?->own_name ?? 'N/A' }}</td>
+                                <td class="border px-2 py-2">{{ $referral->pet?->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-2 py-2">{{ $referral->pet?->owner?->own_name ?? 'N/A' }}</td>
                                 <td class="border px-2 py-2">{{ $referral->refToBranch?->branch_name ?? 'N/A' }}</td>
                                 <td class="border px-2 py-2">{{ Str::limit($referral->ref_description, 50) }}</td>
                                 <td class="border px-2 py-2">

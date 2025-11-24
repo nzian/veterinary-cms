@@ -38,23 +38,32 @@ class BranchReportController extends Controller
 
         // Get filter parameters
         $reportType = $request->get('report', 'visits');
-        $startDate = $request->get('start_date', Carbon::now()->startOfMonth()->format('Y-m-d'));
-        $endDate = $request->get('end_date', Carbon::now()->format('Y-m-d'));
-        //dd($startDate, $endDate);
+        $startDate = $request->get('start_date');
+        $endDate = $request->get('end_date');
+        
+        // Check if dates are valid (not empty and not placeholder format)
+        $hasValidDates = !empty($startDate) && !empty($endDate) && 
+                        $startDate !== 'dd/mm/yyyy' && $endDate !== 'dd/mm/yyyy';
+        
         // Initialize reports array
         $reports = [];
 
         // Generate reports based on type - ALL FILTERED BY BRANCH
         switch($reportType) {
             case 'visits':
+                $query = Visit::whereHas('user', function($q) use ($branchId) {
+                    $q->where('branch_id', $branchId);
+                });
+                
+                // Only apply date filter if valid dates provided
+                if ($hasValidDates) {
+                    $query->whereBetween('visit_date', [$startDate, $endDate]);
+                }
+                
                 $reports['visits'] = [
                     'title' => 'Visit Management Report',
                     'description' => 'Complete visit records for ' . $branch->branch_name,
-                    'data' => Visit::whereBetween('visit_date', [$startDate, $endDate])
-                        ->whereHas('user', function($q) use ($branchId) {
-                            $q->where('branch_id', $branchId);
-                        })
-                        ->with(['pet.owner', 'user.branch', 'services'])
+                    'data' => $query->with(['pet.owner', 'user.branch', 'services'])
                         ->get()
                         ->map(function($visit) {
                             return (object)[
@@ -76,16 +85,21 @@ class BranchReportController extends Controller
 
             case 'pets':
                 // Filter pets by visits that belong to the branch
+                $petQuery = Pet::whereHas('visits', function($q) use ($branchId) {
+                    $q->whereHas('user', function($userQuery) use ($branchId) {
+                        $userQuery->where('branch_id', $branchId);
+                    });
+                });
+                
+                // Only apply date filter if valid dates provided
+                if ($hasValidDates) {
+                    $petQuery->whereBetween('pet_registration', [$startDate, $endDate]);
+                }
+                
                 $reports['pets'] = [
                     'title' => 'Pet Registration Report',
                     'description' => 'Registered pets at ' . $branch->branch_name,
-                    'data' => Pet::whereBetween('pet_registration', [$startDate, $endDate])
-                        ->whereHas('visits', function($q) use ($branchId) {
-                            $q->whereHas('user', function($userQuery) use ($branchId) {
-                                $userQuery->where('branch_id', $branchId);
-                            });
-                        })
-                        ->with('owner')
+                    'data' => $petQuery->with('owner')
                         ->get()
                         ->map(function($pet) {
                             return (object)[
@@ -104,19 +118,25 @@ class BranchReportController extends Controller
                 break;
 
             case 'billing':
+                $billingQuery = DB::table('tbl_bill')
+                    ->join('tbl_visit_record', 'tbl_bill.visit_id', '=', 'tbl_visit_record.visit_id')
+                    ->join('tbl_pet', 'tbl_visit_record.pet_id', '=', 'tbl_pet.pet_id')
+                    ->join('tbl_own', 'tbl_pet.own_id', '=', 'tbl_own.own_id')
+                    ->join('tbl_user', 'tbl_visit_record.user_id', '=', 'tbl_user.user_id')
+                    ->join('tbl_branch', 'tbl_user.branch_id', '=', 'tbl_branch.branch_id')
+                    ->leftJoin('tbl_visit_service', 'tbl_visit_record.visit_id', '=', 'tbl_visit_service.visit_id')
+                    ->leftJoin('tbl_serv', 'tbl_visit_service.serv_id', '=', 'tbl_serv.serv_id')
+                    ->where('tbl_user.branch_id', $branchId);
+                
+                // Only apply date filter if valid dates provided
+                if ($hasValidDates) {
+                    $billingQuery->whereBetween('tbl_bill.bill_date', [$startDate, $endDate]);
+                }
+                
                 $reports['billing'] = [
                     'title' => 'Financial Billing Report',
                     'description' => 'Billing records for ' . $branch->branch_name,
-                    'data' => DB::table('tbl_bill')
-                        ->join('tbl_visit_record', 'tbl_bill.visit_id', '=', 'tbl_visit_record.visit_id')
-                        ->join('tbl_pet', 'tbl_visit_record.pet_id', '=', 'tbl_pet.pet_id')
-                        ->join('tbl_own', 'tbl_pet.own_id', '=', 'tbl_own.own_id')
-                        ->join('tbl_user', 'tbl_visit_record.user_id', '=', 'tbl_user.user_id')
-                        ->join('tbl_branch', 'tbl_user.branch_id', '=', 'tbl_branch.branch_id')
-                        ->leftJoin('tbl_visit_service', 'tbl_visit_record.visit_id', '=', 'tbl_visit_service.visit_id')
-                        ->leftJoin('tbl_serv', 'tbl_visit_service.serv_id', '=', 'tbl_serv.serv_id')
-                        ->whereBetween('tbl_bill.bill_date', [$startDate, $endDate])
-                        ->where('tbl_user.branch_id', $branchId)
+                    'data' => $billingQuery
                         ->select(
                             'tbl_bill.bill_id',
                             'tbl_own.own_name as customer_name',
@@ -139,14 +159,19 @@ class BranchReportController extends Controller
                 break;
 
             case 'sales':
+                $salesQuery = Order::whereHas('user', function($q) use ($branchId) {
+                    $q->where('branch_id', $branchId);
+                });
+                
+                // Only apply date filter if valid dates provided
+                if ($hasValidDates) {
+                    $salesQuery->whereBetween('ord_date', [$startDate, $endDate]);
+                }
+                
                 $reports['sales'] = [
                     'title' => 'Product Sales Report',
                     'description' => 'Sales transactions for ' . $branch->branch_name,
-                    'data' => Order::whereBetween('ord_date', [$startDate, $endDate])
-                        ->whereHas('user', function($q) use ($branchId) {
-                            $q->where('branch_id', $branchId);
-                        })
-                        ->with(['product', 'owner', 'user'])
+                    'data' => $salesQuery->with(['product', 'owner', 'user'])
                         ->get()
                         ->map(function($order) {
                             return (object)[
@@ -164,14 +189,19 @@ class BranchReportController extends Controller
                 break;
 
             case 'referrals':
+                $referralQuery = Referral::whereHas('appointment.user', function($q) use ($branchId) {
+                    $q->where('branch_id', $branchId);
+                });
+                
+                // Only apply date filter if valid dates provided
+                if ($hasValidDates) {
+                    $referralQuery->whereBetween('ref_date', [$startDate, $endDate]);
+                }
+                
                 $reports['referrals'] = [
                     'title' => 'Referral Report',
                     'description' => 'Patient referrals from ' . $branch->branch_name,
-                    'data' => Referral::whereBetween('ref_date', [$startDate, $endDate])
-                        ->whereHas('appointment.user', function($q) use ($branchId) {
-                            $q->where('branch_id', $branchId);
-                        })
-                        ->with(['appointment.pet.owner', 'appointment.user'])
+                    'data' => $referralQuery->with(['appointment.pet.owner', 'appointment.user'])
                         ->get()
                         ->map(function($referral) {
                             return (object)[

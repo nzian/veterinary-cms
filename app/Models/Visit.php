@@ -34,6 +34,10 @@ class Visit extends Model
         // keep other casts here if needed
     ];
 
+    protected $attributes = [
+        'visit_status' => 'arrived',
+    ];
+
     /**
      * Accessor: return PatientType enum instance when possible, otherwise raw value.
      */

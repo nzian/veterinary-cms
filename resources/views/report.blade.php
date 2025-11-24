@@ -30,9 +30,7 @@
             'branch_payments' => 'Branch Payment Summary',
             
             // Medical Reports
-            'medical_history' => 'Medical History & Follow-Ups',
             'prescriptions' => 'Prescriptions by Branch',
-            'referral_medical' => 'Referrals with Medical History',
             
             // Staff & Branch Reports
             'branch_users' => 'Users Assigned per Branch',
@@ -136,14 +134,16 @@
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                             @if(($reportType === 'visits' || $reportType === 'visit_services' || $reportType === 'branch_visits') && $key === 'veterinarian')
                                                 Veterinarian
+                                            @elseif($reportType === 'owner_pets' && $key === 'total_pets')
+                                                Total Pets (Count)
                                             @elseif($reportType === 'branch_payments' && $key === 'total_payments_count')
-                                                Total Payments (Count)
+                                                Total Payment Counts
                                             @elseif($reportType === 'branch_equipment' && $key === 'total_equipment_count')
                                                 Total Equipment (Count)
                                             @elseif($reportType === 'branch_equipment' && $key === 'total_quantity_sum')
-                                                Total Quantity (Count)
+                                                Total Quantity
                                             @elseif($reportType === 'service_utilization' && $key === 'total_used_count')
-                                                Total Used (Count)
+                                                Total Used
                                             @elseif($reportType === 'prescriptions' && $key === 'raw_medication_data')
                                                 Medications
                                             @else
