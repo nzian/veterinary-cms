@@ -983,7 +983,7 @@
 @media print {
     @page {
         margin: 0.5in;
-        size: A4;
+        size: A4 portrait;
     }
     
     body * {
@@ -1003,25 +1003,32 @@
     
     #printBillingContainer,
     #printTransactionContainer {
-        position: absolute !important;
+        position: fixed !important;
         left: 0 !important;
         top: 0 !important;
-        width: 100% !important;
+        width: 100vw !important;
+        height: 100vh !important;
         display: block !important;
+        visibility: visible !important;
         background: white !important;
+        z-index: 99999 !important;
+        overflow: visible !important;
     }
     
     #printBillingContent,
     #printTransactionContent {
         position: relative !important;
-        width: 100% !important;
+        width: 7.5in !important;
+        min-height: 10in !important;
         height: auto !important;
         background: white !important;
-        border: 2px solid #000 !important;
-        padding: 30px !important;
+        border: none !important;
+        padding: 0.3in !important;
         margin: 0 auto !important;
         box-sizing: border-box !important;
-        max-width: 100%;
+        max-width: 7.5in !important;
+        visibility: visible !important;
+        overflow: visible !important;
     }
     
     #printBillingContent .footer {
@@ -1051,6 +1058,62 @@
     .medication-item {
         border-left: 3px solid #10b981 !important;
         background-color: #f0fdf4 !important;
+    }
+    
+    /* Ensure all child elements in print containers are visible */
+    #printBillingContent *,
+    #printTransactionContent * {
+        display: revert !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+    
+    /* Ensure header elements are properly visible and not covered */
+    #printBillingContent .header,
+    #printTransactionContent .header {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        border-bottom: 2px solid #000 !important;
+        padding-bottom: 0.25in !important;
+        margin-bottom: 0.25in !important;
+        page-break-inside: avoid !important;
+    }
+    
+    #printBillingContent .header img,
+    #printTransactionContent .header img {
+        width: 1.5in !important;
+        height: 1.5in !important;
+        object-fit: contain !important;
+    }
+    
+    #printBillingContent .clinic-name,
+    #printTransactionContent .clinic-name {
+        font-size: 18pt !important;
+        font-weight: bold !important;
+        color: #a86520 !important;
+        margin-bottom: 0.1in !important;
+    }
+    
+    #printBillingContent .branch-name,
+    #printTransactionContent .branch-name {
+        font-size: 14pt !important;
+        font-weight: bold !important;
+        text-decoration: underline !important;
+        margin-top: 0.05in !important;
+    }
+    
+    #printBillingContent .clinic-details,
+    #printTransactionContent .clinic-details {
+        font-size: 10pt !important;
+        margin-top: 0.05in !important;
+    }
+    
+    /* Footer on separate page if needed */
+    #printBillingContent .footer,
+    #printTransactionContent .footer {
+        page-break-inside: avoid !important;
+        margin-top: 0.25in !important;
     }
 }
 </style>
@@ -1504,7 +1567,7 @@ function directPrintBilling(button) {
         window.print();
         // Hide the container again after printing
         printContainer.style.display = 'none';
-    }, 200);
+    }, 2000);
 }
 
 function printBillingFromModal() {

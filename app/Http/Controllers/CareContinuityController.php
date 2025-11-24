@@ -74,7 +74,7 @@ class CareContinuityController extends Controller
 
         // Referrals Query
         $referralPerPage = $request->get('referralPerPage', 10);
-        $referralsQuery = Referral::with(['appointment.pet.owner', 'refToBranch', 'refByBranch'])
+        $referralsQuery = Referral::with(['appointment.pet.owner', 'pet.owner', 'refToBranch', 'refByBranch'])
             ->where(function($q) use ($activeBranchId) {
                 $q->where('ref_to', $activeBranchId)
                   ->orWhere('ref_by', $activeBranchId);
@@ -303,15 +303,15 @@ class CareContinuityController extends Controller
     public function showReferral($id)
     {
         try {
-            $referral = Referral::with(['appointment.pet.owner', 'refToBranch', 'refByBranch'])
+            $referral = Referral::with(['appointment.pet.owner', 'pet.owner', 'refToBranch', 'refByBranch'])
                 ->findOrFail($id);
 
             return response()->json([
                 'ref_id' => $referral->ref_id,
                 'ref_date' => Carbon::parse($referral->ref_date)->format('F d, Y'),
                 'ref_description' => $referral->ref_description,
-                'pet_name' => $referral->appointment->pet->pet_name,
-                'owner_name' => $referral->appointment->pet->owner->own_name,
+                'pet_name' => $referral->pet?->pet_name ?? $referral->appointment?->pet?->pet_name ?? 'N/A',
+                'owner_name' => $referral->pet?->owner?->own_name ?? $referral->appointment?->pet?->owner?->own_name ?? 'N/A',
                 'ref_to_branch' => $referral->refToBranch->branch_name ?? 'N/A',
                 'ref_by_branch' => $referral->refByBranch->branch_name ?? 'N/A',
             ]);

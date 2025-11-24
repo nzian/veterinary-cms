@@ -630,13 +630,21 @@ class SalesManagementController extends Controller
             ];
         }
 
+        // Get branch information
+        $branch = auth()->user()->branch ?? \App\Models\Branch::first();
+        
         return response()->json([
             'transactionType' => $transactionType,
             'date' => Carbon::parse($firstOrder->ord_date)->format('M d, Y h:i A'),
             'customer' => $firstOrder->owner->own_name ?? 'Walk-in Customer',
             'cashier' => $firstOrder->user->user_name ?? 'N/A',
             'total' => number_format($total, 2),
-            'orders' => $orderData
+            'orders' => $orderData,
+            'branch' => [
+                'name' => $branch->branch_name ?? 'Main Branch',
+                'address' => 'Address: ' . ($branch->branch_address ?? 'Branch Address'),
+                'contact' => 'Contact No: ' . ($branch->branch_contactNum ?? 'Contact Number')
+            ]
         ]);
     }
 }

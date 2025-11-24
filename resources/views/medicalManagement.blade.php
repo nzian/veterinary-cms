@@ -44,7 +44,7 @@
         {{-- Tab Navigation --}}
         <div class="border-b border-gray-200 mb-4 sm:mb-6 overflow-x-auto">
             <nav class="-mb-px flex space-x-2 sm:space-x-4 md:space-x-6 items-center" style="min-width: max-content;">
-                @if($userRole === 'receptionist')
+                @if(in_array($userRole, ['receptionist', 'veterinarian', 'superadmin']))
                 <button onclick="showTab('visits')" id="visits-tab" 
                     class="tab-button py-2 px-1 sm:px-2 border-b-2 font-medium text-sm sm:text-base active whitespace-nowrap">
                     <span class="font-bold text-lg sm:text-xl">Visits</span>
@@ -287,9 +287,11 @@
                                 <td class="border px-4 py-2">{{ $visit->visit_status ?? '-' }}</td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        @if(auth()->check() && in_array(auth()->user()->user_role, ['veterinarian']) && !in_array(auth()->user()->user_role, ['super_admin']))
                                         <a href="{{ route('medical.visits.perform', ['id' => $visit->visit_id]) }}" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
+                                        @endif
                                         <button type="button" onclick="openInitialAssessment({{ $visit->visit_id }}, {{ $visit->pet_id }}, '{{ $visit->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
@@ -415,6 +417,32 @@
                                         <button type="button" onclick="openInitialAssessment({{ $c->visit_id }}, {{ $c->pet_id }}, '{{ $c->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @php
+                                            $checkupPrescription = \App\Models\Prescription::where('pet_id', $c->pet_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($c->visit_date))
+                                                ->first();
+                                        @endphp
+                                        @if($checkupPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $checkupPrescription->prescription_id }}"
+                                            data-pet="{{ $checkupPrescription->pet->pet_name }}"
+                                            data-species="{{ $checkupPrescription->pet->pet_species }}"
+                                            data-breed="{{ $checkupPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $checkupPrescription->pet->pet_weight }}"
+                                            data-age="{{ $checkupPrescription->pet->pet_age }}"
+                                            data-temp="{{ $checkupPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $checkupPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($checkupPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $checkupPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $checkupPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $checkupPrescription->notes }}"
+                                            data-branch-name="{{ $checkupPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $checkupPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $checkupPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -494,6 +522,32 @@
                                         <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @php
+                                            $dewormPrescription = \App\Models\Prescription::where('pet_id', $d->pet_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($d->visit_date))
+                                                ->first();
+                                        @endphp
+                                        @if($dewormPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $dewormPrescription->prescription_id }}"
+                                            data-pet="{{ $dewormPrescription->pet->pet_name }}"
+                                            data-species="{{ $dewormPrescription->pet->pet_species }}"
+                                            data-breed="{{ $dewormPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $dewormPrescription->pet->pet_weight }}"
+                                            data-age="{{ $dewormPrescription->pet->pet_age }}"
+                                            data-temp="{{ $dewormPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $dewormPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($dewormPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $dewormPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $dewormPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $dewormPrescription->notes }}"
+                                            data-branch-name="{{ $dewormPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $dewormPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $dewormPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -573,6 +627,32 @@
                                         <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @php
+                                            $diagPrescription = \App\Models\Prescription::where('pet_id', $d->pet_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($d->visit_date))
+                                                ->first();
+                                        @endphp
+                                        @if($diagPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $diagPrescription->prescription_id }}"
+                                            data-pet="{{ $diagPrescription->pet->pet_name }}"
+                                            data-species="{{ $diagPrescription->pet->pet_species }}"
+                                            data-breed="{{ $diagPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $diagPrescription->pet->pet_weight }}"
+                                            data-age="{{ $diagPrescription->pet->pet_age }}"
+                                            data-temp="{{ $diagPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $diagPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($diagPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $diagPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $diagPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $diagPrescription->notes }}"
+                                            data-branch-name="{{ $diagPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $diagPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $diagPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -652,6 +732,32 @@
                                         <button type="button" onclick="openInitialAssessment({{ $s->visit_id }}, {{ $s->pet_id }}, '{{ $s->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @php
+                                            $surgPrescription = \App\Models\Prescription::where('pet_id', $s->pet_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($s->visit_date))
+                                                ->first();
+                                        @endphp
+                                        @if($surgPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $surgPrescription->prescription_id }}"
+                                            data-pet="{{ $surgPrescription->pet->pet_name }}"
+                                            data-species="{{ $surgPrescription->pet->pet_species }}"
+                                            data-breed="{{ $surgPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $surgPrescription->pet->pet_weight }}"
+                                            data-age="{{ $surgPrescription->pet->pet_age }}"
+                                            data-temp="{{ $surgPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $surgPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($surgPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $surgPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $surgPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $surgPrescription->notes }}"
+                                            data-branch-name="{{ $surgPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $surgPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $surgPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -731,6 +837,32 @@
                                         <button type="button" onclick="openInitialAssessment({{ $e->visit_id }}, {{ $e->pet->pet_id }}, '{{ $e->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @php
+                                            $emergPrescription = \App\Models\Prescription::where('pet_id', $e->pet_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($e->visit_date))
+                                                ->first();
+                                        @endphp
+                                        @if($emergPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $emergPrescription->prescription_id }}"
+                                            data-pet="{{ $emergPrescription->pet->pet_name }}"
+                                            data-species="{{ $emergPrescription->pet->pet_species }}"
+                                            data-breed="{{ $emergPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $emergPrescription->pet->pet_weight }}"
+                                            data-age="{{ $emergPrescription->pet->pet_age }}"
+                                            data-temp="{{ $emergPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $emergPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($emergPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $emergPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $emergPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $emergPrescription->notes }}"
+                                            data-branch-name="{{ $emergPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $emergPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $emergPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -810,6 +942,32 @@
                                         <button type="button" onclick="openInitialAssessment({{ $v->visit_id }}, {{ $v->pet->pet_id }}, '{{ $v->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @php
+                                            $vaccPrescription = \App\Models\Prescription::where('pet_id', $v->pet_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($v->visit_date))
+                                                ->first();
+                                        @endphp
+                                        @if($vaccPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $vaccPrescription->prescription_id }}"
+                                            data-pet="{{ $vaccPrescription->pet->pet_name }}"
+                                            data-species="{{ $vaccPrescription->pet->pet_species }}"
+                                            data-breed="{{ $vaccPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $vaccPrescription->pet->pet_weight }}"
+                                            data-age="{{ $vaccPrescription->pet->pet_age }}"
+                                            data-temp="{{ $vaccPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $vaccPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($vaccPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $vaccPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $vaccPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $vaccPrescription->notes }}"
+                                            data-branch-name="{{ $vaccPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $vaccPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $vaccPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -889,7 +1047,32 @@
                                         <button type="button" onclick="openInitialAssessment({{ $g->visit_id }}, {{ $g->pet->pet_id }}, '{{ $g->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
-                                       
+                                        @php
+                                            $groomPrescription = \App\Models\Prescription::where('pet_id', $g->pet_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($g->visit_date))
+                                                ->first();
+                                        @endphp
+                                        @if($groomPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $groomPrescription->prescription_id }}"
+                                            data-pet="{{ $groomPrescription->pet->pet_name }}"
+                                            data-species="{{ $groomPrescription->pet->pet_species }}"
+                                            data-breed="{{ $groomPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $groomPrescription->pet->pet_weight }}"
+                                            data-age="{{ $groomPrescription->pet->pet_age }}"
+                                            data-temp="{{ $groomPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $groomPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($groomPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $groomPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $groomPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $groomPrescription->notes }}"
+                                            data-branch-name="{{ $groomPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $groomPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $groomPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -969,7 +1152,32 @@
                                         <button type="button" onclick="openInitialAssessment({{ $b->visit_id }}, {{ $b->pet->pet_id }}, '{{ $b->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
-                                       
+                                        @php
+                                            $boardPrescription = \App\Models\Prescription::where('pet_id', $b->pet_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($b->visit_date))
+                                                ->first();
+                                        @endphp
+                                        @if($boardPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $boardPrescription->prescription_id }}"
+                                            data-pet="{{ $boardPrescription->pet->pet_name }}"
+                                            data-species="{{ $boardPrescription->pet->pet_species }}"
+                                            data-breed="{{ $boardPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $boardPrescription->pet->pet_weight }}"
+                                            data-age="{{ $boardPrescription->pet->pet_age }}"
+                                            data-temp="{{ $boardPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $boardPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($boardPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $boardPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $boardPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $boardPrescription->notes }}"
+                                            data-branch-name="{{ $boardPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $boardPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $boardPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -1639,6 +1847,9 @@ document.addEventListener('DOMContentLoaded', function(){
     bindSearch('diagnosticsSearch', '#diagnosticsContent table', 'diagnosticsVisitsPerPage', 'mm_search_diagnostics');
     bindSearch('surgicalSearch', '#surgicalContent table', 'surgicalVisitsPerPage', 'mm_search_surgical');
     bindSearch('emergencySearch', '#emergencyContent table', 'emergencyVisitsPerPage', 'mm_search_emergency');
+    bindSearch('vaccinationSearch', '#vaccinationContent table', 'vaccinationVisitsPerPage', 'mm_search_vaccination');
+    bindSearch('groomingSearch', '#groomingContent table', 'groomingVisitsPerPage', 'mm_search_grooming');
+    bindSearch('boardingSearch', '#boardingContent table', 'boardingVisitsPerPage', 'mm_search_boarding');
 });
 </script>
 
@@ -1666,6 +1877,163 @@ document.addEventListener('DOMContentLoaded', function(){
         }
     }
     window.openInitialAssessment = openInitialAssessment;
+
+    // Prescription Print Functions
+    function populatePrescriptionData(button) {
+        let medications = [];
+        try {
+            medications = JSON.parse(button.dataset.medication || '[]');
+        } catch (e) {
+            if (button.dataset.medication) {
+                const oldMeds = button.dataset.medication.split(';');
+                medications = oldMeds.map(med => ({
+                    product_name: med.trim(),
+                    instructions: '[Instructions will be added here]'
+                }));
+            }
+        }
+        
+        const prescriptionData = {
+            id: button.dataset.id,
+            pet: button.dataset.pet,
+            weight: button.dataset.weight || 'N/A',
+            temp: button.dataset.temp || 'N/A',
+            age: button.dataset.age || 'N/A',
+            gender: button.dataset.gender || 'N/A',
+            date: button.dataset.date,
+            medications: medications,
+            differentialDiagnosis: button.dataset.differentialDiagnosis || 'Not specified',
+            notes: button.dataset.notes || 'No specific recommendations',
+            branchName: button.dataset.branchName.toUpperCase(),
+            branchAddress: 'Address: ' + button.dataset.branchAddress,
+            branchContact: "Contact No: " + button.dataset.branchContact
+        };
+        
+        return prescriptionData;
+    }
+
+    function updatePrescriptionContent(targetId, data) {
+        const container = document.getElementById(targetId);
+        
+        container.innerHTML = `
+            <div class="header flex items-center justify-between border-b-2 border-black pb-6 mb-6">
+                <div class="flex-shrink-0">
+                    <img src="{{ asset('images/pets2go.png') }}" alt="Pets2GO Logo" class="w-28 h-28 object-contain">
+                </div>
+                <div class="flex-grow text-center">
+                    <div class="clinic-name text-2xl font-bold text-[#a86520] tracking-wide">
+                        PETS 2GO VETERINARY CLINIC
+                    </div>
+                    <div class="branch-name text-lg font-bold underline text-center mt-1">
+                        ${data.branchName}
+                    </div>
+                    <div class="clinic-details text-sm text-gray-700 mt-1 text-center leading-tight">
+                        <div>${data.branchAddress}</div>
+                        <div>${data.branchContact}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="prescription-body">
+                <div class="patient-info mb-6">
+                    <div class="grid grid-cols-3 gap-2 text-sm">
+                        <div>
+                            <div class="mb-2"><strong>DATE:</strong> ${data.date}</div>
+                            <div class="mb-2"><strong>NAME OF PET:</strong> ${data.pet}</div>
+                        </div>
+                        <div class="text-center">
+                            <div><strong>WEIGHT:</strong> ${data.weight}</div>
+                            <div><strong>TEMP:</strong> ${data.temp}</div>
+                        </div>
+                        <div class="text-right">
+                            <div><strong>AGE:</strong> ${data.age}</div>
+                            <div><strong>GENDER:</strong> ${data.gender}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rx-symbol text-left my-8 text-6xl font-bold text-gray-800">℞</div>
+
+                <div class="medication-section mb-8">
+                    <div class="section-title text-base font-bold mb-4">MEDICATION</div>
+                    <div class="space-y-3">
+                        ${data.medications && data.medications.length > 0 ? data.medications.map((med, index) => `
+                            <div class="medication-item">
+                                <div class="text-sm font-medium text-red-600 mb-1">${index+1}. ${med.product_name || med.name || 'Unknown medication'}</div>
+                                <div class="text-sm text-gray-700 ml-4"><strong>SIG.</strong> ${med.instructions || '[Instructions will be added here]'}</div>
+                            </div>
+                        `).join('') : '<div class="medication-item text-gray-500">No medications prescribed</div>'}
+                    </div>
+                </div>
+
+                <div class="differential-diagnosis mb-6">
+                    <h3 class="text-base font-bold mb-2">DIFFERENTIAL DIAGNOSIS:</h3>
+                    <div class="text-sm bg-blue-50 p-3 rounded border-l-4 border-blue-500">${data.differentialDiagnosis || 'Not specified'}</div>
+                </div>
+
+                <div class="recommendations mb-8">
+                    <h3 class="text-base font-bold mb-4">RECOMMENDATION/REMINDER:</h3>
+                    <div class="text-sm">${data.notes}</div>
+                </div>
+
+                <div class="footer text-right pt-8 border-t-2 border-black">
+                    <div class="doctor-info text-sm">
+                        <div class="doctor-name font-bold mb-1">JAN JERICK M. GO DVM</div>
+                        <div class="license-info text-gray-600">License No.: 0012045</div>
+                        <div class="license-info text-gray-600">Attending Veterinarian</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function directPrintPrescription(button) {
+        const data = populatePrescriptionData(button);
+        updatePrescriptionContent('printContent', data);
+        
+        const printContainer = document.getElementById('printContainer');
+        printContainer.style.display = 'block';
+        printContainer.classList.add('print-prescription');
+        
+        setTimeout(() => {
+            window.print();
+            printContainer.style.display = 'none';
+            printContainer.classList.remove('print-prescription');
+        }, 200);
+    }
+    window.directPrintPrescription = directPrintPrescription;
   </script>
+
+  {{-- Print Container for Prescriptions --}}
+  <div id="printContainer" style="display: none;">
+    <div id="printContent" class="prescription-container bg-white p-10"></div>
+  </div>
+
+  <style>
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        
+        .print-prescription,
+        .print-prescription * {
+            visibility: visible;
+        }
+        
+        .print-prescription {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            z-index: 9999;
+        }
+        
+        .print-prescription .prescription-container {
+            max-width: 8.5in;
+            margin: 0 auto;
+            padding: 0.5in;
+        }
+    }
+  </style>
 
 @endsection

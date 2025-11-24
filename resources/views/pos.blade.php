@@ -254,7 +254,7 @@
                 <div class="text-2xl font-bold text-green-600" id="successChange">₱0.00</div>
             </div>
             <button id="closeSuccess" class="w-full modern-btn ripple px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-blue-700 transition-all duration-300">
-                <i class="fas fa-print mr-2"></i>Print Receipt
+                <i class="fas fa-check mr-2"></i>OK
             </button>
         </div>
     </div>

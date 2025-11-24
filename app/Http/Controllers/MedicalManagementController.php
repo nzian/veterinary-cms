@@ -1231,6 +1231,81 @@ public function completeService(Request $request, $visitId, $serviceId)
             $visit->save();
         }
 
+        // Handle service types - add/update services
+        if ($request->has('service_type')) {
+            $selectedTypes = $request->input('service_type', []);
+            
+            if (!empty($selectedTypes)) {
+                // Remove duplicates from selected types
+                $selectedTypes = array_unique(array_filter($selectedTypes));
+                
+                // Get all existing services first to preserve them
+                $existingServices = $visit->services()->get();
+                $syncData = [];
+                
+                // First, add all existing services to syncData to preserve them
+                foreach ($existingServices as $existingService) {
+                    $syncData[$existingService->serv_id] = [
+                        'status' => $existingService->pivot->status ?? 'pending',
+                        'completed_at' => $existingService->pivot->completed_at,
+                        'quantity' => $existingService->pivot->quantity ?? 1,
+                        'unit_price' => $existingService->pivot->unit_price ?? $existingService->serv_price,
+                        'total_price' => $existingService->pivot->total_price ?? $existingService->serv_price,
+                        'created_at' => $existingService->pivot->created_at ?? now(),
+                        'updated_at' => now()
+                    ];
+                }
+                
+                // Now process newly added services
+                foreach ($selectedTypes as $selectedType) {
+                    // First, try to find by exact service name match
+                    $service = Service::where('serv_name', $selectedType)->first();
+                    
+                    // If not found by name, find the first service of this type
+                    if (!$service) {
+                        $service = Service::where('serv_type', $selectedType)
+                            ->orWhere('serv_type', 'LIKE', '%' . $selectedType . '%')
+                            ->orWhere(DB::raw('LOWER(serv_type)'), 'LIKE', '%' . strtolower($selectedType) . '%')
+                            ->first();
+                    }
+                    
+                    // If still not found, try case-insensitive match
+                    if (!$service) {
+                        $service = Service::where(DB::raw('LOWER(serv_name)'), strtolower($selectedType))
+                            ->orWhere(DB::raw('LOWER(serv_type)'), strtolower($selectedType))
+                            ->first();
+                    }
+                    
+                    // Only add if we found a service and haven't added it yet
+                    if ($service && !isset($syncData[$service->serv_id])) {
+                        $syncData[$service->serv_id] = [
+                            'status' => 'pending',
+                            'completed_at' => null,
+                            'quantity' => 1,
+                            'unit_price' => $service->serv_price,
+                            'total_price' => $service->serv_price,
+                            'created_at' => now(),
+                            'updated_at' => now()
+                        ];
+                    }
+                }
+                
+                // Sync services with pivot data (this will keep existing + add new ones)
+                if (!empty($syncData)) {
+                    $visit->services()->sync($syncData);
+                    
+                    // Update service summary in visit record (if column exists)
+                    $allServices = $visit->services()->get();
+                    $serviceNames = $allServices->pluck('serv_name')->toArray();
+                    $typesSummary = implode(', ', $serviceNames);
+                    if (Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
+                        $visit->visit_service_type = $typesSummary;
+                        $visit->save();
+                    }
+                }
+            }
+        }
+
         // Auto-generate billing if visit is marked completed and no billing exists yet
         if (strcasecmp((string)$visit->visit_status, 'completed') === 0 && !$visit->billing) {
             try {
