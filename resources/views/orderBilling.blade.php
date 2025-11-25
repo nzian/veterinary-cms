@@ -334,10 +334,10 @@
                                                 </div>
                                             </div>
                                         @else
-                                            <a href="{{ route('sales.billing.receipt', $billing->bill_id) }}" 
+                                            <button onclick="openReceiptPopup({{ $billing->bill_id }})" 
                                                 class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="Receipt">
                                                 <i class="fas fa-receipt"></i>
-                                            </a>
+                                            </button>
                                         @endif
 
                                         @if(hasPermission('print_billing', $can))
@@ -755,7 +755,7 @@
 </div>
 
 {{-- Hidden Print Container for Billing (Unchanged) --}}
-<div id="printBillingContainer">
+<div id="printBillingContainer" style="display: none;">
     <div id="printBillingContent" class="billing-container bg-white p-10">
     </div>
 </div>
@@ -1126,6 +1126,21 @@ let currentPaymentType = null;
 let currentBalance = 0;
 let currentTotalAmount = 0; 
 let currentBillingData = null; // Important for Print functionality
+
+// Open receipt in popup window
+function openReceiptPopup(billId) {
+    const receiptUrl = `{{ url('/sales/billing') }}/${billId}/receipt`;
+    const popupWidth = 900;
+    const popupHeight = 800;
+    const left = (screen.width - popupWidth) / 2;
+    const top = (screen.height - popupHeight) / 2;
+    
+    window.open(
+        receiptUrl,
+        'BillingReceipt',
+        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
+}
 
 // Tab switching (Unchanged)
 function switchTab(tabName) {
@@ -1568,33 +1583,154 @@ function directPrintBilling(button) {
         // Clear content and hide after printing
         setTimeout(() => {
             document.getElementById('printBillingContent').innerHTML = '';
-           // printContainer.style.display = 'none';
+            printContainer.style.display = 'none';
         }, 100);
     }, 200);
 }
 
 function printBillingFromModal() {
     if (!currentBillingData) return;
-    
-    // Hide transaction container to avoid conflicts
-    document.getElementById('printTransactionContainer').style.display = 'none';
-    
-    // Update the hidden print container with current data
-    updateBillingContent('printBillingContent', currentBillingData);
-    
-    // Show the print container temporarily
-    const printContainer = document.getElementById('printBillingContainer');
-    printContainer.style.display = 'block';
-    
-    // Trigger print
-    setTimeout(() => {
-        window.print();
-        // Clear content and hide after printing
-        setTimeout(() => {
-            document.getElementById('printBillingContent').innerHTML = '';
-            printContainer.style.display = 'none';
-        }, 100);
-    }, 200);
+
+    const data = currentBillingData;
+    // Use the same structure as the bill view popup
+    let statusBadge = '';
+    if (data.status === 'paid') {
+        statusBadge = '<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">PAID</span>';
+    } else if (data.status === 'partial') {
+        statusBadge = '<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">PARTIAL</span>';
+    } else {
+        statusBadge = '<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">PENDING</span>';
+    }
+
+    // Services
+    const servicesArray = data.services && data.services !== 'No services' ? data.services.split('|') : [];
+    let servicesHtml = '';
+    if (servicesArray.length > 0) {
+        servicesHtml = servicesArray.map((service, index) => `
+            <div class="service-item">
+                <div class="text-sm font-medium">${index+1}. ${service.trim()}</div>
+            </div>
+        `).join('');
+    } else {
+        servicesHtml = '<div class="service-item text-gray-500">No services provided</div>';
+    }
+
+    // Medications
+    let medicationsHtml = '';
+    if (data.prescriptionItems && data.prescriptionItems.length > 0) {
+        medicationsHtml = data.prescriptionItems.map((item, index) => `
+            <div class="medication-item">
+                <div class="text-sm font-medium">${index+1}. ${item.name}</div>
+                ${item.price > 0 ? `<div class="text-xs text-gray-600 ml-4">₱${item.price.toFixed(2)}</div>` : ''}
+                ${item.instructions ? `<div class="text-xs text-gray-500 ml-4 italic">${item.instructions}</div>` : ''}
+            </div>
+        `).join('');
+    } else {
+        medicationsHtml = '<div class="medication-item text-gray-500">No medications provided</div>';
+    }
+
+    const logoUrl = "{{ asset('images/pets2go.png') }}";
+    const billingHTML = `<!DOCTYPE html><html><head><title>Billing Statement #${data.billId}</title>
+    <style>* { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; padding: 20px; background: white; }
+    .billing-container { max-width: 800px; margin: 0 auto; border: 1px solid #000; background-color: white; padding: 40px; }
+    .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid black; padding-bottom: 24px; margin-bottom: 24px; }
+    .header img { width: 7rem; height: 7rem; object-fit: contain; }
+    .clinic-name { font-size: 24px; font-weight: bold; color: #a86520; letter-spacing: 1px; }
+    .branch-name { font-size: 18px; font-weight: bold; text-decoration: underline; margin-top: 5px; }
+    .clinic-details { font-size: 14px; color: #333; margin-top: 5px; }
+    h2 { text-align: center; font-size: 20px; margin-bottom: 20px; color: #333; }
+    .customer-info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; font-size: 14px; }
+    .customer-info div { margin-bottom: 8px; }
+    .section-title { font-size: 16px; font-weight: bold; border-bottom: 1px solid #333; padding-bottom: 8px; margin: 20px 0 15px 0; }
+    .service-item, .medication-item { font-size: 14px; line-height: 1.5; margin-bottom: 8px; padding: 8px; border-bottom: 1px solid #eee; }
+    .service-item:last-child, .medication-item:last-child { border-bottom: none; }
+    .service-item { border-left: 3px solid #3b82f6; background-color: #eff6ff; }
+    .medication-item { border-left: 3px solid #10b981; background-color: #f0fdf4; }
+    .subtotal-section { margin-top: 15px; padding-top: 10px; border-top: 1px solid #ddd; text-align: right; }
+    .total-section { margin-top: 20px; padding-top: 15px; border-top: 2px solid #333; text-align: right; }
+    .total-section .total { font-size: 20px; font-weight: bold; color: #0f7ea0; }
+    .footer { text-align: center; padding-top: 20px; border-top: 2px solid black; margin-top: 30px; font-size: 14px; }
+    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+    .status-paid { background: #dcfce7; color: #166534; }
+    .status-pending { background: #fee2e2; color: #991b1b; }
+    @media print { body { padding: 0; } }
+    </style></head><body onload="window.print(); setTimeout(window.close, 500);">
+    <div class="billing-container">
+        <div class="header">
+            <img src="${logoUrl}" alt="Pets2GO Logo">
+            <div class="flex-grow text-center">
+                <div class="clinic-name">PETS 2GO VETERINARY CLINIC</div>
+                <div class="branch-name">${data.branchName}</div>
+                <div class="clinic-details">
+                    <div>${data.branchAddress}</div>
+                    <div>${data.branchContact}</div>
+                </div>
+            </div>
+        </div>
+        <div class="billing-body">
+            <div class="text-center mb-6">
+                <h2 class="text-xl font-bold text-gray-800">BILLING STATEMENT</h2>
+            </div>
+            <div class="customer-info mb-6">
+                <div>
+                    <div class="mb-2"><strong>DATE:</strong> ${data.date}</div>
+                    <div class="mb-2"><strong>OWNER:</strong> ${data.owner}</div>
+                    <div class="mb-2"><strong>PET NAME:</strong> ${data.pet}</div>
+                </div>
+                <div>
+                    <div class="mb-2"><strong>BILL ID:</strong> ${data.billId}</div>
+                    <div class="mb-2"><strong>PET SPECIES:</strong> ${data.petSpecies}</div>
+                    <div class="mb-2"><strong>PET BREED:</strong> ${data.petBreed}</div>
+                    <div class="mb-2"><strong>STATUS:</strong> ${statusBadge}</div>
+                </div>
+            </div>
+            <div class="services-section mb-6">
+                <div class="section-title text-base font-bold mb-4 border-b pb-2 text-blue-600">SERVICES PROVIDED</div>
+                <div class="space-y-2">${servicesHtml}</div>
+                <div class="subtotal-section mt-4 pt-2 border-t border-gray-200">
+                    <div class="text-right text-sm">
+                        <div><strong>Services Subtotal: ₱${data.servicesTotal.toFixed(2)}</strong></div>
+                    </div>
+                </div>
+            </div>
+            <div class="medications-section mb-6">
+                <div class="section-title text-base font-bold mb-4 border-b pb-2 text-green-600">MEDICATIONS PROVIDED</div>
+                <div class="space-y-2">${medicationsHtml}</div>
+                <div class="subtotal-section mt-4 pt-2 border-t border-gray-200">
+                    <div class="text-right text-sm">
+                        <div><strong>Medications Subtotal: ₱${data.prescriptionTotal.toFixed(2)}</strong></div>
+                    </div>
+                </div>
+            </div>
+            <div class="total-section mb-8">
+                <div class="mt-4 pt-4 border-t-2 border-gray-300">
+                    <div class="text-right">
+                        <div class="text-xl font-bold text-[#0f7ea0]">TOTAL AMOUNT: ₱${data.grandTotal.toFixed(2)}</div>
+                        <div class="text-sm font-semibold text-red-500">BALANCE DUE: ₱${data.balanceDue.toFixed(2)}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="footer text-center pt-8 border-t-2 border-black">
+                <div class="thank-you text-sm">
+                    <div class="font-bold mb-2">Thank you for choosing Pets2GO Veterinary Clinic!</div>
+                    <div class="text-gray-600">Your pet's health is our priority</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </body></html>`;
+    const printWindow = window.open('', '_blank', 'width=950,height=900');
+    printWindow.document.write(billingHTML);
+    printWindow.document.close();
+    // Robust print trigger: wait for content to load, then print
+    printWindow.onload = function() {
+        setTimeout(function() {
+            printWindow.focus();
+            printWindow.print();
+            setTimeout(function() { printWindow.close(); }, 500);
+        }, 200);
+    };
 }
 
 // --- Orders Tab Functions (Unchanged) ---
@@ -1682,118 +1818,61 @@ function printTransactionFromModal() {
         alert('No transaction data available');
         return;
     }
-    
     const data = window.currentTransactionData;
     const transactionId = window.currentTransactionId;
-    
-    // Build the print content
     let productsHtml = '';
-    data.orders.forEach((order, index) => {
-        productsHtml += `
-            <tr>
-                <td class="py-2 px-2">${index + 1}</td>
-                <td class="py-2 px-2">${order.product}</td>
-                <td class="py-2 px-2 text-center">${order.quantity}</td>
-                <td class="py-2 px-2 text-right">₱${order.unitPrice}</td>
-                <td class="py-2 px-2 text-right font-semibold">₱${order.total}</td>
-            </tr>
-        `;
-    });
-    
-    const printContent = `
-        <div class="header flex items-center justify-between border-b-2 border-black pb-6 mb-6">
-            <div class="flex-shrink-0">
-                <img src="{{ asset('images/pets2go.png') }}" alt="Pets2GO Logo" class="w-28 h-28 object-contain">
-            </div>
-            <div class="flex-grow text-center">
-                <div class="clinic-name text-2xl font-bold text-[#a86520] tracking-wide">
-                    PETS 2GO VETERINARY CLINIC
-                </div>
-                <div class="branch-name text-lg font-bold underline text-center mt-1">
-                    ${document.getElementById('transactionBranchName').textContent}
-                </div>
-                <div class="clinic-details text-sm text-gray-700 mt-1 text-center leading-tight">
-                    <div>${document.getElementById('transactionBranchAddress').textContent}</div>
-                    <div>${document.getElementById('transactionBranchContact').textContent}</div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="billing-body">
-            <div class="text-center mb-6">
-                <h2 class="text-xl font-bold text-gray-800">SALES TRANSACTION RECEIPT</h2>
-            </div>
-            
-            <div class="customer-info mb-6">
-                <div class="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                        <div class="mb-2"><strong>DATE:</strong> ${data.date}</div>
-                        <div class="mb-2"><strong>CUSTOMER:</strong> ${data.customer}</div>
-                        <div class="mb-2"><strong>CASHIER:</strong> ${data.cashier}</div>
-                    </div>
-                    <div>
-                        <div class="mb-2"><strong>TRANSACTION ID:</strong> ${transactionId}</div>
-                        <div class="mb-2"><strong>TYPE:</strong> ${data.transactionType}</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="products-section mb-6">
-                <div class="section-title text-base font-bold mb-4 border-b pb-2 text-green-600">PRODUCTS PURCHASED</div>
-                <table class="w-full text-sm">
-                    <thead class="border-b-2 border-gray-300">
-                        <tr class="text-left">
-                            <th class="py-2 px-2 w-12">#</th>
-                            <th class="py-2 px-2">Product</th>
-                            <th class="py-2 px-2 text-center w-20">Qty</th>
-                            <th class="py-2 px-2 text-right w-28">Unit Price</th>
-                            <th class="py-2 px-2 text-right w-32">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200">
-                        ${productsHtml}
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="total-section mb-8">
-                <div class="mt-4 pt-4 border-t-2 border-gray-300">
-                    <div class="text-right">
-                        <div class="text-xl font-bold text-[#0f7ea0]">TOTAL AMOUNT: ₱${data.total}</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="footer text-center pt-8 border-t-2 border-black">
-                <div class="thank-you text-sm">
-                    <div class="font-bold mb-2">Thank you for choosing Pets2GO Veterinary Clinic!</div>
-                    <div class="text-gray-600">Your pet's health is our priority</div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Update the hidden print container
-    document.getElementById('printTransactionContent').innerHTML = printContent;
-    
-    // Hide billing container to avoid conflicts
-    document.getElementById('printBillingContainer').style.display = 'none';
-    
-    
-    // Show the print container temporarily
-    const printContainer = document.getElementById('printTransactionContainer');
-    printContainer.style.display = 'block';
-    
-    // Trigger print
-    setTimeout(() => {
-        window.print();
-        // Clear content and hide after printing
-        setTimeout(() => {
-            document.getElementById('printTransactionContent').innerHTML = '';
-           // printContainer.style.display = 'none';
-        }, 100);
-    }, 200);
+    if (data.orders && data.orders.length > 0) {
+        data.orders.forEach((order, index) => {
+            productsHtml += '<tr>' +
+                '<td class="py-2 px-2">' + (index + 1) + '</td>' +
+                '<td class="py-2 px-2">' + order.product + '</td>' +
+                '<td class="py-2 px-2 text-center">' + order.quantity + '</td>' +
+                '<td class="py-2 px-2 text-right">₱' + order.unitPrice + '</td>' +
+                '<td class="py-2 px-2 text-right font-semibold">₱' + order.total + '</td>' +
+            '</tr>';
+        });
+    }
+    const logoUrl = "{{ asset('images/pets2go.png') }}";
+    const receiptHTML = '<!DOCTYPE html><html><head><title>Sales Transaction #' + transactionId + '</title>' +
+    '<style>* { margin:0; padding:0; box-sizing:border-box; } body { font-family:Arial,sans-serif; padding:20px; background:#fff; } .container { max-width:900px; margin:0 auto; padding:30px; background:#fff; } .header { display:flex; align-items:center; justify-content:space-between; border-bottom:2px solid #000; padding-bottom:20px; margin-bottom:20px; } .header img { width:7rem; height:7rem; object-fit:contain; } .clinic-info { text-align:center; flex-grow:1; } .clinic-name { font-size:24px; font-weight:700; color:#a86520; letter-spacing:1px; } .branch-name { font-size:18px; font-weight:700; text-decoration:underline; margin-top:5px; } .clinic-details { font-size:14px; color:#333; margin-top:5px; } h2 { text-align:center; font-size:20px; margin:20px 0; color:#333; } .customer-info { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px; font-size:14px; } .section-title { font-size:16px; font-weight:700; border-bottom:1px solid #333; padding-bottom:8px; margin:20px 0 15px; } table { width:100%; border-collapse:collapse; } th,td { font-size:12px; } thead { border-bottom:2px solid #d1d5db; } tbody tr { border-bottom:1px solid #e5e7eb; } .total-section { margin-top:20px; padding-top:15px; border-top:2px solid #333; text-align:right; } .total { font-size:20px; font-weight:700; color:#0f7ea0; } .footer { text-align:center; padding-top:20px; border-top:2px solid #000; margin-top:30px; font-size:14px; } .buttons { text-align:center; margin-top:30px; } .btn { padding:12px 30px; margin:0 10px; font-size:16px; cursor:pointer; border:none; border-radius:5px; } .btn-print { background:#0f7ea0; color:#fff; } .btn-close { background:#6b7280; color:#fff; } .btn:hover { opacity:.9; } @media print { .buttons { display:none; } body { padding:0; } }</style></head><body onload="window.print(); setTimeout(window.close, 500);">' +
+    '<div class="container">' +
+    '<div class="header">' +
+    '<img src="' + logoUrl + '" alt="Pets2GO Logo">' +
+    '<div class="clinic-info">' +
+    '<div class="clinic-name">PETS 2GO VETERINARY CLINIC</div>' +
+    '<div class="branch-name">' + document.getElementById('transactionBranchName').textContent + '</div>' +
+    '<div class="clinic-details">' +
+    '<div>' + document.getElementById('transactionBranchAddress').textContent + '</div>' +
+    '<div>' + document.getElementById('transactionBranchContact').textContent + '</div>' +
+    '</div></div></div>' +
+    '<h2>SALES TRANSACTION RECEIPT</h2>' +
+    '<div class="customer-info"><div>' +
+    '<div><strong>DATE:</strong> ' + data.date + '</div>' +
+    '<div><strong>CUSTOMER:</strong> ' + data.customer + '</div>' +
+    '<div><strong>CASHIER:</strong> ' + data.cashier + '</div>' +
+    '</div><div>' +
+    '<div><strong>TRANSACTION ID:</strong> ' + transactionId + '</div>' +
+    '<div><strong>TYPE:</strong> ' + data.transactionType + '</div>' +
+    '</div></div>' +
+    '<div class="section-title" style="color: #16a34a;">PRODUCTS PURCHASED</div>' +
+    '<table class="w-full text-sm"><thead><tr>' +
+    '<th class="py-2 px-2 w-12">#</th>' +
+    '<th class="py-2 px-2">Product</th>' +
+    '<th class="py-2 px-2 text-center w-20">Qty</th>' +
+    '<th class="py-2 px-2 text-right w-28">Unit Price</th>' +
+    '<th class="py-2 px-2 text-right w-32">Total</th>' +
+    '</tr></thead><tbody>' + productsHtml + '</tbody></table>' +
+    '<div class="total-section"><div class="total">TOTAL AMOUNT: ₱' + data.total + '</div></div>' +
+    '<div class="footer">' +
+    '<div style="font-weight: bold; margin-bottom: 8px;">Thank you for choosing Pets2GO Veterinary Clinic!</div>' +
+    '<div style="color: #666;">Your pet\'s health is our priority</div>' +
+    '</div>' +
+    '</div></body></html>';
+    const printWindow = window.open('', '_blank', 'width=950,height=900');
+    printWindow.document.write(receiptHTML);
+    printWindow.document.close();
 }
+
 
 // Simple client-side table filters (Unchanged)
 function setupFilter(inputId, tableSelector){

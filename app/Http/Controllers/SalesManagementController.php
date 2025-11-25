@@ -543,6 +543,81 @@ class SalesManagementController extends Controller
         }
     }
 
+    /**
+     * Show receipt for a billing record (related to visit and visit services)
+     */
+    public function showReceipt($billId)
+    {
+        $billing = Billing::with([
+            'visit.pet.owner',
+            'visit.services',
+            'visit.user.branch',
+            'orders.product'
+        ])->findOrFail($billId);
+
+        // Billing must be related to a visit
+        if (!$billing->visit) {
+            abort(404, 'This billing record is not associated with a visit.');
+        }
+
+        // Calculate services total from visit services
+        $servicesTotal = 0;
+        if ($billing->visit->services && $billing->visit->services->count() > 0) {
+            $servicesTotal = $billing->visit->services->sum('serv_price');
+        }
+
+        // Calculate prescription total from visit-related prescriptions
+        $prescriptionTotal = 0;
+        $prescriptionItems = [];
+        
+        if ($billing->visit->pet) {
+            // Get prescriptions related to this visit's date (within visit timeframe)
+            $visitDate = $billing->visit->visit_date ?? $billing->bill_date;
+            $prescriptions = Prescription::where('pet_id', $billing->visit->pet->pet_id)
+                ->whereDate('prescription_date', '<=', $visitDate)
+                ->whereDate('prescription_date', '>=', date('Y-m-d', strtotime($visitDate . ' -7 days')))
+                ->get();
+            
+            foreach ($prescriptions as $prescription) {
+                $medications = json_decode($prescription->medication, true) ?? [];
+                foreach ($medications as $medication) {
+                    if (isset($medication['product_id']) && $medication['product_id']) {
+                        $product = Product::find($medication['product_id']);
+                        
+                        if ($product) {
+                            $prescriptionItems[] = [
+                                'name' => $product->prod_name,
+                                'price' => $product->prod_price,
+                                'instructions' => $medication['instructions'] ?? ''
+                            ];
+                            $prescriptionTotal += $product->prod_price;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Calculate products total from orders
+        $productsTotal = $billing->orders->sum(function($order) {
+            return $order->ord_quantity * ($order->product->prod_price ?? 0);
+        });
+
+        $grandTotal = $servicesTotal + $prescriptionTotal + $productsTotal;
+        
+        // Get branch info from visit user
+        $branch = $billing->visit->user?->branch ?? \App\Models\Branch::first();
+        
+        return view('billing-receipt', compact(
+            'billing',
+            'servicesTotal',
+            'prescriptionTotal',
+            'prescriptionItems',
+            'productsTotal',
+            'grandTotal',
+            'branch'
+        ));
+    }
+
     public function destroyBilling($billId) 
     {
         // Keep existing delete logic

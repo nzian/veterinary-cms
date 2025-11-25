@@ -421,6 +421,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // *** NEW/FIXED printReceipt function ***
     function printReceipt(transactionData) {
+        // Get logo URL from current page location
+        const logoUrl = '{{ asset("images/pets2go.png") }}';
+        
         // Helper function to format date/time
         function formatDateTime(date) {
             const d = new Date(date);
@@ -479,7 +482,7 @@ document.addEventListener("DOMContentLoaded", function () {
             <body onload="setTimeout(function(){ window.print(); window.onafterprint = function(){ window.close(); }; }, 100);">
                 <div class="receipt-container">
                     <div style="text-align: center; margin-bottom: 20px;">
-                        <img src="images/pets2go.png" alt="Pets2GO Logo" class="logo">
+                        <img src="${logoUrl}" alt="Pets2GO Logo" class="logo">
                         
                         <div style="font-size: 18px; font-weight: bold; color: #a86520; margin-bottom: 5px;">PETS 2GO VETERINARY CLINIC</div>
                     </div>

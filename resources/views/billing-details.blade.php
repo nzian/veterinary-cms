@@ -174,9 +174,9 @@
                         <input type="hidden" name="cash_amount" id="cash_amount_field" value="0">
                     </form>
                 @else
-                    <a href="{{ route('sales.billing.receipt', $billing->bill_id) }}" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-xs sm:text-sm">
+                    <button onclick="openReceiptPopup({{ $billing->bill_id }})" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-xs sm:text-sm">
                         <i class="fas fa-receipt mr-1"></i> Receipt
-                    </a>
+                    </button>
                 @endif
             </div>
         </div>
@@ -492,9 +492,9 @@
     </script>
 </div>
 
-<!-- Hidden Print Container -->
-<div id="printContainer" style="display: none;">
-    <div id="printContent" class="billing-container bg-white p-10">
+<!-- Hidden Billing Print Container -->
+<div id="billingPrintContainer" style="display: none;">
+    <div id="billingPrintContent" class="billing-container bg-white p-10">
         <!-- Content will be populated by JavaScript -->
     </div>
 </div>
@@ -534,13 +534,13 @@
     body * {
         visibility: hidden;
     }
-    #printContainer,
-    #printContainer *,
-    #printContent,
-    #printContent * {
+    #billingPrintContainer,
+    #billingPrintContainer *,
+    #billingPrintContent,
+    #billingPrintContent * {
         visibility: visible !important;
     }
-    #printContainer {
+    #billingPrintContainer {
         position: absolute !important;
         left: 0 !important;
         top: 0 !important;
@@ -570,132 +570,123 @@
 </style>
 
 <script>
+// Open receipt in popup window
+function openReceiptPopup(billId) {
+    const receiptUrl = `{{ url('/sales/billing') }}/${billId}/receipt`;
+    const popupWidth = 900;
+    const popupHeight = 800;
+    const left = (screen.width - popupWidth) / 2;
+    const top = (screen.height - popupHeight) / 2;
+    
+    window.open(
+        receiptUrl,
+        'BillingReceipt',
+        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
+}
+
 function printBilling() {
-    const servicesContent = `
-        @if($billing->appointment && $billing->appointment->services && $billing->appointment->services->count() > 0)
-            @foreach($billing->appointment->services as $service)
-            <div class="service-item">
-                <div class="text-sm font-medium">{{ $loop->iteration }}. {{ $service->serv_name ?? 'Service' }} - ₱{{ number_format($service->serv_price ?? 0, 2) }}</div>
-            </div>
-            @endforeach
-        @else
-            <div class="service-item text-gray-500">No services provided</div>
-        @endif
-    `;
-
-    const medicationsContent = `
-        @if(count($prescriptionItems) > 0)
-            @foreach($prescriptionItems as $item)
-            <div class="medication-item">
-                <div class="text-sm font-medium">{{ $loop->iteration }}. {{ $item['name'] }}</div>
-                @if($item['price'] > 0)
-                    <div class="text-xs text-gray-600 ml-4">₱{{ number_format($item['price'], 2) }}</div>
-                @endif
-                @if($item['instructions'])
-                    <div class="text-xs text-gray-500 ml-4 italic">{{ $item['instructions'] }}</div>
-                @endif
-            </div>
-            @endforeach
-        @else
-            <div class="medication-item text-gray-500">No medications provided</div>
-        @endif
-    `;
-
-    const printContent = `
-        <div class="header flex items-center justify-between border-b-2 border-black pb-6 mb-6">
-            <div class="flex-shrink-0">
-                <img src="{{ asset('images/pets2go.png') }}" alt="Pets2GO Logo" class="w-28 h-28 object-contain">
-            </div>
-            <div class="flex-grow text-center">
-                <div class="clinic-name text-2xl font-bold text-[#a86520] tracking-wide">
-                    PETS 2GO VETERINARY CLINIC
-                </div>
-                <div class="branch-name text-lg font-bold underline text-center mt-1">
-                    {{ $billing->appointment?->branch?->branch_name ?? 'MAIN BRANCH' }}
-                </div>
-                <div class="clinic-details text-sm text-gray-700 mt-1 text-center leading-tight">
-                    <div>Address: {{ $billing->appointment?->branch?->branch_address ?? 'Branch Address' }}</div>
-                    <div>Contact No: {{ $billing->appointment?->branch?->branch_contactNum ?? 'Contact Number' }}</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="billing-body">
-            <div class="text-center mb-6">
-                <h2 class="text-xl font-bold text-gray-800">BILLING STATEMENT</h2>
-            </div>
-
-            <div class="customer-info mb-6">
-                <div class="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                        <div class="mb-2"><strong>DATE:</strong> {{ \Carbon\Carbon::parse($billing->bill_date)->format('F d, Y') }}</div>
-                        <div class="mb-2"><strong>OWNER:</strong> {{ $billing->appointment?->pet?->owner?->own_name ?? 'N/A' }}</div>
-                        <div class="mb-2"><strong>PET NAME:</strong> {{ $billing->appointment?->pet?->pet_name ?? 'N/A' }}</div>
-                    </div>
-                    <div>
-                        <div class="mb-2"><strong>BILL ID:</strong> {{ $billing->bill_id }}</div>
-                        <div class="mb-2"><strong>PET SPECIES:</strong> {{ $billing->appointment?->pet?->pet_species ?? 'N/A' }}</div>
-                        <div class="mb-2"><strong>PET BREED:</strong> {{ $billing->appointment?->pet?->pet_breed ?? 'N/A' }}</div>
-                        <div class="mb-2"><strong>STATUS:</strong> 
-                            @if($billingStatus === 'paid')
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">PAID</span>
-                            @else
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">PENDING</span>
-                            @endif
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="services-section mb-6">
-                <div class="section-title text-base font-bold mb-4 border-b pb-2 text-blue-600">SERVICES PROVIDED</div>
-                <div class="space-y-2">
-                    ${servicesContent}
-                </div>
-                <div class="subtotal-section mt-4 pt-2 border-t border-gray-200">
-                    <div class="text-right text-sm">
-                        <div><strong>Services Subtotal: ₱{{ number_format($servicesTotal, 2) }}</strong></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="medications-section mb-6">
-                <div class="section-title text-base font-bold mb-4 border-b pb-2 text-green-600">MEDICATIONS PROVIDED</div>
-                <div class="space-y-2">
-                    ${medicationsContent}
-                </div>
-                <div class="subtotal-section mt-4 pt-2 border-t border-gray-200">
-                    <div class="text-right text-sm">
-                        <div><strong>Medications Subtotal: ₱{{ number_format($prescriptionTotal, 2) }}</strong></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="total-section mb-8">
-                <div class="mt-4 pt-4 border-t-2 border-gray-300">
-                    <div class="text-right">
-                        <div class="text-xl font-bold text-[#0f7ea0]">TOTAL AMOUNT: ₱{{ number_format($grandTotal, 2) }}</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="footer text-center pt-8 border-t-2 border-black">
-                <div class="thank-you text-sm">
-                    <div class="font-bold mb-2">Thank you for choosing Pets2GO Veterinary Clinic!</div>
-                    <div class="text-gray-600">Your pet's health is our priority</div>
-                    <div class="mt-2">{{ \Carbon\Carbon::now()->format('F d, Y h:i A') }}</div>
-                </div>
-            </div>
-        </div>
-    `;
+    const logoUrl = '{{ asset("images/pets2go.png") }}';
     
-    document.getElementById('printContent').innerHTML = printContent;
-    document.getElementById('printContainer').style.display = 'block';
-    
-    setTimeout(() => {
-        window.print();
-        document.getElementById('printContainer').style.display = 'none';
-    }, 200);
+    // Services content (pre-rendered by Blade)
+    const servicesContent = `@if($billing->appointment && $billing->appointment->services && $billing->appointment->services->count() > 0)@foreach($billing->appointment->services as $service)<div class="service-item"><div class="text-sm font-medium">{{ $loop->iteration }}. {{ $service->serv_name ?? 'Service' }} - ₱{{ number_format($service->serv_price ?? 0, 2) }}</div></div>@endforeach @else<div class="service-item text-gray-500">No services provided</div>@endif`;
+
+    // Medications content (pre-rendered by Blade)
+    const medicationsContent = `@if(count($prescriptionItems) > 0)@foreach($prescriptionItems as $item)<div class="medication-item"><div class="text-sm font-medium">{{ $loop->iteration }}. {{ $item['name'] }}</div>@if($item['price'] > 0)<div class="text-xs text-gray-600 ml-4">₱{{ number_format($item['price'], 2) }}</div>@endif @if($item['instructions'])<div class="text-xs text-gray-500 ml-4 italic">{{ $item['instructions'] }}</div>@endif</div>@endforeach @else<div class="medication-item text-gray-500">No medications provided</div>@endif`;
+
+    const billId = '{{ $billing->bill_id }}';
+    const branchName = '{{ $billing->appointment?->branch?->branch_name ?? "MAIN BRANCH" }}';
+    const branchAddress = '{{ $billing->appointment?->branch?->branch_address ?? "Branch Address" }}';
+    const branchContact = '{{ $billing->appointment?->branch?->branch_contactNum ?? "Contact Number" }}';
+    const billDate = '{{ \Carbon\Carbon::parse($billing->bill_date)->format("F d, Y") }}';
+    const ownerName = '{{ $billing->appointment?->pet?->owner?->own_name ?? "N/A" }}';
+    const petName = '{{ $billing->appointment?->pet?->pet_name ?? "N/A" }}';
+    const petSpecies = '{{ $billing->appointment?->pet?->pet_species ?? "N/A" }}';
+    const petBreed = '{{ $billing->appointment?->pet?->pet_breed ?? "N/A" }}';
+    const statusBadge = '@if($billingStatus === "paid")<span class="status-badge status-paid">PAID</span>@else<span class="status-badge status-pending">PENDING</span>@endif';
+    const servicesTotal = '{{ number_format($servicesTotal, 2) }}';
+    const prescriptionTotal = '{{ number_format($prescriptionTotal, 2) }}';
+    const grandTotal = '{{ number_format($grandTotal, 2) }}';
+    const currentDateTime = '{{ \Carbon\Carbon::now()->format("F d, Y h:i A") }}';
+
+    const billingHTML = '<!DOCTYPE html><html><head><title>Billing Statement #' + billId + '</title>' +
+'<style>* { margin: 0; padding: 0; box-sizing: border-box; }' +
+'body { font-family: Arial, sans-serif; padding: 20px; background: white; }' +
+'.container { max-width: 900px; margin: 0 auto; padding: 30px; background: white; }' +
+'.header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid black; padding-bottom: 20px; margin-bottom: 20px; }' +
+'.header img { width: 7rem; height: 7rem; object-fit: contain; }' +
+'.header .clinic-info { text-align: center; flex-grow: 1; }' +
+'.clinic-name { font-size: 24px; font-weight: bold; color: #a86520; letter-spacing: 1px; }' +
+'.branch-name { font-size: 18px; font-weight: bold; text-decoration: underline; margin-top: 5px; }' +
+'.clinic-details { font-size: 14px; color: #333; margin-top: 5px; }' +
+'h2 { text-align: center; font-size: 20px; margin-bottom: 20px; color: #333; }' +
+'.customer-info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; font-size: 14px; }' +
+'.customer-info div { margin-bottom: 8px; }' +
+'.section-title { font-size: 16px; font-weight: bold; border-bottom: 1px solid #333; padding-bottom: 8px; margin: 20px 0 15px 0; }' +
+'.service-item, .medication-item { padding: 8px 0; }' +
+'.subtotal-section { margin-top: 15px; padding-top: 10px; border-top: 1px solid #ddd; text-align: right; }' +
+'.total-section { margin-top: 20px; padding-top: 15px; border-top: 2px solid #333; text-align: right; }' +
+'.total-section .total { font-size: 20px; font-weight: bold; color: #0f7ea0; }' +
+'.footer { text-align: center; padding-top: 20px; border-top: 2px solid black; margin-top: 30px; font-size: 14px; }' +
+'.status-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500; }' +
+'.status-paid { background: #dcfce7; color: #166534; }' +
+'.status-pending { background: #fee2e2; color: #991b1b; }' +
+'.buttons { text-align: center; margin-top: 30px; }' +
+'.btn { padding: 12px 30px; margin: 0 10px; font-size: 16px; cursor: pointer; border: none; border-radius: 5px; }' +
+'.btn-print { background: #0f7ea0; color: white; }' +
+'.btn-close { background: #6b7280; color: white; }' +
+'.btn:hover { opacity: 0.9; }' +
+'@media print { .buttons { display: none; } body { padding: 0; } }' +
+'</style></head><body>' +
+'<div class="container">' +
+'<div class="header">' +
+'<img src="' + logoUrl + '" alt="Pets2GO Logo">' +
+'<div class="clinic-info">' +
+'<div class="clinic-name">PETS 2GO VETERINARY CLINIC</div>' +
+'<div class="branch-name">' + branchName + '</div>' +
+'<div class="clinic-details">' +
+'<div>Address: ' + branchAddress + '</div>' +
+'<div>Contact No: ' + branchContact + '</div>' +
+'</div></div></div>' +
+'<h2>BILLING STATEMENT</h2>' +
+'<div class="customer-info"><div>' +
+'<div><strong>DATE:</strong> ' + billDate + '</div>' +
+'<div><strong>OWNER:</strong> ' + ownerName + '</div>' +
+'<div><strong>PET NAME:</strong> ' + petName + '</div>' +
+'</div><div>' +
+'<div><strong>BILL ID:</strong> ' + billId + '</div>' +
+'<div><strong>PET SPECIES:</strong> ' + petSpecies + '</div>' +
+'<div><strong>PET BREED:</strong> ' + petBreed + '</div>' +
+'<div><strong>STATUS:</strong> ' + statusBadge + '</div>' +
+'</div></div>' +
+'<div class="section-title" style="color: #2563eb;">SERVICES PROVIDED</div>' +
+'<div>' + servicesContent + '</div>' +
+'<div class="subtotal-section"><strong>Services Subtotal: ₱' + servicesTotal + '</strong></div>' +
+'<div class="section-title" style="color: #16a34a;">MEDICATIONS PROVIDED</div>' +
+'<div>' + medicationsContent + '</div>' +
+'<div class="subtotal-section"><strong>Medications Subtotal: ₱' + prescriptionTotal + '</strong></div>' +
+'<div class="total-section"><div class="total">TOTAL AMOUNT: ₱' + grandTotal + '</div></div>' +
+'<div class="footer">' +
+'<div style="font-weight: bold; margin-bottom: 8px;">Thank you for choosing Pets2GO Veterinary Clinic!</div>' +
+'<div style="color: #666;">Your pet\'s health is our priority</div>' +
+'<div style="margin-top: 8px;">' + currentDateTime + '</div>' +
+'</div>' +
+'<div class="buttons">' +
+'<button class="btn btn-print" onclick="printStatement()">Print</button>' +
+'<button class="btn btn-close" onclick="closeWindow()">Close</button>' +
+'</div></div>' +
+'<script>' +
+'function printStatement() { window.print(); }' +
+'function closeWindow() { window.close(); }' +
+'document.addEventListener("keydown", function(e) {' +
+'if (e.ctrlKey && e.key === "p") { e.preventDefault(); printStatement(); }' +
+'if (e.key === "Escape") { closeWindow(); }' +
+'});' +
+'</script></body></html>';
+
+    const printWindow = window.open('', '_blank', 'width=950,height=900');
+    printWindow.document.write(billingHTML);
+    printWindow.document.close();
 }
 
 // Auto-hide success message after 5 seconds
