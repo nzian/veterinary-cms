@@ -205,7 +205,7 @@
                                             @if(hasPermission('update_stock', $can))
                                                 <button onclick="openUpdateStockModal({{ json_encode($product) }})"
                                                     class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
-                                                    title="Update Stock">
+                                                    title="Add Stock">
                                                     <i class="fas fa-boxes"></i>
                                                 </button>
                                             @endif
@@ -773,7 +773,7 @@
 
     <div id="updateStockModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
         <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
-            <h3 class="text-lg font-bold mb-4">Update Stock</h3>
+            <h3 class="text-lg font-bold mb-4">Add Stock</h3>
             <form id="updateStockForm" method="POST">
                 @csrf
                 @method('PUT')
