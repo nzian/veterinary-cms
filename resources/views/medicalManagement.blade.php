@@ -142,10 +142,10 @@
                                 <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_contactnum }}</td>
                                 <td class="border px-4 py-2">
-                                    <span class="px-2 py-1 rounded text-xs 
-                                        {{ $appointment->appoint_status == 'completed' ? 'bg-green-100 text-green-800' : 
-                                           ($appointment->appoint_status == 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                                           ($appointment->appoint_status == 'refer' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800')) }}">
+                                    <span class="px-2 py-1 rounded text-xs
+                                        @if(in_array(strtolower($appointment->appoint_status), ['complete','completed','arrive','arrived'])) bg-green-100 text-green-700
+                                        @elseif(in_array(strtolower($appointment->appoint_status), ['pending'])) bg-yellow-100 text-yellow-700
+                                        @else bg-gray-100 text-gray-700 @endif">
                                         {{ ucfirst($appointment->appoint_status) }}
                                     </span>
                                 </td>
@@ -284,7 +284,14 @@
                                     @endphp
                                     {{ !empty($__types) ? implode(', ', $__types) : ($__summary ?: '-') }}
                                 </td>
-                                <td class="border px-4 py-2">{{ $visit->visit_status ?? '-' }}</td>
+                                <td class="border px-4 py-2">
+                                    <span class="px-2 py-1 rounded text-xs
+                                        @if(in_array(strtolower($visit->visit_status), ['complete','completed','arrive','arrived'])) bg-green-100 text-green-700
+                                        @elseif(isset($visit->services) && $visit->services->where('serv_type', 'pending')->count() > 0) bg-yellow-100 text-yellow-700
+                                        @else bg-gray-100 text-gray-700 @endif">
+                                        {{ ucfirst($visit->visit_status) ?? '-' }}
+                                    </span>
+                                </td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
                                         @if(auth()->check() && in_array(auth()->user()->user_role, ['veterinarian']) && !in_array(auth()->user()->user_role, ['super_admin']))
@@ -1223,6 +1230,69 @@
                                 @foreach(($filteredOwners ?? []) as $owner)
                                     <option value="{{ $owner->own_id }}">{{ $owner->own_name }}</option>
                                 @endforeach
+                                    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+                                    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+                                    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+                                    <script>
+                                    document.addEventListener('DOMContentLoaded', function() {
+                                        // Custom matcher for substring search
+                                        function matchCustom(params, data) {
+                                            if ($.trim(params.term) === '') {
+                                                return data;
+                                            }
+                                            if (typeof data.text === 'undefined') {
+                                                return null;
+                                            }
+                                            if (data.text.toLowerCase().indexOf(params.term.toLowerCase()) > -1) {
+                                                return data;
+                                            }
+                                            return null;
+                                        }
+                                        const ownerSelect = $('#add_owner_id');
+                                        if (ownerSelect.length) {
+                                            ownerSelect.select2({
+                                                width: '100%',
+                                                placeholder: 'Select owner',
+                                                allowClear: true,
+                                                matcher: matchCustom,
+                                                minimumResultsForSearch: 0 // always show search box
+                                            });
+                                            // Prevent dropdown from opening on input focus (but allow arrow click and search)
+                                            ownerSelect.on('select2:opening', function(e) {
+                                                // Only block if focus triggered (not arrow or search)
+                                                if (document.activeElement === this && !window._select2AllowOpen) {
+                                                    e.preventDefault();
+                                                }
+                                                window._select2AllowOpen = false;
+                                            });
+                                            // Allow open on arrow click
+                                            ownerSelect.next('.select2-container').find('.select2-selection__arrow').on('mousedown', function(e) {
+                                                window._select2AllowOpen = true;
+                                            });
+                                            // Allow open on keyboard (Alt+Down, etc.)
+                                            ownerSelect.on('keydown', function(e) {
+                                                if ((e.key === 'ArrowDown' || e.key === 'Enter') && !ownerSelect.data('select2').isOpen()) {
+                                                    window._select2AllowOpen = true;
+                                                }
+                                            });
+                                        }
+                                    });
+                                    </script>
+                                    <!-- Select2 JS and CSS -->
+                                    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+                                    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+                                    <script>
+                                    document.addEventListener('DOMContentLoaded', function() {
+                                        if (window.jQuery && $('#add_owner_id').length) {
+                                            $('#add_owner_id').select2({
+                                                dropdownParent: $('#addVisitModal'),
+                                                width: '100%',
+                                                placeholder: 'Select owner',
+                                                allowClear: true
+                                            });
+                                        }
+                                    });
+                                    </script>
                             </select>
                         </div>
                         <div class="col-span-2">
@@ -1695,10 +1765,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     <input type="checkbox" name="service_type[${p.pet_id}][]" value="${type}" class="service-checkbox mr-1"> ${capitalizeFirstLetter(type)}
                 </label>
             `).join('');
-            
             const species = String(p.pet_species || '').toLowerCase();
             const icon = species === 'cat' ? '<i class="fas fa-cat text-gray-600 mr-1" title="Cat"></i>' : (species === 'dog' ? '<i class="fas fa-dog text-gray-600 mr-1" title="Dog"></i>' : '');
-            
             return `
             <div class="border border-gray-200 rounded p-3">
                 <label class="flex items-start gap-3">
@@ -1708,7 +1776,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="grid grid-cols-4 gap-3 mt-2 text-sm items-end">
                             <div>
                                 <label class="block text-xs text-gray-600">Weight (kg)</label>
-                                <input type="number" step="0.01" name="weight[${p.pet_id}]" class="border border-gray-300 rounded px-2 py-1 w-full" placeholder="e.g. 3.50">
+                                <input type="number" step="0.01" name="weight[${p.pet_id}]" class="border border-gray-300 rounded px-2 py-1 w-full pet-weight-input" placeholder="e.g. 3.50" min="1" max="90" data-pet="${p.pet_id}">
+                                <div class="error-message" style="display:none"></div>
                             </div>
                             <div>
                                 <label class="block text-xs text-gray-600">Temperature (°C)</label>
@@ -1757,9 +1826,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (ownerSelect) {
+        // For native select
         ownerSelect.addEventListener('change', function() {
             renderOwnerPets(this.value);
         });
+        // For Select2
+        if (window.jQuery && $(ownerSelect).data('select2')) {
+            $(ownerSelect).on('select2:select', function(e) {
+                renderOwnerPets(e.params.data.id);
+            });
+            $(ownerSelect).on('select2:clear', function(e) {
+                renderOwnerPets('');
+            });
+        }
     }
 });
 

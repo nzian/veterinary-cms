@@ -350,23 +350,23 @@
             
             {{-- Legend - Mobile Responsive --}}
             <div class="mt-3 sm:mt-4 flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm">
-                <div class="flex items-center gap-1.5 sm:gap-2">
-                    <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-green-100 border border-green-300 rounded"></span> 
-                    <span class="text-xs sm:text-sm">Arrived</span>
-                </div>
-                <div class="flex items-center gap-1.5 sm:gap-2">
-                    <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-yellow-100 border border-yellow-300 rounded"></span> 
-                    <span class="text-xs sm:text-sm">Scheduled</span>
-                </div>
-                <div class="flex items-center gap-1.5 sm:gap-2">
-                    <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-orange-100 border border-orange-300 rounded"></span> 
-                    <span class="text-xs sm:text-sm">Reschedule</span>
-                </div>
-                <div class="flex items-center gap-1.5 sm:gap-2">
-                    <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-red-100 border border-red-300 rounded"></span> 
-                    <span class="text-xs sm:text-sm">Missed</span>
-                </div>
-            </div>
+    <div class="flex items-center gap-1.5 sm:gap-2">
+        <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-red-100 border border-red-300 rounded"></span>
+        <span class="text-xs sm:text-sm">Missed</span>
+    </div>
+    <div class="flex items-center gap-1.5 sm:gap-2">
+        <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-blue-100 border border-blue-300 rounded"></span>
+        <span class="text-xs sm:text-sm">Scheduled</span>
+    </div>
+    <div class="flex items-center gap-1.5 sm:gap-2">
+        <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-orange-100 border border-orange-300 rounded"></span>
+        <span class="text-xs sm:text-sm">Reschedule</span>
+    </div>
+    <div class="flex items-center gap-1.5 sm:gap-2">
+        <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-green-100 border border-green-300 rounded"></span>
+        <span class="text-xs sm:text-sm">Arrived</span>
+    </div>
+</div>
         </div>
     </div>
 
@@ -563,17 +563,18 @@
         return `${year}-${month}-${day}`;
     }
 
-    function getStatusColor(status) {
-        const colors = {
-            'arrive': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
-            'arrived': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
-            'completed': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
-            'pending': 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-200',
-            'approved': 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-200',
-            'rescheduled': 'bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-orange-200'
-        };
-        return colors[(status || 'pending').toLowerCase()] || 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-200';
-    }
+   function getStatusColor(status) {
+    const colors = {
+        'missed': 'bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-red-200',
+        'scheduled': 'bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-blue-200',
+        'arrive': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
+        'arrived': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
+        'completed': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
+        'reschedule': 'bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-orange-200',
+        'rescheduled': 'bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-orange-200'
+    };
+    return colors[(status || 'scheduled').toLowerCase()] || 'bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-blue-200';
+}
 
     function updateViewButtons(activeView) {
         const buttons = ['monthlyBtn', 'weeklyBtn', 'todayBtn'];
@@ -616,9 +617,25 @@
                             const eventDate = new Date(event.date);
 
                             let colorClass = getStatusColor(event.status);
-                            if (eventDate < today && !['arrived','completed'].includes((event.status || '').toLowerCase())) {
+                            if (eventDate < today && !['arrived','completed','missed'].includes((event.status || '').toLowerCase())) {
                                 colorClass = 'bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-red-200';
                                 event.status = 'missed';
+                                // AJAX call to update backend status
+                                fetch(`/appointments/${event.id}/mark-missed`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                                    },
+                                    body: JSON.stringify({})
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (!data.success) {
+                                        console.error('Failed to mark appointment as missed:', data.message);
+                                    }
+                                })
+                                .catch(err => console.error('AJAX error:', err));
                             }
 
                             const petName = event.pet_name || 'Unknown Pet';

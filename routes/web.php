@@ -59,6 +59,9 @@ Route::middleware(['auth', 'isSuperAdmin'])->group(function () {
 });
 
 Route::middleware(['auth'])->group(function () {
+
+    // AJAX: Update appointment status to missed
+    Route::post('/appointments/{id}/mark-missed', [\App\Http\Controllers\DashboardController::class, 'markAppointmentMissed'])->name('appointments.markMissed');
     Route::get('/vet/appointments', [MedicalManagementController::class, 'vetAppointments'])->name('vet.appointments');
 });
 

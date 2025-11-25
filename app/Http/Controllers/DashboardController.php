@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\DB;
@@ -48,7 +47,19 @@ class DashboardController extends Controller
         }
         
         // Regular users always see branch dashboard
-        return $this->branchDashboard();
+            // Auto-update all overdue appointments to 'missed' for this branch
+            $activeBranchId = $user->user_role === 'superadmin' && $this->isInBranchMode()
+                ? session('active_branch_id')
+                : $user->branch_id;
+
+            \App\Models\Appointment::where('appoint_date', '<', now()->toDateString())
+                ->whereNotIn('appoint_status', ['completed', 'arrived', 'missed', 'Canceled'])
+                ->whereHas('user', function($q) use ($activeBranchId) {
+                    $q->where('branch_id', $activeBranchId);
+                })
+                ->update(['appoint_status' => 'missed']);
+
+            return $this->branchDashboard();
     }
 
     /**
@@ -373,5 +384,19 @@ $totalOwners = Owner::whereIn('user_id', $branchUserIds)->count();
         })->get(['serv_id', 'serv_name', 'serv_category']);
         
         return response()->json($services);
+    }
+
+    /**
+     * Mark an appointment as missed (AJAX)
+     */
+    public function markAppointmentMissed(Request $request, $id)
+    {
+        $appointment = Appointment::find($id);
+        if (!$appointment) {
+            return response()->json(['success' => false, 'message' => 'Appointment not found.'], 404);
+        }
+        $appointment->appoint_status = 'missed';
+        $appointment->save();
+        return response()->json(['success' => true, 'message' => 'Appointment marked as missed.']);
     }
 }

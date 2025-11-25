@@ -212,7 +212,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
     public function saveConsultation(Request $request, $visitId)
     {
         $validated = $request->validate([
-            'weight' => ['nullable','numeric'],
+            'weight' => ['nullable','numeric','min:1','max:90'],
             'temperature' => ['nullable','numeric'],
             'heart_rate' => ['nullable','numeric'], 
             'respiration_rate' => ['nullable','numeric'],

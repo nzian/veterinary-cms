@@ -169,10 +169,12 @@
                                 <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_contactnum}}</td>
                                 <td class="border px-4 py-2">
-                                    <span class="px-2 py-1 rounded text-xs 
-                                        {{ $appointment->appoint_status == 'completed' ? 'bg-green-100 text-green-800' : 
-                                           ($appointment->appoint_status == 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                                           ($appointment->appoint_status == 'refer' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800')) }}">
+                                    <span class="px-2 py-1 rounded text-xs
+                                        @if(strtolower($appointment->appoint_status) == 'missed') bg-red-100 text-red-700
+                                        @elseif(in_array(strtolower($appointment->appoint_status), ['scheduled','pending'])) bg-blue-100 text-blue-700
+                                        @elseif(in_array(strtolower($appointment->appoint_status), ['reschedule','rescheduled'])) bg-orange-100 text-orange-700
+                                        @elseif(in_array(strtolower($appointment->appoint_status), ['arrive','arrived','completed'])) bg-green-100 text-green-700
+                                        @else bg-gray-100 text-gray-700 @endif">
                                         {{ ucfirst($appointment->appoint_status) }}
                                     </span>
                                 </td>
