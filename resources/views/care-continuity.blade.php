@@ -462,7 +462,19 @@
         @endif
         
         @if(hasPermission('print_referral', $can))
-            <button onclick="printReferral({{ $referral->ref_id }})"
+            <button onclick="printReferral(this)"
+                data-ref-id="{{ $referral->ref_id }}"
+                data-ref-date="{{ \Carbon\Carbon::parse($referral->ref_date)->format('F j, Y') }}"
+                data-pet-name="{{ $referral->pet?->pet_name ?? 'N/A' }}"
+                data-owner-name="{{ $referral->pet?->owner?->own_name ?? 'N/A' }}"
+                data-owner-contact="{{ $referral->pet?->owner?->own_contactnum ?? 'N/A' }}"
+                data-pet-age="{{ $referral->pet?->pet_age ?? 'N/A' }}"
+                data-pet-gender="{{ strtoupper($referral->pet?->pet_gender ?? 'N/A') }}"
+                data-medical-history="{{ e($referral->medical_history) }}"
+                data-tests-conducted="{{ e($referral->tests_conducted) }}"
+                data-medications-given="{{ e($referral->medications_given) }}"
+                data-ref-description="{{ e($referral->ref_description) }}"
+                data-ref-to-branch="{{ $referral->refToBranch?->branch_name ?? 'N/A' }}"
                 class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="print">
                 <i class="fas fa-print"></i>
             </button>
@@ -488,13 +500,7 @@
             </form>
         @endif
 
-        <form action="{{ route('care-continuity.referrals.create-visit', $referral->ref_id) }}" method="POST" class="inline">
-            @csrf
-            <button type="submit"
-                class="bg-emerald-500 text-white px-2 py-1 rounded hover:bg-emerald-600 flex items-center gap-1 text-xs" title="Add Visit">
-                <i class="fas fa-notes-medical"></i>
-            </button>
-        </form>
+        {{-- Removed Add Visit button for referrals as requested --}}
     </div>
 </td>
                             </tr>
@@ -2862,42 +2868,40 @@ function formatListContent(content, defaultText) {
     }
 }
 
-function printReferral(referralId) {
-    // Fetch referral data for printing
-    fetch(`/medical-management/referrals/${referralId}`, {
-        headers: {
-            'X-CSRF-TOKEN': window.csrfToken || '{{ csrf_token() }}',
-            'Accept': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        // Create print content with the referral data
-        const printContent = createReferralPrintContent(data);
-        document.getElementById('printReferralContent').innerHTML = printContent;
-        
-        // Remove all print classes first
-        document.getElementById('printContainer').classList.remove('print-prescription', 'print-referral');
-        document.getElementById('printReferralContainer').classList.remove('print-prescription', 'print-referral');
-        
-        // Hide prescription container
-        document.getElementById('printContainer').style.display = 'none';
-        
-        // Show referral container with print class
-        const printContainer = document.getElementById('printReferralContainer');
-        printContainer.style.display = 'block';
-        printContainer.classList.add('print-referral');
-        
-        setTimeout(() => {
-            window.print();
-            printContainer.style.display = 'none';
-            printContainer.classList.remove('print-referral');
-        }, 200);
-    })
-    .catch(error => {
-        console.error('Error fetching referral for printing:', error);
-        alert('Error loading referral for printing');
-    });
+function printReferral(el) {
+    // Build data object from button data-* attributes
+    const data = {
+        ref_date: el.dataset.refDate || '-',
+        pet_name: el.dataset.petName || '-',
+        owner_name: el.dataset.ownerName || '-',
+        owner_contact: el.dataset.ownerContact || '-',
+        pet_age: el.dataset.petAge || '-',
+        pet_gender: el.dataset.petGender || '-',
+        medical_history: el.dataset.medicalHistory || '',
+        tests_conducted: el.dataset.testsConducted || '',
+        medications_given: el.dataset.medicationsGiven || '',
+        ref_description: el.dataset.refDescription || '-',
+        ref_to_branch: el.dataset.refToBranch || '-',
+        ref_by_branch: 'PETS 2GO VETERINARY CLINIC'
+    };
+
+    const printContent = createReferralPrintContent(data);
+    document.getElementById('printReferralContent').innerHTML = printContent;
+
+    // Prepare containers
+    document.getElementById('printContainer').classList.remove('print-prescription', 'print-referral');
+    document.getElementById('printReferralContainer').classList.remove('print-prescription', 'print-referral');
+    document.getElementById('printContainer').style.display = 'none';
+
+    const printContainer = document.getElementById('printReferralContainer');
+    printContainer.style.display = 'block';
+    printContainer.classList.add('print-referral');
+
+    setTimeout(() => {
+        window.print();
+        printContainer.style.display = 'none';
+        printContainer.classList.remove('print-referral');
+    }, 150);
 }
 
 function createReferralPrintContent(data) {
@@ -2913,7 +2917,7 @@ function createReferralPrintContent(data) {
         <div class="patient-info mb-3">
             <div class="grid grid-cols-3 gap-2 text-sm">
                 <div>
-                    <div class="mb-1"><strong>DATE:</strong> ${formatReferralDate(data.ref_date) || '-'}</div>
+                    <div class="mb-1"><strong>DATE:</strong> ${(data.ref_date || '-')}</div>
                     <div class="mb-1"><strong>NAME OF PET:</strong> ${(data.pet_name || '-').toUpperCase()}</div>
                 </div>
                 <div class="text-center">
@@ -2921,7 +2925,7 @@ function createReferralPrintContent(data) {
                     <div><strong>CONTACT #:</strong> ${data.owner_contact || '-'}</div>
                 </div>
                 <div class="text-right">
-                    <div><strong>DOB:</strong> ${formatReferralDate(data.pet_dob) || '-'}</div>
+                    <div><strong>AGE:</strong> ${(data.pet_age || '-')}</div>
                     <div><strong>GENDER:</strong> ${(data.pet_gender || '-').toUpperCase()}</div>
                 </div>
             </div>
