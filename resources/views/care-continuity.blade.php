@@ -455,7 +455,19 @@
                                 <td class="border px-2 py-1">
     <div class="flex justify-center items-center gap-1">
         @if(hasPermission('view_referrals', $can))
-            <button onclick="viewReferral({{ $referral->ref_id }})"
+            <button onclick="viewReferral(this)"
+                data-ref-id="{{ $referral->ref_id }}"
+                data-ref-date="{{ \Carbon\Carbon::parse($referral->ref_date)->format('F j, Y') }}"
+                data-pet-name="{{ $referral->pet?->pet_name ?? 'N/A' }}"
+                data-owner-name="{{ $referral->pet?->owner?->own_name ?? 'N/A' }}"
+                data-owner-contact="{{ $referral->pet?->owner?->own_contactnum ?? 'N/A' }}"
+                data-pet-age="{{ $referral->pet?->pet_age ?? 'N/A' }}"
+                data-pet-gender="{{ strtoupper($referral->pet?->pet_gender ?? 'N/A') }}"
+                data-medical-history="{{ e($referral->medical_history) }}"
+                data-tests-conducted="{{ e($referral->tests_conducted) }}"
+                data-medications-given="{{ e($referral->medications_given) }}"
+                data-ref-description="{{ e($referral->ref_description) }}"
+                data-ref-to-branch="{{ $referral->refToBranch?->branch_name ?? 'N/A' }}"
                 class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view">
                 <i class="fas fa-eye"></i>
             </button>
@@ -928,7 +940,7 @@
                         <div class="mb-2"><strong>CONTACT #:</strong> <span id="view_owner_contact">-</span></div>
                     </div>
                     <div class="text-right">
-                        <div class="mb-2"><strong>DOB:</strong> <span id="view_pet_dob">-</span></div>
+                        <div class="mb-2"><strong>AGE:</strong> <span id="view_pet_age">-</span></div>
                         <div class="mb-2"><strong>GENDER:</strong> <span id="view_pet_gender">-</span></div>
                     </div>
                 </div>
@@ -2796,46 +2808,49 @@ function editReferral(referralId) {
     });
 }
 
-function viewReferral(referralId) {
-    fetch(`/medical-management/referrals/${referralId}`, {
-        headers: {
-            'X-CSRF-TOKEN': window.csrfToken || '{{ csrf_token() }}',
-            'Accept': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        // Populate the form-style fields
-        document.getElementById('view_ref_date').textContent = formatReferralDate(data.ref_date) || '-';
-        document.getElementById('view_pet_name').textContent = (data.pet_name || '-').toUpperCase();
-        document.getElementById('view_pet_gender').textContent = (data.pet_gender || '-').toUpperCase();
-        document.getElementById('view_pet_dob').textContent = formatReferralDate(data.pet_dob) || '-';
-        document.getElementById('view_owner_name').textContent = (data.owner_name || '-').toUpperCase();
-        document.getElementById('view_owner_contact').textContent = data.owner_contact || '-';
-        
-        // Format medical history as a list
-        document.getElementById('view_medical_history').innerHTML = formatListContent(data.medical_history, 'No medical history provided');
-        
-        // Format tests conducted
-        document.getElementById('view_tests_conducted').innerHTML = formatListContent(data.tests_conducted, 'No tests documented');
-        
-        // Format medications given as a list
-        document.getElementById('view_medications_given').innerHTML = formatListContent(data.medications_given, 'No medications documented');
-        
-        // Reason for referral
-        document.getElementById('view_ref_description').textContent = data.ref_description || '-';
-        
-        // Branch information
-        document.getElementById('view_ref_from_branch').textContent = (data.ref_by_branch || 'PETS 2GO VETERINARY CLINIC').toUpperCase();
-        document.getElementById('view_ref_to_branch').textContent = (data.ref_to_branch || '-').toUpperCase();
-        
-        currentReferralId = referralId;
-        document.getElementById('viewReferralModal').classList.remove('hidden');
-    })
-    .catch(error => {
-        console.error('Error fetching referral details:', error);
-        alert('Error loading referral details');
-    });
+function viewReferral(el) {
+    // Get data from button attributes
+    const data = {
+        ref_date: el.dataset.refDate || '-',
+        pet_name: el.dataset.petName || '-',
+        owner_name: el.dataset.ownerName || '-',
+        owner_contact: el.dataset.ownerContact || '-',
+        pet_age: el.dataset.petAge || '-',
+        pet_gender: el.dataset.petGender || '-',
+        medical_history: el.dataset.medicalHistory || '',
+        tests_conducted: el.dataset.testsConducted || '',
+        medications_given: el.dataset.medicationsGiven || '',
+        ref_description: el.dataset.refDescription || '-',
+        ref_to_branch: el.dataset.refToBranch || '-',
+        ref_by_branch: 'PETS 2GO VETERINARY CLINIC'
+    };
+
+    // Populate the form-style fields
+    document.getElementById('view_ref_date').textContent = data.ref_date;
+    document.getElementById('view_pet_name').textContent = (data.pet_name || '-').toUpperCase();
+    document.getElementById('view_pet_gender').textContent = (data.pet_gender || '-').toUpperCase();
+    document.getElementById('view_pet_age').textContent = data.pet_age || '-';
+    document.getElementById('view_owner_name').textContent = (data.owner_name || '-').toUpperCase();
+    document.getElementById('view_owner_contact').textContent = data.owner_contact || '-';
+    
+    // Format medical history as a list
+    document.getElementById('view_medical_history').innerHTML = formatListContent(data.medical_history, 'No medical history provided');
+    
+    // Format tests conducted
+    document.getElementById('view_tests_conducted').innerHTML = formatListContent(data.tests_conducted, 'No tests documented');
+    
+    // Format medications given as a list
+    document.getElementById('view_medications_given').innerHTML = formatListContent(data.medications_given, 'No medications documented');
+    
+    // Reason for referral
+    document.getElementById('view_ref_description').textContent = data.ref_description || '-';
+    
+    // Branch information
+    document.getElementById('view_ref_from_branch').textContent = (data.ref_by_branch || 'PETS 2GO VETERINARY CLINIC').toUpperCase();
+    document.getElementById('view_ref_to_branch').textContent = (data.ref_to_branch || '-').toUpperCase();
+    
+    currentReferralId = el.dataset.refId;
+    document.getElementById('viewReferralModal').classList.remove('hidden');
 }
 
 function formatReferralDate(dateString) {
