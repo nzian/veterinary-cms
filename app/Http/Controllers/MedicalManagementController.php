@@ -853,19 +853,24 @@ public function completeService(Request $request, $visitId, $serviceId)
         $visitModel->services()->sync($syncData);
         
         // 4. Save Boarding Record
+        // Prepare payload and optionally include serv_id if column exists
+        $boardingPayload = [
+            'check_in_date' => $validated['checkin'], 
+            'check_out_date' => $validated['checkout'], 
+            'room_no' => $request->input('room'),
+            'feeding_schedule' => $request->input('care_instructions'), 
+            'daily_notes' => $request->input('monitoring_notes'),
+            'status' => 'Checked Out', 
+            'handled_by' => Auth::user()->user_name ?? null,
+            'total_days' => $totalDays,
+            'updated_at' => now(),
+        ];
+        if (\Schema::hasColumn('tbl_boarding_record', 'serv_id')) {
+            $boardingPayload['serv_id'] = $validated['service_id'];
+        }
         DB::table('tbl_boarding_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
-            [
-                'check_in_date' => $validated['checkin'], 
-                'check_out_date' => $validated['checkout'], 
-                'room_no' => $request->input('room'),
-                'feeding_schedule' => $request->input('care_instructions'), 
-                'daily_notes' => $request->input('monitoring_notes'),
-                'status' => 'Checked Out', 
-                'handled_by' => Auth::user()->user_name ?? null,
-                'total_days' => $totalDays,
-                'updated_at' => now(),
-            ]
+            $boardingPayload
         );
         
         // 5. Update visit_service_type
@@ -1466,173 +1471,141 @@ public function completeService(Request $request, $visitId, $serviceId)
         return $v;
     });
             
-        $availableGroomingServices = Service::where('serv_type', 'LIKE', '%' .$serviceType . '%') 
-            // Only select the columns that actually exist in your tbl_serv
-            ->select('serv_id', 'serv_name', 'serv_price') 
-            ->orderBy('serv_name')
-            ->get();
-        
-        // Separate packages and add-ons
-        $groomingPackages = $availableGroomingServices->filter(function($service) {
-            // Filter for "Bath and Blow Dry" or "Grooming" in service name (exclude add-ons)
-            return (stripos($service->serv_name, 'Bath and Blow Dry') !== false || 
-                    stripos($service->serv_name, 'Grooming') !== false) &&
-                   stripos($service->serv_name, 'Add on') === false &&
-                   stripos($service->serv_name, 'Add-on') === false;
-        })->unique('serv_name')->values();
-        
-        $groomingAddons = $availableGroomingServices->filter(function($service) {
-            // Filter for "Add on" or "Add-on" in service name
-            return stripos($service->serv_name, 'Add on') !== false || 
-                   stripos($service->serv_name, 'Add-on') !== false;
-        })->unique('serv_name')->values();
-            
-        // 2. Map the collection to extract weight limits from the 'serv_name' string
+        // Load available services for grooming or boarding
         $petWeight = optional($visit)->weight; // may be null
         $petAgeMonths = $this->calculatePetAgeInMonths(optional($visit)->pet);
-        $availableServices = $groomingPackages->map(function ($service) {
-            $name = $service->serv_name;
-            $min_weight = 0;
-            $max_weight = 9999; // Default to max/no limit
+        $availableAddons = collect();
+        if ($blade === 'grooming') {
+            $availableGroomingServices = Service::where('serv_type', 'LIKE', '%' .$serviceType . '%') 
+                ->select('serv_id', 'serv_name', 'serv_price') 
+                ->orderBy('serv_name')
+                ->get();
 
-            // Parse weight range from service name - supports multiple formats:
-            // 1. "7.7kg to 15kg" or "7.7 kg to 15 kg" - range format
-            // 2. "7.7kg below" or "7.7kg bellow" - upper limit only
-            // 3. "22kg up" or "22kg above" - lower limit only
-            // 4. Handles kg/kl variations and various spellings
-            
-            // Pattern 1: Range format (e.g., "7.7kg to 15kg", "7.7 - 15kg", "7.7kg-15kg")
-            if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:to|-|–)\s*(\d+\.?\d*)\s*k[gl]?/i', $name, $matches)) {
-                $min_weight = (float)$matches[1];
-                $max_weight = (float)$matches[2];
-            }
-            // Pattern 2: Below/bellow format (e.g., "7.5kg below", "7.5 kl bellow")
-            else if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:below|bellow)/i', $name, $matches)) {
+            // Separate packages and add-ons
+            $groomingPackages = $availableGroomingServices->filter(function($service) {
+                return (stripos($service->serv_name, 'Bath and Blow Dry') !== false || 
+                        stripos($service->serv_name, 'Grooming') !== false) &&
+                       stripos($service->serv_name, 'Add on') === false &&
+                       stripos($service->serv_name, 'Add-on') === false;
+            })->unique('serv_name')->values();
+
+            $groomingAddons = $availableGroomingServices->filter(function($service) {
+                return stripos($service->serv_name, 'Add on') !== false || 
+                       stripos($service->serv_name, 'Add-on') !== false;
+            })->unique('serv_name')->values();
+
+            $availableServices = $groomingPackages->map(function ($service) {
+                $name = $service->serv_name;
                 $min_weight = 0;
-                $max_weight = (float)$matches[1];
-            }
-            // Pattern 3: Up/above format (e.g., "22kg up", "15 kg above")
-            else if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:up|above)/i', $name, $matches)) {
-                $min_weight = (float)$matches[1];
                 $max_weight = 9999;
-            }
-            // Pattern 4: Parentheses format for backward compatibility
-            // (7.5 kg) below or (15 kg) above
-            else if (preg_match('/\((\d+\.?\d*)\s*k[gl]?\)\s*(?:below|bellow)/i', $name, $matches)) {
+                if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:to|-|–)\s*(\d+\.?\d*)\s*k[gl]?/i', $name, $matches)) {
+                    $min_weight = (float)$matches[1];
+                    $max_weight = (float)$matches[2];
+                } else if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:below|bellow)/i', $name, $matches)) {
+                    $min_weight = 0;
+                    $max_weight = (float)$matches[1];
+                } else if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:up|above)/i', $name, $matches)) {
+                    $min_weight = (float)$matches[1];
+                    $max_weight = 9999;
+                } else if (preg_match('/\((\d+\.?\d*)\s*k[gl]?\)\s*(?:below|bellow)/i', $name, $matches)) {
+                    $min_weight = 0;
+                    $max_weight = (float)$matches[1];
+                } else if (preg_match('/\((\d+\.?\d*)\s*k[gl]?\)\s*(?:up|above)/i', $name, $matches)) {
+                    $min_weight = (float)$matches[1];
+                    $max_weight = 9999;
+                }
+                [$minAge, $maxAge] = $this->extractAgeRangeFromServiceLabel($name);
+                $service->min_weight = $min_weight;
+                $service->max_weight = $max_weight;
+                $service->min_age_months = $minAge;
+                $service->max_age_months = $maxAge;
+                return $service;
+            })
+            ->filter(function ($service) use ($petWeight) {
+                if (empty($petWeight) || !is_numeric($petWeight)) {
+                    return true;
+                }
+                $minWeight = $service->min_weight ?? 0;
+                $maxWeight = $service->max_weight ?? 9999;
+                return $petWeight >= $minWeight && $petWeight <= $maxWeight;
+            })
+            ->filter(function ($service) use ($petAgeMonths) {
+                if (is_null($petAgeMonths)) {
+                    return true;
+                }
+                $minAge = $service->min_age_months;
+                $maxAge = $service->max_age_months;
+                if (!is_null($minAge) && $petAgeMonths < $minAge) {
+                    return false;
+                }
+                if (!is_null($maxAge) && $petAgeMonths > $maxAge) {
+                    return false;
+                }
+                return true;
+            })
+            ->values();
+
+            $availableAddons = $groomingAddons->map(function ($service) {
+                $name = $service->serv_name;
                 $min_weight = 0;
-                $max_weight = (float)$matches[1];
-            } 
-            else if (preg_match('/\((\d+\.?\d*)\s*k[gl]?\)\s*(?:up|above)/i', $name, $matches)) {
-                $min_weight = (float)$matches[1];
                 $max_weight = 9999;
-            }
-
-            [$minAge, $maxAge] = $this->extractAgeRangeFromServiceLabel($name);
-
-            $service->min_weight = $min_weight;
-            $service->max_weight = $max_weight;
-            $service->min_age_months = $minAge;
-            $service->max_age_months = $maxAge;
-
-            return $service;
-        })
-        // Server-side filter: only keep services within the pet's weight if available
-        ->filter(function ($service) use ($petWeight) {
-            // If pet weight is not available or invalid, show all services
-            if (empty($petWeight) || !is_numeric($petWeight)) {
+                if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:to|-|–)\s*(\d+\.?\d*)\s*k[gl]?/i', $name, $matches)) {
+                    $min_weight = (float)$matches[1];
+                    $max_weight = (float)$matches[2];
+                } else if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:below|bellow)/i', $name, $matches)) {
+                    $min_weight = 0;
+                    $max_weight = (float)$matches[1];
+                } else if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:up|above)/i', $name, $matches)) {
+                    $min_weight = (float)$matches[1];
+                    $max_weight = 9999;
+                } else if (preg_match('/\((\d+\.?\d*)\s*k[gl]?\)\s*(?:below|bellow)/i', $name, $matches)) {
+                    $min_weight = 0;
+                    $max_weight = (float)$matches[1];
+                } else if (preg_match('/\((\d+\.?\d*)\s*k[gl]?\)\s*(?:up|above)/i', $name, $matches)) {
+                    $min_weight = (float)$matches[1];
+                    $max_weight = 9999;
+                }
+                [$minAge, $maxAge] = $this->extractAgeRangeFromServiceLabel($name);
+                $service->min_weight = $min_weight;
+                $service->max_weight = $max_weight;
+                $service->min_age_months = $minAge;
+                $service->max_age_months = $maxAge;
+                return $service;
+            })
+            ->filter(function ($service) use ($petWeight) {
+                if (empty($petWeight) || !is_numeric($petWeight)) {
+                    return true;
+                }
+                $minWeight = $service->min_weight ?? 0;
+                $maxWeight = $service->max_weight ?? 9999;
+                return $petWeight >= $minWeight && $petWeight <= $maxWeight;
+            })
+            ->filter(function ($service) use ($petAgeMonths) {
+                if (is_null($petAgeMonths)) {
+                    return true;
+                }
+                $minAge = $service->min_age_months;
+                $maxAge = $service->max_age_months;
+                if (!is_null($minAge) && $petAgeMonths < $minAge) {
+                    return false;
+                }
+                if (!is_null($maxAge) && $petAgeMonths > $maxAge) {
+                    return false;
+                }
                 return true;
-            }
-            // Filter based on weight range
-            $minWeight = $service->min_weight ?? 0;
-            $maxWeight = $service->max_weight ?? 9999;
-            return $petWeight >= $minWeight && $petWeight <= $maxWeight;
-        })
-        ->filter(function ($service) use ($petAgeMonths) {
-            // If pet age is not available, show all services
-            if (is_null($petAgeMonths)) {
-                return true;
-            }
-            
-            $minAge = $service->min_age_months;
-            $maxAge = $service->max_age_months;
-
-            // Filter based on age range
-            if (!is_null($minAge) && $petAgeMonths < $minAge) {
-                return false;
-            }
-
-            if (!is_null($maxAge) && $petAgeMonths > $maxAge) {
-                return false;
-            }
-
-            return true;
-        })
-        ->values(); // Reset array keys after filtering
-
-        // Map add-ons with weight/age extraction
-        $availableAddons = $groomingAddons->map(function ($service) {
-            $name = $service->serv_name;
-            $min_weight = 0;
-            $max_weight = 9999;
-
-            // Parse weight range from service name
-            if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:to|-|–)\s*(\d+\.?\d*)\s*k[gl]?/i', $name, $matches)) {
-                $min_weight = (float)$matches[1];
-                $max_weight = (float)$matches[2];
-            }
-            else if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:below|bellow)/i', $name, $matches)) {
-                $min_weight = 0;
-                $max_weight = (float)$matches[1];
-            }
-            else if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:up|above)/i', $name, $matches)) {
-                $min_weight = (float)$matches[1];
-                $max_weight = 9999;
-            }
-            else if (preg_match('/\((\d+\.?\d*)\s*k[gl]?\)\s*(?:below|bellow)/i', $name, $matches)) {
-                $min_weight = 0;
-                $max_weight = (float)$matches[1];
-            } 
-            else if (preg_match('/\((\d+\.?\d*)\s*k[gl]?\)\s*(?:up|above)/i', $name, $matches)) {
-                $min_weight = (float)$matches[1];
-                $max_weight = 9999;
-            }
-
-            [$minAge, $maxAge] = $this->extractAgeRangeFromServiceLabel($name);
-
-            $service->min_weight = $min_weight;
-            $service->max_weight = $max_weight;
-            $service->min_age_months = $minAge;
-            $service->max_age_months = $maxAge;
-
-            return $service;
-        })
-        ->filter(function ($service) use ($petWeight) {
-            if (empty($petWeight) || !is_numeric($petWeight)) {
-                return true;
-            }
-            $minWeight = $service->min_weight ?? 0;
-            $maxWeight = $service->max_weight ?? 9999;
-            return $petWeight >= $minWeight && $petWeight <= $maxWeight;
-        })
-        ->filter(function ($service) use ($petAgeMonths) {
-            if (is_null($petAgeMonths)) {
-                return true;
-            }
-            
-            $minAge = $service->min_age_months;
-            $maxAge = $service->max_age_months;
-
-            if (!is_null($minAge) && $petAgeMonths < $minAge) {
-                return false;
-            }
-
-            if (!is_null($maxAge) && $petAgeMonths > $maxAge) {
-                return false;
-            }
-
-            return true;
-        })
-        ->values();
+            })
+            ->values();
+        } elseif ($blade === 'boarding') {
+            // For boarding, load services whose type or name indicates boarding (case-insensitive)
+            $availableServices = Service::where(function($q){
+                    $q->where('serv_type', 'like', '%board%')
+                      ->orWhere('serv_name', 'like', '%board%');
+                })
+                ->orderBy('serv_name')
+                ->get();
+        } else {
+            $availableServices = collect();
+        }
 
         $lookups = $this->getBranchLookups();
         $viewName = 'visits.' . $blade;
@@ -1666,7 +1639,6 @@ public function completeService(Request $request, $visitId, $serviceId)
         if ($blade !== 'grooming') {
             $availableAddons = collect();
         }
-        
         // Pass the new variable 'veterinarians' to the view
         //dd($viewName);
         return view($viewName, array_merge(compact('visit', 'serviceData', 'petMedicalHistory', 'availableServices','vaccines', 'veterinarians', 'availableAddons'), $lookups));
