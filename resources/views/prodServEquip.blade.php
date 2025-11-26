@@ -128,7 +128,6 @@
                                 <th class="p-2 border">Description</th>
                                 <th class="p-2 border">Price</th>
                                 <th class="p-2 border">Stock</th>
-                                <th class="p-2 border">Expiry Date</th>
                                 <th class="p-2 border">Branch</th>
                                 <th class="p-2 border">Actions</th>
                             </tr>
@@ -152,7 +151,13 @@
                                         </span>
                                     </td>
                                     <td class="p-2 border">{{ Str::limit($product->prod_description, 30) }}</td>
-                                    <td class="p-2 border">₱{{ number_format($product->prod_price, 2) }}</td>
+                                    <td class="p-2 border">
+                                        @if($product->prod_type === 'Sale')
+                                            ₱{{ number_format($product->prod_price, 2) }}
+                                        @else
+                                            <span class="text-gray-400 text-xs">N/A (Consumable)</span>
+                                        @endif
+                                    </td>
                                     <td class="p-2 border">
                                         @php
                                             $stockStatus = '';
@@ -163,25 +168,6 @@
                                         <div>
                                             <span class="{{ $stockStatus }}">{{ $product->prod_stocks ?? 0 }}</span>
                                         </div>
-                                    </td>
-                                    <td class="p-2 border">
-                                        @if($product->prod_expiry)
-                                            @php
-                                                $expiryDate = \Carbon\Carbon::parse($product->prod_expiry);
-                                                $daysUntilExpiry = now()->diffInDays($expiryDate, false);
-                                            @endphp
-                                            <span
-                                                class="{{ $daysUntilExpiry < 0 ? 'text-red-600' : ($daysUntilExpiry <= 30 ? 'text-yellow-600' : 'text-green-600') }}">
-                                                {{ $expiryDate->format('M d, Y') }}
-                                            </span>
-                                            @if($daysUntilExpiry < 0)
-                                                <div class="text-xs text-red-600">Expired</div>
-                                            @elseif($daysUntilExpiry <= 30)
-                                                <div class="text-xs text-yellow-600">{{ $daysUntilExpiry }} days left</div>
-                                            @endif
-                                        @else
-                                            N/A
-                                        @endif
                                     </td>
                                     <td class="p-2 border">{{ $product->branch->branch_name ?? 'N/A' }}</td>
                                     <td class="p-2 border">
@@ -428,7 +414,26 @@
                         </button>
                     @endif
                 </div>
-                <br>
+                
+                {{-- Status Legend --}}
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                    <div class="flex items-center gap-4 text-xs flex-wrap">
+                        <span class="font-semibold text-blue-800"><i class="fas fa-info-circle mr-1"></i>Status Legend:</span>
+                        <span class="inline-flex items-center px-2 py-1 rounded bg-green-100 text-green-800">
+                            <i class="fas fa-check-circle mr-1"></i>Available
+                        </span>
+                        <span class="inline-flex items-center px-2 py-1 rounded bg-purple-100 text-purple-800">
+                            <i class="fas fa-hand-holding mr-1"></i>In Use
+                        </span>
+                        <span class="inline-flex items-center px-2 py-1 rounded bg-yellow-100 text-yellow-800">
+                            <i class="fas fa-tools mr-1"></i>Maintenance
+                        </span>
+                        <span class="inline-flex items-center px-2 py-1 rounded bg-red-100 text-red-800">
+                            <i class="fas fa-times-circle mr-1"></i>Out of Service
+                        </span>
+                    </div>
+                </div>
+
                 <div class="overflow-x-auto">
                     <table class="w-full table-auto text-sm border text-center">
                         <thead class="bg-gray-100">
@@ -438,7 +443,7 @@
                                 <th class="p-2 border">Category</th>
                                 <th class="p-2 border">Description</th>
                                 <th class="p-2 border">Quantity</th>
-                                <th class="p-2 border">Status</th>
+                                <th class="p-2 border">Status Breakdown</th>
                                 <th class="p-2 border">Actions</th>
                             </tr>
                         </thead>
@@ -459,17 +464,30 @@
                                     <td class="p-2 border">{{ $equip->equipment_quantity }}</td>
                                     <td class="p-2 border">
                                         @php
-                                            $statusClass = match ($equip->equipment_status ?? 'Available') {
-                                                'Available' => 'bg-green-100 text-green-800',
-                                                'In Use' => 'bg-blue-100 text-blue-800',
-                                                'Under Maintenance' => 'bg-yellow-100 text-yellow-800',
-                                                'Out of Service' => 'bg-red-100 text-red-800',
-                                                default => 'bg-gray-100 text-gray-800'
-                                            };
+                                            $totalQty = $equip->equipment_quantity;
+                                            $available = $equip->equipment_available ?? 0;
+                                            $maintenance = $equip->equipment_maintenance ?? 0;
+                                            $outOfService = $equip->equipment_out_of_service ?? 0;
+                                            $inUse = max(0, $totalQty - $available - $maintenance - $outOfService);
                                         @endphp
-                                        <span class="px-2 py-1 rounded-full text-xs font-medium {{ $statusClass }}">
-                                            {{ $equip->equipment_status ?? 'Available' }}
-                                        </span>
+                                        <div class="text-xs space-y-1">
+                                            <div class="flex items-center justify-center gap-1">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded bg-green-100 text-green-800">
+                                                    <i class="fas fa-check-circle text-xs mr-1"></i>{{ $available }}
+                                                </span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded bg-purple-100 text-purple-800">
+                                                    <i class="fas fa-hand-holding text-xs mr-1"></i>{{ $inUse }}
+                                                </span>
+                                            </div>
+                                            <div class="flex items-center justify-center gap-1">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded bg-yellow-100 text-yellow-800">
+                                                    <i class="fas fa-tools text-xs mr-1"></i>{{ $maintenance }}
+                                                </span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded bg-red-100 text-red-800">
+                                                    <i class="fas fa-times-circle text-xs mr-1"></i>{{ $outOfService }}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </td>
                                     <td class="p-2 border">
                                         <div class="flex justify-center gap-2">
@@ -548,33 +566,93 @@
     </div>
 
     <div id="updateEquipmentStatusModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
-        <h3 class="text-lg font-bold mb-4">Update Equipment Status</h3>
-        <form id="updateEquipmentStatusForm" method="POST">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl">
+        <h3 class="text-xl font-bold mb-4 flex items-center">
+            <i class="fas fa-clipboard-check text-blue-600 mr-2"></i>
+            Update Equipment Status Distribution
+        </h3>
+        <form id="updateEquipmentStatusForm" method="POST" onsubmit="return validateStatusFormSubmit()">
             @csrf
-            @method('PUT') <input type="hidden" name="equipment_id" id="statusEquipmentId">
-            <input type="hidden" name="tab" value="equipment"> 
+            @method('PUT') 
+            <input type="hidden" name="equipment_id" id="statusEquipmentId">
+            <input type="hidden" name="tab" value="equipment">
+            <input type="hidden" name="equipment_available" id="statusEquipmentAvailable">
+            <input type="hidden" name="equipment_maintenance" id="statusEquipmentMaintenance">
+            <input type="hidden" name="equipment_out_of_service" id="statusEquipmentOutOfService">
 
-                <div class="mb-4 bg-gray-50 p-3 rounded">
-                    <div class="text-sm text-gray-600">Equipment: <span id="statusEquipmentName" class="font-bold"></span></div>
-                    <div class="text-sm text-gray-600">Current Status: <span id="currentEquipmentStatus" class="font-bold"></span></div>
+                <div class="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <div class="text-sm text-gray-600">Equipment Name:</div>
+                            <div class="font-bold text-gray-900" id="statusEquipmentName"></div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-600">Total Quantity:</div>
+                            <div class="font-bold text-2xl text-blue-600" id="statusTotalQuantity"></div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">New Status</label>
-                    <select name="equipment_status" id="newEquipmentStatus" class="border p-2 w-full rounded" required>
-                        <option value="Available">Available</option>
-                        <option value="In Use">In Use</option>
-                        <option value="Under Maintenance">Under Maintenance</option>
-                        <option value="Out of Service">Out of Service</option>
-                    </select>
+                <p class="text-sm text-gray-600 mb-4 bg-yellow-50 p-3 rounded border border-yellow-200">
+                    <i class="fas fa-info-circle text-yellow-600 mr-2"></i>
+                    Distribute equipment units across different status categories. The sum cannot exceed the total quantity.
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <!-- Available -->
+                    <div class="border rounded-lg p-4 bg-green-50 border-green-300">
+                        <label class="flex items-center text-sm font-semibold text-green-700 mb-2">
+                            <i class="fas fa-check-circle mr-2"></i>Available for Use
+                        </label>
+                        <select id="statusAvailableDropdown" class="border p-3 w-full rounded-lg border-green-400 focus:ring-2 focus:ring-green-300" onchange="updateStatusDistribution('available')">
+                            <option value="">-- Select Quantity --</option>
+                        </select>
+                        <small class="text-xs text-gray-600 mt-1 block">Ready to be used</small>
+                    </div>
+
+                    <!-- Under Maintenance -->
+                    <div class="border rounded-lg p-4 bg-yellow-50 border-yellow-300">
+                        <label class="flex items-center text-sm font-semibold text-yellow-700 mb-2">
+                            <i class="fas fa-tools mr-2"></i>Under Maintenance
+                        </label>
+                        <select id="statusMaintenanceDropdown" class="border p-3 w-full rounded-lg border-yellow-400 focus:ring-2 focus:ring-yellow-300" onchange="updateStatusDistribution('maintenance')">
+                            <option value="">-- Select Quantity --</option>
+                        </select>
+                        <small class="text-xs text-gray-600 mt-1 block">Being serviced/repaired</small>
+                    </div>
+
+                    <!-- Out of Service -->
+                    <div class="border rounded-lg p-4 bg-red-50 border-red-300">
+                        <label class="flex items-center text-sm font-semibold text-red-700 mb-2">
+                            <i class="fas fa-times-circle mr-2"></i>Out of Service
+                        </label>
+                        <select id="statusOutOfServiceDropdown" class="border p-3 w-full rounded-lg border-red-400 focus:ring-2 focus:ring-red-300" onchange="updateStatusDistribution('out_of_service')">
+                            <option value="">-- Select Quantity --</option>
+                        </select>
+                        <small class="text-xs text-gray-600 mt-1 block">Damaged/retired</small>
+                    </div>
+
+                    <!-- In Use (Calculated) -->
+                    <div class="border rounded-lg p-4 bg-purple-50 border-purple-300">
+                        <label class="flex items-center text-sm font-semibold text-purple-700 mb-2">
+                            <i class="fas fa-hand-holding mr-2"></i>Currently In Use
+                        </label>
+                        <div class="text-4xl font-bold text-purple-700 mb-1" id="statusInUseDisplay">0</div>
+                        <small class="text-xs text-gray-600">Auto-calculated</small>
+                    </div>
                 </div>
 
-                <div class="flex justify-end gap-2">
+                <div id="statusValidationMessage" class="mb-4"></div>
+
+                <div class="flex justify-end gap-3 pt-3 border-t">
                     <button type="button" onclick="closeUpdateStatusModal()"
-                        class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
-                    <button type="submit"
-                        class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Update Status</button>
+                        class="px-5 py-2 bg-gray-300 rounded-lg hover:bg-gray-400 transition">
+                        <i class="fas fa-times mr-2"></i>Cancel
+                    </button>
+                    <button type="submit" id="statusSubmitBtn"
+                        class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                        <i class="fas fa-save mr-2"></i>Update Status
+                    </button>
                 </div>
             </form>
         </div>
@@ -596,7 +674,6 @@
                             <th class="p-2 border">Reorder Level</th>
                             <th class="p-2 border">Damaged</th>
                             <th class="p-2 border">Pull-Out</th>
-                            <th class="p-2 border">Expiry Date</th>
                             <th class="p-2 border">Status</th>
                             <th class="p-2 border">Action</th>
                         </tr>
@@ -608,15 +685,7 @@
                                 $statusText = 'Good Stock';
                                 $statusClass = 'bg-green-100 text-green-800';
 
-                                if ($product->prod_expiry && \Carbon\Carbon::parse($product->prod_expiry)->isPast()) {
-                                    $status = 'expired';
-                                    $statusText = 'Expired';
-                                    $statusClass = 'bg-red-100 text-red-800';
-                                } elseif ($product->prod_expiry && \Carbon\Carbon::parse($product->prod_expiry)->diffInDays(now()) <= 30) {
-                                    $status = 'warning';
-                                    $statusText = 'Expiring Soon';
-                                    $statusClass = 'bg-yellow-100 text-yellow-800';
-                                } elseif ($product->prod_stocks <= ($product->prod_reorderlevel ?? 10)) {
+                                if ($product->prod_stocks <= ($product->prod_reorderlevel ?? 10)) {
                                     $status = 'low';
                                     $statusText = 'Low Stock';
                                     $statusClass = 'bg-orange-100 text-orange-800';
@@ -635,22 +704,6 @@
                                     <span class="{{ ($product->prod_pullout ?? 0) > 0 ? 'text-orange-600' : '' }}">
                                         {{ $product->prod_pullout ?? 0 }}
                                     </span>
-                                </td>
-                                <td class="p-2 border">
-                                    @if($product->prod_expiry)
-                                        @php
-                                            $expiryDate = \Carbon\Carbon::parse($product->prod_expiry);
-                                            $daysUntilExpiry = now()->diffInDays($expiryDate, false);
-                                        @endphp
-                                        <span>{{ $expiryDate->format('M d, Y') }}</span>
-                                        @if($daysUntilExpiry < 0 || $expiryDate->isToday())
-                                            <br><small class="text-red-600">(Expired)</small>
-                                        @elseif($daysUntilExpiry <= 30)
-                                            <br><small class="text-yellow-600">({{ $daysUntilExpiry }} days left)</small>
-                                        @endif
-                                    @else
-                                        N/A
-                                    @endif
                                 </td>
                                 <td class="p-2 border">
                                     <span class="px-2 py-1 rounded-full text-xs font-medium {{ $statusClass }}">
@@ -773,49 +826,50 @@
 
     <div id="updateStockModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
         <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
-            <h3 class="text-lg font-bold mb-4">Add Stock</h3>
+            <h3 class="text-lg font-bold mb-4">Add Stock Batch</h3>
             <form id="updateStockForm" method="POST">
                 @csrf
                 @method('PUT')
                 <input type="hidden" name="product_id">
-                <input type="hidden" name="tab" value="products"> {{-- Always redirects to products tab --}}
+                <input type="hidden" name="tab" value="products">
 
                 <div class="mb-4 bg-gray-50 p-3 rounded">
-                    <div class="text-sm text-gray-600">Current Stock: <span id="currentStock" class="font-bold"></span>
+                    <div class="text-sm text-gray-600">Current Available Stock: <span id="currentStock" class="font-bold"></span>
                     </div>
                     <div class="text-sm text-gray-600">Product: <span id="productName" class="font-bold"></span></div>
                 </div>
 
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Add Stock Quantity</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Batch Number/Code *</label>
+                    <input type="text" name="batch" placeholder="e.g., BATCH-2025-001" class="border p-2 w-full rounded" required maxlength="100">
+                    <small class="text-gray-500">Unique identifier for this stock batch</small>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
                     <input type="number" name="add_stock" placeholder="Enter quantity to add"
                         class="border p-2 w-full rounded" required min="1">
-                    <small class="text-gray-500">This will be added to existing stock</small>
+                    <small class="text-gray-500">This will create a new stock batch</small>
                 </div>
 
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">New Stock Expiry Date</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Expiry Date *</label>
                     <input type="date" name="new_expiry" class="border p-2 w-full rounded" required>
-                    <small class="text-gray-500">Expiry date for the new stock being added</small>
-                </div>
-
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Update Reorder Level</label>
-                    <input type="number" name="reorder_level" placeholder="Enter reorder level"
-                        class="border p-2 w-full rounded">
+                    <small class="text-gray-500">Expiry date for this batch (must be in the future)</small>
                 </div>
 
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                    <textarea name="notes" placeholder="Supplier, batch info, etc." class="border p-2 w-full rounded"
+                    <textarea name="notes" placeholder="Supplier, lot number, purchase order, etc." class="border p-2 w-full rounded"
                         rows="2"></textarea>
                 </div>
 
                 <div class="flex justify-end gap-2">
                     <button type="button" onclick="closeUpdateStockModal()"
                         class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Update
-                        Stock</button>
+                    <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                        <i class="fas fa-plus mr-1"></i> Add Batch
+                    </button>
                 </div>
             </form>
         </div>
@@ -823,44 +877,54 @@
 
     <div id="damagePulloutModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
         <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
-            <h3 class="text-lg font-bold mb-4">Update Damage/Pull-out</h3>
+            <h3 class="text-lg font-bold mb-4">Record Damage/Pull-out</h3>
             <form id="damagePulloutForm" method="POST">
                 @csrf
                 @method('PUT')
                 <input type="hidden" name="product_id">
-                <input type="hidden" name="tab" value="products"> {{-- Always redirects to products tab --}}
+                <input type="hidden" name="tab" value="products">
 
                 <div class="mb-4 bg-gray-50 p-3 rounded">
                     <div class="text-sm text-gray-600">Product: <span id="damageProductName" class="font-bold"></span></div>
-                    <div class="text-sm text-gray-600">Current Stock: <span id="damageCurrentStock"
+                    <div class="text-sm text-gray-600">Current Available Stock: <span id="damageCurrentStock"
                                 class="font-bold"></span></div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Select Stock Batch *</label>
+                    <select name="stock_id" id="stockBatchSelect" class="border p-2 w-full rounded" required>
+                        <option value="">-- Select Batch --</option>
+                    </select>
+                    <small class="text-gray-500">Choose which batch to record damage/pullout from</small>
                 </div>
 
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Damaged Quantity</label>
                     <input type="number" name="damaged_qty" placeholder="Enter damaged quantity"
-                        class="border p-2 w-full rounded" min="0">
-                    <small class="text-gray-500">Total damaged items</small>
+                        class="border p-2 w-full rounded" min="0" value="0">
+                    <small class="text-gray-500">Number of damaged items</small>
                 </div>
 
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Pull-out Quantity</label>
                     <input type="number" name="pullout_qty" placeholder="Enter pull-out quantity"
-                        class="border p-2 w-full rounded" min="0">
+                        class="border p-2 w-full rounded" min="0" value="0">
                     <small class="text-gray-500">Items pulled out for quality control</small>
                 </div>
 
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Reason *</label>
                     <textarea name="reason" placeholder="Reason for damage/pull-out" class="border p-2 w-full rounded"
-                        rows="2"></textarea>
+                        rows="2" required></textarea>
                 </div>
 
                 <div class="flex justify-end gap-2">
                     <button type="button" onclick="closeDamagePulloutModal()"
                         class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
                     <button type="submit"
-                        class="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700">Update</button>
+                        class="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700">
+                        <i class="fas fa-exclamation-triangle mr-1"></i> Record
+                    </button>
                 </div>
             </form>
         </div>
@@ -869,7 +933,7 @@
     <div id="generalModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
         <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <h3 id="generalModalTitle" class="text-lg font-bold mb-4"></h3>
-            <form id="generalModalForm" method="POST" enctype="multipart/form-data">
+            <form id="generalModalForm" method="POST" enctype="multipart/form-data" onsubmit="return validateEquipmentFormSubmit()">
                 @csrf
                 {{-- FIX: Renamed 'active_tab' to 'tab' for consistency with URL --}}
                 <input type="hidden" name="tab" id="active_tab" value=""> 
@@ -878,7 +942,7 @@
                 <div class="flex justify-end gap-2 mt-6">
                     <button type="button" onclick="closeGeneralModal()"
                         class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-[#0f7ea0] text-white rounded hover:bg-[#0c6a86]">Save</button>
+                    <button type="submit" id="generalModalSubmitBtn" class="px-4 py-2 bg-[#0f7ea0] text-white rounded hover:bg-[#0c6a86]">Save</button>
                 </div>
             </form>
         </div>
@@ -1318,6 +1382,12 @@
                     const monthlySales = data.monthly_sales;
                     const recentOrders = data.recent_orders;
                     const profitData = data.profit_data;
+                    const stockBatches = data.stock_batches || [];
+                    const damagePulloutHistory = data.damage_pullout_history || [];
+                    const serviceConsumptionData = data.service_consumption_data;
+                    const servicesUsingProduct = data.services_using_product || [];
+                    const recentServiceUsage = data.recent_service_usage || [];
+                    const isConsumable = product.prod_type === 'Consumable';
 
                     let content = `
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1327,8 +1397,9 @@
                                 ${product.prod_image ? `<div class="mb-3"><img src="/storage/${product.prod_image}" class="h-32 w-32 object-cover rounded mx-auto"></div>` : ''}
                                 <div><span class="font-medium">Name:</span> ${product.prod_name}</div>
                                 <div><span class="font-medium">Category:</span> ${product.prod_category || 'N/A'}</div>
+                                <div><span class="font-medium">Type:</span> <span class="px-2 py-1 text-xs rounded-full ${product.prod_type === 'Sale' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}">${product.prod_type}</span></div>
                                 <div><span class="font-medium">Description:</span> ${product.prod_description || 'N/A'}</div>
-                                <div><span class="font-medium">Price:</span> ₱${parseFloat(product.prod_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                                ${product.prod_type === 'Sale' ? `<div><span class="font-medium">Price:</span> ₱${parseFloat(product.prod_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>` : '<div><span class="font-medium">Price:</span> <span class="text-gray-400 text-sm">N/A (Consumable)</span></div>'}
                                 <div><span class="font-medium">Branch:</span> ${product.branch ? product.branch.branch_name : 'N/A'}</div>
                             </div>
                         </div>
@@ -1338,37 +1409,257 @@
                             <div class="space-y-2">
                                 <div><span class="font-medium">Current Stock:</span> <span class="text-lg font-bold ${product.prod_stocks <= (product.prod_reorderlevel || 10) ? 'text-red-600' : 'text-green-600'}">${product.prod_stocks || 0}</span></div>
                                 <div><span class="font-medium">Reorder Level:</span> ${product.prod_reorderlevel || 'Not set'}</div>
-                                <div><span class="font-medium">Damaged:</span> <span class="text-red-600">${product.prod_damaged || 0}</span></div>
-                                <div><span class="font-medium">Pull-out:</span> <span class="text-orange-600">${product.prod_pullout || 0}</span></div>
-                                <div><span class="font-medium">Expiry Date:</span> ${product.prod_expiry ? new Date(product.prod_expiry).toLocaleDateString() : 'N/A'}</div>
+                                <div><span class="font-medium">Total Damaged:</span> <span class="text-red-600">${product.prod_damaged || 0}</span></div>
+                                <div><span class="font-medium">Total Pull-out:</span> <span class="text-orange-600">${product.prod_pullout || 0}</span></div>
                             </div>
                         </div>
                     </div>
 
                     <div class="mt-6">
-                        <h4 class="font-bold text-lg mb-3">Sales Analytics</h4>
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                            <div class="bg-blue-50 p-4 rounded-lg">
-                                <div class="text-sm text-blue-600">Total Orders</div>
-                                <div class="text-2xl font-bold text-blue-800">${salesData.total_orders || 0}</div>
-                            </div>
-                            <div class="bg-green-50 p-4 rounded-lg">
-                                <div class="text-sm text-green-600">Quantity Sold</div>
-                                <div class="text-2xl font-bold text-green-800">${salesData.total_quantity_sold || 0}</div>
-                            </div>
-                            <div class="bg-purple-50 p-4 rounded-lg">
-                                <div class="text-sm text-purple-600">Total Revenue</div>
-                                <div class="text-2xl font-bold text-purple-800">₱${parseFloat(salesData.total_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                            </div>
-                            <div class="bg-yellow-50 p-4 rounded-lg">
-                                <div class="text-sm text-yellow-600">Avg. Order Value</div>
-                                <div class="text-2xl font-bold text-yellow-800">₱${parseFloat(salesData.average_order_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                            </div>
+                        <h4 class="font-bold text-lg mb-3">Stock Batches</h4>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm border">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="p-2 border">Batch</th>
+                                        <th class="p-2 border">Initial Qty</th>
+                                        <th class="p-2 border">Available</th>
+                                        <th class="p-2 border">Damaged</th>
+                                        <th class="p-2 border">Pullout</th>
+                                        <th class="p-2 border">Expiry Date</th>
+                                        <th class="p-2 border">Added By</th>
+                                        <th class="p-2 border">Date Added</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+
+                    if (stockBatches.length > 0) {
+                        stockBatches.forEach(batch => {
+                            const expiryDate = batch.expire_date ? new Date(batch.expire_date) : null;
+                            const isExpired = batch.is_expired;
+                            const addedDate = batch.created_at ? new Date(batch.created_at) : null;
+                            
+                            content += `
+                            <tr class="${isExpired ? 'bg-red-50' : ''}">
+                                <td class="p-2 border font-medium">${batch.batch}</td>
+                                <td class="p-2 border text-center">${batch.quantity}</td>
+                                <td class="p-2 border text-center">
+                                    <span class="font-bold ${batch.available_quantity > 0 ? 'text-green-600' : 'text-gray-400'}">${batch.available_quantity}</span>
+                                </td>
+                                <td class="p-2 border text-center text-red-600">${batch.total_damage}</td>
+                                <td class="p-2 border text-center text-orange-600">${batch.total_pullout}</td>
+                                <td class="p-2 border ${isExpired ? 'text-red-600 font-bold' : ''}">
+                                    ${expiryDate ? expiryDate.toLocaleDateString() : 'N/A'}
+                                    ${isExpired ? '<br><span class="text-xs">(EXPIRED)</span>' : ''}
+                                </td>
+                                <td class="p-2 border">${batch.created_by_name || 'System'}</td>
+                                <td class="p-2 border">${addedDate ? addedDate.toLocaleDateString() : 'N/A'}</td>
+                            </tr>`;
+                        });
+                    } else {
+                        content += '<tr><td colspan="8" class="p-4 text-center text-gray-500">No stock batches found</td></tr>';
+                    }
+
+                    content += `
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
                     <div class="mt-6">
-                        <h4 class="font-bold text-lg mb-3">Recent Orders</h4>
+                        <h4 class="font-bold text-lg mb-3">Damage & Pullout History</h4>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm border">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="p-2 border">Date</th>
+                                        <th class="p-2 border">Batch</th>
+                                        <th class="p-2 border">Damaged</th>
+                                        <th class="p-2 border">Pullout</th>
+                                        <th class="p-2 border">Reason</th>
+                                        <th class="p-2 border">Recorded By</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+
+                    if (damagePulloutHistory.length > 0) {
+                        damagePulloutHistory.forEach(record => {
+                            const recordDate = record.created_at ? new Date(record.created_at) : null;
+                            
+                            content += `
+                            <tr>
+                                <td class="p-2 border">${recordDate ? recordDate.toLocaleDateString() : 'N/A'}</td>
+                                <td class="p-2 border font-medium">${record.batch}</td>
+                                <td class="p-2 border text-center text-red-600">${record.damage_quantity || 0}</td>
+                                <td class="p-2 border text-center text-orange-600">${record.pullout_quantity || 0}</td>
+                                <td class="p-2 border">${record.reason || 'N/A'}</td>
+                                <td class="p-2 border">${record.created_by_name || 'System'}</td>
+                            </tr>`;
+                        });
+                    } else {
+                        content += '<tr><td colspan="6" class="p-4 text-center text-gray-500">No damage or pullout records found</td></tr>';
+                    }
+
+                    content += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>`;
+
+                    // Show different analytics based on product type
+                    if (isConsumable && serviceConsumptionData) {
+                        // CONSUMABLE PRODUCT ANALYTICS
+                        content += `
+                        <div class="mt-6">
+                            <h4 class="font-bold text-lg mb-3 flex items-center">
+                                <i class="fas fa-chart-line text-blue-600 mr-2"></i>
+                                Service Consumption Analytics
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                                <div class="bg-blue-50 p-4 rounded-lg">
+                                    <div class="text-sm text-blue-600">Services Using</div>
+                                    <div class="text-2xl font-bold text-blue-800">${serviceConsumptionData.total_services_using || 0}</div>
+                                    <div class="text-xs text-blue-500 mt-1">Active services</div>
+                                </div>
+                                <div class="bg-green-50 p-4 rounded-lg">
+                                    <div class="text-sm text-green-600">Total Consumed</div>
+                                    <div class="text-2xl font-bold text-green-800">${parseFloat(serviceConsumptionData.total_quantity_consumed || 0).toLocaleString()}</div>
+                                    <div class="text-xs text-green-500 mt-1">All time usage</div>
+                                </div>
+                                <div class="bg-purple-50 p-4 rounded-lg">
+                                    <div class="text-sm text-purple-600">Last 30 Days</div>
+                                    <div class="text-2xl font-bold text-purple-800">${parseFloat(serviceConsumptionData.recent_consumption_30days || 0).toLocaleString()}</div>
+                                    <div class="text-xs text-purple-500 mt-1">Recent consumption</div>
+                                </div>
+                                <div class="bg-yellow-50 p-4 rounded-lg">
+                                    <div class="text-sm text-yellow-600">Avg. Per Service</div>
+                                    <div class="text-2xl font-bold text-yellow-800">${parseFloat(serviceConsumptionData.avg_consumption_per_service || 0).toFixed(1)}</div>
+                                    <div class="text-xs text-yellow-500 mt-1">Average usage</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6">
+                            <h4 class="font-bold text-lg mb-3 flex items-center">
+                                <i class="fas fa-stethoscope text-purple-600 mr-2"></i>
+                                Services Using This Product
+                            </h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm border">
+                                    <thead class="bg-gray-100">
+                                        <tr>
+                                            <th class="p-2 border">Service Name</th>
+                                            <th class="p-2 border">Service Type</th>
+                                            <th class="p-2 border">Qty Used</th>
+                                            <th class="p-2 border">Billable</th>
+                                            <th class="p-2 border">Added By</th>
+                                            <th class="p-2 border">Date Added</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>`;
+                        
+                        if (servicesUsingProduct.length > 0) {
+                            servicesUsingProduct.forEach(service => {
+                                const addedDate = service.created_at ? new Date(service.created_at).toLocaleDateString() : 'N/A';
+                                content += `
+                                <tr>
+                                    <td class="p-2 border font-medium">${service.serv_name}</td>
+                                    <td class="p-2 border">
+                                        <span class="px-2 py-1 text-xs rounded ${service.serv_type === 'Grooming' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'}">
+                                            ${service.serv_type}
+                                        </span>
+                                    </td>
+                                    <td class="p-2 border text-center font-bold">${service.quantity_used}</td>
+                                    <td class="p-2 border text-center">
+                                        ${service.is_billable ? '<span class="text-green-600"><i class="fas fa-check-circle"></i> Yes</span>' : '<span class="text-gray-400"><i class="fas fa-times-circle"></i> No</span>'}
+                                    </td>
+                                    <td class="p-2 border">${service.added_by || 'System'}</td>
+                                    <td class="p-2 border">${addedDate}</td>
+                                </tr>`;
+                            });
+                        } else {
+                            content += '<tr><td colspan="6" class="p-4 text-center text-gray-500">Not currently used in any services</td></tr>';
+                        }
+
+                        content += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="mt-6">
+                            <h4 class="font-bold text-lg mb-3 flex items-center">
+                                <i class="fas fa-history text-green-600 mr-2"></i>
+                                Recent Service Usage
+                            </h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm border">
+                                    <thead class="bg-gray-100">
+                                        <tr>
+                                            <th class="p-2 border">Date</th>
+                                            <th class="p-2 border">Quantity Used</th>
+                                            <th class="p-2 border">Visit / Service</th>
+                                            <th class="p-2 border">Pet</th>
+                                            <th class="p-2 border">Performed By</th>
+                                            <th class="p-2 border">Notes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>`;
+                        
+                        if (recentServiceUsage.length > 0) {
+                            recentServiceUsage.forEach(usage => {
+                                const usageDate = usage.transaction_date ? new Date(usage.transaction_date).toLocaleDateString() : 'N/A';
+                                const visitInfo = usage.visit_id ? `Visit #${usage.visit_id}` : 'N/A';
+                                const serviceName = usage.serv_name || usage.reference || 'Service';
+                                content += `
+                                <tr>
+                                    <td class="p-2 border">${usageDate}</td>
+                                    <td class="p-2 border text-center font-bold text-red-600">${Math.abs(usage.quantity)}</td>
+                                    <td class="p-2 border">
+                                        <div class="font-medium">${visitInfo}</div>
+                                        <div class="text-xs text-gray-500">${serviceName}</div>
+                                    </td>
+                                    <td class="p-2 border">${usage.pet_name || 'N/A'}</td>
+                                    <td class="p-2 border">${usage.performed_by || 'System'}</td>
+                                    <td class="p-2 border text-xs">${usage.notes || '-'}</td>
+                                </tr>`;
+                            });
+                        } else {
+                            content += '<tr><td colspan="6" class="p-4 text-center text-gray-500">No recent service usage recorded</td></tr>';
+                        }
+
+                        content += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>`;
+                    } else {
+                        // SALE PRODUCT ANALYTICS
+                        content += `
+                        <div class="mt-6">
+                            <h4 class="font-bold text-lg mb-3">Sales Analytics</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                                <div class="bg-blue-50 p-4 rounded-lg">
+                                    <div class="text-sm text-blue-600">Total Orders</div>
+                                    <div class="text-2xl font-bold text-blue-800">${salesData.total_orders || 0}</div>
+                                </div>
+                                <div class="bg-green-50 p-4 rounded-lg">
+                                    <div class="text-sm text-green-600">Quantity Sold</div>
+                                    <div class="text-2xl font-bold text-green-800">${salesData.total_quantity_sold || 0}</div>
+                                </div>
+                                <div class="bg-purple-50 p-4 rounded-lg">
+                                    <div class="text-sm text-purple-600">Total Revenue</div>
+                                    <div class="text-2xl font-bold text-purple-800">₱${parseFloat(salesData.total_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                                </div>
+                                <div class="bg-yellow-50 p-4 rounded-lg">
+                                    <div class="text-sm text-yellow-600">Avg. Order Value</div>
+                                    <div class="text-2xl font-bold text-yellow-800">₱${parseFloat(salesData.average_order_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6">
+                            <h4 class="font-bold text-lg mb-3">Recent Orders</h4>
                         <div class="overflow-x-auto">
                             <table class="w-full text-sm border">
                                 <thead class="bg-gray-100">
@@ -1402,6 +1693,7 @@
                             </table>
                         </div>
                     </div>`;
+                    }
 
                     document.getElementById('productDetailsContent').innerHTML = content;
                 })
@@ -1449,6 +1741,7 @@
 
                     const product = historyData.product;
                     const stockHistory = historyData.stock_history;
+                    const stockBatches = historyData.stock_batches || [];
                     const damageAnalysis = historyData.damage_analysis;
                     const expiryData = historyData.expiry_data;
                     const stockAnalytics = historyData.stock_analytics;
@@ -1461,7 +1754,7 @@
                 <div class="mb-6">
                     <h4 class="font-bold text-lg mb-3">Product: ${product.prod_name}</h4>
 
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
                         <div class="bg-blue-50 p-3 rounded-lg">
                             <div class="text-xs md:text-sm text-blue-600">Current Stock</div>
                             <div class="text-xl md:text-2xl font-bold text-blue-800">${stockAnalytics.current_stock}</div>
@@ -1474,11 +1767,15 @@
                             <div class="text-xs md:text-sm text-red-600">Damaged Items</div>
                             <div class="text-xl md:text-2xl font-bold text-red-800">${damageAnalysis.total_damaged}</div>
                         </div>
+                        <div class="bg-orange-50 p-3 rounded-lg">
+                            <div class="text-xs md:text-sm text-orange-600">Pullout Items</div>
+                            <div class="text-xl md:text-2xl font-bold text-orange-800">${damageAnalysis.total_pullout || 0}</div>
+                        </div>
                         <div class="bg-purple-50 p-3 rounded-lg">
                             <div class="text-xs md:text-sm text-purple-600">Used in Services</div>
                             <div class="text-xl md:text-2xl font-bold text-purple-800">${totalUsedInServices}</div>
                         </div>
-                        <div class="bg-green-50 p-3 rounded-lg md:col-span-1 lg:col-auto">
+                        <div class="bg-green-50 p-3 rounded-lg">
                             <div class="text-xs md:text-sm text-green-600">Days Until Reorder</div>
                             <div class="text-xl md:text-2xl font-bold text-green-800">${stockAnalytics.days_until_reorder}</div>
                         </div>
@@ -1551,6 +1848,67 @@
                         </div>
                     ` : ''}
 
+                    <h5 class="font-bold mb-3">Stock Batches with Expiry Information</h5>
+                    <div class="overflow-x-auto mb-6">
+                        <table class="w-full text-sm border">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="p-2 border">Batch</th>
+                                    <th class="p-2 border">Initial Qty</th>
+                                    <th class="p-2 border">Available</th>
+                                    <th class="p-2 border">Damaged</th>
+                                    <th class="p-2 border">Pullout</th>
+                                    <th class="p-2 border">Expiry Date</th>
+                                    <th class="p-2 border">Status</th>
+                                    <th class="p-2 border">Added By</th>
+                                    <th class="p-2 border">Date Added</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+                    if (stockBatches.length > 0) {
+                        stockBatches.forEach(batch => {
+                            const expiryDate = batch.expire_date ? new Date(batch.expire_date) : null;
+                            const isExpired = batch.is_expired;
+                            const addedDate = batch.created_at ? new Date(batch.created_at) : null;
+                            const daysUntilExpiry = expiryDate ? Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24)) : null;
+                            
+                            let statusText = 'Good';
+                            let statusClass = 'text-green-600';
+                            if (isExpired) {
+                                statusText = 'Expired';
+                                statusClass = 'text-red-600 font-bold';
+                            } else if (daysUntilExpiry !== null && daysUntilExpiry <= 30) {
+                                statusText = `Expiring (${daysUntilExpiry}d)`;
+                                statusClass = 'text-yellow-600';
+                            }
+                            
+                            content += `
+                            <tr class="${isExpired ? 'bg-red-50' : ''}">
+                                <td class="p-2 border font-medium">${batch.batch}</td>
+                                <td class="p-2 border text-center">${batch.quantity}</td>
+                                <td class="p-2 border text-center">
+                                    <span class="font-bold ${batch.available_quantity > 0 ? 'text-green-600' : 'text-gray-400'}">${batch.available_quantity}</span>
+                                </td>
+                                <td class="p-2 border text-center text-red-600">${batch.total_damage}</td>
+                                <td class="p-2 border text-center text-orange-600">${batch.total_pullout}</td>
+                                <td class="p-2 border ${isExpired ? 'text-red-600 font-bold' : ''}">
+                                    ${expiryDate ? expiryDate.toLocaleDateString() : 'N/A'}
+                                </td>
+                                <td class="p-2 border ${statusClass}">${statusText}</td>
+                                <td class="p-2 border">${batch.created_by_name || 'System'}</td>
+                                <td class="p-2 border">${addedDate ? addedDate.toLocaleDateString() : 'N/A'}</td>
+                            </tr>`;
+                        });
+                    } else {
+                        content += '<tr><td colspan="9" class="p-4 text-center text-gray-500">No stock batches found</td></tr>';
+                    }
+
+                    content += `
+                            </tbody>
+                        </table>
+                    </div>
+
                     <h5 class="font-bold mb-3">Complete Stock Movement History</h5>
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm border">
@@ -1559,6 +1917,8 @@
                                     <th class="p-2 border">Date</th>
                                     <th class="p-2 border">Type</th>
                                     <th class="p-2 border">Quantity</th>
+                                    <th class="p-2 border">Damaged</th>
+                                    <th class="p-2 border">Pullout</th>
                                     <th class="p-2 border">Reference</th>
                                     <th class="p-2 border">User</th>
                                     <th class="p-2 border">Notes</th>
@@ -1567,28 +1927,42 @@
                             <tbody>`;
 
                     stockHistory.forEach(movement => {
-                        const typeClass = movement.type === 'restock' ? 'text-green-600' :
-                            movement.type === 'sale' ? 'text-blue-600' :
-                                movement.type === 'service_usage' ? 'text-purple-600' :
-                                    movement.type === 'damage' ? 'text-red-600' :
-                                        movement.type === 'pullout' ? 'text-orange-600' : 'text-gray-600';
+                        const typeClass = movement.type === 'Restock' ? 'text-green-600' :
+                            movement.type === 'Sale' ? 'text-blue-600' :
+                                movement.type === 'Service_usage' ? 'text-purple-600' :
+                                    movement.type === 'Damage' ? 'text-red-600' :
+                                        movement.type === 'Pullout' ? 'text-orange-600' : 'text-gray-600';
 
                         const movementDate = movement.date ? new Date(movement.date) : new Date();
-                        // Ensure quantity is treated as a number and handle negative values for pullouts
+                        
+                        // Parse quantity, damage, and pullout values
                         const displayQuantity = typeof movement.quantity === 'number' ? movement.quantity : 
                                              (movement.quantity ? parseFloat(movement.quantity) : 0);
+                        
+                        // Separate display for damage and pullout
+                        let damageQty = 0;
+                        let pulloutQty = 0;
+                        let regularQty = displayQuantity;
+                        
+                        if (movement.type === 'Damage') {
+                            damageQty = Math.abs(displayQuantity);
+                            regularQty = 0;
+                        } else if (movement.type === 'Pullout') {
+                            pulloutQty = Math.abs(displayQuantity);
+                            regularQty = 0;
+                        }
 
                         // Format the quantity with proper sign for display
-                        const quantitySign = displayQuantity > 0 ? '+' : '';
-                        const quantityClass = displayQuantity > 0 ? 'text-green-600' : 'text-red-600';
-                        const displayType = movement.type === 'pullout' ? 'Pull-out' : 
-                                         movement.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        const quantitySign = regularQty > 0 ? '+' : (regularQty < 0 ? '' : '');
+                        const quantityClass = regularQty > 0 ? 'text-green-600' : (regularQty < 0 ? 'text-red-600' : 'text-gray-400');
 
                         content += `
                     <tr>
                         <td class="p-2 border">${movementDate.toLocaleDateString()}</td>
-                        <td class="p-2 border"><span class="${typeClass} capitalize font-semibold">${displayType}</span></td>
-                        <td class="p-2 border ${quantityClass} font-bold">${quantitySign}${displayQuantity}</td>
+                        <td class="p-2 border"><span class="${typeClass} capitalize font-semibold">${movement.type.replace(/_/g, ' ')}</span></td>
+                        <td class="p-2 border ${quantityClass} font-bold text-center">${regularQty !== 0 ? quantitySign + regularQty : '-'}</td>
+                        <td class="p-2 border text-red-600 font-semibold text-center">${damageQty > 0 ? damageQty : '-'}</td>
+                        <td class="p-2 border text-orange-600 font-semibold text-center">${pulloutQty > 0 ? pulloutQty : '-'}</td>
                         <td class="p-2 border">${movement.reference || 'N/A'}</td>
                         <td class="p-2 border">${movement.user || 'System'}</td>
                         <td class="p-2 border">${movement.notes || 'No notes'}</td>
@@ -1688,28 +2062,21 @@
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Product Type *</label>
-                <select name="prod_type" class="border p-2 w-full rounded ${isServiceProduct ? 'bg-gray-100' : ''}" required ${isServiceProduct ? 'readonly onclick="return false;"' : ''}>
+                <select name="prod_type" id="addProductType" class="border p-2 w-full rounded ${isServiceProduct ? 'bg-gray-100' : ''}" required ${isServiceProduct ? 'readonly onclick="return false;"' : ''} onchange="toggleProductPriceField('add')">
                     <option value="Sale" ${defaultType === 'Sale' ? 'selected' : ''}>Sale (Available for POS)</option>
                     <option value="Consumable" ${defaultType === 'Consumable' ? 'selected' : ''}>Consumable (Used in Services)</option>
                 </select>
                 <small class="text-gray-500">${isServiceProduct ? 'Service products are always Consumable type' : 'Sale products appear in POS, Consumable products are deducted when services are used'}</small>
             </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Price *</label>
-                <input type="number" step="0.01" name="prod_price" placeholder="Enter price" class="border p-2 w-full rounded" required>
+            <div class="mb-4" id="addProductPriceField">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Price <span id="addPriceRequired">*</span></label>
+                <input type="number" step="0.01" name="prod_price" id="addProductPrice" placeholder="Enter price" class="border p-2 w-full rounded">
+                <small class="text-gray-500 hidden" id="addPriceNote">Price not applicable for consumable products</small>
             </div>
             <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Initial Stock</label>
-                <input type="number" name="prod_stocks" placeholder="Enter initial stock" class="border p-2 w-full rounded" value="0">
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Reorder Level</label>
-                <input type="number" name="prod_reorderlevel" placeholder="Enter reorder level" class="border p-2 w-full rounded" value="10">
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Product Expiry Date *</label>
-                <input type="date" name="prod_expiry" class="border p-2 w-full rounded" required>
-                <small class="text-gray-500">Required for all products</small>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Reorder Level *</label>
+                <input type="number" name="prod_reorderlevel" placeholder="Enter reorder level" class="border p-2 w-full rounded" value="10" required min="0">
+                <small class="text-gray-500">Alert level for low stock (must be 0 or greater)</small>
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Branch</label>
@@ -1738,6 +2105,9 @@
             // Remove existing method field
             let methodField = document.querySelector('#productModalForm input[name="_method"]');
             if (methodField) methodField.remove();
+            
+            // Set initial price field visibility
+            setTimeout(() => toggleProductPriceField('add'), 0);
         }
 
         function openEditProductModal(data) {
@@ -1767,29 +2137,26 @@
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Product Type *</label>
-                <select name="prod_type" class="border p-2 w-full rounded" required>
+                <select name="prod_type" id="editProductType" class="border p-2 w-full rounded" required onchange="toggleProductPriceField('edit')">
                     <option value="Sale" ${data.prod_type === 'Sale' ? 'selected' : ''}>Sale (Available for POS)</option>
                     <option value="Consumable" ${data.prod_type === 'Consumable' ? 'selected' : ''}>Consumable (Used in Services)</option>
                 </select>
                 <small class="text-gray-500">Sale products appear in POS, Consumable products are deducted when services are used</small>
             </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Price *</label>
-                <input type="number" step="0.01" name="prod_price" value="${data.prod_price}" class="border p-2 w-full rounded" required>
+            <div class="mb-4" id="editProductPriceField">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Price <span id="editPriceRequired">*</span></label>
+                <input type="number" step="0.01" name="prod_price" id="editProductPrice" value="${data.prod_price}" class="border p-2 w-full rounded">
+                <small class="text-gray-500 hidden" id="editPriceNote">Price not applicable for consumable products</small>
             </div>
             <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Current Stock</label>
-                <input type="number" name="prod_stocks" value="${data.prod_stocks || 0}" class="border p-2 w-full rounded" readonly>
-                <small class="text-gray-500">Use "Update Stock" action to modify stock</small>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Current Available Stock</label>
+                <input type="number" value="${data.prod_stocks || 0}" class="border p-2 w-full rounded bg-gray-100" readonly>
+                <small class="text-gray-500">Stock is managed through "Add Stock" batches. Current value shows non-expired available stock.</small>
             </div>
             <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Reorder Level</label>
-                <input type="number" name="prod_reorderlevel" value="${data.prod_reorderlevel || ''}" class="border p-2 w-full rounded">
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Current Expiry Date</label>
-                <input type="date" name="prod_expiry" value="${data.prod_expiry ? data.prod_expiry.split('T')[0] : ''}" class="border p-2 w-full rounded" readonly>
-                <small class="text-gray-500">Use "Update Stock" action to modify expiry date</small>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Reorder Level *</label>
+                <input type="number" name="prod_reorderlevel" value="${data.prod_reorderlevel || ''}" class="border p-2 w-full rounded" required min="0">
+                <small class="text-gray-500">Alert level for low stock (must be 0 or greater)</small>
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Branch</label>
@@ -1824,6 +2191,9 @@
             if (!document.querySelector('#productModalForm input[name="_method"]')) {
                 document.getElementById('productModalForm').insertAdjacentHTML('afterbegin', '<input type="hidden" name="_method" value="PUT">');
             }
+            
+            // Set initial price field visibility
+            setTimeout(() => toggleProductPriceField('edit'), 0);
         }
 
         function closeProductModal() {
@@ -1861,32 +2231,174 @@
             let form = document.getElementById('damagePulloutForm');
             form.action = `/inventory/update-damage/${data.prod_id}`;
             form.querySelector('input[name=product_id]').value = data.prod_id;
-            form.querySelector('input[name=damaged_qty]').value = data.prod_damaged || 0;
-            form.querySelector('input[name=pullout_qty]').value = data.prod_pullout || 0;
+            form.querySelector('input[name=damaged_qty]').value = 0;
+            form.querySelector('input[name=pullout_qty]').value = 0;
+            form.querySelector('textarea[name=reason]').value = '';
+
+            // Load stock batches for this product
+            loadStockBatches(data.prod_id);
         }
 
         function closeDamagePulloutModal() {
             document.getElementById('damagePulloutModal').classList.add('hidden');
             document.getElementById('damagePulloutForm').reset();
+            document.getElementById('stockBatchSelect').innerHTML = '<option value="">-- Select Batch --</option>';
+        }
+
+        // Load available stock batches for damage/pullout
+        function loadStockBatches(productId) {
+            const select = document.getElementById('stockBatchSelect');
+            select.innerHTML = '<option value="">Loading...</option>';
+
+            fetch(`/products/${productId}/stock-batches`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.batches && data.batches.length > 0) {
+                        let options = '<option value="">-- Select Batch --</option>';
+                        data.batches.forEach(batch => {
+                            const expiry = new Date(batch.expire_date).toLocaleDateString();
+                            const status = batch.is_expired ? ' (EXPIRED)' : '';
+                            const disabled = batch.available_quantity <= 0 || batch.is_expired ? ' disabled' : '';
+                            options += `<option value="${batch.id}"${disabled}>
+                                Batch: ${batch.batch} | Available: ${batch.available_quantity}/${batch.quantity} | Exp: ${expiry}${status}
+                            </option>`;
+                        });
+                        select.innerHTML = options;
+                    } else {
+                        select.innerHTML = '<option value="">No stock batches available</option>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading stock batches:', error);
+                    select.innerHTML = '<option value="">Error loading batches</option>';
+                });
         }
         
         // ===========================================
-        // ✅ NEW EQUIPMENT STATUS FUNCTIONS
+        // ✅ EQUIPMENT STATUS UPDATE MODAL
         // ===========================================
         function openUpdateStatusModal(data) {
-            document.getElementById('updateEquipmentStatusModal').classList.remove('hidden');
-            document.getElementById('statusEquipmentName').innerText = data.equipment_name;
-            // Use the data status or default to 'Available'
-            const currentStatus = data.equipment_status || 'Available'; 
-            document.getElementById('currentEquipmentStatus').innerText = currentStatus;
+            const totalQty = parseInt(data.equipment_quantity) || 0;
+            const available = parseInt(data.equipment_available) || 0;
+            const maintenance = parseInt(data.equipment_maintenance) || 0;
+            const outOfService = parseInt(data.equipment_out_of_service) || 0;
             
+            // Show modal
+            document.getElementById('updateEquipmentStatusModal').classList.remove('hidden');
+            
+            // Set equipment info
+            document.getElementById('statusEquipmentName').innerText = data.equipment_name;
+            document.getElementById('statusTotalQuantity').innerText = totalQty;
+            
+            // Set form action
             let form = document.getElementById('updateEquipmentStatusForm');
             form.action = `/equipment/${data.equipment_id}/update-status`;
             form.querySelector('#statusEquipmentId').value = data.equipment_id;
             
-            // Set the dropdown to the current status
-            const statusSelect = form.querySelector('#newEquipmentStatus');
-            statusSelect.value = currentStatus;
+            // Populate dropdowns
+            populateStatusDropdown('statusAvailableDropdown', totalQty, available);
+            populateStatusDropdown('statusMaintenanceDropdown', totalQty, maintenance);
+            populateStatusDropdown('statusOutOfServiceDropdown', totalQty, outOfService);
+            
+            // Set hidden fields
+            document.getElementById('statusEquipmentAvailable').value = available;
+            document.getElementById('statusEquipmentMaintenance').value = maintenance;
+            document.getElementById('statusEquipmentOutOfService').value = outOfService;
+            
+            // Calculate and display In Use
+            validateStatusDistribution();
+        }
+
+        function populateStatusDropdown(dropdownId, maxQty, selectedValue) {
+            const dropdown = document.getElementById(dropdownId);
+            dropdown.innerHTML = '<option value="">-- Select Quantity --</option>';
+            
+            for (let i = 0; i <= maxQty; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = `${i} unit${i !== 1 ? 's' : ''}`;
+                if (i === selectedValue) {
+                    option.selected = true;
+                }
+                dropdown.appendChild(option);
+            }
+        }
+
+        function updateStatusDistribution(field) {
+            const dropdownMap = {
+                'available': 'statusAvailableDropdown',
+                'maintenance': 'statusMaintenanceDropdown',
+                'out_of_service': 'statusOutOfServiceDropdown'
+            };
+            
+            const hiddenFieldMap = {
+                'available': 'statusEquipmentAvailable',
+                'maintenance': 'statusEquipmentMaintenance',
+                'out_of_service': 'statusEquipmentOutOfService'
+            };
+            
+            const dropdownId = dropdownMap[field];
+            const hiddenFieldId = hiddenFieldMap[field];
+            
+            const selectedValue = document.getElementById(dropdownId)?.value || '0';
+            const hiddenField = document.getElementById(hiddenFieldId);
+            
+            if (hiddenField) {
+                hiddenField.value = selectedValue;
+            }
+            
+            validateStatusDistribution();
+        }
+
+        function validateStatusDistribution() {
+            const totalQty = parseInt(document.getElementById('statusTotalQuantity')?.textContent) || 0;
+            const available = parseInt(document.getElementById('statusEquipmentAvailable')?.value) || 0;
+            const maintenance = parseInt(document.getElementById('statusEquipmentMaintenance')?.value) || 0;
+            const outOfService = parseInt(document.getElementById('statusEquipmentOutOfService')?.value) || 0;
+            
+            const sum = available + maintenance + outOfService;
+            const inUse = Math.max(0, totalQty - sum);
+            
+            // Update In Use display
+            const inUseDisplay = document.getElementById('statusInUseDisplay');
+            if (inUseDisplay) {
+                inUseDisplay.textContent = inUse;
+            }
+            
+            const messageDiv = document.getElementById('statusValidationMessage');
+            const submitBtn = document.getElementById('statusSubmitBtn');
+            
+            if (!messageDiv) return true;
+            
+            if (sum > totalQty) {
+                messageDiv.innerHTML = `
+                    <div class="p-3 bg-red-100 border border-red-400 rounded-lg text-red-700">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                        <strong>Error:</strong> Total allocated (${sum}) exceeds total quantity (${totalQty}). 
+                        Please reduce by <strong>${sum - totalQty} unit(s)</strong>.
+                    </div>
+                `;
+                if (submitBtn) submitBtn.disabled = true;
+                return false;
+            } else {
+                messageDiv.innerHTML = `
+                    <div class="p-3 bg-green-100 border border-green-400 rounded-lg text-green-700">
+                        <i class="fas fa-check-circle mr-2"></i>
+                        <strong>Valid:</strong> ${sum} allocated across statuses | ${inUse} in use | ${totalQty} total
+                    </div>
+                `;
+                if (submitBtn) submitBtn.disabled = false;
+                return true;
+            }
+        }
+
+        function validateStatusFormSubmit() {
+            const isValid = validateStatusDistribution();
+            if (!isValid) {
+                alert('❌ Cannot save: The sum of status quantities exceeds total equipment quantity. Please adjust the values.');
+                return false;
+            }
+            return true;
         }
 
         function closeUpdateStatusModal() {
@@ -1913,6 +2425,8 @@
                     const recentAppointments = data.recent_appointments;
                     const utilizationData = data.utilization_data;
                     const peakTimes = data.peak_times;
+                    const consumableProducts = data.consumable_products || [];
+                    const stockHistory = data.stock_history || [];
 
                     let content = `
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1934,6 +2448,91 @@
                                 <div><span class="font-medium">Total Revenue:</span> <span class="text-lg font-bold text-green-600">₱${parseFloat(revenueData.total_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
                                 <div><span class="font-medium">Average Booking Value:</span> ₱${parseFloat(revenueData.average_booking_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <h4 class="font-bold text-lg mb-3">Consumable Products Used in Service</h4>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm border">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="p-2 border">Product Name</th>
+                                        <th class="p-2 border">Type</th>
+                                        <th class="p-2 border">Current Stock</th>
+                                        <th class="p-2 border">Quantity Used/Service</th>
+                                        <th class="p-2 border">Billable</th>
+                                        <th class="p-2 border">Added By</th>
+                                        <th class="p-2 border">Date Added</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+
+                    if (consumableProducts.length > 0) {
+                        consumableProducts.forEach(product => {
+                            const addedDate = product.created_at ? new Date(product.created_at) : null;
+                            const stockClass = product.prod_stocks <= 10 ? 'text-red-600 font-bold' : 'text-green-600';
+                            
+                            content += `
+                            <tr>
+                                <td class="p-2 border font-medium">${product.prod_name}</td>
+                                <td class="p-2 border">
+                                    <span class="px-2 py-1 text-xs rounded ${product.prod_type === 'Consumable' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}">${product.prod_type || 'N/A'}</span>
+                                </td>
+                                <td class="p-2 border text-center ${stockClass}">${product.prod_stocks || 0}</td>
+                                <td class="p-2 border text-center font-semibold">${product.quantity_used || 0}</td>
+                                <td class="p-2 border text-center">${product.is_billable ? '<span class="text-green-600">✓ Yes</span>' : '<span class="text-gray-400">✗ No</span>'}</td>
+                                <td class="p-2 border">${product.added_by || 'System'}</td>
+                                <td class="p-2 border">${addedDate ? addedDate.toLocaleDateString() : 'N/A'}</td>
+                            </tr>`;
+                        });
+                    } else {
+                        content += '<tr><td colspan="7" class="p-4 text-center text-gray-500">No consumable products attached to this service</td></tr>';
+                    }
+
+                    content += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <h4 class="font-bold text-lg mb-3">Stock Usage History (Service Transactions)</h4>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm border">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="p-2 border">Date</th>
+                                        <th class="p-2 border">Product</th>
+                                        <th class="p-2 border">Quantity Used</th>
+                                        <th class="p-2 border">Appointment</th>
+                                        <th class="p-2 border">Performed By</th>
+                                        <th class="p-2 border">Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+
+                    if (stockHistory.length > 0) {
+                        stockHistory.forEach(transaction => {
+                            const transDate = transaction.created_at ? new Date(transaction.created_at) : null;
+                            
+                            content += `
+                            <tr>
+                                <td class="p-2 border">${transDate ? transDate.toLocaleDateString() + ' ' + transDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'N/A'}</td>
+                                <td class="p-2 border font-medium">${transaction.prod_name}</td>
+                                <td class="p-2 border text-center text-red-600 font-bold">${Math.abs(transaction.quantity_change || 0)}</td>
+                                <td class="p-2 border">${transaction.appoint_id ? '#' + transaction.appoint_id : 'N/A'}</td>
+                                <td class="p-2 border">${transaction.user_name || 'System'}</td>
+                                <td class="p-2 border">${transaction.notes || transaction.reference || 'N/A'}</td>
+                            </tr>`;
+                        });
+                    } else {
+                        content += '<tr><td colspan="6" class="p-4 text-center text-gray-500">No stock transaction history found</td></tr>';
+                    }
+
+                    content += `
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
@@ -2037,7 +2636,8 @@
 
                     const statusColors = {
                         'available': 'text-green-600',
-                        'low': 'text-yellow-600',
+                        'partial': 'text-yellow-600',
+                        'unavailable': 'text-orange-600',
                         'none': 'text-red-600'
                     };
 
@@ -2051,16 +2651,59 @@
                                 <div><span class="font-medium">Category:</span> ${equipment.equipment_category || 'N/A'}</div>
                                 <div><span class="font-medium">Description:</span> ${equipment.equipment_description || 'N/A'}</div>
                                 <div><span class="font-medium">Branch:</span> ${usageData.branch}</div>
+                                <div><span class="font-medium">Overall Status:</span> <span class="capitalize font-bold ${statusColors[availabilityStatus]}">${availabilityStatus}</span></div>
                             </div>
                         </div>
 
                         <div class="bg-gray-50 p-4 rounded-lg">
-                            <h4 class="font-bold text-lg mb-3">Availability Status</h4>
-                            <div class="space-y-2">
-                                <div><span class="font-medium">Total Quantity:</span> <span class="text-lg font-bold ${statusColors[availabilityStatus]}">${usageData.total_quantity}</span></div>
-                                <div><span class="font-medium">Available:</span> <span class="text-lg font-bold text-green-600">${usageData.available_quantity}</span></div>
-                                <div><span class="font-medium">Status:</span> <span class="capitalize font-bold ${statusColors[availabilityStatus]}">${availabilityStatus}</span></div>
-                                <div><span class="font-medium">Last Updated:</span> ${new Date(conditionData.last_updated).toLocaleDateString()}</div>
+                            <h4 class="font-bold text-lg mb-3">Quantity Breakdown</h4>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center p-2 bg-white rounded border">
+                                    <span class="font-medium">Total Quantity:</span> 
+                                    <span class="text-lg font-bold text-blue-600">${usageData.total_quantity}</span>
+                                </div>
+                                <div class="flex justify-between items-center p-2 bg-white rounded border">
+                                    <span class="font-medium">Available:</span> 
+                                    <span class="text-lg font-bold text-green-600">${usageData.available_quantity}</span>
+                                </div>
+                                <div class="flex justify-between items-center p-2 bg-white rounded border">
+                                    <span class="font-medium">Under Maintenance:</span> 
+                                    <span class="text-lg font-bold text-yellow-600">${usageData.maintenance_quantity}</span>
+                                </div>
+                                <div class="flex justify-between items-center p-2 bg-white rounded border">
+                                    <span class="font-medium">Out of Service:</span> 
+                                    <span class="text-lg font-bold text-red-600">${usageData.out_of_service_quantity}</span>
+                                </div>
+                                <div class="flex justify-between items-center p-2 bg-white rounded border">
+                                    <span class="font-medium">In Use:</span> 
+                                    <span class="text-lg font-bold text-purple-600">${usageData.in_use_quantity}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <h4 class="font-bold text-lg mb-3">Status Distribution</h4>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+                                <div class="text-sm text-green-600 font-medium">Available</div>
+                                <div class="text-2xl font-bold text-green-700">${usageData.available_quantity}</div>
+                                <div class="text-xs text-green-600 mt-1">${usageData.total_quantity > 0 ? Math.round((usageData.available_quantity / usageData.total_quantity) * 100) : 0}%</div>
+                            </div>
+                            <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                                <div class="text-sm text-yellow-600 font-medium">Maintenance</div>
+                                <div class="text-2xl font-bold text-yellow-700">${usageData.maintenance_quantity}</div>
+                                <div class="text-xs text-yellow-600 mt-1">${usageData.total_quantity > 0 ? Math.round((usageData.maintenance_quantity / usageData.total_quantity) * 100) : 0}%</div>
+                            </div>
+                            <div class="bg-red-50 p-4 rounded-lg border border-red-200">
+                                <div class="text-sm text-red-600 font-medium">Out of Service</div>
+                                <div class="text-2xl font-bold text-red-700">${usageData.out_of_service_quantity}</div>
+                                <div class="text-xs text-red-600 mt-1">${usageData.total_quantity > 0 ? Math.round((usageData.out_of_service_quantity / usageData.total_quantity) * 100) : 0}%</div>
+                            </div>
+                            <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                                <div class="text-sm text-purple-600 font-medium">In Use</div>
+                                <div class="text-2xl font-bold text-purple-700">${usageData.in_use_quantity}</div>
+                                <div class="text-xs text-purple-600 mt-1">${usageData.total_quantity > 0 ? Math.round((usageData.in_use_quantity / usageData.total_quantity) * 100) : 0}%</div>
                             </div>
                         </div>
                     </div>
@@ -2068,8 +2711,8 @@
                     <div class="mt-6 bg-blue-50 p-4 rounded-lg border border-blue-200">
                         <p class="text-sm text-blue-800">
                             <i class="fas fa-info-circle mr-2"></i>
-                            <strong>Note:</strong> Equipment usage tracking is based on available quantity. 
-                            Update quantity through the edit function to reflect current availability.
+                            <strong>Note:</strong> Update equipment status quantities through the edit function to reflect current availability, maintenance, and out-of-service items.
+                            If no values are set, total quantity is treated as available.
                         </p>
                     </div>`;
 
@@ -2242,9 +2885,14 @@
                 document.getElementById('generalModalForm').action = `/services/${data.serv_id}`;
 
             } else if (type === 'equipment') {
+                const totalQty = parseInt(data.equipment_quantity) || 0;
+                const availableQty = parseInt(data.equipment_available) || 0;
+                const maintenanceQty = parseInt(data.equipment_maintenance) || 0;
+                const outOfServiceQty = parseInt(data.equipment_out_of_service) || 0;
+                
                 fields = `
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Equipment Name</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Equipment Name *</label>
                     <input type="text" name="equipment_name" value="${escapeHtml(data.equipment_name)}" class="border p-2 w-full rounded" required>
                 </div>
                 <div class="mb-4">
@@ -2262,15 +2910,77 @@
                     </select>
                 </div>
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Current Quantity</label>
-                    <input type="number" name="equipment_quantity" value="${data.equipment_quantity}" class="border p-2 w-full rounded bg-gray-100" readonly>
-                    <small class="text-gray-500">Current stock level</small>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Total Quantity *</label>
+                    <input type="number" id="equipment_quantity" name="equipment_quantity" value="${totalQty}" min="0" class="border p-2 w-full rounded" required onchange="validateEquipmentStatus()">
+                    <small class="text-gray-500">Total equipment quantity</small>
                 </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Quantity to Deduct</label>
-                    <input type="number" name="quantity_used" min="0" max="${data.equipment_quantity}" value="0" class="border p-2 w-full rounded">
-                    <small class="text-gray-500">Enter quantity used/removed (will be deducted from current stock)</small>
+
+                <div class="mb-4 md:col-span-2 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h4 class="font-bold text-sm text-blue-800 mb-3">
+                        <i class="fas fa-clipboard-list mr-2"></i>Equipment Status Distribution
+                    </h4>
+                    <p class="text-xs text-blue-600 mb-4">Assign individual equipment units to different status categories. Total cannot exceed available quantity.</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="border rounded-lg p-3 bg-white">
+                            <label class="flex items-center text-sm font-medium text-green-700 mb-2">
+                                <i class="fas fa-check-circle mr-2"></i>Available for Use
+                            </label>
+                            <select id="equipment_available_dropdown" class="border p-2 w-full rounded border-green-300 mb-2" onchange="updateEquipmentStatusFromDropdown('available')">
+                                <option value="">-- Select Quantity --</option>`;
+                                for(let i = 0; i <= totalQty; i++) {
+                                    fields += `<option value="${i}" ${i === availableQty ? 'selected' : ''}>${i} unit${i !== 1 ? 's' : ''}</option>`;
+                                }
+                fields += `
+                            </select>
+                            <input type="hidden" id="equipment_available" name="equipment_available" value="${availableQty}">
+                            <small class="text-xs text-gray-600">Equipment ready to be used</small>
+                        </div>
+
+                        <div class="border rounded-lg p-3 bg-white">
+                            <label class="flex items-center text-sm font-medium text-yellow-700 mb-2">
+                                <i class="fas fa-tools mr-2"></i>Under Maintenance
+                            </label>
+                            <select id="equipment_maintenance_dropdown" class="border p-2 w-full rounded border-yellow-300 mb-2" onchange="updateEquipmentStatusFromDropdown('maintenance')">
+                                <option value="">-- Select Quantity --</option>`;
+                                for(let i = 0; i <= totalQty; i++) {
+                                    fields += `<option value="${i}" ${i === maintenanceQty ? 'selected' : ''}>${i} unit${i !== 1 ? 's' : ''}</option>`;
+                                }
+                fields += `
+                            </select>
+                            <input type="hidden" id="equipment_maintenance" name="equipment_maintenance" value="${maintenanceQty}">
+                            <small class="text-xs text-gray-600">Equipment being serviced/repaired</small>
+                        </div>
+
+                        <div class="border rounded-lg p-3 bg-white">
+                            <label class="flex items-center text-sm font-medium text-red-700 mb-2">
+                                <i class="fas fa-times-circle mr-2"></i>Out of Service
+                            </label>
+                            <select id="equipment_out_of_service_dropdown" class="border p-2 w-full rounded border-red-300 mb-2" onchange="updateEquipmentStatusFromDropdown('out_of_service')">
+                                <option value="">-- Select Quantity --</option>`;
+                                for(let i = 0; i <= totalQty; i++) {
+                                    fields += `<option value="${i}" ${i === outOfServiceQty ? 'selected' : ''}>${i} unit${i !== 1 ? 's' : ''}</option>`;
+                                }
+                fields += `
+                            </select>
+                            <input type="hidden" id="equipment_out_of_service" name="equipment_out_of_service" value="${outOfServiceQty}">
+                            <small class="text-xs text-gray-600">Equipment permanently damaged/retired</small>
+                        </div>
+
+                        <div class="border rounded-lg p-3 bg-purple-50">
+                            <label class="flex items-center text-sm font-medium text-purple-700 mb-2">
+                                <i class="fas fa-hand-holding mr-2"></i>Currently In Use
+                            </label>
+                            <div class="text-3xl font-bold text-purple-700 mb-2" id="equipment_in_use_display">
+                                ${Math.max(0, totalQty - availableQty - maintenanceQty - outOfServiceQty)}
+                            </div>
+                            <small class="text-xs text-gray-600">Auto-calculated (Total - Other Statuses)</small>
+                        </div>
+                    </div>
+                    
+                    <div id="status_validation_message" class="mt-4 text-sm"></div>
                 </div>
+
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Equipment Image</label>
                     <input type="file" name="equipment_image" accept="image/*" class="border p-2 w-full rounded">`;
@@ -2329,6 +3039,109 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // TOGGLE PRICE FIELD FOR PRODUCT TYPE
+        function toggleProductPriceField(mode) {
+            const typeSelect = document.getElementById(mode + 'ProductType');
+            const priceField = document.getElementById(mode + 'ProductPriceField');
+            const priceInput = document.getElementById(mode + 'ProductPrice');
+            const priceRequired = document.getElementById(mode + 'PriceRequired');
+            const priceNote = document.getElementById(mode + 'PriceNote');
+            
+            if (!typeSelect || !priceField) return;
+            
+            const selectedType = typeSelect.value;
+            
+            if (selectedType === 'Consumable') {
+                priceField.style.display = 'none';
+                if (priceInput) {
+                    priceInput.removeAttribute('required');
+                    priceInput.value = '0';
+                }
+                if (priceRequired) priceRequired.style.display = 'none';
+                if (priceNote) priceNote.classList.remove('hidden');
+            } else {
+                priceField.style.display = 'block';
+                if (priceInput) {
+                    priceInput.setAttribute('required', 'required');
+                    if (priceInput.value === '0') priceInput.value = '';
+                }
+                if (priceRequired) priceRequired.style.display = 'inline';
+                if (priceNote) priceNote.classList.add('hidden');
+            }
+        }
+
+        // EQUIPMENT STATUS: UPDATE FROM DROPDOWN
+        function updateEquipmentStatusFromDropdown(field) {
+            const dropdownId = 'equipment_' + field + '_dropdown';
+            const hiddenFieldId = 'equipment_' + field;
+            
+            const selectedValue = document.getElementById(dropdownId)?.value || '0';
+            const hiddenField = document.getElementById(hiddenFieldId);
+            
+            if (hiddenField) {
+                hiddenField.value = selectedValue;
+            }
+            
+            validateEquipmentStatus();
+        }
+
+        // EQUIPMENT STATUS VALIDATION
+        function validateEquipmentStatus() {
+            const totalQty = parseInt(document.getElementById('equipment_quantity')?.value) || 0;
+            const available = parseInt(document.getElementById('equipment_available')?.value) || 0;
+            const maintenance = parseInt(document.getElementById('equipment_maintenance')?.value) || 0;
+            const outOfService = parseInt(document.getElementById('equipment_out_of_service')?.value) || 0;
+            
+            const sum = available + maintenance + outOfService;
+            const inUse = Math.max(0, totalQty - sum);
+            
+            const messageDiv = document.getElementById('status_validation_message');
+            const inUseDisplay = document.getElementById('equipment_in_use_display');
+            const submitBtn = document.getElementById('generalModalSubmitBtn');
+            
+            // Update In Use display
+            if (inUseDisplay) {
+                inUseDisplay.textContent = inUse;
+            }
+            
+            if (!messageDiv) return true; // If not in equipment edit mode, skip validation
+            
+            if (sum > totalQty) {
+                messageDiv.innerHTML = `
+                    <div class="p-3 bg-red-100 border border-red-400 rounded text-red-700">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                        <strong>Error:</strong> Total allocated (${sum}) exceeds available quantity (${totalQty}). 
+                        Please reduce by ${sum - totalQty} unit(s).
+                    </div>
+                `;
+                if (submitBtn) submitBtn.disabled = true;
+                return false;
+            } else {
+                messageDiv.innerHTML = `
+                    <div class="p-3 bg-green-100 border border-green-400 rounded text-green-700">
+                        <i class="fas fa-check-circle mr-2"></i>
+                        <strong>Valid Distribution:</strong> ${sum} allocated | ${inUse} in use | ${totalQty} total
+                    </div>
+                `;
+                if (submitBtn) submitBtn.disabled = false;
+                return true;
+            }
+        }
+
+        function validateEquipmentFormSubmit() {
+            const activeTab = document.getElementById('active_tab')?.value;
+            
+            // Only validate if we're editing equipment
+            if (activeTab === 'equipment' && document.getElementById('equipment_quantity')) {
+                if (!validateEquipmentStatus()) {
+                    alert('Please fix the equipment status validation errors before submitting.');
+                    return false;
+                }
+            }
+            
+            return true;
         }
 
         // Initialize default tab

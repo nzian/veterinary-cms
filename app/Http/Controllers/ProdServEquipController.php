@@ -99,6 +99,18 @@ class ProdServEquipController extends Controller
 
             DB::beginTransaction();
 
+            // Validate that all products are consumable
+            foreach ($validated['products'] as $productData) {
+                $product = Product::find($productData['prod_id']);
+                if (!$product) {
+                    throw new \Exception("Product not found: " . $productData['prod_id']);
+                }
+                
+                if ($product->prod_type !== 'Consumable') {
+                    throw new \Exception("❌ Error saving products. Please try with consumable product again. Product '{$product->prod_name}' is not a consumable item.");
+                }
+            }
+
             ServiceProduct::where('serv_id', $serviceId)->delete();
 
             foreach ($validated['products'] as $productData) {
@@ -106,7 +118,8 @@ class ProdServEquipController extends Controller
                     'serv_id' => $serviceId,
                     'prod_id' => $productData['prod_id'],
                     'quantity_used' => $productData['quantity_used'],
-                    'is_billable' => $productData['is_billable'] ?? false
+                    'is_billable' => $productData['is_billable'] ?? false,
+                    'created_by' => Auth::id()
                 ]);
             }
 
@@ -190,13 +203,133 @@ class ProdServEquipController extends Controller
                 'profit_margin_percentage' => 0
             ];
 
+            // Fetch stock batches with damage/pullout history
+            $stockBatches = DB::table('product_stock as ps')
+                ->leftJoin('tbl_user as creator', 'ps.created_by', '=', 'creator.user_id')
+                ->where('ps.stock_prod_id', $id)
+                ->select(
+                    'ps.id',
+                    'ps.batch',
+                    'ps.quantity',
+                    'ps.expire_date',
+                    'ps.note',
+                    'ps.created_at',
+                    'creator.user_name as created_by_name'
+                )
+                ->orderBy('ps.created_at', 'desc')
+                ->get()
+                ->map(function($batch) {
+                    // Calculate damage and pullout for this batch
+                    $damagePullout = DB::table('product_damage_pullout')
+                        ->where('stock_id', $batch->id)
+                        ->selectRaw('
+                            COALESCE(SUM(damage_quantity), 0) as total_damage,
+                            COALESCE(SUM(pullout_quantity), 0) as total_pullout
+                        ')
+                        ->first();
+                    
+                    $batch->total_damage = $damagePullout->total_damage ?? 0;
+                    $batch->total_pullout = $damagePullout->total_pullout ?? 0;
+                    $batch->available_quantity = $batch->quantity - $batch->total_damage - $batch->total_pullout;
+                    $batch->is_expired = $batch->expire_date && Carbon::parse($batch->expire_date)->isPast();
+                    
+                    return $batch;
+                });
+
+            // Fetch damage/pullout history
+            $damagePulloutHistory = DB::table('product_damage_pullout as pdp')
+                ->join('product_stock as ps', 'pdp.stock_id', '=', 'ps.id')
+                ->leftJoin('tbl_user as creator', 'pdp.created_by', '=', 'creator.user_id')
+                ->where('pdp.pd_prod_id', $id)
+                ->select(
+                    'pdp.id',
+                    'pdp.damage_quantity',
+                    'pdp.pullout_quantity',
+                    'pdp.reason',
+                    'pdp.created_at',
+                    'ps.batch',
+                    'creator.user_name as created_by_name'
+                )
+                ->orderBy('pdp.created_at', 'desc')
+                ->limit(20)
+                ->get();
+
+            // Fetch service consumption data for consumable products
+            $serviceConsumptionData = null;
+            $servicesUsingProduct = [];
+            $recentServiceUsage = [];
+            
+            if ($product->prod_type === 'Consumable') {
+                // Get services that use this product
+                $servicesUsingProduct = DB::table('tbl_service_products as sp')
+                    ->join('tbl_serv as s', 'sp.serv_id', '=', 's.serv_id')
+                    ->leftJoin('tbl_user as creator', 'sp.created_by', '=', 'creator.user_id')
+                    ->where('sp.prod_id', $id)
+                    ->select(
+                        's.serv_id',
+                        's.serv_name',
+                        's.serv_type',
+                        'sp.quantity_used',
+                        'sp.is_billable',
+                        'sp.created_at',
+                        'creator.user_name as added_by'
+                    )
+                    ->get();
+                
+                // Get recent service usage from inventory transactions
+                $recentServiceUsage = DB::table('tbl_inventory_transactions as it')
+                    ->leftJoin('tbl_visit_record as vr', 'it.appoint_id', '=', 'vr.visit_id')
+                    ->leftJoin('tbl_pet as pet', 'vr.pet_id', '=', 'pet.pet_id')
+                    ->leftJoin('tbl_serv as serv', 'it.serv_id', '=', 'serv.serv_id')
+                    ->leftJoin('tbl_user as performer', 'it.performed_by', '=', 'performer.user_id')
+                    ->where('it.prod_id', $id)
+                    ->where('it.transaction_type', 'service_usage')
+                    ->select(
+                        'it.created_at as transaction_date',
+                        'it.quantity_change as quantity',
+                        'it.notes',
+                        'it.reference',
+                        'vr.visit_id',
+                        'vr.visit_date',
+                        'pet.pet_name',
+                        'serv.serv_name',
+                        'performer.user_name as performed_by'
+                    )
+                    ->orderBy('it.created_at', 'desc')
+                    ->limit(15)
+                    ->get();
+                
+                // Calculate consumption statistics
+                $serviceConsumptionData = [
+                    'total_services_using' => $servicesUsingProduct->count(),
+                    'total_quantity_consumed' => DB::table('tbl_inventory_transactions')
+                        ->where('prod_id', $id)
+                        ->where('transaction_type', 'service_usage')
+                        ->sum(DB::raw('ABS(quantity_change)')),
+                    'recent_consumption_30days' => DB::table('tbl_inventory_transactions')
+                        ->where('prod_id', $id)
+                        ->where('transaction_type', 'service_usage')
+                        ->where('created_at', '>=', Carbon::now()->subDays(30))
+                        ->sum(DB::raw('ABS(quantity_change)')),
+                    'avg_consumption_per_service' => DB::table('tbl_inventory_transactions')
+                        ->where('prod_id', $id)
+                        ->where('transaction_type', 'service_usage')
+                        ->avg(DB::raw('ABS(quantity_change)'))
+                ];
+            }
+
             return response()->json([
                 'product' => $product,
                 'sales_data' => $salesData,
                 'monthly_sales' => $monthlySales,
                 'recent_orders' => $recentOrders,
                 'stock_alert' => $stockAlert,
-                'profit_data' => $profitData
+                'profit_data' => $profitData,
+                'stock_batches' => $stockBatches,
+                'damage_pullout_history' => $damagePulloutHistory,
+                'service_consumption_data' => $serviceConsumptionData,
+                'services_using_product' => $servicesUsingProduct,
+                'recent_service_usage' => $recentServiceUsage
             ]);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to fetch product details: ' . $e->getMessage()], 500);
@@ -368,6 +501,50 @@ class ProdServEquipController extends Controller
                 ->groupBy('tbl_appoint.appoint_type')
                 ->get();
 
+            // Get consumable products attached to this service
+            $consumableProducts = DB::table('tbl_service_products as sp')
+                ->join('tbl_prod as p', 'sp.prod_id', '=', 'p.prod_id')
+                ->leftJoin('tbl_user as creator', 'sp.created_by', '=', 'creator.user_id')
+                ->where('sp.serv_id', $id)
+                ->select(
+                    'p.prod_id',
+                    'p.prod_name',
+                    'p.prod_stocks',
+                    'p.prod_type',
+                    'p.prod_category',
+                    'sp.quantity_used',
+                    'sp.is_billable',
+                    'sp.created_at',
+                    'creator.user_name as added_by'
+                )
+                ->get();
+
+            // Get stock transaction history for consumable products used in this service
+            $stockHistory = [];
+            $transactionsTableExists = Schema::hasTable('tbl_inventory_transactions');
+            if ($transactionsTableExists) {
+                $stockHistory = DB::table('tbl_inventory_transactions as it')
+                    ->join('tbl_service_products as sp', 'it.prod_id', '=', 'sp.prod_id')
+                    ->join('tbl_prod as p', 'it.prod_id', '=', 'p.prod_id')
+                    ->leftJoin('tbl_user as u', 'it.performed_by', '=', 'u.user_id')
+                    ->leftJoin('tbl_appoint as a', 'it.appoint_id', '=', 'a.appoint_id')
+                    ->where('sp.serv_id', $id)
+                    ->where('it.transaction_type', 'service_usage')
+                    ->select(
+                        'it.created_at',
+                        'p.prod_name',
+                        'it.quantity_change',
+                        'it.reference',
+                        'it.notes',
+                        'u.user_name',
+                        'a.appoint_id',
+                        'it.transaction_type'
+                    )
+                    ->orderBy('it.created_at', 'desc')
+                    ->limit(50)
+                    ->get();
+            }
+
             return response()->json([
                 'service' => $service,
                 'revenue_data' => $revenueData,
@@ -375,7 +552,9 @@ class ProdServEquipController extends Controller
                 'recent_appointments' => $recentAppointments,
                 'utilization_data' => $utilizationData,
                 'peak_times' => $peakTimes,
-                'appointment_types' => $appointmentTypes
+                'appointment_types' => $appointmentTypes,
+                'consumable_products' => $consumableProducts,
+                'stock_history' => $stockHistory
             ]);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to fetch service details: ' . $e->getMessage()], 500);
@@ -387,19 +566,33 @@ class ProdServEquipController extends Controller
         try {
             $equipment = Equipment::findOrFail($id);
             
+            // Calculate status quantities
+            $availableQty = $equipment->equipment_available ?? 0;
+            $maintenanceQty = $equipment->equipment_maintenance ?? 0;
+            $outOfServiceQty = $equipment->equipment_out_of_service ?? 0;
+            $totalQty = $equipment->equipment_quantity ?? 0;
+            
+            // If individual status columns are empty, use total as available
+            if ($availableQty == 0 && $maintenanceQty == 0 && $outOfServiceQty == 0 && $totalQty > 0) {
+                $availableQty = $totalQty;
+            }
+            
             $usageData = [
-                'total_quantity' => $equipment->equipment_quantity,
-                'available_quantity' => $equipment->equipment_quantity, 
-                'in_use_quantity' => 0, 
-                'maintenance_quantity' => 0,
+                'total_quantity' => $totalQty,
+                'available_quantity' => $availableQty, 
+                'maintenance_quantity' => $maintenanceQty,
+                'out_of_service_quantity' => $outOfServiceQty,
+                'in_use_quantity' => max(0, $totalQty - $availableQty - $maintenanceQty - $outOfServiceQty),
                 'branch' => $equipment->branch->branch_name ?? 'N/A'
             ];
 
-            $availabilityStatus = strtolower($equipment->equipment_status ?? 'Available');
-            if ($equipment->equipment_quantity == 0) {
+            $availabilityStatus = strtolower($equipment->equipment_status ?? 'available');
+            if ($totalQty == 0) {
                 $availabilityStatus = 'none';
-            } elseif (in_array($availabilityStatus, ['under maintenance', 'out of service'])) {
-                 $availabilityStatus = 'unavailable';
+            } elseif ($availableQty == 0) {
+                $availabilityStatus = 'unavailable';
+            } elseif ($maintenanceQty > 0) {
+                $availabilityStatus = 'partial';
             }
 
             $usageHistory = collect([
@@ -497,14 +690,20 @@ class ProdServEquipController extends Controller
             'prod_category' => 'nullable|string|max:255',
             'prod_type' => 'required|in:Sale,Consumable',
             'prod_description' => 'required|string|max:1000',
-            'prod_price' => 'required|numeric|min:0',
-            'prod_stocks' => 'nullable|integer|min:0',
-            'prod_reorderlevel' => 'nullable|integer|min:0',
+            'prod_price' => 'nullable|numeric|min:0',
+            'prod_reorderlevel' => 'required|integer|min:0',
             'branch_id' => 'nullable|exists:tbl_branch,branch_id',
             'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'prod_expiry' => 'nullable|date',
             'tab' => 'nullable|string|in:products,services,equipment'
         ]);
+        
+        // Set price to 0 for consumable products
+        if ($validated['prod_type'] === 'Consumable') {
+            $validated['prod_price'] = 0;
+        }
+
+        // Set initial stock to 0 (stock added via "Add Stock" feature)
+        $validated['prod_stocks'] = 0;
 
         if ($request->hasFile('prod_image')) {
             $validated['prod_image'] = $request->file('prod_image')->store('products', 'public');
@@ -514,20 +713,10 @@ class ProdServEquipController extends Controller
         try {
             $product = Product::create($validated);
 
-            // Record initial stock as inventory transaction
-            if (isset($validated['prod_stocks']) && $validated['prod_stocks'] > 0) {
-                $this->recordInventoryTransaction(
-                    $product->prod_id,
-                    'restock',
-                    $validated['prod_stocks'],
-                    'Initial Stock',
-                    'Product created with initial stock'
-                );
-            }
-
             DB::commit();
             $redirectTab = $this->getRedirectTab($request, 'products');
-            return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])->with('success', 'Product added successfully!');
+            return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])
+                ->with('success', 'Product added successfully! Use "Add Stock" to add inventory batches.');
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()->with('error', 'Failed to add product: ' . $e->getMessage());
@@ -541,12 +730,17 @@ class ProdServEquipController extends Controller
             'prod_category' => 'nullable|string|max:255',
             'prod_type' => 'required|in:Sale,Consumable',
             'prod_description' => 'required|string|max:1000',
-            'prod_price' => 'required|numeric|min:0',
+            'prod_price' => 'nullable|numeric|min:0',
             'prod_reorderlevel' => 'nullable|integer|min:0',
             'branch_id' => 'nullable|exists:tbl_branch,branch_id',
             'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'tab' => 'nullable|string|in:products,services,equipment'
         ]);
+        
+        // Set price to 0 for consumable products
+        if ($validated['prod_type'] === 'Consumable') {
+            $validated['prod_price'] = 0;
+        }
 
         $product = Product::findOrFail($id);
 
@@ -595,8 +789,8 @@ class ProdServEquipController extends Controller
     {
         $validated = $request->validate([
             'add_stock' => 'required|integer|min:1',
-            'new_expiry' => 'required|date',
-            'reorder_level' => 'nullable|integer|min:0',
+            'batch' => 'required|string|max:100',
+            'new_expiry' => 'required|date|after:today',
             'notes' => 'nullable|string',
             'tab' => 'nullable|string|in:products,services,equipment'
         ]);
@@ -605,16 +799,23 @@ class ProdServEquipController extends Controller
         
         DB::beginTransaction();
         try {
-            $oldStock = $product->prod_stocks ?? 0;
             $addedStock = $validated['add_stock'];
             
-            // Update product stock
-            $product->prod_stocks = $oldStock + $addedStock;
-            $product->prod_expiry = $validated['new_expiry'];
+            // Create new stock batch record
+            $stockBatch = \App\Models\ProductStock::create([
+                'stock_prod_id' => $product->prod_id,
+                'batch' => $validated['batch'],
+                'quantity' => $addedStock,
+                'expire_date' => $validated['new_expiry'],
+                'note' => $validated['notes'],
+                'created_by' => Auth::id(),
+            ]);
             
-            if (isset($validated['reorder_level'])) {
-                $product->prod_reorderlevel = $validated['reorder_level'];
-            }
+            // Update product's total stock (sum of all non-expired batches)
+            $product->prod_stocks = $product->stockBatches()
+                ->notExpired()
+                ->get()
+                ->sum('available_quantity');
             
             $product->save();
             
@@ -624,14 +825,14 @@ class ProdServEquipController extends Controller
                 'restock',
                 $addedStock,
                 'Manual Stock Update',
-                $validated['notes'] ?? "Stock increased from {$oldStock} to {$product->prod_stocks}. New expiry: {$validated['new_expiry']}"
+                "Added batch '{$validated['batch']}' with {$addedStock} units. Expiry: {$validated['new_expiry']}" . ($validated['notes'] ? " - {$validated['notes']}" : '')
             );
             
             DB::commit();
             
             $redirectTab = $this->getRedirectTab($request, 'products');
             return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])
-                ->with('success', "Stock updated successfully! Added {$addedStock} units.");
+                ->with('success', "Stock batch added successfully! Added {$addedStock} units (Batch: {$validated['batch']}).");
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()->with('error', 'Failed to update stock: ' . $e->getMessage());
@@ -639,78 +840,94 @@ class ProdServEquipController extends Controller
     }
 
     /**
-     * ✅ UPDATED: Update damage/pullout with AUTOMATIC STOCK DEDUCTION and transaction recording
+     * ✅ UPDATED: Update damage/pullout with stock batch tracking
      */
     public function updateDamage(Request $request, $id)
     {
         $validated = $request->validate([
+            'stock_id' => 'required|exists:product_stock,id',
             'damaged_qty' => 'nullable|integer|min:0',
             'pullout_qty' => 'nullable|integer|min:0',
-            'reason' => 'nullable|string',
+            'reason' => 'required|string',
             'tab' => 'nullable|string|in:products,services,equipment'
         ]);
 
         $product = Product::findOrFail($id);
+        $stockBatch = \App\Models\ProductStock::findOrFail($validated['stock_id']);
+        
+        // Verify the stock batch belongs to this product
+        if ($stockBatch->stock_prod_id != $product->prod_id) {
+            return redirect()->back()->with('error', 'Invalid stock batch selected.');
+        }
         
         DB::beginTransaction();
         try {
-            $oldDamaged = $product->prod_damaged ?? 0;
-            $oldPullout = $product->prod_pullout ?? 0;
-            $oldStock = $product->prod_stocks ?? 0;
+            $damagedQty = $validated['damaged_qty'] ?? 0;
+            $pulloutQty = $validated['pullout_qty'] ?? 0;
+            $totalQty = $damagedQty + $pulloutQty;
             
-            $newDamaged = $validated['damaged_qty'] ?? 0;
-            $newPullout = $validated['pullout_qty'] ?? 0;
+            if ($totalQty == 0) {
+                return redirect()->back()->with('error', 'Please enter damage or pullout quantity.');
+            }
             
-            // Calculate the DIFFERENCE (how many NEW damaged/pullout items)
-            $damagedDiff = $newDamaged - $oldDamaged;
-            $pulloutDiff = $newPullout - $oldPullout;
-            
-            $totalDeduction = $damagedDiff + $pulloutDiff;
-            
-            // ✅ VALIDATE: Ensure we have enough stock to deduct
-            if ($totalDeduction > $oldStock) {
+            // Check if stock batch has enough available quantity
+            $availableQty = $stockBatch->available_quantity;
+            if ($totalQty > $availableQty) {
                 DB::rollBack();
-                return redirect()->back()->with('error', "Insufficient stock! Cannot deduct {$totalDeduction} units. Current stock: {$oldStock}");
+                return redirect()->back()->with('error', "Insufficient stock in batch '{$stockBatch->batch}'! Available: {$availableQty}, Requested: {$totalQty}");
             }
             
-            // ✅ UPDATE: Deduct from stock automatically
-            if ($totalDeduction > 0) {
-                $product->prod_stocks = $oldStock - $totalDeduction;
-            }
+            // Create damage/pullout record
+            \App\Models\ProductDamagePullout::create([
+                'pd_prod_id' => $product->prod_id,
+                'stock_id' => $stockBatch->id,
+                'pullout_quantity' => $pulloutQty,
+                'damage_quantity' => $damagedQty,
+                'reason' => $validated['reason'],
+                'created_by' => Auth::id(),
+            ]);
             
-            // Update damaged and pullout quantities
-            $product->prod_damaged = $newDamaged;
-            $product->prod_pullout = $newPullout;
+            // Update product's total stock (sum of all non-expired available batches)
+            $product->prod_stocks = $product->stockBatches()
+                ->notExpired()
+                ->get()
+                ->sum('available_quantity');
+            
+            // Update cumulative damaged and pullout
+            $product->prod_damaged = ($product->prod_damaged ?? 0) + $damagedQty;
+            $product->prod_pullout = ($product->prod_pullout ?? 0) + $pulloutQty;
             
             $product->save();
             
-            // ✅ RECORD TRANSACTIONS for damaged items
-            if ($damagedDiff > 0) {
+            // ✅ RECORD TRANSACTIONS
+            if ($damagedQty > 0) {
                 $this->recordInventoryTransaction(
                     $product->prod_id,
                     'damage',
-                    -$damagedDiff,
+                    -$damagedQty,
                     'Damaged Items',
-                    $validated['reason'] ?? "Marked {$damagedDiff} units as damaged. Total damaged: {$newDamaged}"
+                    "Batch '{$stockBatch->batch}': {$damagedQty} units damaged. Reason: {$validated['reason']}"
                 );
             }
             
-            // ✅ RECORD TRANSACTIONS for pullout items
-            if ($pulloutDiff != 0) {  // Changed to check for any difference, not just positive
+            if ($pulloutQty > 0) {
                 $this->recordInventoryTransaction(
                     $product->prod_id,
                     'pullout',
-                    -$pulloutDiff,
+                    -$pulloutQty,
                     'Pullout Items',
-                    $validated['reason'] ?? "Pulled out {$pulloutDiff} units for quality control. Total pullout: {$newPullout}"
+                    "Batch '{$stockBatch->batch}': {$pulloutQty} units pulled out. Reason: {$validated['reason']}"
                 );
             }
             
             DB::commit();
             
             $message = "Updated successfully! ";
-            if ($totalDeduction > 0) {
-                $message .= "Deducted {$totalDeduction} units from stock (Damaged: {$damagedDiff}, Pullout: {$pulloutDiff}). New stock: {$product->prod_stocks}";
+            if ($totalQty > 0) {
+                $message .= "Batch '{$stockBatch->batch}': ";
+                if ($damagedQty > 0) $message .= "Damaged: {$damagedQty} ";
+                if ($pulloutQty > 0) $message .= "Pullout: {$pulloutQty} ";
+                $message .= "| New available stock: {$product->prod_stocks}";
             }
             
             $redirectTab = $this->getRedirectTab($request, 'products');
@@ -732,6 +949,38 @@ class ProdServEquipController extends Controller
 {
     try {
         $product = Product::findOrFail($id);
+        
+        // Fetch stock batches with expiry dates
+        $stockBatches = DB::table('product_stock as ps')
+            ->leftJoin('tbl_user as creator', 'ps.created_by', '=', 'creator.user_id')
+            ->where('ps.stock_prod_id', $id)
+            ->select(
+                'ps.id',
+                'ps.batch',
+                'ps.quantity',
+                'ps.expire_date',
+                'ps.note',
+                'ps.created_at',
+                'creator.user_name as created_by_name'
+            )
+            ->orderBy('ps.created_at', 'desc')
+            ->get()
+            ->map(function($batch) {
+                $damagePullout = DB::table('product_damage_pullout')
+                    ->where('stock_id', $batch->id)
+                    ->selectRaw('
+                        COALESCE(SUM(damage_quantity), 0) as total_damage,
+                        COALESCE(SUM(pullout_quantity), 0) as total_pullout
+                    ')
+                    ->first();
+                
+                $batch->total_damage = $damagePullout->total_damage ?? 0;
+                $batch->total_pullout = $damagePullout->total_pullout ?? 0;
+                $batch->available_quantity = $batch->quantity - $batch->total_damage - $batch->total_pullout;
+                $batch->is_expired = $batch->expire_date && Carbon::parse($batch->expire_date)->isPast();
+                
+                return $batch;
+            });
         
         // Check if InventoryTransaction table exists and has data
         $transactionsTableExists = Schema::hasTable('tbl_inventory_transactions');
@@ -1017,6 +1266,7 @@ class ProdServEquipController extends Controller
         return response()->json([
             'product' => $product,
             'stock_history' => $stockHistory,
+            'stock_batches' => $stockBatches,
             'damage_analysis' => $damageAnalysis,
             'expiry_data' => $expiryData,
             'stock_analytics' => $stockAnalytics,
@@ -1025,9 +1275,6 @@ class ProdServEquipController extends Controller
             'total_used_in_services' => $totalUsedInServices
         ]);
     } catch (\Exception $e) {
-        \Log::error("Inventory History Error: " . $e->getMessage());
-        \Log::error("Stack trace: " . $e->getTraceAsString());
-        
         return response()->json([
             'error' => 'Failed to fetch inventory history',
             'message' => $e->getMessage(),
@@ -1131,25 +1378,31 @@ class ProdServEquipController extends Controller
     $validated = $request->validate([
         'equipment_name' => 'required|string|max:255',
         'equipment_quantity' => 'required|integer|min:0',
+        'equipment_available' => 'nullable|integer|min:0',
+        'equipment_maintenance' => 'nullable|integer|min:0',
+        'equipment_out_of_service' => 'nullable|integer|min:0',
         'equipment_description' => 'nullable|string|max:1000',
         'equipment_category' => 'nullable|string|max:255',
         'equipment_status' => 'nullable|string|max:50',
         'equipment_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         'branch_id' => 'required|exists:tbl_branch,branch_id', 
         'tab' => 'nullable|string|in:products,services,equipment',
-        'quantity_used' => 'nullable|integer|min:0' 
     ]);
 
     $equipment = Equipment::findOrFail($id);
 
-    // Handle quantity deduction if quantity_used is provided
-    if ($request->filled('quantity_used') && $request->quantity_used > 0) {
-        $quantityUsed = (int) $request->quantity_used;
-        $currentQuantity = $equipment->equipment_quantity;
-        
-        // Calculate new quantity (deduct used quantity)
-        $newQuantity = max(0, $currentQuantity - $quantityUsed);
-        $validated['equipment_quantity'] = $newQuantity;
+    // Validate that sum of status quantities doesn't exceed total quantity
+    $totalQty = $validated['equipment_quantity'];
+    $available = $validated['equipment_available'] ?? 0;
+    $maintenance = $validated['equipment_maintenance'] ?? 0;
+    $outOfService = $validated['equipment_out_of_service'] ?? 0;
+    
+    $sum = $available + $maintenance + $outOfService;
+    
+    if ($sum > $totalQty) {
+        return back()->withErrors([
+            'equipment_status' => "Sum of status quantities ({$sum}) cannot exceed total quantity ({$totalQty})."
+        ])->withInput();
     }
 
     if ($request->hasFile('equipment_image')) {
@@ -1188,12 +1441,31 @@ class ProdServEquipController extends Controller
     public function updateEquipmentStatus(Request $request, $id)
     {
         $validated = $request->validate([
-            'equipment_status' => 'required|string|in:Available,In Use,Under Maintenance,Out of Service',
+            'equipment_available' => 'nullable|integer|min:0',
+            'equipment_maintenance' => 'nullable|integer|min:0',
+            'equipment_out_of_service' => 'nullable|integer|min:0',
             'tab' => 'nullable|string|in:products,services,equipment'
         ]);
 
         $equipment = Equipment::findOrFail($id);
-        $equipment->equipment_status = $validated['equipment_status'];
+        
+        // Validate that sum doesn't exceed total quantity
+        $totalQty = $equipment->equipment_quantity;
+        $available = $validated['equipment_available'] ?? 0;
+        $maintenance = $validated['equipment_maintenance'] ?? 0;
+        $outOfService = $validated['equipment_out_of_service'] ?? 0;
+        
+        $sum = $available + $maintenance + $outOfService;
+        
+        if ($sum > $totalQty) {
+            return back()->withErrors([
+                'equipment_status' => "Sum of status quantities ({$sum}) cannot exceed total quantity ({$totalQty})."
+            ])->withInput();
+        }
+        
+        $equipment->equipment_available = $available;
+        $equipment->equipment_maintenance = $maintenance;
+        $equipment->equipment_out_of_service = $outOfService;
         $equipment->save();
 
         $redirectTab = $this->getRedirectTab($request, 'equipment');
@@ -1345,4 +1617,39 @@ public function getServiceInventoryOverview()
         ], 500);
     }
 }
+
+    /**
+     * Get stock batches for a product (for damage/pullout modal)
+     */
+    public function getStockBatches($id)
+    {
+        try {
+            $product = Product::findOrFail($id);
+            
+            $batches = \App\Models\ProductStock::where('stock_prod_id', $product->prod_id)
+                ->orderBy('expire_date', 'asc')
+                ->get()
+                ->map(function($batch) {
+                    return [
+                        'id' => $batch->id,
+                        'batch' => $batch->batch,
+                        'quantity' => $batch->quantity,
+                        'available_quantity' => $batch->available_quantity,
+                        'expire_date' => $batch->expire_date->format('Y-m-d'),
+                        'is_expired' => $batch->isExpired(),
+                        'note' => $batch->note,
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'batches' => $batches
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

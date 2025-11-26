@@ -58,4 +58,41 @@ public function getBranchIdColumn()
         return 'user_id'; // We filter Pet records based on the user_id that created them
     }
 
+    /**
+     * Get all stock batches for this product
+     */
+    public function stockBatches()
+    {
+        return $this->hasMany(ProductStock::class, 'stock_prod_id', 'prod_id');
+    }
+
+    /**
+     * Get all damage/pullout records
+     */
+    public function damagePullouts()
+    {
+        return $this->hasMany(ProductDamagePullout::class, 'pd_prod_id', 'prod_id');
+    }
+
+    /**
+     * Get available stock (non-expired stock minus damage and pullout)
+     */
+    public function getAvailableStockAttribute()
+    {
+        $totalAvailable = $this->stockBatches()
+            ->notExpired()
+            ->get()
+            ->sum('available_quantity');
+        
+        return max(0, $totalAvailable);
+    }
+
+    /**
+     * Get total stock from all batches (including expired)
+     */
+    public function getTotalStockFromBatchesAttribute()
+    {
+        return $this->stockBatches()->sum('quantity');
+    }
+
 }

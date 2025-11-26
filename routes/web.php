@@ -156,6 +156,7 @@ Route::delete('equipment/{id}', [App\Http\Controllers\ProdServEquipController::c
 
 Route::put('inventory/update-stock/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateStock'])->name('inventory.updateStock');
 Route::put('inventory/update-damage/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateDamage'])->name('inventory.updateDamage');
+Route::get('products/{id}/stock-batches', [App\Http\Controllers\ProdServEquipController::class, 'getStockBatches'])->name('products.stockBatches');
 
 Route::put('/equipment/{id}/update-status', [App\Http\Controllers\ProdServEquipController::class, 'updateEquipmentStatus'])->name('equipment.updateStatus');
 
