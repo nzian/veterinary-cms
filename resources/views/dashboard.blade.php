@@ -419,9 +419,14 @@
                                 <td class="px-4 sm:px-6 py-3 sm:py-4">
                                     @php
                                         $statusColors = [
+                                            'scheduled' => 'bg-blue-100 text-blue-800',
+                                            'confirmed' => 'bg-indigo-100 text-indigo-800',
                                             'arrived' => 'bg-green-100 text-green-800',
-                                            'pending' => 'bg-yellow-100 text-yellow-800',
-                                            'rescheduled' => 'bg-blue-100 text-blue-800'
+                                            'completed' => 'bg-green-100 text-green-800',
+                                            'missed' => 'bg-red-100 text-red-800',
+                                            'cancelled' => 'bg-red-100 text-red-800',
+                                            'rescheduled' => 'bg-yellow-100 text-yellow-800',
+                                            'pending' => 'bg-orange-100 text-orange-800'
                                         ];
                                         $status = strtolower($appointment->appoint_status);
                                         $colorClass = $statusColors[$status] ?? 'bg-gray-100 text-gray-800';
@@ -443,21 +448,46 @@
                 <h3 class="text-base sm:text-lg font-semibold text-gray-900">Recent Referrals</h3>
             </div>
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[500px]">
+                <table class="w-full min-w-[600px]">
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                            <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet</th>
+                            <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Direction</th>
                             <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
                         @foreach ($recentReferrals->take(5) as $ref)
+                            @php
+                                $activeBranchId = session('active_branch_id');
+                                // Branch who created the referral (ref_from) should see "Referred to"
+                                $isReferringOut = ($ref->ref_from == $activeBranchId);
+                                $directionLabel = $isReferringOut ? 'Referred to' : 'Referred from';
+                                $otherBranch = $isReferringOut ? $ref->refToBranch : $ref->refFromBranch;
+                                $displayName = $otherBranch?->branch_name ?? ($ref->referralCompany?->company_name ?? 'Unknown');
+                            @endphp
                             <tr class="hover:bg-gray-50">
-                                <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">{{ $ref->ref_date }}</td>
-                                <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">{{ Str::limit($ref->ref_description, 30) }}</td>
+                                <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">{{ \Carbon\Carbon::parse($ref->ref_date)->format('M d, Y') }}</td>
+                                <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">{{ $ref->pet?->pet_name ?? 'N/A' }}</td>
+                                <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
+                                    <span class="font-medium">{{ $directionLabel }}:</span> {{ $displayName }}
+                                </td>
                                 <td class="px-4 sm:px-6 py-3 sm:py-4">
-                                    <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                    @php
+                                        $refStatusColors = [
+                                            'pending' => 'bg-yellow-100 text-yellow-800',
+                                            'referred' => 'bg-violet-100 text-violet-800',
+                                            'attended' => 'bg-green-100 text-green-800',
+                                            'accepted' => 'bg-green-100 text-green-800',
+                                            'completed' => 'bg-blue-100 text-blue-800',
+                                            'rejected' => 'bg-red-100 text-red-800',
+                                            'cancelled' => 'bg-gray-100 text-gray-800'
+                                        ];
+                                        $refStatus = strtolower($ref->ref_status ?? 'pending');
+                                        $refColorClass = $refStatusColors[$refStatus] ?? 'bg-gray-100 text-gray-800';
+                                    @endphp
+                                    <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full {{ $refColorClass }}">
                                         {{ ucfirst($ref->ref_status ?? 'Pending') }}
                                     </span>
                                 </td>

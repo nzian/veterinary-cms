@@ -46,6 +46,7 @@
                 if (isset($serviceData) && $serviceData) {
                     $__vacc = [
                         'vaccine_name' => $serviceData->vaccine_name ?? null,
+                        'service_id' => $serviceData->service_id ?? null,
                         'dose' => $serviceData->dose ?? null,
                         'manufacturer' => $serviceData->manufacturer ?? null,
                         'batch_no' => $serviceData->batch_no ?? null,
@@ -55,12 +56,16 @@
                         'remarks' => $serviceData->remarks ?? null,
                     ];
                 }
+                
+                // Get pet species for filtering vaccination services
+                $petSpecies = strtolower($visit->pet->pet_species ?? '');
             @endphp
             <form action="{{ route('medical.visits.vaccination.save', $visit->visit_id) }}" method="POST" class="space-y-6" id="vaccination_form">
                 @csrf
                 <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
                 <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
                 <input type="hidden" name="service_type" id="service_type_hidden" value="">
+                <input type="hidden" name="service_id" id="service_id_hidden" value="{{ old('service_id', $__vacc['service_id'] ?? '') }}">
 
                 {{-- Vaccination Details Card --}}
                 <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
@@ -83,14 +88,29 @@
                                                 'quantity_used' => $p->pivot->quantity_used ?? 1
                                             ];
                                         })->toArray();
+                                        
+                                        // Check if service matches pet species
+                                        $serviceName = strtolower($service->serv_name ?? '');
+                                        $matchesSpecies = false;
+                                        
+                                        if ($petSpecies === 'dog' && (str_contains($serviceName, 'dog') || str_contains($serviceName, 'canine'))) {
+                                            $matchesSpecies = true;
+                                        } elseif ($petSpecies === 'cat' && (str_contains($serviceName, 'cat') || str_contains($serviceName, 'feline'))) {
+                                            $matchesSpecies = true;
+                                        } elseif (!str_contains($serviceName, 'dog') && !str_contains($serviceName, 'cat') && !str_contains($serviceName, 'canine') && !str_contains($serviceName, 'feline')) {
+                                            // Show services that don't specify species (generic services)
+                                            $matchesSpecies = true;
+                                        }
                                     @endphp
+                                    @if($matchesSpecies)
                                     <option value="{{ $service->serv_name }}" 
                                             data-service-id="{{ $service->serv_id }}"
                                             data-price="{{ $service->serv_price }}"
                                             data-products='@json($productsData)'
-                                            {{ ($__vacc['service_type'] ?? '') === $service->serv_name ? 'selected' : '' }}>
+                                            {{ (isset($__vacc['service_id']) && $__vacc['service_id'] == $service->serv_id) ? 'selected' : '' }}>
                                         {{ $service->serv_name }} - ₱{{ number_format($service->serv_price, 2) }}
                                     </option>
+                                    @endif
                                 @empty
                                     <option value="" disabled>No vaccination services available</option>
                                 @endforelse
@@ -166,11 +186,11 @@
                 {{-- Action Buttons --}}
                 <div class="flex justify-between items-center pt-4">
                     {{-- Service Actions Button --}}
-                    <button type="button" 
+                   <!-- <button type="button" 
                             onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_id ?? 'N/A' }}', 'Vaccination')"
                             class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold shadow-md transition flex items-center gap-2">
                         <i class="fas fa-tasks"></i> Service Actions
-                    </button>
+                    </button>-->
                     
                     <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
                         <i class="fas fa-save mr-1"></i> Save Vaccination Record
@@ -345,6 +365,12 @@
                 serviceTypeHidden.value = selectedOption.value || '';
             }
             
+            // Update hidden field with selected service_id
+            const serviceIdHidden = document.getElementById('service_id_hidden');
+            if (serviceIdHidden) {
+                serviceIdHidden.value = selectedOption.getAttribute('data-service-id') || '';
+            }
+            
             // Clear existing options
             vaccineSelect.innerHTML = '<option value="">Select Vaccine Product</option>';
             
@@ -429,9 +455,18 @@
             }
         }
         
-        // Initialize on page load
+        // Initialize on page load - trigger if there's a pre-selected service
         if (typeSelector.value) {
             updateVaccineOptions();
+            
+            // After populating vaccine dropdown, restore saved vaccine selection
+            setTimeout(function() {
+                const savedVaccine = "{{ $__vacc['vaccine_name'] ?? '' }}";
+                if (savedVaccine && vaccineSelect) {
+                    vaccineSelect.value = savedVaccine;
+                    checkStockWarning();
+                }
+            }, 100);
         }
     });
 

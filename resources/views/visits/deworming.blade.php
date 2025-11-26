@@ -48,6 +48,7 @@
                 if (isset($serviceData) && $serviceData) {
                     $__deworm = [
                         'dewormer_name' => $serviceData->dewormer_name ?? null,
+                        'service_id' => $serviceData->service_id ?? null,
                         'dosage' => $serviceData->dosage ?? null,
                         'next_due_date' => $serviceData->next_due_date,
                         'administered_by' => $serviceData->administered_by ?? (auth()->user()->user_name ?? null),
@@ -56,12 +57,16 @@
                 }
                 // Determine the currently selected service for pre-selection
                 $selectedServiceId = $visit->services->where('serv_type', 'deworming')->first()->serv_id ?? old('service_id');
+                
+                // Get pet species for filtering deworming services
+                $petSpecies = strtolower($visit->pet->pet_species ?? '');
             @endphp
             <form action="{{ route('medical.visits.deworming.save', $visit->visit_id) }}" method="POST" class="space-y-6" id="deworming_form">
                 @csrf
                 <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
                 <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
                 <input type="hidden" name="service_type" id="service_type_hidden" value="">
+                <input type="hidden" name="service_id" id="service_id_hidden" value="{{ old('service_id', $__deworm['service_id'] ?? '') }}">
 
                 {{-- Deworming Record Card --}}
                 <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
@@ -71,7 +76,7 @@
                         {{-- Deworming Service Type Selector --}}
                         <div class="sm:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Deworming Service <span class="text-red-500">*</span></label>
-                            <select id="deworming_service_selector" class="w-full border border-gray-300 p-3 rounded-lg" required>
+                            <select name="service_type" id="deworming_service_selector" class="w-full border border-gray-300 p-3 rounded-lg" required>
                                 <option value="">Select Deworming Service</option>
                                 @forelse($availableServices ?? [] as $service)
                                     @php
@@ -84,14 +89,29 @@
                                                 'quantity_used' => $p->pivot->quantity_used ?? 1
                                             ];
                                         })->toArray();
+                                        
+                                        // Check if service matches pet species
+                                        $serviceName = strtolower($service->serv_name ?? '');
+                                        $matchesSpecies = false;
+                                        
+                                        if ($petSpecies === 'dog' && (str_contains($serviceName, 'dog') || str_contains($serviceName, 'canine'))) {
+                                            $matchesSpecies = true;
+                                        } elseif ($petSpecies === 'cat' && (str_contains($serviceName, 'cat') || str_contains($serviceName, 'feline'))) {
+                                            $matchesSpecies = true;
+                                        } elseif (!str_contains($serviceName, 'dog') && !str_contains($serviceName, 'cat') && !str_contains($serviceName, 'canine') && !str_contains($serviceName, 'feline')) {
+                                            // Show services that don't specify species (generic services)
+                                            $matchesSpecies = true;
+                                        }
                                     @endphp
+                                    @if($matchesSpecies)
                                     <option value="{{ $service->serv_name }}" 
                                             data-service-id="{{ $service->serv_id }}"
                                             data-price="{{ $service->serv_price }}"
                                             data-products='@json($productsData)'
-                                            {{ ($__deworm['dewormer_name'] ?? '') === $service->serv_name ? 'selected' : '' }}>
+                                            {{ (isset($__deworm['service_id']) && $__deworm['service_id'] == $service->serv_id) ? 'selected' : '' }}>
                                         {{ $service->serv_name }} - ₱{{ number_format($service->serv_price, 2) }}
                                     </option>
+                                    @endif
                                 @empty
                                     <option value="" disabled>No deworming services available</option>
                                 @endforelse
@@ -722,6 +742,12 @@
                 serviceTypeHidden.value = selectedOption.value || '';
             }
             
+            // Update hidden field with selected service_id
+            const serviceIdHidden = document.getElementById('service_id_hidden');
+            if (serviceIdHidden) {
+                serviceIdHidden.value = selectedOption.getAttribute('data-service-id') || '';
+            }
+            
             // Clear existing options
             dewormerSelect.innerHTML = '<option value="">Select Dewormer Product</option>';
             
@@ -815,9 +841,18 @@
             }
         }
         
-        // Initialize on page load
+        // Initialize on page load - trigger if there's a pre-selected service
         if (serviceSelector && serviceSelector.value) {
             updateDewormerOptions();
+            
+            // After populating dewormer dropdown, restore saved dewormer selection
+            setTimeout(function() {
+                const savedDewormer = "{{ $__deworm['dewormer_name'] ?? '' }}";
+                if (savedDewormer && dewormerSelect) {
+                    dewormerSelect.value = savedDewormer;
+                    checkStockWarning();
+                }
+            }, 100);
         }
     });
     

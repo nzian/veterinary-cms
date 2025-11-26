@@ -316,6 +316,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
     {
         $validated = $request->validate([
             'service_type' => ['required','string'], // Add service_type validation
+            'service_id' => ['nullable','integer','exists:tbl_serv,serv_id'],
             'vaccine_name' => ['required','string'], 
             'dose' => ['nullable','string'], 
             'manufacturer' => ['nullable','string'], 
@@ -361,6 +362,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                 ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
                 [
                     'vaccine_name' => $validated['vaccine_name'],
+                    'service_id' => $validated['service_id'],
                     'dose'=> $validated['dose'], 
                     'manufacturer' => $validated['manufacturer'],
                     'batch_no' => $validated['batch_no'], 
@@ -459,6 +461,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
     {
         $validated = $request->validate([
             'service_type' => ['required','string'], // Add service_type validation
+            'service_id' => ['nullable','integer','exists:tbl_serv,serv_id'],
             'dewormer_name' => ['required','string'], 
             'dosage' => ['nullable','string'], 
             'next_due_date' => ['nullable','date'],
@@ -499,6 +502,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                 ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
                 [
                     'dewormer_name' => $validated['dewormer_name'], 
+                    'service_id' => $validated['service_id'],
                     'dosage' => $validated['dosage'], 
                     'next_due_date' => $dwNextDueDate, 
                     'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
@@ -982,11 +986,28 @@ public function completeService(Request $request, $visitId, $serviceId)
     public function saveDiagnostic(Request $request, $visitId)
     {
         $validated = $request->validate([
-            'test_type' => ['required','string'], 'results_text' => ['nullable','string'], 'interpretation' => ['nullable','string'],
+            'test_type' => ['required','string'], 'service_id' => ['nullable','integer','exists:tbl_serv,serv_id'],
+            'results_text' => ['nullable','string'], 'interpretation' => ['nullable','string'],
             'staff' => ['nullable','string'], 'test_datetime' => ['nullable','date'], 'workflow_status' => ['nullable','string'],
         ]);
         
         $visitModel = Visit::with('services')->findOrFail($visitId);
+        
+        // If service_id is provided, attach it to the visit
+        if (!empty($validated['service_id'])) {
+            $serviceExists = $visitModel->services()->where('tbl_serv.serv_id', $validated['service_id'])->exists();
+            if (!$serviceExists) {
+                $visitModel->services()->attach($validated['service_id'], [
+                    'status' => 'completed',
+                    'completed_at' => now()
+                ]);
+            } else {
+                $visitModel->services()->updateExistingPivot($validated['service_id'], [
+                    'status' => 'completed',
+                    'completed_at' => now()
+                ]);
+            }
+        }
         
         // Mark diagnostic service as completed
         $diagnosticService = $visitModel->services()
@@ -1007,7 +1028,9 @@ public function completeService(Request $request, $visitId, $serviceId)
         DB::table('tbl_diagnostic_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
             [
-                'test_type' => $validated['test_type'], 'results' => $validated['results_text'],
+                'test_type' => $validated['test_type'], 
+                'service_id' => $validated['service_id'],
+                'results' => $validated['results_text'],
                 'remarks' => $validated['interpretation'], 'collected_by' => $validated['staff'] ?? Auth::user()->user_name,
                 'date_completed' => $validated['test_datetime'] ? Carbon::parse($validated['test_datetime'])->toDateString() : now()->toDateString(),
                 'status' => 'Completed', 'updated_at' => now(),
@@ -1032,7 +1055,7 @@ public function completeService(Request $request, $visitId, $serviceId)
             ->where('visit_id', $visitModel->visit_id)
             ->exists();
         
-        $message = 'Diagnostic record saved.';
+        $message = 'Diagnostic record saved successfully!';
         if ($allCompleted) {
             $message .= $billingExists 
                 ? ' All services completed - billing generated!'
@@ -1046,13 +1069,30 @@ public function completeService(Request $request, $visitId, $serviceId)
     public function saveSurgical(Request $request, $visitId)
     {
         $validated = $request->validate([
-            'surgery_type' => ['required','string'], 'staff' => ['nullable','string'], 'anesthesia' => ['nullable','string'],
+            'surgery_type' => ['required','string'], 'service_id' => ['nullable','integer','exists:tbl_serv,serv_id'],
+            'staff' => ['nullable','string'], 'anesthesia' => ['nullable','string'],
             'start_time' => ['nullable','date'], 'end_time' => ['nullable','date','after_or_equal:start_time'],
             'checklist' => ['nullable','string'], 'post_op_notes' => ['nullable','string'], 'medications_used' => ['nullable','string'],
             'follow_up' => ['nullable','date'], 'workflow_status' => ['nullable','string'],
         ]);
         
         $visitModel = Visit::with('services')->findOrFail($visitId);
+        
+        // If service_id is provided, attach it to the visit
+        if (!empty($validated['service_id'])) {
+            $serviceExists = $visitModel->services()->where('tbl_serv.serv_id', $validated['service_id'])->exists();
+            if (!$serviceExists) {
+                $visitModel->services()->attach($validated['service_id'], [
+                    'status' => 'completed',
+                    'completed_at' => now()
+                ]);
+            } else {
+                $visitModel->services()->updateExistingPivot($validated['service_id'], [
+                    'status' => 'completed',
+                    'completed_at' => now()
+                ]);
+            }
+        }
         
         // Mark surgical service as completed
         $surgicalService = $visitModel->services()
@@ -1073,14 +1113,48 @@ public function completeService(Request $request, $visitId, $serviceId)
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
             [
                 'procedure_name' => $validated['surgery_type'], 
+                'service_id' => $validated['service_id'],
                 'date_of_surgery' => $validated['start_time'] ? Carbon::parse($validated['start_time'])->toDateString() : $visitModel->visit_date,
-                'start_time' => $validated['start_time'], 'end_time' => $validated['end_time'],
-                'surgeon' => $validated['staff'], 'anesthesia_used' => $validated['anesthesia'],
-                'findings' => $validated['checklist'], 
-                'post_op_instructions' => $validated['post_op_notes'] . "\nMedications: " . $validated['medications_used'],
-                'status' => 'Completed', 'updated_at' => now(),
+                'start_time' => $validated['start_time'], 
+                'end_time' => $validated['end_time'],
+                'surgeon' => $validated['staff'], 
+                'anesthesia_used' => $validated['anesthesia'],
+                'findings' => $validated['checklist'] ?? null, 
+                'status' => 'Completed', 
+                'updated_at' => now(),
             ]
         );
+        
+        // Deduct Inventory for anesthesia/consumable products
+        if (!empty($validated['anesthesia']) && !empty($validated['service_id'])) {
+            $selectedService = Service::find($validated['service_id']);
+            if ($selectedService) {
+                $anesthesiaProduct = $selectedService->products()
+                    ->where('prod_name', $validated['anesthesia'])
+                    ->first();
+                
+                if ($anesthesiaProduct) {
+                    $quantityUsed = $anesthesiaProduct->pivot->quantity_used ?? 1;
+                    
+                    // Check if enough stock is available
+                    if ($anesthesiaProduct->prod_stocks >= $quantityUsed) {
+                        $anesthesiaProduct->decrement('prod_stocks', $quantityUsed);
+                        InventoryHistoryModel::create([
+                            'prod_id' => $anesthesiaProduct->prod_id,
+                            'type' => 'service_usage',
+                            'quantity' => -$quantityUsed,
+                            'reference' => "Surgical - Visit #{$visitId}",
+                            'user_id' => Auth::id(),
+                            'notes' => "Used for " . ($visitModel->pet->pet_name ?? 'Pet') . " ({$validated['surgery_type']})"
+                        ]);
+                    } else {
+                        Log::warning("Insufficient stock for anesthesia product '{$validated['anesthesia']}'. Available: {$anesthesiaProduct->prod_stocks}, Required: {$quantityUsed}");
+                    }
+                } else {
+                    Log::warning("Anesthesia product '{$validated['anesthesia']}' not found for surgical service ID {$validated['service_id']}");
+                }
+            }
+        }
         
         // Update visit_service_type to include all services (if column exists)
         $visitModel->refresh();
@@ -1100,7 +1174,7 @@ public function completeService(Request $request, $visitId, $serviceId)
             ->where('visit_id', $visitModel->visit_id)
             ->exists();
         
-        $message = 'Surgical record saved.';
+        $message = 'Surgical record saved successfully!';
         if ($allCompleted) {
             $message .= $billingExists 
                 ? ' All services completed - billing generated!'
@@ -1163,7 +1237,7 @@ public function completeService(Request $request, $visitId, $serviceId)
             ->where('visit_id', $visitModel->visit_id)
             ->exists();
         
-        $message = 'Emergency record saved.';
+        $message = 'Emergency record saved successfully!';
         if ($allCompleted) {
             $message .= $billingExists 
                 ? ' All services completed - billing generated!'
@@ -1796,6 +1870,72 @@ public function completeService(Request $request, $visitId, $serviceId)
             }
         }
 
+        // For diagnostic view, only show diagnostic services
+        // Explicitly filter by branch_id to ensure only current branch services are shown
+        if ($blade === 'diagnostic') {
+            $availableServices = Service::where(function($query) {
+                    $query->where('serv_type', 'like', '%diagnostic%')
+                          ->orWhere('serv_type', 'like', '%diagnostics%');
+                })
+                ->when($activeBranchId, function($query) use ($activeBranchId) {
+                    $query->where('branch_id', $activeBranchId);
+                })
+                ->orderBy('serv_name')
+                ->get();
+        }
+        
+        // For surgical view, only show surgical services
+        // Explicitly filter by branch_id to ensure only current branch services are shown
+        if ($blade === 'surgical') {
+            $availableServices = Service::where('serv_type', 'like', '%surgical%')
+                ->when($activeBranchId, function($query) use ($activeBranchId) {
+                    $query->where('branch_id', $activeBranchId);
+                })
+                ->orderBy('serv_name')
+                ->get();
+            
+            // Load products manually for each service to bypass any scope issues
+            foreach($availableServices as $service) {
+                $productIds = DB::table('tbl_service_products')
+                    ->where('serv_id', $service->serv_id)
+                    ->pluck('prod_id')
+                    ->toArray();
+                
+                if (!empty($productIds)) {
+                    $products = Product::withoutGlobalScopes()
+                        ->whereIn('prod_id', $productIds)
+                        ->get();
+                    
+                    // Attach pivot data
+                    $products = $products->map(function($product) use ($service) {
+                        $pivotData = DB::table('tbl_service_products')
+                            ->where('serv_id', $service->serv_id)
+                            ->where('prod_id', $product->prod_id)
+                            ->first();
+                        
+                        if ($pivotData) {
+                            $product->pivot = (object)[
+                                'quantity_used' => $pivotData->quantity_used ?? 1,
+                                'is_billable' => $pivotData->is_billable ?? false
+                            ];
+                        }
+                        return $product;
+                    });
+                    
+                    // Filter by branch and expiry (anesthesia products)
+                    $products = $products->filter(function($product) use ($activeBranchId) {
+                        $matchesBranch = !$activeBranchId || $product->branch_id == $activeBranchId;
+                        $notExpired = !$product->prod_expiry || $product->prod_expiry > now();
+                        return $matchesBranch && $notExpired;
+                    })->values();
+                    
+                    $service->setRelation('products', $products);
+                } else {
+                    $service->setRelation('products', collect([]));
+                }
+            }
+        }
+
         // ðŸŒŸ NEW LOGIC: Fetch all registered veterinarians
         $veterinarians = User::where('user_role', 'veterinarian')
                             ->orderBy('user_name')
@@ -1819,9 +1959,22 @@ public function completeService(Request $request, $visitId, $serviceId)
             'appoint_description' => 'nullable|string', 'services' => 'array', 'services.*' => 'exists:tbl_serv,serv_id',
         ]);
 
-    $validated['user_id'] = Auth::id() ?? $request->input('user_id');
+        $validated['user_id'] = Auth::id() ?? $request->input('user_id');
         $services = $validated['services'] ?? [];
         unset($validated['services']);
+
+        // Check for duplicate appointments (same pet, date, type, and active status)
+        $existingAppointment = Appointment::where('pet_id', $validated['pet_id'])
+            ->whereDate('appoint_date', Carbon::parse($validated['appoint_date'])->toDateString())
+            ->where('appoint_type', $validated['appoint_type'])
+            ->whereIn('appoint_status', ['scheduled', 'confirmed'])
+            ->first();
+        
+        if ($existingAppointment) {
+            $activeTab = $request->input('tab', 'appointments');
+            return redirect()->route('medical.index', ['tab' => $activeTab])
+                ->with('warning', 'An appointment with the same type already exists for this pet on this date.');
+        }
 
         $appointment = Appointment::create($validated);
         
@@ -1862,6 +2015,20 @@ public function completeService(Request $request, $visitId, $serviceId)
         $oldTime = $appointment->appoint_time;
         $isRescheduled = ($validated['appoint_date'] !== $oldDate || $validated['appoint_time'] !== $oldTime);
 
+        // Check for duplicate appointments when updating (exclude current appointment)
+        $existingAppointment = Appointment::where('pet_id', $validated['pet_id'])
+            ->whereDate('appoint_date', Carbon::parse($validated['appoint_date'])->toDateString())
+            ->where('appoint_type', $validated['appoint_type'])
+            ->whereIn('appoint_status', ['scheduled', 'confirmed'])
+            ->where('appoint_id', '!=', $appointment->appoint_id)
+            ->first();
+        
+        if ($existingAppointment) {
+            $activeTab = $request->input('tab', 'appointments');
+            return redirect()->route('medical.index', ['tab' => $activeTab])
+                ->with('warning', 'An appointment with the same type already exists for this pet on this date.');
+        }
+
         // ... (Original Update and Inventory Logic)
         
         // Send SMS notification if rescheduled
@@ -1884,8 +2051,7 @@ public function completeService(Request $request, $visitId, $serviceId)
         $appointment->services()->detach();
         $appointment->delete();
 
-        $activeTab = $request->input('tab', 'appointments');
-        return redirect()->route('medical.index', ['tab' => $activeTab])
+        return redirect()->route('care-continuity.index', ['active_tab' => 'appointments'])
                         ->with('success', 'Appointment deleted successfully');
     }
 
@@ -2680,14 +2846,19 @@ public function completeService(Request $request, $visitId, $serviceId)
     protected function autoScheduleFollowUp($visit, $appointType, $appointDate, $itemName, $dose = null)
     {
         try {
-            // Check if appointment already exists for this date and pet
+            // Check if appointment already exists for this exact follow-up
+            // Match by pet, date, and appointment type (more strict to prevent duplicates)
             $existingAppointment = Appointment::where('pet_id', $visit->pet_id)
                 ->whereDate('appoint_date', Carbon::parse($appointDate)->toDateString())
-                ->where('appoint_type', 'like', "%{$itemName}%")
+                ->where(function($query) use ($appointType, $itemName) {
+                    $query->where('appoint_type', $appointType)
+                          ->orWhere('appoint_type', 'like', "%{$itemName}%");
+                })
+                ->whereIn('appoint_status', ['scheduled', 'confirmed']) // Only check active appointments
                 ->first();
             
             if ($existingAppointment) {
-                Log::info("Follow-up appointment already exists for pet {$visit->pet_id} on {$appointDate}");
+                Log::info("Follow-up appointment already exists for pet {$visit->pet_id} on {$appointDate} - Appointment ID: {$existingAppointment->appoint_id}");
                 return $existingAppointment;
             }
             

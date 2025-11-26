@@ -65,6 +65,9 @@
             // Determine the selected service ID (prioritize: pivot table entry > old input > null)
             $boardingService = $visit->services()->where('serv_type', 'boarding')->first();
             $selectedServiceId = $boardingService ? $boardingService->serv_id : old('service_id');
+            
+            // Get pet species for filtering boarding services
+            $petSpecies = strtolower($visit->pet->pet_species ?? '');
             @endphp
             <form action="{{ route('medical.visits.boarding.save', $visit->visit_id) }}" method="POST" class="space-y-6">
                 @csrf
@@ -83,8 +86,18 @@
                                     @php
                                         $isBoardingService = (isset($service->serv_type) && strtolower($service->serv_type) == 'boarding');
                                         $isSelected = $selectedServiceId == $service->serv_id;
+                                        
+                                        // Check if service matches pet species
+                                        $serviceName = strtolower($service->serv_name ?? '');
+                                        $matchesSpecies = false;
+                                        
+                                        if ($petSpecies === 'dog' && (str_contains($serviceName, 'dog') || str_contains($serviceName, 'canine'))) {
+                                            $matchesSpecies = true;
+                                        } elseif ($petSpecies === 'cat' && (str_contains($serviceName, 'cat') || str_contains($serviceName, 'feline'))) {
+                                            $matchesSpecies = true;
+                                        }
                                     @endphp
-                                    @if($isBoardingService || !isset($service->serv_type)) 
+                                    @if($isBoardingService && $matchesSpecies) 
                                     <option value="{{ $service->serv_id }}" data-price="{{ $service->serv_price ?? 0 }}" {{ $isSelected ? 'selected' : '' }}>
                                         {{ $service->serv_name ?? 'N/A' }} 
                                         @if(isset($service->serv_price))

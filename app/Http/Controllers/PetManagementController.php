@@ -949,11 +949,16 @@ class PetManagementController extends Controller
         
     $userBranchId = optional($pet->user)->branch_id ?? optional(Auth::user())->branch_id;
 
-        // Fetch all veterinarians for license lookup
-        $veterinarians = \App\Models\User::where('branch_id', $userBranchId)
+        // Fetch all veterinarians for license lookup - key by both user_id AND user_name for flexible lookup
+        $veterinariansById = \App\Models\User::where('branch_id', $userBranchId)
             ->where('user_role', 'veterinarian')
             ->get(['user_id', 'user_name', 'user_licenseNum']) 
             ->keyBy('user_id');
+            
+        $veterinariansByName = \App\Models\User::where('branch_id', $userBranchId)
+            ->where('user_role', 'veterinarian')
+            ->get(['user_id', 'user_name', 'user_licenseNum']) 
+            ->keyBy('user_name');
 
         // ===== VACCINATION RECORDS =====
         $vaccinations = collect();
@@ -968,11 +973,17 @@ class PetManagementController extends Controller
             // Try to get the visit for veterinarian info
             $visit = \App\Models\Visit::find($record->visit_id);
             $vetUserId = optional($visit)->user_id;
-            $vetUser = $veterinarians->get($vetUserId);
+            
+            // Lookup vet by ID first, then by name from administered_by field
+            $vetUser = $veterinariansById->get($vetUserId) ?? $veterinariansByName->get($record->administered_by);
+            
+            // Fetch product description based on vaccine name
+            $product = \App\Models\Product::where('prod_name', $record->vaccine_name)->first();
+            $productDescription = optional($product)->prod_description ?? 'Vaccination administered';
             
             $vaccinations->push((object) [
                 'visit_date' => $record->date_administered ?? $record->created_at,
-                'product_description' => $record->remarks ?? 'Vaccination administered',
+                'product_description' => $productDescription,
                 'vaccine_name' => $record->vaccine_name ?? 'N/A',
                 'manufacturer' => $record->manufacturer ?? '--',
                 'batch_number' => $record->batch_no ?? '--',
@@ -1024,13 +1035,13 @@ class PetManagementController extends Controller
                 $pivot = optional($vaccinationService)->pivot;
                 if ($pivot) {
                     $vetUserId = $pivot->vet_user_id;
-                    $vetUser = $veterinarians->get($vetUserId);
+                    $vetUser = $veterinariansById->get($vetUserId);
                     
                     $vaccineProduct = $products->get($pivot->prod_id);
                     $vaccineProductName = optional($vaccineProduct)->prod_name ?? null;
 
-                    // Prefer explicit pivot notes/remarks over product description
-                    $productDescription = $pivot->vacc_notes ?? $pivot->vacc_description ?? optional($vaccineProduct)->prod_description ?? 'Vaccination record';
+                    // Use product description from the actual product
+                    $productDescription = optional($vaccineProduct)->prod_description ?? 'Vaccination record';
 
                     // Check if this vaccination is already in the collection (avoid duplicates)
                     $exists = $vaccinations->contains(function($vacc) use ($appointment, $vaccineProductName) {
@@ -1112,6 +1123,24 @@ class PetManagementController extends Controller
         // Sort deworming by date and limit to 14 records
         $deworming = $deworming->sortBy('visit_date')->values()->take(14);
         
+        // ===== FOLLOW-UP APPOINTMENTS (for Notes/Memo section) =====
+        $followUpAppointments = \App\Models\Appointment::where('pet_id', $id)
+            ->where(function($query) {
+                $query->where('appoint_type', 'LIKE', '%follow%')
+                      ->orWhere('appoint_type', 'LIKE', '%recheck%');
+            })
+            ->where('appoint_date', '>=', now()->toDateString())
+            ->orderBy('appoint_date', 'asc')
+            ->get()
+            ->map(function($appt) {
+                return (object)[
+                    'type' => $appt->appoint_type,
+                    'description' => $appt->appoint_description,
+                    'date' => $appt->appoint_date,
+                    'status' => $appt->appoint_status,
+                ];
+            });
+        
         // Fetch branch information
         $branches = \App\Models\Branch::all(); 
 
@@ -1121,7 +1150,7 @@ class PetManagementController extends Controller
             'logo_url' => asset('images/pets2go.png'),  
         ];
 
-        return view('petHealthCard', compact('pet', 'vaccinations', 'deworming', 'clinicInfo', 'branches'));
+        return view('petHealthCard', compact('pet', 'vaccinations', 'deworming', 'followUpAppointments', 'clinicInfo', 'branches'));
 
     } catch (\Exception $e) {
         Log::error('Health Card Generation Error: ' . $e->getMessage());
