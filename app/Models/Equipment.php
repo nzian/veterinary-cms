@@ -12,7 +12,7 @@ class Equipment extends Model
     
     protected $primaryKey = 'equipment_id';
     protected $fillable = [
-        'equipment_name','equipment_description','equipment_quantity','equipment_category','equipment_image', 'branch_id'
+        'equipment_name','equipment_description','equipment_quantity','equipment_category','equipment_image', 'branch_id', 'equipment_status', 'equipment_available', 'equipment_maintenance', 'equipment_out_of_service'
     ];
 
     public function branch() {

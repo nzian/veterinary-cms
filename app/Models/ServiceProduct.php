@@ -15,7 +15,8 @@ class ServiceProduct extends Model
         'serv_id',
         'prod_id',
         'quantity_used',
-        'is_billable'
+        'is_billable',
+        'created_by'
     ];
 
     protected $casts = [
@@ -31,5 +32,10 @@ class ServiceProduct extends Model
     public function product()
     {
         return $this->belongsTo(Product::class, 'prod_id', 'prod_id');
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by', 'user_id');
     }
 }
