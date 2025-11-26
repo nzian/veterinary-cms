@@ -78,10 +78,10 @@ class CareContinuityController extends Controller
 
         // Referrals Query
         $referralPerPage = $request->get('referralPerPage', 10);
-        $referralsQuery = Referral::with(['appointment.pet.owner', 'pet.owner', 'refToBranch', 'refByBranch'])
+        $referralsQuery = Referral::with(['pet.owner', 'refToBranch', 'refFromBranch', 'refByBranch'])
             ->where(function($q) use ($activeBranchId) {
                 $q->where('ref_to', $activeBranchId)
-                  ->orWhere('ref_by', $activeBranchId);
+                  ->orWhere('ref_from', $activeBranchId);
             })
             ->orderBy('ref_date', 'desc')
             ->orderBy('ref_id', 'desc');
@@ -89,6 +89,11 @@ class CareContinuityController extends Controller
         $referrals = $referralPerPage === 'all' 
             ? $referralsQuery->get() 
             : $referralsQuery->paginate((int) $referralPerPage, ['*'], 'referralsPage');
+
+        // Attach medical history data to each referral
+        foreach ($referrals as $referral) {
+            $this->attachMedicalHistoryToReferral($referral);
+        }
 
         // Lookups for modals
         $filteredOwners = Owner::whereIn('user_id', $branchUserIds)->get();
@@ -136,13 +141,13 @@ class CareContinuityController extends Controller
         ]);
 
         $validated['user_id'] = Auth::id();
-        $validated['appoint_status'] = 'pending';
+        $validated['appoint_status'] = 'scheduled';
 
         $appointment = Appointment::create($validated);
 
-        // Send SMS notification for new appointment
+        // Send SMS notification for new follow-up appointment
         try {
-            $this->smsService->sendFollowUpSMS($appointment);
+            $this->smsService->sendNewAppointmentSMS($appointment);
         } catch (\Exception $e) {
             Log::warning("Failed to send SMS for appointment {$appointment->appoint_id}: " . $e->getMessage());
         }
@@ -521,26 +526,24 @@ class CareContinuityController extends Controller
         $visitsRedirect = route('medical.index', ['active_tab' => $visitsTab]);
 
         try {
-            $referral = Referral::with(['appointment.pet', 'appointment.user', 'appointment.services'])->findOrFail($id);
+            $referral = Referral::with(['pet.owner', 'visit.services'])->findOrFail($id);
+            $currentUser = Auth::user();
+            $currentBranchId = $currentUser->user_role === 'superadmin' 
+                ? session('active_branch_id') 
+                : $currentUser->branch_id;
             
-            if (!$referral->appointment) {
-                // FIX 1: Ensure explicit redirect back to the referral tab on error
-                return redirect($referralsRedirect)->with('error', 'No associated appointment found for this referral.');
+            // Check if current branch is the referred branch
+            if ($referral->ref_to != $currentBranchId) {
+                return redirect($referralsRedirect)->with('error', 'Only the referred branch can create a visit from this referral.');
             }
 
-            $appointment = $referral->appointment;
-            $pet = $appointment->pet;
-            $user = $appointment->user ?? Auth::user();
-
-            // Check if appointment status is arrived
-            if (strtolower($appointment->appoint_status) !== 'arrived') {
-                $message = 'Visit can only be created when appointment status is Arrived.';
-                if ($request->expectsJson()) {
-                    return response()->json(['success' => false, 'message' => $message], 422);
-                }
-                // FIX 1: Ensure explicit redirect back to the referral tab on error
-                return redirect($referralsRedirect)->with('error', $message);
+            // Check if referral is pending and interbranch
+            if ($referral->ref_status !== 'pending' || $referral->ref_type !== 'interbranch') {
+                return redirect($referralsRedirect)->with('error', 'Visit can only be created for pending interbranch referrals.');
             }
+
+            $pet = $referral->pet;
+            $originalVisit = $referral->visit;
 
             // Prevent duplicate visit creation (same pet, same day)
             $existing = Visit::whereDate('visit_date', Carbon::today())
@@ -560,85 +563,23 @@ class CareContinuityController extends Controller
                 return redirect($visitsRedirect)->with('success', 'Visit already exists for today.');
             }
 
-            // Create the visit using the same approach as in MedicalManagementController
+            // Create the visit in the referred branch with data from original visit
             $visit = Visit::create([
-                'visit_date' => Carbon::today()->toDateString(),
+                'visit_date' => $referral->ref_date,
                 'pet_id' => $pet->pet_id,
-                'user_id' => $user->user_id,
+                'user_id' => $currentUser->user_id,
+                'weight' => $originalVisit->weight ?? null,
+                'temperature' => $originalVisit->temperature ?? null,
                 'patient_type' => 'outpatient',
-                'visit_status' => 'catered', // Set status to Catered
-                'workflow_status' => 'Completed',
-                'referral_id' => $referral->ref_id, // Link to the referral
+                'visit_status' => 'arrived',
+                'workflow_status' => 'Active',
             ]);
 
-            // Update the pet's weight and temperature if available
-            if ($appointment->weight) {
-                $pet->pet_weight = $appointment->weight;
-            }
-            if ($appointment->temperature) {
-                $pet->pet_temperature = $appointment->temperature;
-            }
-            $pet->save();
-
-            // Get services from the appointment if available
-            $serviceIds = [];
-            if ($appointment->services && $appointment->services->count() > 0) {
-                $serviceIds = $appointment->services->pluck('serv_id')->toArray();
-            } else {
-                // Fallback to inferring services from appointment type/description
-                $hay = strtolower(trim(($appointment->appoint_description ?? '') . ' ' . ($appointment->appoint_type ?? '')));
-                $map = [
-                    'vaccination' => 'vaccination',
-                    'deworm' => 'deworming',
-                    'groom' => 'grooming',
-                    'check' => 'check up',
-                    'consult' => 'check up',
-                    'diagnostic' => 'diagnostics',
-                    'surg' => 'surgical',
-                    'emergency' => 'emergency',
-                    'board' => 'boarding',
-                ];
-                $match = null;
-                foreach ($map as $needle => $servType) {
-                    if ($hay !== '' && str_contains($hay, $needle)) { 
-                        $match = $servType; 
-                        break; 
-                    }
-                }
-                if ($match) {
-                    $svc = \App\Models\Service::whereRaw('LOWER(serv_type) = ?', [$match])->first();
-                    if ($svc) { 
-                        $serviceIds = [$svc->serv_id]; 
-                    }
-                }
-            }
-
-            // Attach services to the visit
-            if (!empty($serviceIds)) {
-                $visit->services()->sync($serviceIds);
-                // Update visit_service_type for display
-                try {
-                    $types = \App\Models\Service::whereIn('serv_id', $serviceIds)
-                        ->pluck('serv_type')
-                        ->filter()
-                        ->unique()
-                        ->values()
-                        ->all();
-                    
-                    if (\Illuminate\Support\Facades\Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
-                        $visit->visit_service_type = !empty($types) ? implode(', ', $types) : null;
-                        $visit->save();
-                    }
-                } catch (\Throwable $e) {
-                    \Log::warning('Failed to set visit_service_type: '.$e->getMessage());
-                }
-            }
-
-            // Update appointment status to completed
-            $appointment->update(['appoint_status' => 'completed']);
-            
-            // Update the referral status
-            $referral->update(['ref_status' => 'completed']);
+            // Update the referral status to attended
+            $referral->update([
+                'ref_status' => 'attended',
+                'referred_visit_id' => $visit->visit_id
+            ]);
 
             // Redirect to the medical management visits tab
             $redirect = route('medical.index', ['active_tab' => 'visits']);
@@ -661,5 +602,181 @@ class CareContinuityController extends Controller
             }
             return back()->with('error', 'Failed to create visit from referral: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Attach medical history, tests conducted, and medications given to referral
+     */
+    private function attachMedicalHistoryToReferral($referral)
+    {
+        if (!$referral || !$referral->pet_id) {
+            $referral->medical_history = '';
+            $referral->tests_conducted = '';
+            $referral->medications_given = '';
+            $referral->ref_to_display = $referral->external_clinic_name ?? 
+                                        ($referral->refToBranch?->branch_name ?? 'N/A');
+            return;
+        }
+
+        $petId = $referral->pet_id;
+
+        // Get medical history from completed services (excluding grooming and boarding)
+        $completedVisits = Visit::with(['services' => function($q) {
+                $q->wherePivot('status', 'completed')
+                  ->whereNotIn(DB::raw('LOWER(tbl_serv.serv_type)'), ['grooming', 'boarding']);
+            }])
+            ->where('pet_id', $petId)
+            ->whereHas('services', function($q) {
+                $q->where('tbl_visit_service.status', 'completed')
+                  ->whereNotIn(DB::raw('LOWER(tbl_serv.serv_type)'), ['grooming', 'boarding']);
+            })
+            ->orderBy('visit_date', 'desc')
+            ->limit(5)
+            ->get();
+
+        $medicalHistoryItems = [];
+        foreach ($completedVisits as $visit) {
+            foreach ($visit->services as $service) {
+                $serviceType = strtolower($service->serv_type);
+                $details = $service->serv_name;
+                
+                if ($serviceType === 'vaccination') {
+                    $vaccination = DB::table('tbl_vaccination_record')
+                        ->where('visit_id', $visit->visit_id)
+                        ->where('pet_id', $petId)
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                    if ($vaccination && isset($vaccination->vaccine_name)) {
+                        $details .= ' - ' . $vaccination->vaccine_name;
+                    }
+                } elseif ($serviceType === 'deworming') {
+                    $deworming = DB::table('tbl_deworming_record')
+                        ->where('visit_id', $visit->visit_id)
+                        ->where('pet_id', $petId)
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                    if ($deworming && isset($deworming->dewormer_name)) {
+                        $details .= ' - ' . $deworming->dewormer_name;
+                    }
+                } elseif ($serviceType === 'check up') {
+                    $checkup = DB::table('tbl_checkup_record')
+                        ->where('visit_id', $visit->visit_id)
+                        ->where('pet_id', $petId)
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                    if ($checkup && isset($checkup->diagnosis)) {
+                        $details .= ' - ' . $checkup->diagnosis;
+                    }
+                } elseif ($serviceType === 'surgical') {
+                    $surgery = DB::table('tbl_surgical_record')
+                        ->where('visit_id', $visit->visit_id)
+                        ->where('pet_id', $petId)
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                    if ($surgery && isset($surgery->procedure_name)) {
+                        $details .= ' - ' . $surgery->procedure_name;
+                    }
+                } elseif ($serviceType === 'emergency') {
+                    $emergency = DB::table('tbl_emergency_record')
+                        ->where('visit_id', $visit->visit_id)
+                        ->where('pet_id', $petId)
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                    if ($emergency && isset($emergency->chief_complaint)) {
+                        $details .= ' - ' . $emergency->chief_complaint;
+                    }
+                }
+                
+                $medicalHistoryItems[] = Carbon::parse($visit->visit_date)->format('M d, Y') . ': ' . $details;
+            }
+        }
+
+        // Get diagnostic tests from completed services
+        $diagnosticVisits = Visit::with(['services' => function($q) {
+                $q->wherePivot('status', 'completed')
+                  ->where(DB::raw('LOWER(tbl_serv.serv_type)'), 'diagnostics');
+            }])
+            ->where('pet_id', $petId)
+            ->whereHas('services', function($q) {
+                $q->where('tbl_visit_service.status', 'completed')
+                  ->where(DB::raw('LOWER(tbl_serv.serv_type)'), 'diagnostics');
+            })
+            ->orderBy('visit_date', 'desc')
+            ->limit(5)
+            ->get();
+
+        $diagnosticItems = [];
+        foreach ($diagnosticVisits as $visit) {
+            foreach ($visit->services as $service) {
+                $diagnostic = DB::table('tbl_diagnostic_record')
+                    ->where('visit_id', $visit->visit_id)
+                    ->where('pet_id', $petId)
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+                
+                $details = $service->serv_name;
+                if ($diagnostic) {
+                    if (isset($diagnostic->test_name)) {
+                        $details .= ' - ' . $diagnostic->test_name;
+                    }
+                    if (isset($diagnostic->results)) {
+                        $details .= ' (Results: ' . $diagnostic->results . ')';
+                    }
+                }
+                
+                $diagnosticItems[] = Carbon::parse($visit->visit_date)->format('M d, Y') . ': ' . $details;
+            }
+        }
+
+        // Get prescriptions - medication from tbl_prescription
+        $prescriptions = DB::table('tbl_prescription')
+            ->where('tbl_prescription.pet_id', $petId)
+            ->whereNotNull('tbl_prescription.medication')
+            ->where('tbl_prescription.medication', '!=', '')
+            ->select(
+                'tbl_prescription.prescription_date',
+                'tbl_prescription.medication'
+            )
+            ->orderBy('tbl_prescription.prescription_date', 'desc')
+            ->limit(10)
+            ->get();
+
+        $medicationItems = [];
+        foreach ($prescriptions as $prescription) {
+            if ($prescription->medication) {
+                $dateFormatted = Carbon::parse($prescription->prescription_date)->format('M d, Y') . ': ';
+                
+                // Try to decode JSON medication data
+                $medications = json_decode($prescription->medication, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($medications)) {
+                    // JSON format - extract product names and instructions
+                    $medList = [];
+                    foreach ($medications as $med) {
+                        $medStr = $med['product_name'] ?? '';
+                        if (!empty($med['instructions'])) {
+                            $medStr .= ' (' . $med['instructions'] . ')';
+                        }
+                        if ($medStr) {
+                            $medList[] = $medStr;
+                        }
+                    }
+                    if (!empty($medList)) {
+                        $medicationItems[] = $dateFormatted . implode(', ', $medList);
+                    }
+                } else {
+                    // Plain text format
+                    $medicationItems[] = $dateFormatted . $prescription->medication;
+                }
+            }
+        }
+
+        // Set the attributes
+        $referral->medical_history = implode('; ', $medicalHistoryItems);
+        $referral->tests_conducted = implode('; ', $diagnosticItems);
+        $referral->medications_given = implode('; ', $medicationItems);
+        
+        // Set display name for referred to (external_clinic_name or branch name)
+        $referral->ref_to_display = $referral->external_clinic_name ?? 
+                                    ($referral->refToBranch?->branch_name ?? 'N/A');
     }
 }

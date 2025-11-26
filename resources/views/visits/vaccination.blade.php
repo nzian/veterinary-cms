@@ -56,10 +56,11 @@
                     ];
                 }
             @endphp
-            <form action="{{ route('medical.visits.vaccination.save', $visit->visit_id) }}" method="POST" class="space-y-6">
+            <form action="{{ route('medical.visits.vaccination.save', $visit->visit_id) }}" method="POST" class="space-y-6" id="vaccination_form">
                 @csrf
                 <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
                 <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
+                <input type="hidden" name="service_type" id="service_type_hidden" value="">
 
                 {{-- Vaccination Details Card --}}
                 <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
@@ -72,8 +73,21 @@
                             <select name="service_type" id="service_type_selector" class="w-full border border-gray-300 p-3 rounded-lg" required>
                                 <option value="">Select Vaccination Service</option>
                                 @forelse($availableServices as $service)
+                                    @php
+                                        $productsData = $service->products->map(function($p) {
+                                            return [
+                                                'prod_id' => $p->prod_id,
+                                                'prod_name' => $p->prod_name,
+                                                'prod_stocks' => $p->prod_stocks,
+                                                'prod_expiry' => $p->prod_expiry,
+                                                'quantity_used' => $p->pivot->quantity_used ?? 1
+                                            ];
+                                        })->toArray();
+                                    @endphp
                                     <option value="{{ $service->serv_name }}" 
+                                            data-service-id="{{ $service->serv_id }}"
                                             data-price="{{ $service->serv_price }}"
+                                            data-products='@json($productsData)'
                                             {{ ($__vacc['service_type'] ?? '') === $service->serv_name ? 'selected' : '' }}>
                                         {{ $service->serv_name }} - ₱{{ number_format($service->serv_price, 2) }}
                                     </option>
@@ -86,25 +100,11 @@
                         {{-- Product Vaccine Selection --}}
                         <div class="sm:col-span-3">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Vaccine Product <span class="text-red-500">*</span></label>
-                            <select name="vaccine_name" id="vaccine_name_select" class="w-full border border-gray-300 p-3 rounded-lg" required>
-                                <option value="">Select Vaccine Product</option>
-                                @forelse($vaccines as $vaccine)
-                                    <option value="{{ $vaccine->prod_name }}" 
-                                            data-stock="{{ $vaccine->prod_stocks }}"
-                                            data-price="{{ $vaccine->prod_price }}"
-                                            {{ ($__vacc['vaccine_name'] ?? '') === $vaccine->prod_name ? 'selected' : '' }}>
-                                        {{ $vaccine->prod_name }} 
-                                        (Stock: {{ $vaccine->prod_stocks }}) - ₱{{ number_format($vaccine->prod_price, 2) }}
-                                        @if($vaccine->prod_expiry && \Carbon\Carbon::parse($vaccine->prod_expiry)->diffInDays(now()) <= 30)
-                                            ⚠️ Expiring Soon
-                                        @endif
-                                    </option>
-                                @empty
-                                    <option value="" disabled>No vaccine products in stock</option>
-                                @endforelse
+                            <select name="vaccine_name" id="vaccine_name_select" class="w-full border border-gray-300 p-3 rounded-lg" required disabled>
+                                <option value="">First select a vaccination service</option>
                             </select>
-                            <small class="text-xs text-gray-500 mt-1">
-                                Select from available vaccine products in inventory.
+                            <small class="text-xs text-gray-500 mt-1" id="vaccine_helper_text">
+                                Select a vaccination service first to see available vaccines.
                             </small>
                         </div>
                         
@@ -324,47 +324,87 @@
     document.addEventListener('DOMContentLoaded', function() {
         const typeSelector = document.getElementById('service_type_selector');
         const vaccineSelect = document.getElementById('vaccine_name_select');
-        const productOptGroup = document.getElementById('product_vaccines_optgroup');
-        const serviceOptGroup = document.getElementById('service_vaccines_optgroup');
         const vaccineHelperText = document.getElementById('vaccine_helper_text');
         
-        const allProductOptions = Array.from(vaccineSelect.querySelectorAll('.product-option'));
-        const allServiceOptions = Array.from(vaccineSelect.querySelectorAll('.service-option'));
-        
-        function updateVaccineSelect(type) {
-            // Hide all options initially
-            allProductOptions.forEach(opt => opt.style.display = 'none');
-            allServiceOptions.forEach(opt => opt.style.display = 'none');
-            productOptGroup.style.display = 'none';
-            serviceOptGroup.style.display = 'none';
-
-            // Unselect previous selection and set default text
-            vaccineSelect.selectedIndex = 0;
-            
-            if (type === 'product') {
-                productOptGroup.style.display = 'block';
-                allProductOptions.forEach(opt => opt.style.display = 'block');
-                vaccineHelperText.innerHTML = 'Select from available **vaccines in inventory**. Stock levels are shown.';
-            } else if (type === 'service') {
-                serviceOptGroup.style.display = 'block';
-                allServiceOptions.forEach(opt => opt.style.display = 'block');
-                vaccineHelperText.innerHTML = 'Select a **general vaccination service** (no stock deduction).';
-            }
-        }
-
-        // Initial setup
-        updateVaccineSelect(typeSelector.value); 
-
-        // Listener for Service Type change
+        // Listen for service selection changes
         typeSelector.addEventListener('change', function() {
-            updateVaccineSelect(this.value);
-            // Re-run low stock warning logic in case a product was selected again
-            checkStockWarning(); 
+            updateVaccineOptions();
         });
 
-        // Existing low stock warning logic updated to call a function
-        if (vaccineSelect) {
-            vaccineSelect.addEventListener('change', checkStockWarning);
+        // Listen for vaccine selection changes to show warnings
+        vaccineSelect.addEventListener('change', function() {
+            checkStockWarning();
+        });
+
+        function updateVaccineOptions() {
+            const selectedOption = typeSelector.options[typeSelector.selectedIndex];
+            
+            // Update hidden field with selected service type
+            const serviceTypeHidden = document.getElementById('service_type_hidden');
+            if (serviceTypeHidden) {
+                serviceTypeHidden.value = selectedOption.value || '';
+            }
+            
+            // Clear existing options
+            vaccineSelect.innerHTML = '<option value="">Select Vaccine Product</option>';
+            
+            if (!selectedOption.value) {
+                vaccineSelect.disabled = true;
+                vaccineHelperText.textContent = 'Select a vaccination service first to see available vaccines.';
+                return;
+            }
+
+            // Get products from the selected service
+            const products = JSON.parse(selectedOption.dataset.products || '[]');
+            
+            if (products.length === 0) {
+                vaccineSelect.innerHTML = '<option value="">No consumable products for this service</option>';
+                vaccineSelect.disabled = true;
+                vaccineHelperText.innerHTML = '<span class="text-red-600">⚠️ This service has no consumable products configured.</span>';
+                return;
+            }
+
+            // Enable the select and populate with products
+            vaccineSelect.disabled = false;
+            vaccineHelperText.innerHTML = 'Available vaccines for the selected service. <strong>Only stock is displayed.</strong>';
+            
+            products.forEach(function(product) {
+                const option = document.createElement('option');
+                option.value = product.prod_name;
+                option.dataset.stock = product.prod_stocks;
+                option.dataset.prodId = product.prod_id;
+                option.dataset.quantityUsed = product.quantity_used;
+                
+                // Build option text - ONLY SHOW STOCK, NO PRICE
+                let optionText = `${product.prod_name} (Stock: ${product.prod_stocks})`;
+                
+                // Check for low stock or expiring
+                if (product.prod_stocks <= 5) {
+                    optionText += ' ⚠️ Low Stock';
+                }
+                
+                if (product.prod_expiry) {
+                    const expiryDate = new Date(product.prod_expiry);
+                    const daysUntilExpiry = Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24));
+                    if (daysUntilExpiry <= 30 && daysUntilExpiry > 0) {
+                        optionText += ' ⚠️ Expiring Soon';
+                    }
+                }
+                
+                option.textContent = optionText;
+                
+                // Disable if out of stock
+                if (product.prod_stocks <= 0) {
+                    option.disabled = true;
+                    option.textContent += ' - OUT OF STOCK';
+                }
+                
+                vaccineSelect.appendChild(option);
+            });
+            
+            // Clear any existing warnings
+            const existingWarning = vaccineSelect.parentElement.querySelector('.stock-warning');
+            if (existingWarning) existingWarning.remove();
         }
 
         function checkStockWarning() {
@@ -375,13 +415,23 @@
             const existingWarning = vaccineSelect.parentElement.querySelector('.stock-warning');
             if (existingWarning) existingWarning.remove();
             
-            // Only show warning for product-based items with low stock
-            if (selectedOption.dataset.type === 'product' && stock && parseInt(stock) <= 5) {
+            // Show warning for low stock
+            if (stock && parseInt(stock) > 0 && parseInt(stock) <= 5) {
                 const warning = document.createElement('div');
                 warning.className = 'stock-warning mt-2 p-2 bg-yellow-50 border border-yellow-300 rounded text-sm text-yellow-800';
                 warning.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i> Low stock warning: Only ${stock} units remaining`;
                 vaccineSelect.parentElement.appendChild(warning);
+            } else if (stock && parseInt(stock) <= 0) {
+                const warning = document.createElement('div');
+                warning.className = 'stock-warning mt-2 p-2 bg-red-50 border border-red-300 rounded text-sm text-red-800';
+                warning.innerHTML = `<i class="fas fa-times-circle mr-1"></i> Out of stock - cannot proceed`;
+                vaccineSelect.parentElement.appendChild(warning);
             }
+        }
+        
+        // Initialize on page load
+        if (typeSelector.value) {
+            updateVaccineOptions();
         }
     });
 

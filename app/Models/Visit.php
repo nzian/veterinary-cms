@@ -3,6 +3,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\DB;
 use App\Traits\BranchDataScope;
 use App\Enums\PatientType;
 use App\Services\VisitBillingService;
@@ -20,6 +23,8 @@ class Visit extends Model
         'patient_type',
         'visit_status',
         'workflow_status',
+        'service_type',
+        'visit_service_type',
         // add other fields as needed
     ];
     protected $table = 'tbl_visit_record';
@@ -27,6 +32,44 @@ class Visit extends Model
     public $incrementing = true;
     public $timestamps = false;
     protected $keyType = 'int';
+
+    /**
+     * Override the BranchDataScope to include visits for pets with active interbranch referrals
+     */
+    protected static function booted()
+    {
+        static::addGlobalScope('branch_visit_scope', function (Builder $builder) {
+            $user = auth()->user();
+            $isSuperAdmin = $user && strtolower(trim($user->user_role)) === 'superadmin';
+            $isInBranchMode = Session::get('branch_mode') === 'active';
+            $activeBranchId = Session::get('active_branch_id');
+
+            // Super Admin in Global Mode: no filter
+            if ($isSuperAdmin && !$isInBranchMode) {
+                return;
+            }
+
+            // Apply filter for normal users or Super Admin in branch mode
+            if ($activeBranchId) {
+                $branchUserIds = \App\Models\User::where('branch_id', $activeBranchId)->pluck('user_id');
+                
+                $builder->where(function($query) use ($branchUserIds, $activeBranchId) {
+                    // Include visits created by users in this branch
+                    $query->whereIn('tbl_visit_record.user_id', $branchUserIds)
+                          // OR visits for pets that have active interbranch referrals to this branch
+                          ->orWhereExists(function($subQuery) use ($activeBranchId) {
+                              $subQuery->select(DB::raw(1))
+                                       ->from('tbl_pet')
+                                       ->join('tbl_ref', 'tbl_pet.pet_id', '=', 'tbl_ref.pet_id')
+                                       ->whereColumn('tbl_pet.pet_id', 'tbl_visit_record.pet_id')
+                                       ->where('tbl_ref.ref_to', $activeBranchId)
+                                       ->where('tbl_ref.ref_type', 'interbranch')
+                                       ->whereIn('tbl_ref.ref_status', ['pending', 'attended', 'completed']);
+                          });
+                });
+            }
+        });
+    }
 
     // We'll handle patient_type normalization in accessors/mutators to
     // tolerate different casings/values in the database (e.g. 'outpatient').
@@ -162,6 +205,17 @@ public function checkAllServicesCompleted()
         $this->workflow_status = 'Completed';
         $this->visit_status = 'arrived'; // Keep as arrived until payment
         $this->save();
+
+        // Check if this visit was created from a referral and update referral status
+        $referral = \App\Models\Referral::where('referred_visit_id', $this->visit_id)
+            ->where('ref_type', 'interbranch')
+            ->where('ref_status', 'attended')
+            ->first();
+        
+        if ($referral) {
+            $referral->update(['ref_status' => 'completed']);
+            \Illuminate\Support\Facades\Log::info("Referral {$referral->ref_id} status updated to completed after all services completed for visit {$this->visit_id}");
+        }
 
         // Refresh to check if billing already exists
         $this->refresh();

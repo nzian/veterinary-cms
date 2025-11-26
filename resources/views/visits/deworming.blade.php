@@ -57,50 +57,56 @@
                 // Determine the currently selected service for pre-selection
                 $selectedServiceId = $visit->services->where('serv_type', 'deworming')->first()->serv_id ?? old('service_id');
             @endphp
-            <form action="{{ route('medical.visits.deworming.save', $visit->visit_id) }}" method="POST" class="space-y-6">
+            <form action="{{ route('medical.visits.deworming.save', $visit->visit_id) }}" method="POST" class="space-y-6" id="deworming_form">
                 @csrf
                 <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
                 <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
+                <input type="hidden" name="service_type" id="service_type_hidden" value="">
 
                 {{-- Deworming Record Card --}}
                 <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
                     <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-flask-pill mr-2 text-green-600"></i> Administration Details</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         
-                        {{-- NEW: Deworming Service Type (Base for fee) --}}
+                        {{-- Deworming Service Type Selector --}}
                         <div class="sm:col-span-2">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Deworming Service Type <span class="text-red-500">*</span></label>
-                            <select name="service_id" id="deworming_service_id" class="w-full border border-gray-300 p-3 rounded-lg focus:border-green-500 focus:ring-green-500" required>
-                                <option value="">-- Select Deworming Package --</option>
-                                @forelse($availableServices as $service)
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Deworming Service <span class="text-red-500">*</span></label>
+                            <select id="deworming_service_selector" class="w-full border border-gray-300 p-3 rounded-lg" required>
+                                <option value="">Select Deworming Service</option>
+                                @forelse($availableServices ?? [] as $service)
                                     @php
-                                        // Ensure we only list deworming services if the controller is correctly passing them
-                                        $isDewormingService = (isset($service->serv_type) && strtolower($service->serv_type) == 'deworming');
-                                        $isSelected = $selectedServiceId == $service->serv_id;
+                                        $productsData = $service->products->map(function($p) {
+                                            return [
+                                                'prod_id' => $p->prod_id,
+                                                'prod_name' => $p->prod_name,
+                                                'prod_stocks' => $p->prod_stocks,
+                                                'prod_expiry' => $p->prod_expiry,
+                                                'quantity_used' => $p->pivot->quantity_used ?? 1
+                                            ];
+                                        })->toArray();
                                     @endphp
-                                    @if($isDewormingService || !isset($service->serv_type))
-                                        <option value="{{ $service->serv_id }}" data-name="{{ $service->serv_name ?? 'N/A' }}" {{ $isSelected ? 'selected' : '' }}>
-                                            {{ $service->serv_name ?? 'N/A' }} 
-                                            @if(isset($service->serv_price))
-                                                (Fee: ₱{{ number_format($service->serv_price, 2) }})
-                                            @endif
-                                        </option>
-                                    @endif
+                                    <option value="{{ $service->serv_name }}" 
+                                            data-service-id="{{ $service->serv_id }}"
+                                            data-price="{{ $service->serv_price }}"
+                                            data-products='@json($productsData)'
+                                            {{ ($__deworm['dewormer_name'] ?? '') === $service->serv_name ? 'selected' : '' }}>
+                                        {{ $service->serv_name }} - ₱{{ number_format($service->serv_price, 2) }}
+                                    </option>
                                 @empty
-                                    <option value="" disabled>No Deworming Services Available</option>
+                                    <option value="" disabled>No deworming services available</option>
                                 @endforelse
                             </select>
-                            @error('service_id')
-                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                            @enderror
                         </div>
-                        {{-- END NEW --}}
 
-                        {{-- Old Dewormer Name field (Kept as an input field but pre-filled/used for database record, not billing) --}}
+                        {{-- Dewormer Product Selection --}}
                         <div class="sm:col-span-2">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Dewormer/Product Administered (Record)</label>
-                            <input type="text" name="dewormer_name" id="dewormer_name_input" class="w-full border border-gray-300 p-3 rounded-lg bg-gray-50" 
-                                readonly value="{{ old('dewormer_name', $__deworm['dewormer_name'] ?? '') }}" placeholder="Selected service name will appear here"/>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Dewormer/Product Administered <span class="text-red-500">*</span></label>
+                            <select name="dewormer_name" id="dewormer_name_select" class="w-full border border-gray-300 p-3 rounded-lg" required disabled>
+                                <option value="">First select a deworming service</option>
+                            </select>
+                            <small class="text-xs text-gray-500 mt-1" id="dewormer_helper_text">
+                                Select a deworming service first to see available dewormers.
+                            </small>
                         </div>
                         
                         {{-- Dosage field remains the same --}}
@@ -637,10 +643,12 @@
                 </h3>
                 <button onclick="closeReferralModal()" class="text-gray-500 hover:text-gray-700 text-xl"><i class="fas fa-times"></i></button>
             </div>
-            <form id="referralForm" action="{{ route('medical.referrals.store') }}" method="POST" class="space-y-4 border border-red-200 p-4 rounded-lg bg-red-50">
+            <form id="referralForm" action="{{ route('medical.referrals.store') }}" method="POST" class="space-y-4 border border-red-200 p-4 rounded-lg bg-red-50" onsubmit="return validateReferralFormDeworming()">
                 @csrf
-                <input type="hidden" name="appointment_id" id="referral_appoint_id" value="{{ $visit->visit_id ?? '' }}">
+                <input type="hidden" name="visit_id" id="referral_visit_id" value="{{ $visit->visit_id ?? '' }}">
+                <input type="hidden" name="pet_id" id="referral_pet_id" value="{{ $visit->pet_id ?? '' }}">
                 <input type="hidden" name="active_tab" value="visits">
+                <input type="hidden" name="ref_type" id="ref_type_deworming" value="">
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -648,14 +656,22 @@
                         <input type="date" name="ref_date" value="{{ \Carbon\Carbon::now()->format('Y-m-d') }}" class="w-full border border-gray-300 p-2 rounded-lg" required>
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Refer To Branch</label>
-                        <select name="ref_to" class="w-full border border-gray-300 p-2 rounded-lg" required>
-                            <option value="">Select Branch</option>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Refer To <span class="text-red-500">*</span></label>
+                        <select name="ref_to_select" id="ref_to_select_deworming" class="w-full border border-gray-300 p-2 rounded-lg" required onchange="toggleReferralFieldsDeworming()">
+                            <option value="">Select Branch or External</option>
                             @foreach($allBranches as $branch)
-                                <option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>
+                                <option value="branch_{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>
                             @endforeach
+                            <option value="external">External Clinic</option>
                         </select>
                     </div>
+                </div>
+
+                <input type="hidden" name="ref_to" id="ref_to_branch_deworming">
+
+                <div id="externalFieldDeworming" style="display: none;">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">External Clinic Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="external_clinic_name" id="external_clinic_name_deworming" class="w-full border border-gray-300 p-2 rounded-lg" placeholder="Enter clinic name">
                 </div>
 
                 <div>
@@ -676,6 +692,134 @@
     // Global Data
     let availablePrescriptionProducts = @json($allProducts ?? []);
     let activityMedicationCounter = 0;
+    
+    // Deworming Service and Product Selection Logic
+    document.addEventListener('DOMContentLoaded', function() {
+        const serviceSelector = document.getElementById('deworming_service_selector');
+        const dewormerSelect = document.getElementById('dewormer_name_select');
+        const dewormerHelperText = document.getElementById('dewormer_helper_text');
+        const serviceTypeHidden = document.getElementById('service_type_hidden');
+        
+        // Listen for service selection changes
+        if (serviceSelector) {
+            serviceSelector.addEventListener('change', function() {
+                updateDewormerOptions();
+            });
+        }
+
+        // Listen for dewormer selection changes to show warnings
+        if (dewormerSelect) {
+            dewormerSelect.addEventListener('change', function() {
+                checkStockWarning();
+            });
+        }
+
+        function updateDewormerOptions() {
+            const selectedOption = serviceSelector.options[serviceSelector.selectedIndex];
+            
+            // Update hidden field with selected service type
+            if (serviceTypeHidden) {
+                serviceTypeHidden.value = selectedOption.value || '';
+            }
+            
+            // Clear existing options
+            dewormerSelect.innerHTML = '<option value="">Select Dewormer Product</option>';
+            
+            if (!selectedOption.value) {
+                dewormerSelect.disabled = true;
+                dewormerHelperText.textContent = 'Select a deworming service first to see available dewormers.';
+                return;
+            }
+
+            // Get products from the selected service with error handling
+            let products = [];
+            try {
+                const productsData = selectedOption.dataset.products;
+                if (productsData) {
+                    products = JSON.parse(productsData);
+                }
+            } catch (e) {
+                console.error('Error parsing products JSON:', e);
+                console.log('Raw data:', selectedOption.dataset.products);
+            }
+            
+            if (products.length === 0) {
+                dewormerSelect.innerHTML = '<option value="">No consumable products for this service</option>';
+                dewormerSelect.disabled = true;
+                dewormerHelperText.innerHTML = '<span class="text-red-600">⚠️ This service has no consumable products configured.</span>';
+                return;
+            }
+
+            // Enable the select and populate with products
+            dewormerSelect.disabled = false;
+            dewormerHelperText.innerHTML = 'Available dewormers for the selected service. <strong>Only stock is displayed.</strong>';
+            
+            products.forEach(function(product) {
+                const option = document.createElement('option');
+                option.value = product.prod_name;
+                option.dataset.stock = product.prod_stocks;
+                option.dataset.prodId = product.prod_id;
+                option.dataset.quantityUsed = product.quantity_used;
+                
+                // Build option text - ONLY SHOW STOCK, NO PRICE
+                let optionText = `${product.prod_name} (Stock: ${product.prod_stocks})`;
+                
+                // Check for low stock or expiring
+                if (product.prod_stocks <= 5) {
+                    optionText += ' ⚠️ Low Stock';
+                }
+                
+                if (product.prod_expiry) {
+                    const expiryDate = new Date(product.prod_expiry);
+                    const daysUntilExpiry = Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24));
+                    if (daysUntilExpiry <= 30 && daysUntilExpiry > 0) {
+                        optionText += ' ⚠️ Expiring Soon';
+                    }
+                }
+                
+                option.textContent = optionText;
+                
+                // Disable if out of stock
+                if (product.prod_stocks <= 0) {
+                    option.disabled = true;
+                    option.textContent += ' - OUT OF STOCK';
+                }
+                
+                dewormerSelect.appendChild(option);
+            });
+            
+            // Clear any existing warnings
+            const existingWarning = dewormerSelect.parentElement.querySelector('.stock-warning');
+            if (existingWarning) existingWarning.remove();
+        }
+
+        function checkStockWarning() {
+            const selectedOption = dewormerSelect.options[dewormerSelect.selectedIndex];
+            const stock = selectedOption.dataset.stock;
+            
+            // Remove any existing warnings
+            const existingWarning = dewormerSelect.parentElement.querySelector('.stock-warning');
+            if (existingWarning) existingWarning.remove();
+            
+            // Show warning for low stock
+            if (stock && parseInt(stock) > 0 && parseInt(stock) <= 5) {
+                const warning = document.createElement('div');
+                warning.className = 'stock-warning mt-2 p-2 bg-yellow-50 border border-yellow-300 rounded text-sm text-yellow-800';
+                warning.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i> Low stock warning: Only ${stock} units remaining`;
+                dewormerSelect.parentElement.appendChild(warning);
+            } else if (stock && parseInt(stock) <= 0) {
+                const warning = document.createElement('div');
+                warning.className = 'stock-warning mt-2 p-2 bg-red-50 border border-red-300 rounded text-sm text-red-800';
+                warning.innerHTML = `<i class="fas fa-times-circle mr-1"></i> Out of stock - cannot proceed`;
+                dewormerSelect.parentElement.appendChild(warning);
+            }
+        }
+        
+        // Initialize on page load
+        if (serviceSelector && serviceSelector.value) {
+            updateDewormerOptions();
+        }
+    });
     
     // --- General Modals ---
     function openPetProfileModal() { 
@@ -726,13 +870,63 @@
         document.getElementById('appointmentModal').classList.add('hidden');
     }
     
-    function openReferralModal(visitId) {
-        document.getElementById('referral_appoint_id').value = visitId;
+    function openReferralModal(visitId, petId) {
+        document.getElementById('referral_visit_id').value = visitId;
+        document.getElementById('referral_pet_id').value = petId;
         document.getElementById('referralForm').reset();
+        // Re-set the values after reset
+        document.getElementById('referral_visit_id').value = visitId;
+        document.getElementById('referral_pet_id').value = petId;
         document.getElementById('referralModal').classList.remove('hidden');
     }
     function closeReferralModal() {
         document.getElementById('referralModal').classList.add('hidden');
+    }
+    
+    function toggleReferralFieldsDeworming() {
+        const refToSelect = document.getElementById('ref_to_select_deworming').value;
+        const externalField = document.getElementById('externalFieldDeworming');
+        const refToBranch = document.getElementById('ref_to_branch_deworming');
+        const refType = document.getElementById('ref_type_deworming');
+        const externalClinicName = document.getElementById('external_clinic_name_deworming');
+
+        if (refToSelect.startsWith('branch_')) {
+            // Interbranch referral
+            const branchId = refToSelect.replace('branch_', '');
+            externalField.style.display = 'none';
+            externalClinicName.removeAttribute('required');
+            externalClinicName.value = '';
+            refToBranch.value = branchId;
+            refType.value = 'interbranch';
+        } else if (refToSelect === 'external') {
+            // External clinic referral
+            externalField.style.display = 'block';
+            externalClinicName.setAttribute('required', 'required');
+            refToBranch.value = '';
+            refType.value = 'external';
+        } else {
+            // Nothing selected
+            externalField.style.display = 'none';
+            externalClinicName.removeAttribute('required');
+            refToBranch.value = '';
+            refType.value = '';
+        }
+    }
+
+    function validateReferralFormDeworming() {
+        const refType = document.getElementById('ref_type_deworming').value;
+        if (!refType) {
+            alert('Please select a referral destination');
+            return false;
+        }
+        if (refType === 'external') {
+            const clinicName = document.getElementById('external_clinic_name_deworming').value;
+            if (!clinicName || clinicName.trim() === '') {
+                alert('Please enter the external clinic name');
+                return false;
+            }
+        }
+        return true;
     }
 
     // --- Prescription Sub-Functions (Adapted from previous fix) ---

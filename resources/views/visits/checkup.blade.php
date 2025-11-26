@@ -291,11 +291,12 @@
                 </h3>
                 <button onclick="closeReferralModal()" class="text-gray-500 hover:text-gray-700 text-xl"><i class="fas fa-times"></i></button>
             </div>
-            <form id="referralForm" action="{{ route('medical.referrals.store') }}" method="POST" class="space-y-4 border border-red-200 p-4 rounded-lg bg-red-50">
+            <form id="referralForm" action="{{ route('medical.referrals.store') }}" method="POST" class="space-y-4 border border-red-200 p-4 rounded-lg bg-red-50" onsubmit="return validateReferralForm()">
                 @csrf
                 <input type="hidden" name="visit_id" id="referral_visit_id" value="{{ $visit->visit_id ?? '' }}">
                 <input type="hidden" name="pet_id" id="referral_pet_id" value="{{ $visit->pet_id ?? '' }}">
                 <input type="hidden" name="active_tab" value="visits">
+                <input type="hidden" name="ref_type" id="ref_type" value="">
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -303,15 +304,22 @@
                         <input type="date" name="ref_date" value="{{ \Carbon\Carbon::now()->format('Y-m-d') }}" class="w-full border border-gray-300 p-2 rounded-lg" required>
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Refer To Branch</label>
-                        <select name="ref_to" class="w-full border border-gray-300 p-2 rounded-lg" required>
-                            <option value="">Select Branch</option>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Refer To <span class="text-red-500">*</span></label>
+                        <select name="ref_to_select" id="ref_to_select" class="w-full border border-gray-300 p-2 rounded-lg" required onchange="toggleReferralFields()">
+                            <option value="">Select Branch or External</option>
                             @foreach($allBranches as $branch)
-                                <option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>
+                                <option value="branch_{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>
                             @endforeach
-                            <option value="9999999">Other Clinic</option>
+                            <option value="external">External Clinic</option>
                         </select>
                     </div>
+                </div>
+
+                <input type="hidden" name="ref_to" id="ref_to_branch">
+
+                <div id="externalField" style="display: none;">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">External Clinic Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="external_clinic_name" id="external_clinic_name" class="w-full border border-gray-300 p-2 rounded-lg" placeholder="Enter clinic name">
                 </div>
 
                 <div>
@@ -324,6 +332,54 @@
                     </button>
                 </div>
             </form>
+
+            <script>
+                function toggleReferralFields() {
+                    const refToSelect = document.getElementById('ref_to_select').value;
+                    const externalField = document.getElementById('externalField');
+                    const refToBranch = document.getElementById('ref_to_branch');
+                    const refType = document.getElementById('ref_type');
+                    const externalClinicName = document.getElementById('external_clinic_name');
+
+                    if (refToSelect.startsWith('branch_')) {
+                        // Interbranch referral
+                        const branchId = refToSelect.replace('branch_', '');
+                        externalField.style.display = 'none';
+                        externalClinicName.removeAttribute('required');
+                        externalClinicName.value = '';
+                        refToBranch.value = branchId;
+                        refType.value = 'interbranch';
+                    } else if (refToSelect === 'external') {
+                        // External clinic referral
+                        externalField.style.display = 'block';
+                        externalClinicName.setAttribute('required', 'required');
+                        refToBranch.value = '';
+                        refType.value = 'external';
+                    } else {
+                        // Nothing selected
+                        externalField.style.display = 'none';
+                        externalClinicName.removeAttribute('required');
+                        refToBranch.value = '';
+                        refType.value = '';
+                    }
+                }
+
+                function validateReferralForm() {
+                    const refType = document.getElementById('ref_type').value;
+                    if (!refType) {
+                        alert('Please select a referral destination');
+                        return false;
+                    }
+                    if (refType === 'external') {
+                        const clinicName = document.getElementById('external_clinic_name').value;
+                        if (!clinicName || clinicName.trim() === '') {
+                            alert('Please enter the external clinic name');
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+            </script>
         </div>
     </div>
 </div>

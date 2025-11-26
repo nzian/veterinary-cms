@@ -41,14 +41,14 @@ class PetManagementController extends Controller
             // Get active branch ID using trait
             $activeBranchId = $this->getActiveBranchId();
             
-            // Get all user IDs from the active branch
+            // Get all user IDs from the active branch (for visit records query)
             $branchUserIds = \App\Models\User::where('branch_id', $activeBranchId)
                 ->pluck('user_id')
                 ->toArray();
             
             // --- Pets Pagination (Used by 'Pets' and 'Health Card' tabs) ---
+            // Model scope will automatically include referred pets
             $petsQuery = Pet::with('owner')
-                ->whereIn('user_id', $branchUserIds)
                 ->orderBy('pet_id', 'desc'); 
             
             if ($perPage === 'all') {
@@ -65,9 +65,8 @@ class PetManagementController extends Controller
             }
             // ----------------------------------------------------------------
             
-            // Filter owners by branch users
-            $ownersQuery = Owner::whereIn('user_id', $branchUserIds)
-                ->orderBy('own_id', 'desc'); 
+            // Filter owners - model scope will automatically include referred pet owners
+            $ownersQuery = Owner::orderBy('own_id', 'desc'); 
             
             if ($ownersPerPage === 'all') {
                 $owners = $ownersQuery->get();
@@ -82,9 +81,8 @@ class PetManagementController extends Controller
                 $owners = $ownersQuery->paginate((int)$ownersPerPage);
             }
 
-            // Filter medical histories by branch users
+            // Filter medical histories - model scope will automatically include referred pets' histories
             $medicalQuery = MedicalHistory::with('pet')
-                ->whereIn('user_id', $branchUserIds)
                 ->orderBy('id', 'desc'); 
             
             if ($medicalPerPage === 'all') {
@@ -100,9 +98,9 @@ class PetManagementController extends Controller
                 $medicalHistories = $medicalQuery->paginate((int)$medicalPerPage);
             }
 
-            // Get all owners and pets from same branch for dropdowns
-            $allOwners = Owner::whereIn('user_id', $branchUserIds)->get();
-            $allPets = Pet::whereIn('user_id', $branchUserIds)->get();
+            // Get all owners and pets (model scopes will include referred data)
+            $allOwners = Owner::get();
+            $allPets = Pet::get();
             
             // Build Visit Records (server-side for Visit Record tab)
             $visitQuery = \DB::table('tbl_visit_record as vr')

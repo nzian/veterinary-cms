@@ -114,8 +114,9 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         $branchUserIds = User::where('branch_id', $activeBranchId)->pluck('user_id')->toArray();
 
         // FIX 1: Retrieve all data intended for lookup dropdowns
-        $allPets = Pet::with('owner')->whereIn('user_id', $branchUserIds)->get();
-        $allOwners = Owner::whereIn('user_id', $branchUserIds)->get();
+        // Model scopes will automatically include referred pets and owners
+        $allPets = Pet::with('owner')->get();
+        $allOwners = Owner::get();
         $allBranches = Branch::all();
         
         $allProducts = Product::select('prod_id', 'prod_name', 'prod_stocks', 'prod_price')
@@ -194,7 +195,22 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
 
         $appointments = Appointment::whereHas('user', fn($q) => $q->where('branch_id', $activeBranchId))->with('pet.owner', 'services')->paginate(10);
         $prescriptions = Prescription::whereIn('user_id', $branchUserIds)->with('pet.owner')->paginate(10);
-        $referrals = Referral::whereHas('appointment', fn($q) => $q->whereIn('user_id', $branchUserIds))->with('appointment.pet.owner')->paginate(10);
+        
+        // Load referrals for current branch (both created by this branch and referred to this branch)
+        $referrals = Referral::where(function($query) use ($branchUserIds, $activeBranchId) {
+                $query->whereIn('ref_by', $branchUserIds)
+                      ->orWhere('ref_to', $activeBranchId);
+            })
+            ->with([
+                'pet.owner',
+                'visit.services',
+                'refByBranch.branch',
+                'refToBranch',
+                'referralCompany',
+                'referredVisit'
+            ])
+            ->orderBy('ref_date', 'desc')
+            ->paginate(10);
 
 
         return view('medicalManagement', array_merge(compact(
@@ -299,6 +315,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
     public function saveVaccination(Request $request, $visitId)
     {
         $validated = $request->validate([
+            'service_type' => ['required','string'], // Add service_type validation
             'vaccine_name' => ['required','string'], 
             'dose' => ['nullable','string'], 
             'manufacturer' => ['nullable','string'], 
@@ -356,21 +373,35 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                 ]
             );
 
-            // 3. Deduct Inventory 
-            $vaccine = Product::where('prod_name', $request->vaccine_name)
-                ->where('prod_category', 'Vaccines')
+            // 3. Deduct Inventory based on consumable products linked to the service
+            // Find the selected service to get its consumable products
+            $selectedService = Service::where('serv_name', $validated['service_type'])
+                ->with(['products' => function($query) use ($validated) {
+                    $query->where('prod_name', $validated['vaccine_name']);
+                }])
                 ->first();
             
-            if ($vaccine && $vaccine->prod_stocks > 0) {
-                $vaccine->decrement('prod_stocks', 1);
-                InventoryHistoryModel::create([
-                    'prod_id' => $vaccine->prod_id,
-                    'type' => 'service_usage',
-                    'quantity' => -1,
-                    'reference' => "Vaccination - Visit #{$visitId}",
-                    'user_id' => Auth::id(),
-                    'notes' => "Administered to " . ($visitModel->pet->pet_name ?? 'Pet')
-                ]);
+            if ($selectedService && $selectedService->products->isNotEmpty()) {
+                $vaccine = $selectedService->products->first();
+                $quantityUsed = $vaccine->pivot->quantity_used ?? 1;
+                
+                // Check if enough stock is available
+                if ($vaccine->prod_stocks >= $quantityUsed) {
+                    $vaccine->decrement('prod_stocks', $quantityUsed);
+                    InventoryHistoryModel::create([
+                        'prod_id' => $vaccine->prod_id,
+                        'type' => 'service_usage',
+                        'quantity' => -$quantityUsed,
+                        'reference' => "Vaccination - Visit #{$visitId}",
+                        'user_id' => Auth::id(),
+                        'notes' => "Administered to " . ($visitModel->pet->pet_name ?? 'Pet') . " ({$validated['service_type']})"
+                    ]);
+                } else {
+                    DB::rollBack();
+                    return back()->with('error', "Insufficient stock for {$vaccine->prod_name}. Available: {$vaccine->prod_stocks}, Required: {$quantityUsed}");
+                }
+            } else {
+                Log::warning("Vaccine product '{$validated['vaccine_name']}' not found as consumable for service '{$validated['service_type']}'");
             }
 
             // 4. AUTO-SCHEDULING LOGIC (manual date overrides calculated schedule)
@@ -427,6 +458,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
     public function saveDeworming(Request $request, $visitId)
     {
         $validated = $request->validate([
+            'service_type' => ['required','string'], // Add service_type validation
             'dewormer_name' => ['required','string'], 
             'dosage' => ['nullable','string'], 
             'next_due_date' => ['nullable','date'],
@@ -476,7 +508,38 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                 ]
             );
 
-            // 3. AUTO-SCHEDULING LOGIC (manual date overrides calculated schedule)
+            // 3. Deduct Inventory based on consumable products linked to the service
+            // Find the selected service to get its consumable products
+            $selectedService = Service::where('serv_name', $validated['service_type'])
+                ->with(['products' => function($query) use ($validated) {
+                    $query->where('prod_name', $validated['dewormer_name']);
+                }])
+                ->first();
+            
+            if ($selectedService && $selectedService->products->isNotEmpty()) {
+                $dewormer = $selectedService->products->first();
+                $quantityUsed = $dewormer->pivot->quantity_used ?? 1;
+                
+                // Check if enough stock is available
+                if ($dewormer->prod_stocks >= $quantityUsed) {
+                    $dewormer->decrement('prod_stocks', $quantityUsed);
+                    InventoryHistoryModel::create([
+                        'prod_id' => $dewormer->prod_id,
+                        'type' => 'service_usage',
+                        'quantity' => -$quantityUsed,
+                        'reference' => "Deworming - Visit #{$visitId}",
+                        'user_id' => Auth::id(),
+                        'notes' => "Administered to " . ($visitModel->pet->pet_name ?? 'Pet') . " ({$validated['service_type']})"
+                    ]);
+                } else {
+                    DB::rollBack();
+                    return back()->with('error', "Insufficient stock for {$dewormer->prod_name}. Available: {$dewormer->prod_stocks}, Required: {$quantityUsed}");
+                }
+            } else {
+                Log::warning("Dewormer product '{$validated['dewormer_name']}' not found as consumable for service '{$validated['service_type']}'");
+            }
+
+            // 4. AUTO-SCHEDULING LOGIC (manual date overrides calculated schedule)
             $currentDewormName = $validated['dewormer_name']; 
             $schedule = $this->calculateNextSchedule('deworming', $currentDewormName, $visitModel->pet_id);
 
@@ -893,7 +956,7 @@ public function completeService(Request $request, $visitId, $serviceId)
         
         DB::commit();
         
-        $message = 'Boarding record saved. Total billed amount: ₱'.number_format($totalAmount, 2);
+        $message = 'Boarding record saved. Total billed amount: â‚±'.number_format($totalAmount, 2);
         if ($allCompleted) {
             $message .= $billingExists 
                 ? ' Billing generated successfully!'
@@ -1498,7 +1561,7 @@ public function completeService(Request $request, $visitId, $serviceId)
                 $name = $service->serv_name;
                 $min_weight = 0;
                 $max_weight = 9999;
-                if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:to|-|–)\s*(\d+\.?\d*)\s*k[gl]?/i', $name, $matches)) {
+                if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:to|-|â€“)\s*(\d+\.?\d*)\s*k[gl]?/i', $name, $matches)) {
                     $min_weight = (float)$matches[1];
                     $max_weight = (float)$matches[2];
                 } else if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:below|bellow)/i', $name, $matches)) {
@@ -1549,7 +1612,7 @@ public function completeService(Request $request, $visitId, $serviceId)
                 $name = $service->serv_name;
                 $min_weight = 0;
                 $max_weight = 9999;
-                if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:to|-|–)\s*(\d+\.?\d*)\s*k[gl]?/i', $name, $matches)) {
+                if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:to|-|â€“)\s*(\d+\.?\d*)\s*k[gl]?/i', $name, $matches)) {
                     $min_weight = (float)$matches[1];
                     $max_weight = (float)$matches[2];
                 } else if (preg_match('/(\d+\.?\d*)\s*k[gl]?\s*(?:below|bellow)/i', $name, $matches)) {
@@ -1610,16 +1673,67 @@ public function completeService(Request $request, $visitId, $serviceId)
         $lookups = $this->getBranchLookups();
         $viewName = 'visits.' . $blade;
         
+        // Get the active branch ID for explicit filtering
+        $activeBranchId = Auth::user()->user_role !== 'superadmin' 
+            ? Auth::user()->branch_id 
+            : session('active_branch_id');
+        
         // ** FIX APPLIED HERE: INITIALIZE $vaccines **
         $vaccines = null; 
+        $dewormers = null;
         
         // For vaccination view, only show vaccination services in the service type dropdown
+        // Explicitly filter by branch_id to ensure only current branch services are shown
         if ($blade === 'vaccination') {
-            $availableServices = \App\Models\Service::where('serv_type', 'like', '%vaccination%')
+            $availableServices = Service::where('serv_type', 'like', '%vaccination%')
+                ->when($activeBranchId, function($query) use ($activeBranchId) {
+                    $query->where('branch_id', $activeBranchId);
+                })
                 ->orderBy('serv_name')
                 ->get();
             
-            // Only show product-based vaccines that are in stock and not expired
+            // Load products manually for each service to bypass any scope issues
+            foreach($availableServices as $service) {
+                $productIds = DB::table('tbl_service_products')
+                    ->where('serv_id', $service->serv_id)
+                    ->pluck('prod_id')
+                    ->toArray();
+                
+                if (!empty($productIds)) {
+                    $products = Product::withoutGlobalScopes()
+                        ->whereIn('prod_id', $productIds)
+                        ->get();
+                    
+                    // Attach pivot data
+                    $products = $products->map(function($product) use ($service) {
+                        $pivotData = DB::table('tbl_service_products')
+                            ->where('serv_id', $service->serv_id)
+                            ->where('prod_id', $product->prod_id)
+                            ->first();
+                        
+                        if ($pivotData) {
+                            $product->pivot = (object)[
+                                'quantity_used' => $pivotData->quantity_used ?? 1,
+                                'is_billable' => $pivotData->is_billable ?? false
+                            ];
+                        }
+                        return $product;
+                    });
+                    
+                    // Filter by branch and expiry
+                    $products = $products->filter(function($product) use ($activeBranchId) {
+                        $matchesBranch = !$activeBranchId || $product->branch_id == $activeBranchId;
+                        $notExpired = !$product->prod_expiry || $product->prod_expiry > now();
+                        return $matchesBranch && $notExpired;
+                    })->values();
+                    
+                    $service->setRelation('products', $products);
+                } else {
+                    $service->setRelation('products', collect([]));
+                }
+            }
+            
+            // Load all vaccine products that are in stock and not expired
             $vaccines = \App\Models\Product::where('prod_category', 'like', '%vaccin%')
                 ->where('prod_stocks', '>', 0)
                 ->where(function($query) {
@@ -1629,8 +1743,60 @@ public function completeService(Request $request, $visitId, $serviceId)
                 ->orderBy('prod_name')
                 ->get();
         }
+        
+        // For deworming view, only show deworming services
+        // Explicitly filter by branch_id to ensure only current branch services are shown
+        if ($blade === 'deworming') {
+            $availableServices = Service::where('serv_type', 'like', '%deworming%')
+                ->when($activeBranchId, function($query) use ($activeBranchId) {
+                    $query->where('branch_id', $activeBranchId);
+                })
+                ->orderBy('serv_name')
+                ->get();
+            
+            // Load products manually for each service to bypass any scope issues
+            foreach($availableServices as $service) {
+                $productIds = DB::table('tbl_service_products')
+                    ->where('serv_id', $service->serv_id)
+                    ->pluck('prod_id')
+                    ->toArray();
+                
+                if (!empty($productIds)) {
+                    $products = Product::withoutGlobalScopes()
+                        ->whereIn('prod_id', $productIds)
+                        ->get();
+                    
+                    // Attach pivot data
+                    $products = $products->map(function($product) use ($service) {
+                        $pivotData = DB::table('tbl_service_products')
+                            ->where('serv_id', $service->serv_id)
+                            ->where('prod_id', $product->prod_id)
+                            ->first();
+                        
+                        if ($pivotData) {
+                            $product->pivot = (object)[
+                                'quantity_used' => $pivotData->quantity_used ?? 1,
+                                'is_billable' => $pivotData->is_billable ?? false
+                            ];
+                        }
+                        return $product;
+                    });
+                    
+                    // Filter by branch and expiry
+                    $products = $products->filter(function($product) use ($activeBranchId) {
+                        $matchesBranch = !$activeBranchId || $product->branch_id == $activeBranchId;
+                        $notExpired = !$product->prod_expiry || $product->prod_expiry > now();
+                        return $matchesBranch && $notExpired;
+                    })->values();
+                    
+                    $service->setRelation('products', $products);
+                } else {
+                    $service->setRelation('products', collect([]));
+                }
+            }
+        }
 
-        // 🌟 NEW LOGIC: Fetch all registered veterinarians
+        // ðŸŒŸ NEW LOGIC: Fetch all registered veterinarians
         $veterinarians = User::where('user_role', 'veterinarian')
                             ->orderBy('user_name')
                             ->get();
@@ -1641,7 +1807,7 @@ public function completeService(Request $request, $visitId, $serviceId)
         }
         // Pass the new variable 'veterinarians' to the view
         //dd($viewName);
-        return view($viewName, array_merge(compact('visit', 'serviceData', 'petMedicalHistory', 'availableServices','vaccines', 'veterinarians', 'availableAddons'), $lookups));
+        return view($viewName, array_merge(compact('visit', 'serviceData', 'petMedicalHistory', 'availableServices','vaccines', 'dewormers', 'veterinarians', 'availableAddons'), $lookups));
     }
     // ==================== APPOINTMENT METHODS (Full Implementations) ====================
 
@@ -1839,39 +2005,61 @@ public function completeService(Request $request, $visitId, $serviceId)
     public function storeReferral(Request $request)
     {
         $validated = $request->validate([
-            'visit_id' => 'required|exists:tbl_visit_record,visit_id', 'ref_date' => 'required|date', 'pet_id' => 'required|exists:tbl_pet,pet_id',
-            'ref_to' => 'required|numeric', 'ref_description' => 'required|string',
+            'visit_id' => 'required|exists:tbl_visit_record,visit_id',
+            'ref_date' => 'required|date',
+            'pet_id' => 'required|exists:tbl_pet,pet_id',
+            'ref_to' => 'nullable',
+            'external_clinic_name' => 'nullable|string|max:255',
+            'ref_description' => 'required|string',
+            'ref_type' => 'required|in:interbranch,external',
         ]);
-          try {
-            // Create a temporary appointment for the referral
-           /* $appointment = Appointment::create([
-                'pet_id' => $validated['pet_id'],
-                'appoint_date' => $validated['ref_date'],
-                'appoint_time' => '09:00:00',
-                'appoint_status' => 'refer',
-                'appoint_type' => 'Referral',
-                'user_id' => Auth::id(),
-            ]);*/
 
-            // @todo : Consider linking the referral to an appointment if needed in the future
-            // @todo : For now, we just create the referral record but we also measure pet medical history, medication and test record via visit_id and pet_id 
-            Referral::create([
+        try {
+            $currentUser = Auth::user();
+            $currentBranchId = $currentUser->branch_id;
+
+            // Determine ref_to based on type
+            if ($validated['ref_type'] === 'interbranch') {
+                if (empty($validated['ref_to'])) {
+                    return redirect()->back()->with('error', 'Branch selection is required for interbranch referral');
+                }
+                // Validate that the branch exists
+                $branchExists = \App\Models\Branch::where('branch_id', $validated['ref_to'])->exists();
+                if (!$branchExists) {
+                    return redirect()->back()->with('error', 'Selected branch is invalid');
+                }
+                $refTo = $validated['ref_to'];
+            } else {
+                // External referral - no branch needed
+                if (empty($validated['external_clinic_name'])) {
+                    return redirect()->back()->with('error', 'External clinic name is required for external referral');
+                }
+                $refTo = null;
+            }
+
+            // Determine status based on referral type
+            $refStatus = $validated['ref_type'] === 'external' ? 'referred' : 'pending';
+
+            // Create referral record
+            $referral = Referral::create([
                 'visit_id' => $validated['visit_id'],
-                'pet_id' => $validated['pet_id'],   
+                'pet_id' => $validated['pet_id'],
                 'ref_date' => $validated['ref_date'],
-                'ref_to' => $validated['ref_to'],
+                'ref_from' => $currentBranchId,
+                'ref_to' => $refTo,
+                'external_clinic_name' => $validated['ref_type'] === 'external' ? ($validated['external_clinic_name'] ?? null) : null,
                 'ref_description' => $validated['ref_description'],
                 'ref_by' => Auth::id(),
+                'ref_status' => $refStatus,
+                'ref_type' => $validated['ref_type'],
             ]);
 
-           $activeTab = $request->input('tab', 'referrals');
-        return redirect()->route('medical.index', ['tab' => $activeTab])->with('success', 'Referral created successfully.');
+            $activeTab = $request->input('tab', 'referrals');
+            return redirect()->route('medical.index', ['tab' => $activeTab])->with('success', 'Referral created successfully.');
         } catch (\Exception $e) {
             Log::error('Referral creation failed: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Failed to create referral');
+            return redirect()->back()->with('error', 'Failed to create referral: ' . $e->getMessage());
         }
-      
-       
     }
 
     public function editReferral($id)
@@ -1904,6 +2092,380 @@ public function completeService(Request $request, $visitId, $serviceId)
         $referral->delete();
         $activeTab = $request->input('tab', 'referrals');
         return redirect()->route('medical.index', ['tab' => $activeTab])->with('success', 'Referral deleted successfully!');
+    }
+
+    public function createVisitFromReferral($referralId)
+    {
+        try {
+            $referral = Referral::with(['pet', 'visit'])->findOrFail($referralId);
+            
+            // Check if user's branch matches the referred branch
+            $currentUser = Auth::user();
+            if ($referral->ref_type === 'interbranch' && $referral->ref_to != $currentUser->branch_id) {
+                return redirect()->back()->with('error', 'You can only create visits for referrals to your branch');
+            }
+
+            // For interbranch referrals, check if referred visit already exists
+            if ($referral->ref_type === 'interbranch' && $referral->referred_visit_id) {
+                return redirect()->route('visits.show', $referral->referred_visit_id)
+                    ->with('info', 'Visit already exists for this referral');
+            }
+
+            // Create new visit
+            $newVisit = Visit::create([
+                'pet_id' => $referral->pet_id,
+                'user_id' => Auth::id(),
+                'visit_date' => now(),
+                'visit_reason' => 'Referral: ' . $referral->ref_description,
+                'visit_status' => 'pending',
+            ]);
+
+            // Update referral status and link visit
+            if ($referral->ref_type === 'interbranch') {
+                $referral->update([
+                    'referred_visit_id' => $newVisit->visit_id,
+                    'ref_status' => 'attended'
+                ]);
+            } else {
+                // External referral - just mark as attended
+                $referral->update(['ref_status' => 'attended']);
+            }
+
+            return redirect()->route('visits.show', $newVisit->visit_id)
+                ->with('success', 'Visit created from referral successfully');
+        } catch (\Exception $e) {
+            Log::error('Create visit from referral failed: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Failed to create visit: ' . $e->getMessage());
+        }
+    }
+
+    public function printReferral($referralId)
+    {
+        try {
+            $referral = Referral::with([
+                'pet.owner',
+                'visit.services',
+                'refByBranch.branch',
+                'refToBranch',
+                'referralCompany'
+            ])->findOrFail($referralId);
+
+            // Only allow printing for external referrals
+            if ($referral->ref_type !== 'external') {
+                return redirect()->back()->with('error', 'Print is only available for external referrals');
+            }
+
+            // Get medical history from completed services (excluding grooming and boarding)
+            $petId = $referral->pet_id;
+            
+            // Get all completed visits with their completed services
+            $completedVisits = Visit::with(['services' => function($q) {
+                    $q->wherePivot('status', 'completed')
+                      ->whereNotIn(DB::raw('LOWER(tbl_serv.serv_type)'), ['grooming', 'boarding', 'diagnostics']);
+                }])
+                ->where('pet_id', $petId)
+                ->whereHas('services', function($q) {
+                    $q->where('tbl_visit_service.status', 'completed')
+                      ->whereNotIn(DB::raw('LOWER(tbl_serv.serv_type)'), ['grooming', 'boarding', 'diagnostics']);
+                })
+                ->orderBy('visit_date', 'desc')
+                ->limit(10)
+                ->get();
+
+            // Medical History - Build from completed services
+            $medicalHistory = [];
+            
+            foreach ($completedVisits as $visit) {
+                foreach ($visit->services as $service) {
+                    $serviceType = strtolower($service->serv_type);
+                    $details = $service->serv_name;
+                    
+                    // Add specific details based on service type
+                    if ($serviceType === 'vaccination') {
+                        $vaccination = DB::table('tbl_vaccination_record')
+                            ->where('visit_id', $visit->visit_id)
+                            ->where('pet_id', $petId)
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+                        if ($vaccination) {
+                            $details .= ' - ' . ($vaccination->vaccine_name ?? '') . 
+                                       ' (Batch: ' . ($vaccination->batch_no ?? 'N/A') . ')';
+                        }
+                    } elseif ($serviceType === 'deworming') {
+                        $deworming = DB::table('tbl_deworming_record')
+                            ->where('visit_id', $visit->visit_id)
+                            ->where('pet_id', $petId)
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+                        if ($deworming) {
+                            $details .= ' - ' . ($deworming->dewormer_name ?? '') . 
+                                       ' (Dosage: ' . ($deworming->dosage ?? 'N/A') . ')';
+                        }
+                    } elseif ($serviceType === 'check up') {
+                        $checkup = DB::table('tbl_checkup_record')
+                            ->where('visit_id', $visit->visit_id)
+                            ->where('pet_id', $petId)
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+                        if ($checkup && isset($checkup->diagnosis)) {
+                            $details .= ' - ' . $checkup->diagnosis;
+                        }
+                    } elseif ($serviceType === 'surgical') {
+                        $surgery = DB::table('tbl_surgical_record')
+                            ->where('visit_id', $visit->visit_id)
+                            ->where('pet_id', $petId)
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+                        if ($surgery && isset($surgery->procedure_name)) {
+                            $details .= ' - ' . $surgery->procedure_name;
+                        }
+                    } elseif ($serviceType === 'emergency') {
+                        $emergency = DB::table('tbl_emergency_record')
+                            ->where('visit_id', $visit->visit_id)
+                            ->where('pet_id', $petId)
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+                        if ($emergency && isset($emergency->chief_complaint)) {
+                            $details .= ' - ' . $emergency->chief_complaint;
+                        }
+                    }
+                    
+                    $medicalHistory[] = [
+                        'type' => ucwords($service->serv_type),
+                        'date' => $visit->visit_date,
+                        'details' => $details,
+                        'formatted' => \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y') . ': ' . ucwords($service->serv_type) . ' - ' . $details,
+                    ];
+                }
+            }
+
+            // Tests Conducted - Get diagnostics from completed services
+            $diagnosticTests = [];
+            $diagnosticVisits = Visit::with(['services' => function($q) {
+                    $q->wherePivot('status', 'completed')
+                      ->where(DB::raw('LOWER(tbl_serv.serv_type)'), 'diagnostics');
+                }])
+                ->where('pet_id', $petId)
+                ->whereHas('services', function($q) {
+                    $q->where('tbl_visit_service.status', 'completed')
+                      ->where(DB::raw('LOWER(tbl_serv.serv_type)'), 'diagnostics');
+                })
+                ->orderBy('visit_date', 'desc')
+                ->limit(5)
+                ->get();
+                
+            foreach ($diagnosticVisits as $visit) {
+                foreach ($visit->services as $service) {
+                    $diagnostic = DB::table('tbl_diagnostic_record')
+                        ->where('visit_id', $visit->visit_id)
+                        ->where('pet_id', $petId)
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                    
+                    $details = $service->serv_name;
+                    if ($diagnostic) {
+                        if (isset($diagnostic->test_name)) {
+                            $details .= ' - ' . $diagnostic->test_name;
+                        }
+                        if (isset($diagnostic->results)) {
+                            $details .= ' (Results: ' . $diagnostic->results . ')';
+                        }
+                    }
+                    
+                    $diagnosticTests[] = (object)[
+                        'visit_date' => $visit->visit_date,
+                        'test_type' => $service->serv_name,
+                        'test_name' => $diagnostic->test_name ?? null,
+                        'results' => $diagnostic->results ?? null,
+                        'interpretation' => $diagnostic->interpretation ?? null,
+                        'formatted' => \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y') . ': ' . $details,
+                    ];
+                }
+            }
+
+            // Medications Given - Only medication from prescription
+            $prescriptions = DB::table('tbl_prescription')
+                ->where('tbl_prescription.pet_id', $petId)
+                ->whereNotNull('tbl_prescription.medication')
+                ->where('tbl_prescription.medication', '!=', '')
+                ->select(
+                    'tbl_prescription.prescription_date',
+                    'tbl_prescription.medication'
+                )
+                ->orderBy('tbl_prescription.prescription_date', 'desc')
+                ->limit(10)
+                ->get();
+
+            return view('referrals.print', compact(
+                'referral',
+                'medicalHistory',
+                'diagnosticTests',
+                'prescriptions'
+            ));
+        } catch (\Exception $e) {
+            Log::error('Print referral failed: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Failed to generate referral print');
+        }
+    }
+
+    public function viewReferral($referralId)
+    {
+        try {
+            $referral = Referral::with([
+                'pet.owner',
+                'visit.services',
+                'refByBranch.branch',
+                'refToBranch',
+                'referralCompany',
+                'referredVisit'
+            ])->findOrFail($referralId);
+
+            // Get medical history from completed services (excluding grooming and boarding)
+            $petId = $referral->pet_id;
+            
+            // Get all completed visits with their completed services
+            $completedVisits = Visit::with(['services' => function($q) {
+                    $q->wherePivot('status', 'completed')
+                      ->whereNotIn(DB::raw('LOWER(tbl_serv.serv_type)'), ['grooming', 'boarding', 'diagnostics']);
+                }])
+                ->where('pet_id', $petId)
+                ->whereHas('services', function($q) {
+                    $q->where('tbl_visit_service.status', 'completed')
+                      ->whereNotIn(DB::raw('LOWER(tbl_serv.serv_type)'), ['grooming', 'boarding', 'diagnostics']);
+                })
+                ->orderBy('visit_date', 'desc')
+                ->limit(10)
+                ->get();
+
+            // Medical History - Build from completed services
+            $medicalHistory = [];
+            
+            foreach ($completedVisits as $visit) {
+                foreach ($visit->services as $service) {
+                    $serviceType = strtolower($service->serv_type);
+                    $details = $service->serv_name;
+                    
+                    // Add specific details based on service type
+                    if ($serviceType === 'vaccination') {
+                        $vaccination = DB::table('tbl_vaccination_record')
+                            ->where('visit_id', $visit->visit_id)
+                            ->where('pet_id', $petId)
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+                        if ($vaccination) {
+                            $details .= ' - ' . ($vaccination->vaccine_name ?? '') . 
+                                       ' (Batch: ' . ($vaccination->batch_no ?? 'N/A') . ')';
+                        }
+                    } elseif ($serviceType === 'deworming') {
+                        $deworming = DB::table('tbl_deworming_record')
+                            ->where('visit_id', $visit->visit_id)
+                            ->where('pet_id', $petId)
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+                        if ($deworming) {
+                            $details .= ' - ' . ($deworming->dewormer_name ?? '') . 
+                                       ' (Dosage: ' . ($deworming->dosage ?? 'N/A') . ')';
+                        }
+                    } elseif ($serviceType === 'check up') {
+                        $checkup = DB::table('tbl_checkup_record')
+                            ->where('visit_id', $visit->visit_id)
+                            ->where('pet_id', $petId)
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+                        if ($checkup && isset($checkup->diagnosis)) {
+                            $details .= ' - ' . $checkup->diagnosis;
+                        }
+                    } elseif ($serviceType === 'surgical') {
+                        $surgery = DB::table('tbl_surgical_record')
+                            ->where('visit_id', $visit->visit_id)
+                            ->where('pet_id', $petId)
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+                        if ($surgery && isset($surgery->procedure_name)) {
+                            $details .= ' - ' . $surgery->procedure_name;
+                        }
+                    } elseif ($serviceType === 'emergency') {
+                        $emergency = DB::table('tbl_emergency_record')
+                            ->where('visit_id', $visit->visit_id)
+                            ->where('pet_id', $petId)
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+                        if ($emergency && isset($emergency->chief_complaint)) {
+                            $details .= ' - ' . $emergency->chief_complaint;
+                        }
+                    }
+                    
+                    $medicalHistory[] = [
+                        'type' => ucwords($service->serv_type),
+                        'date' => $visit->visit_date,
+                        'details' => $details,
+                        'formatted' => \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y') . ': ' . ucwords($service->serv_type) . ' - ' . $details,
+                    ];
+                }
+            }
+
+            // Tests Conducted - Get diagnostics from completed services
+            $diagnosticTests = [];
+            $diagnosticVisits = Visit::with(['services' => function($q) {
+                    $q->wherePivot('status', 'completed')
+                      ->where(DB::raw('LOWER(tbl_serv.serv_type)'), 'diagnostics');
+                }])
+                ->where('pet_id', $petId)
+                ->whereHas('services', function($q) {
+                    $q->where('tbl_visit_service.status', 'completed')
+                      ->where(DB::raw('LOWER(tbl_serv.serv_type)'), 'diagnostics');
+                })
+                ->orderBy('visit_date', 'desc')
+                ->limit(5)
+                ->get();
+                
+            foreach ($diagnosticVisits as $visit) {
+                foreach ($visit->services as $service) {
+                    $diagnostic = DB::table('tbl_diagnostic_record')
+                        ->where('visit_id', $visit->visit_id)
+                        ->where('pet_id', $petId)
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                    
+                    $details = $service->serv_name;
+                    if ($diagnostic) {
+                        if (isset($diagnostic->test_name)) {
+                            $details .= ' - ' . $diagnostic->test_name;
+                        }
+                        if (isset($diagnostic->results)) {
+                            $details .= ' (Results: ' . $diagnostic->results . ')';
+                        }
+                    }
+                    
+                    $diagnosticTests[] = (object)[
+                        'visit_date' => $visit->visit_date,
+                        'test_type' => $service->serv_name,
+                        'test_name' => $diagnostic->test_name ?? null,
+                        'results' => $diagnostic->results ?? null,
+                        'interpretation' => $diagnostic->interpretation ?? null,
+                        'formatted' => \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y') . ': ' . $details,
+                    ];
+                }
+            }
+
+            // Medications Given - Only medication from prescription
+            $prescriptions = DB::table('tbl_prescription')
+                ->where('tbl_prescription.pet_id', $petId)
+                ->whereNotNull('tbl_prescription.medication')
+                ->where('tbl_prescription.medication', '!=', '')
+                ->select(
+                    'tbl_prescription.prescription_date',
+                    'tbl_prescription.medication'
+                )
+                ->orderBy('tbl_prescription.prescription_date', 'desc')
+                ->limit(10)
+                ->get();
+
+            return view('referrals.view', compact('referral', 'medicalHistory', 'diagnosticTests', 'prescriptions'));
+        } catch (\Exception $e) {
+            Log::error('View referral failed: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Referral not found');
+        }
     }
 
     public function getAppointmentDetails($id)
@@ -2136,7 +2698,7 @@ public function completeService(Request $request, $visitId, $serviceId)
                 'appoint_date' => Carbon::parse($appointDate)->toDateString(),
                 'appoint_time' => '09:00', // Default time, can be adjusted
                 'appoint_type' => $appointType,
-                'appoint_status' => 'pending',
+                'appoint_status' => 'scheduled',
                 'appoint_description' => "Auto-scheduled follow-up from visit #{$visit->visit_id}",
             ]);
             

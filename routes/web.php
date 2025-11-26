@@ -209,12 +209,15 @@ Route::put('appointments/{appointmentId}/record-vaccine-details', [MedicalManage
     ->name('medical.prescriptions.edit');
 
     // Referral routes 
-    Route::get('/referrals', [MedicalManagementController::class, 'index'])->name('medical.referrals.index'); // ADD THIS LINE
+    Route::get('/referrals', [MedicalManagementController::class, 'index'])->name('medical.referrals.index');
     Route::post('/referrals', [MedicalManagementController::class, 'storeReferral'])->name('medical.referrals.store');
     Route::get('/referrals/{id}/edit', [MedicalManagementController::class, 'editReferral'])->name('medical.referrals.edit');
     Route::put('/referrals/{id}', [MedicalManagementController::class, 'updateReferral'])->name('medical.referrals.update');
     Route::get('/referrals/{id}', [MedicalManagementController::class, 'showReferral'])->name('medical.referrals.show');
     Route::delete('/referrals/{id}', [MedicalManagementController::class, 'destroyReferral'])->name('medical.referrals.destroy');
+    Route::get('/referrals/{id}/view', [MedicalManagementController::class, 'viewReferral'])->name('medical.referrals.view');
+    Route::get('/referrals/{id}/print', [MedicalManagementController::class, 'printReferral'])->name('medical.referrals.print');
+    Route::post('/referrals/{id}/create-visit', [MedicalManagementController::class, 'createVisitFromReferral'])->name('medical.referrals.create-visit');
 
 Route::prefix('visits')->group(function () {
     Route::get('/{visitId}/workspace', [VisitWorkspaceController::class, 'index'])

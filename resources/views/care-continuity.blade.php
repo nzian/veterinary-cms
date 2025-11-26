@@ -191,19 +191,19 @@
             </button>
         @endif
         
-        @if(hasPermission('refer_appointment', $can) && $appointment->appoint_status != 'refer')
+       <!-- @if(hasPermission('refer_appointment', $can) && $appointment->appoint_status != 'refer')
             <button onclick="openReferralModal({{ $appointment->appoint_id }})"
                 class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 flex items-center gap-1 text-xs" title="refer">
                 <i class="fas fa-share"></i>
             </button>
         @endif
 
-        @if(hasPermission('prescribe_appointment', $can))
+           @if(hasPermission('prescribe_appointment', $can))
             <button onclick="openPrescriptionFromAppointment({{ $appointment->appoint_id }}, '{{ $appointment->pet?->pet_name ?? '' }}', '{{ $appointment->appoint_date }}')"
                 class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="prescribe">
                 <i class="fas fa-prescription"></i>
             </button>
-        @endif
+        @endif-->
 
         @if(strtolower($appointment->appoint_status) === 'arrived')
             <form action="{{ route('care-continuity.appointments.create-visit', $appointment->appoint_id) }}" method="POST" class="inline">
@@ -447,11 +447,22 @@
                                 <td class="border px-2 py-2">{{ \Carbon\Carbon::parse($referral->ref_date)->format('F j, Y') }}</td>
                                 <td class="border px-2 py-2">{{ $referral->pet?->pet_name ?? 'N/A' }}</td>
                                 <td class="border px-2 py-2">{{ $referral->pet?->owner?->own_name ?? 'N/A' }}</td>
-                                <td class="border px-2 py-2">{{ $referral->refToBranch?->branch_name ?? 'N/A' }}</td>
+                                <td class="border px-2 py-2">
+                                    @if($referral->ref_type === 'external')
+                                        {{ $referral->external_clinic_name ?? 'External Clinic' }}
+                                    @else
+                                        {{ $referral->refToBranch?->branch_name ?? 'N/A' }}
+                                    @endif
+                                </td>
                                 <td class="border px-2 py-2">{{ Str::limit($referral->ref_description, 50) }}</td>
                                 <td class="border px-2 py-2">
-                                    <span class="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs">
-                                        Referred
+                                    <span class="px-2 py-1 rounded text-xs
+                                        @if($referral->ref_status === 'completed') bg-green-100 text-green-800
+                                        @elseif($referral->ref_status === 'attended') bg-pink-100 text-pink-800
+                                        @elseif($referral->ref_status === 'referred') bg-purple-100 text-purple-800
+                                        @else bg-yellow-100 text-yellow-800
+                                        @endif">
+                                        {{ ucfirst($referral->ref_status) }}
                                     </span>
                                 </td>
                                 <td class="border px-2 py-1">
@@ -465,17 +476,17 @@
                 data-owner-contact="{{ $referral->pet?->owner?->own_contactnum ?? 'N/A' }}"
                 data-pet-age="{{ $referral->pet?->pet_age ?? 'N/A' }}"
                 data-pet-gender="{{ strtoupper($referral->pet?->pet_gender ?? 'N/A') }}"
-                data-medical-history="{{ e($referral->medical_history) }}"
-                data-tests-conducted="{{ e($referral->tests_conducted) }}"
-                data-medications-given="{{ e($referral->medications_given) }}"
+                data-medical-history="{{ e($referral->medical_history ?? '') }}"
+                data-tests-conducted="{{ e($referral->tests_conducted ?? '') }}"
+                data-medications-given="{{ e($referral->medications_given ?? '') }}"
                 data-ref-description="{{ e($referral->ref_description) }}"
-                data-ref-to-branch="{{ $referral->refToBranch?->branch_name ?? 'N/A' }}"
+                data-ref-to-branch="{{ $referral->ref_to_display ?? ($referral->external_clinic_name ?? ($referral->refToBranch?->branch_name ?? 'N/A')) }}"
                 class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view">
                 <i class="fas fa-eye"></i>
             </button>
         @endif
         
-        @if(hasPermission('print_referral', $can))
+        @if(hasPermission('print_referral', $can) && $referral->ref_type === 'external')
             <button onclick="printReferral(this)"
                 data-ref-id="{{ $referral->ref_id }}"
                 data-ref-date="{{ \Carbon\Carbon::parse($referral->ref_date)->format('F j, Y') }}"
@@ -484,14 +495,34 @@
                 data-owner-contact="{{ $referral->pet?->owner?->own_contactnum ?? 'N/A' }}"
                 data-pet-age="{{ $referral->pet?->pet_age ?? 'N/A' }}"
                 data-pet-gender="{{ strtoupper($referral->pet?->pet_gender ?? 'N/A') }}"
-                data-medical-history="{{ e($referral->medical_history) }}"
-                data-tests-conducted="{{ e($referral->tests_conducted) }}"
-                data-medications-given="{{ e($referral->medications_given) }}"
+                data-medical-history="{{ e($referral->medical_history ?? '') }}"
+                data-tests-conducted="{{ e($referral->tests_conducted ?? '') }}"
+                data-medications-given="{{ e($referral->medications_given ?? '') }}"
                 data-ref-description="{{ e($referral->ref_description) }}"
-                data-ref-to-branch="{{ $referral->refToBranch?->branch_name ?? 'N/A' }}"
+                data-ref-to-branch="{{ $referral->ref_to_display ?? ($referral->external_clinic_name ?? ($referral->refToBranch?->branch_name ?? 'N/A')) }}"
                 class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="print">
                 <i class="fas fa-print"></i>
             </button>
+        @endif
+
+        @php
+            $activeBranchId = session('active_branch_id');
+            if(auth()->user()->user_role !== 'superadmin') {
+                $activeBranchId = auth()->user()->branch_id;
+            }
+            $isReferredBranch = $referral->ref_to == $activeBranchId;
+            $isPending = $referral->ref_status === 'pending';
+            $isInterbranch = $referral->ref_type === 'interbranch';
+        @endphp
+
+        @if($isReferredBranch && $isPending && $isInterbranch)
+            <form action="{{ route('care-continuity.referrals.create-visit', $referral->ref_id) }}" method="POST" class="inline">
+                @csrf
+                <button type="submit"
+                    class="bg-emerald-500 text-white px-2 py-1 rounded hover:bg-emerald-600 flex items-center gap-1 text-xs" title="Add Visit">
+                    <i class="fas fa-notes-medical"></i>
+                </button>
+            </form>
         @endif
         
         @if(hasPermission('edit_referral', $can))
@@ -513,8 +544,6 @@
                 </button>
             </form>
         @endif
-
-        {{-- Removed Add Visit button for referrals as requested --}}
     </div>
 </td>
                             </tr>
@@ -951,20 +980,20 @@
             <!-- History Section -->
             <div class="form-section mb-6">
                 <div class="section-title font-bold text-base text-gray-800 mb-4 border-b border-gray-300 pb-2">HISTORY:</div>
-                <div id="view_medical_history" class="text-sm text-gray-700 mb-4">No medical history provided</div>
+                <div id="view_medical_history" class="text-sm text-gray-700 mb-4" style="white-space: pre-wrap; word-break: keep-all;">No medical history provided</div>
             </div>
             
             <!-- Test Conducted Section -->
             <div class="form-section mb-6">
                 <div class="section-title font-bold text-base text-gray-800 mb-4 border-b border-gray-300 pb-2">TEST CONDUCTED:</div>
-                <div id="view_tests_conducted" class="text-sm text-gray-700 mb-4">No tests documented</div>
+                <div id="view_tests_conducted" class="text-sm text-gray-700 mb-4" style="white-space: pre-wrap; word-break: keep-all;">No tests documented</div>
                 <div class="test-note text-center font-bold text-gray-600 mt-4 text-sm italic">***NO FURTHER TESTS WERE PERFORMED***</div>
             </div>
             
             <!-- Medications Given Section -->
             <div class="form-section mb-6">
                 <div class="section-title font-bold text-base text-gray-800 mb-4 border-b border-gray-300 pb-2">MEDS GIVEN:</div>
-                <div id="view_medications_given" class="text-sm text-gray-700 mb-4">No medications documented</div>
+                <div id="view_medications_given" class="text-sm text-gray-700 mb-4" style="white-space: pre-wrap; word-break: keep-all;">No medications documented</div>
                 <div class="med-note text-center font-bold text-gray-600 mt-4 text-sm italic">***NO OTHER MEDICATIONS GIVEN***</div>
             </div>
             
@@ -1293,7 +1322,7 @@
 @media print {
     @page {
         margin: 0.3in;
-        size: A4;
+        size: letter;
     }
     
     body * {
@@ -2873,15 +2902,15 @@ function formatListContent(content, defaultText) {
         return `<em class="text-gray-500">${defaultText}</em>`;
     }
     
-    // Split by common delimiters and create a list
-    const items = content.split(/[;,\n]/).map(item => item.trim()).filter(item => item.length > 0);
+    // Split by semicolon delimiter and create a list
+    const items = content.split(';').map(item => item.trim()).filter(item => item.length > 0);
     
     if (items.length > 1) {
-        return '<ul class="history-list pl-0 list-none">' + 
-               items.map(item => `<li class="mb-2 pl-5 relative before:content-['-'] before:absolute before:left-0 before:font-bold">${item}</li>`).join('') + 
+        return '<ul class="history-list pl-0 list-none" style="white-space: pre-wrap; word-break: keep-all;">' + 
+               items.map(item => `<li class="mb-2" style="white-space: pre-wrap; word-break: keep-all;">${item}</li>`).join('') + 
                '</ul>';
     } else {
-        return `<p class="mb-0">${content}</p>`;
+        return `<p class="mb-0" style="white-space: pre-wrap; word-break: keep-all;">${content}</p>`;
     }
 }
 
@@ -2951,20 +2980,20 @@ function createReferralPrintContent(data) {
         <!-- History Section -->
         <div class="form-section mb-3">
             <div class="section-title font-bold text-sm text-gray-800 mb-2 border-b border-gray-300 pb-1">HISTORY:</div>
-            <div class="text-sm text-gray-700 mb-2">${formatListContent(data.medical_history, 'No medical history provided')}</div>
+            <div class="text-sm text-gray-700 mb-2" style="white-space: pre-wrap; word-break: keep-all;">${formatListContent(data.medical_history, 'No medical history provided')}</div>
         </div>
         
         <!-- Test Conducted Section -->
         <div class="form-section mb-3">
             <div class="section-title font-bold text-sm text-gray-800 mb-2 border-b border-gray-300 pb-1">TEST CONDUCTED:</div>
-            <div class="text-sm text-gray-700 mb-2">${formatListContent(data.tests_conducted, 'No tests documented')}</div>
+            <div class="text-sm text-gray-700 mb-2" style="white-space: pre-wrap; word-break: keep-all;">${formatListContent(data.tests_conducted, 'No tests documented')}</div>
             <div class="test-note text-center font-bold text-gray-600 mt-2 text-sm italic">***NO FURTHER TESTS WERE PERFORMED***</div>
         </div>
         
         <!-- Medications Given Section -->
         <div class="form-section mb-3">
             <div class="section-title font-bold text-sm text-gray-800 mb-2 border-b border-gray-300 pb-1">MEDS GIVEN:</div>
-            <div class="text-sm text-gray-700 mb-2">${formatListContent(data.medications_given, 'No medications documented')}</div>
+            <div class="text-sm text-gray-700 mb-2" style="white-space: pre-wrap; word-break: keep-all;">${formatListContent(data.medications_given, 'No medications documented')}</div>
             <div class="med-note text-center font-bold text-gray-600 mt-2 text-sm italic">***NO OTHER MEDICATIONS GIVEN***</div>
         </div>
         
