@@ -254,6 +254,70 @@ class ProdServEquipController extends Controller
                 ->limit(20)
                 ->get();
 
+            // Fetch service consumption data for consumable products
+            $serviceConsumptionData = null;
+            $servicesUsingProduct = [];
+            $recentServiceUsage = [];
+            
+            if ($product->prod_type === 'Consumable') {
+                // Get services that use this product
+                $servicesUsingProduct = DB::table('tbl_service_products as sp')
+                    ->join('tbl_serv as s', 'sp.serv_id', '=', 's.serv_id')
+                    ->leftJoin('tbl_user as creator', 'sp.created_by', '=', 'creator.user_id')
+                    ->where('sp.prod_id', $id)
+                    ->select(
+                        's.serv_id',
+                        's.serv_name',
+                        's.serv_type',
+                        'sp.quantity_used',
+                        'sp.is_billable',
+                        'sp.created_at',
+                        'creator.user_name as added_by'
+                    )
+                    ->get();
+                
+                // Get recent service usage from inventory transactions
+                $recentServiceUsage = DB::table('tbl_inventory_transactions as it')
+                    ->leftJoin('tbl_visit_record as vr', 'it.appoint_id', '=', 'vr.visit_id')
+                    ->leftJoin('tbl_pet as pet', 'vr.pet_id', '=', 'pet.pet_id')
+                    ->leftJoin('tbl_serv as serv', 'it.serv_id', '=', 'serv.serv_id')
+                    ->leftJoin('tbl_user as performer', 'it.performed_by', '=', 'performer.user_id')
+                    ->where('it.prod_id', $id)
+                    ->where('it.transaction_type', 'service_usage')
+                    ->select(
+                        'it.created_at as transaction_date',
+                        'it.quantity_change as quantity',
+                        'it.notes',
+                        'it.reference',
+                        'vr.visit_id',
+                        'vr.visit_date',
+                        'pet.pet_name',
+                        'serv.serv_name',
+                        'performer.user_name as performed_by'
+                    )
+                    ->orderBy('it.created_at', 'desc')
+                    ->limit(15)
+                    ->get();
+                
+                // Calculate consumption statistics
+                $serviceConsumptionData = [
+                    'total_services_using' => $servicesUsingProduct->count(),
+                    'total_quantity_consumed' => DB::table('tbl_inventory_transactions')
+                        ->where('prod_id', $id)
+                        ->where('transaction_type', 'service_usage')
+                        ->sum(DB::raw('ABS(quantity_change)')),
+                    'recent_consumption_30days' => DB::table('tbl_inventory_transactions')
+                        ->where('prod_id', $id)
+                        ->where('transaction_type', 'service_usage')
+                        ->where('created_at', '>=', Carbon::now()->subDays(30))
+                        ->sum(DB::raw('ABS(quantity_change)')),
+                    'avg_consumption_per_service' => DB::table('tbl_inventory_transactions')
+                        ->where('prod_id', $id)
+                        ->where('transaction_type', 'service_usage')
+                        ->avg(DB::raw('ABS(quantity_change)'))
+                ];
+            }
+
             return response()->json([
                 'product' => $product,
                 'sales_data' => $salesData,
@@ -262,7 +326,10 @@ class ProdServEquipController extends Controller
                 'stock_alert' => $stockAlert,
                 'profit_data' => $profitData,
                 'stock_batches' => $stockBatches,
-                'damage_pullout_history' => $damagePulloutHistory
+                'damage_pullout_history' => $damagePulloutHistory,
+                'service_consumption_data' => $serviceConsumptionData,
+                'services_using_product' => $servicesUsingProduct,
+                'recent_service_usage' => $recentServiceUsage
             ]);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to fetch product details: ' . $e->getMessage()], 500);
@@ -623,12 +690,17 @@ class ProdServEquipController extends Controller
             'prod_category' => 'nullable|string|max:255',
             'prod_type' => 'required|in:Sale,Consumable',
             'prod_description' => 'required|string|max:1000',
-            'prod_price' => 'required|numeric|min:0',
-            'prod_reorderlevel' => 'required|integer|min:0', // Now required, must be >= 0
+            'prod_price' => 'nullable|numeric|min:0',
+            'prod_reorderlevel' => 'required|integer|min:0',
             'branch_id' => 'nullable|exists:tbl_branch,branch_id',
             'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'tab' => 'nullable|string|in:products,services,equipment'
         ]);
+        
+        // Set price to 0 for consumable products
+        if ($validated['prod_type'] === 'Consumable') {
+            $validated['prod_price'] = 0;
+        }
 
         // Set initial stock to 0 (stock added via "Add Stock" feature)
         $validated['prod_stocks'] = 0;
@@ -658,12 +730,17 @@ class ProdServEquipController extends Controller
             'prod_category' => 'nullable|string|max:255',
             'prod_type' => 'required|in:Sale,Consumable',
             'prod_description' => 'required|string|max:1000',
-            'prod_price' => 'required|numeric|min:0',
+            'prod_price' => 'nullable|numeric|min:0',
             'prod_reorderlevel' => 'nullable|integer|min:0',
             'branch_id' => 'nullable|exists:tbl_branch,branch_id',
             'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'tab' => 'nullable|string|in:products,services,equipment'
         ]);
+        
+        // Set price to 0 for consumable products
+        if ($validated['prod_type'] === 'Consumable') {
+            $validated['prod_price'] = 0;
+        }
 
         $product = Product::findOrFail($id);
 

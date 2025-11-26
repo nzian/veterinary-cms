@@ -151,7 +151,13 @@
                                         </span>
                                     </td>
                                     <td class="p-2 border">{{ Str::limit($product->prod_description, 30) }}</td>
-                                    <td class="p-2 border">₱{{ number_format($product->prod_price, 2) }}</td>
+                                    <td class="p-2 border">
+                                        @if($product->prod_type === 'Sale')
+                                            ₱{{ number_format($product->prod_price, 2) }}
+                                        @else
+                                            <span class="text-gray-400 text-xs">N/A (Consumable)</span>
+                                        @endif
+                                    </td>
                                     <td class="p-2 border">
                                         @php
                                             $stockStatus = '';
@@ -1378,6 +1384,10 @@
                     const profitData = data.profit_data;
                     const stockBatches = data.stock_batches || [];
                     const damagePulloutHistory = data.damage_pullout_history || [];
+                    const serviceConsumptionData = data.service_consumption_data;
+                    const servicesUsingProduct = data.services_using_product || [];
+                    const recentServiceUsage = data.recent_service_usage || [];
+                    const isConsumable = product.prod_type === 'Consumable';
 
                     let content = `
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1387,8 +1397,9 @@
                                 ${product.prod_image ? `<div class="mb-3"><img src="/storage/${product.prod_image}" class="h-32 w-32 object-cover rounded mx-auto"></div>` : ''}
                                 <div><span class="font-medium">Name:</span> ${product.prod_name}</div>
                                 <div><span class="font-medium">Category:</span> ${product.prod_category || 'N/A'}</div>
+                                <div><span class="font-medium">Type:</span> <span class="px-2 py-1 text-xs rounded-full ${product.prod_type === 'Sale' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}">${product.prod_type}</span></div>
                                 <div><span class="font-medium">Description:</span> ${product.prod_description || 'N/A'}</div>
-                                <div><span class="font-medium">Price:</span> ₱${parseFloat(product.prod_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                                ${product.prod_type === 'Sale' ? `<div><span class="font-medium">Price:</span> ₱${parseFloat(product.prod_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>` : '<div><span class="font-medium">Price:</span> <span class="text-gray-400 text-sm">N/A (Consumable)</span></div>'}
                                 <div><span class="font-medium">Branch:</span> ${product.branch ? product.branch.branch_name : 'N/A'}</div>
                             </div>
                         </div>
@@ -1493,32 +1504,162 @@
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    </div>`;
 
-                    <div class="mt-6">
-                        <h4 class="font-bold text-lg mb-3">Sales Analytics</h4>
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                            <div class="bg-blue-50 p-4 rounded-lg">
-                                <div class="text-sm text-blue-600">Total Orders</div>
-                                <div class="text-2xl font-bold text-blue-800">${salesData.total_orders || 0}</div>
-                            </div>
-                            <div class="bg-green-50 p-4 rounded-lg">
-                                <div class="text-sm text-green-600">Quantity Sold</div>
-                                <div class="text-2xl font-bold text-green-800">${salesData.total_quantity_sold || 0}</div>
-                            </div>
-                            <div class="bg-purple-50 p-4 rounded-lg">
-                                <div class="text-sm text-purple-600">Total Revenue</div>
-                                <div class="text-2xl font-bold text-purple-800">₱${parseFloat(salesData.total_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                            </div>
-                            <div class="bg-yellow-50 p-4 rounded-lg">
-                                <div class="text-sm text-yellow-600">Avg. Order Value</div>
-                                <div class="text-2xl font-bold text-yellow-800">₱${parseFloat(salesData.average_order_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                    // Show different analytics based on product type
+                    if (isConsumable && serviceConsumptionData) {
+                        // CONSUMABLE PRODUCT ANALYTICS
+                        content += `
+                        <div class="mt-6">
+                            <h4 class="font-bold text-lg mb-3 flex items-center">
+                                <i class="fas fa-chart-line text-blue-600 mr-2"></i>
+                                Service Consumption Analytics
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                                <div class="bg-blue-50 p-4 rounded-lg">
+                                    <div class="text-sm text-blue-600">Services Using</div>
+                                    <div class="text-2xl font-bold text-blue-800">${serviceConsumptionData.total_services_using || 0}</div>
+                                    <div class="text-xs text-blue-500 mt-1">Active services</div>
+                                </div>
+                                <div class="bg-green-50 p-4 rounded-lg">
+                                    <div class="text-sm text-green-600">Total Consumed</div>
+                                    <div class="text-2xl font-bold text-green-800">${parseFloat(serviceConsumptionData.total_quantity_consumed || 0).toLocaleString()}</div>
+                                    <div class="text-xs text-green-500 mt-1">All time usage</div>
+                                </div>
+                                <div class="bg-purple-50 p-4 rounded-lg">
+                                    <div class="text-sm text-purple-600">Last 30 Days</div>
+                                    <div class="text-2xl font-bold text-purple-800">${parseFloat(serviceConsumptionData.recent_consumption_30days || 0).toLocaleString()}</div>
+                                    <div class="text-xs text-purple-500 mt-1">Recent consumption</div>
+                                </div>
+                                <div class="bg-yellow-50 p-4 rounded-lg">
+                                    <div class="text-sm text-yellow-600">Avg. Per Service</div>
+                                    <div class="text-2xl font-bold text-yellow-800">${parseFloat(serviceConsumptionData.avg_consumption_per_service || 0).toFixed(1)}</div>
+                                    <div class="text-xs text-yellow-500 mt-1">Average usage</div>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="mt-6">
-                        <h4 class="font-bold text-lg mb-3">Recent Orders</h4>
+                        <div class="mt-6">
+                            <h4 class="font-bold text-lg mb-3 flex items-center">
+                                <i class="fas fa-stethoscope text-purple-600 mr-2"></i>
+                                Services Using This Product
+                            </h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm border">
+                                    <thead class="bg-gray-100">
+                                        <tr>
+                                            <th class="p-2 border">Service Name</th>
+                                            <th class="p-2 border">Service Type</th>
+                                            <th class="p-2 border">Qty Used</th>
+                                            <th class="p-2 border">Billable</th>
+                                            <th class="p-2 border">Added By</th>
+                                            <th class="p-2 border">Date Added</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>`;
+                        
+                        if (servicesUsingProduct.length > 0) {
+                            servicesUsingProduct.forEach(service => {
+                                const addedDate = service.created_at ? new Date(service.created_at).toLocaleDateString() : 'N/A';
+                                content += `
+                                <tr>
+                                    <td class="p-2 border font-medium">${service.serv_name}</td>
+                                    <td class="p-2 border">
+                                        <span class="px-2 py-1 text-xs rounded ${service.serv_type === 'Grooming' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'}">
+                                            ${service.serv_type}
+                                        </span>
+                                    </td>
+                                    <td class="p-2 border text-center font-bold">${service.quantity_used}</td>
+                                    <td class="p-2 border text-center">
+                                        ${service.is_billable ? '<span class="text-green-600"><i class="fas fa-check-circle"></i> Yes</span>' : '<span class="text-gray-400"><i class="fas fa-times-circle"></i> No</span>'}
+                                    </td>
+                                    <td class="p-2 border">${service.added_by || 'System'}</td>
+                                    <td class="p-2 border">${addedDate}</td>
+                                </tr>`;
+                            });
+                        } else {
+                            content += '<tr><td colspan="6" class="p-4 text-center text-gray-500">Not currently used in any services</td></tr>';
+                        }
+
+                        content += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="mt-6">
+                            <h4 class="font-bold text-lg mb-3 flex items-center">
+                                <i class="fas fa-history text-green-600 mr-2"></i>
+                                Recent Service Usage
+                            </h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm border">
+                                    <thead class="bg-gray-100">
+                                        <tr>
+                                            <th class="p-2 border">Date</th>
+                                            <th class="p-2 border">Quantity Used</th>
+                                            <th class="p-2 border">Visit / Service</th>
+                                            <th class="p-2 border">Pet</th>
+                                            <th class="p-2 border">Performed By</th>
+                                            <th class="p-2 border">Notes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>`;
+                        
+                        if (recentServiceUsage.length > 0) {
+                            recentServiceUsage.forEach(usage => {
+                                const usageDate = usage.transaction_date ? new Date(usage.transaction_date).toLocaleDateString() : 'N/A';
+                                const visitInfo = usage.visit_id ? `Visit #${usage.visit_id}` : 'N/A';
+                                const serviceName = usage.serv_name || usage.reference || 'Service';
+                                content += `
+                                <tr>
+                                    <td class="p-2 border">${usageDate}</td>
+                                    <td class="p-2 border text-center font-bold text-red-600">${Math.abs(usage.quantity)}</td>
+                                    <td class="p-2 border">
+                                        <div class="font-medium">${visitInfo}</div>
+                                        <div class="text-xs text-gray-500">${serviceName}</div>
+                                    </td>
+                                    <td class="p-2 border">${usage.pet_name || 'N/A'}</td>
+                                    <td class="p-2 border">${usage.performed_by || 'System'}</td>
+                                    <td class="p-2 border text-xs">${usage.notes || '-'}</td>
+                                </tr>`;
+                            });
+                        } else {
+                            content += '<tr><td colspan="6" class="p-4 text-center text-gray-500">No recent service usage recorded</td></tr>';
+                        }
+
+                        content += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>`;
+                    } else {
+                        // SALE PRODUCT ANALYTICS
+                        content += `
+                        <div class="mt-6">
+                            <h4 class="font-bold text-lg mb-3">Sales Analytics</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                                <div class="bg-blue-50 p-4 rounded-lg">
+                                    <div class="text-sm text-blue-600">Total Orders</div>
+                                    <div class="text-2xl font-bold text-blue-800">${salesData.total_orders || 0}</div>
+                                </div>
+                                <div class="bg-green-50 p-4 rounded-lg">
+                                    <div class="text-sm text-green-600">Quantity Sold</div>
+                                    <div class="text-2xl font-bold text-green-800">${salesData.total_quantity_sold || 0}</div>
+                                </div>
+                                <div class="bg-purple-50 p-4 rounded-lg">
+                                    <div class="text-sm text-purple-600">Total Revenue</div>
+                                    <div class="text-2xl font-bold text-purple-800">₱${parseFloat(salesData.total_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                                </div>
+                                <div class="bg-yellow-50 p-4 rounded-lg">
+                                    <div class="text-sm text-yellow-600">Avg. Order Value</div>
+                                    <div class="text-2xl font-bold text-yellow-800">₱${parseFloat(salesData.average_order_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6">
+                            <h4 class="font-bold text-lg mb-3">Recent Orders</h4>
                         <div class="overflow-x-auto">
                             <table class="w-full text-sm border">
                                 <thead class="bg-gray-100">
@@ -1552,6 +1693,7 @@
                             </table>
                         </div>
                     </div>`;
+                    }
 
                     document.getElementById('productDetailsContent').innerHTML = content;
                 })
@@ -1920,15 +2062,16 @@
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Product Type *</label>
-                <select name="prod_type" class="border p-2 w-full rounded ${isServiceProduct ? 'bg-gray-100' : ''}" required ${isServiceProduct ? 'readonly onclick="return false;"' : ''}>
+                <select name="prod_type" id="addProductType" class="border p-2 w-full rounded ${isServiceProduct ? 'bg-gray-100' : ''}" required ${isServiceProduct ? 'readonly onclick="return false;"' : ''} onchange="toggleProductPriceField('add')">
                     <option value="Sale" ${defaultType === 'Sale' ? 'selected' : ''}>Sale (Available for POS)</option>
                     <option value="Consumable" ${defaultType === 'Consumable' ? 'selected' : ''}>Consumable (Used in Services)</option>
                 </select>
                 <small class="text-gray-500">${isServiceProduct ? 'Service products are always Consumable type' : 'Sale products appear in POS, Consumable products are deducted when services are used'}</small>
             </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Price *</label>
-                <input type="number" step="0.01" name="prod_price" placeholder="Enter price" class="border p-2 w-full rounded" required>
+            <div class="mb-4" id="addProductPriceField">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Price <span id="addPriceRequired">*</span></label>
+                <input type="number" step="0.01" name="prod_price" id="addProductPrice" placeholder="Enter price" class="border p-2 w-full rounded">
+                <small class="text-gray-500 hidden" id="addPriceNote">Price not applicable for consumable products</small>
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Reorder Level *</label>
@@ -1962,6 +2105,9 @@
             // Remove existing method field
             let methodField = document.querySelector('#productModalForm input[name="_method"]');
             if (methodField) methodField.remove();
+            
+            // Set initial price field visibility
+            setTimeout(() => toggleProductPriceField('add'), 0);
         }
 
         function openEditProductModal(data) {
@@ -1991,15 +2137,16 @@
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Product Type *</label>
-                <select name="prod_type" class="border p-2 w-full rounded" required>
+                <select name="prod_type" id="editProductType" class="border p-2 w-full rounded" required onchange="toggleProductPriceField('edit')">
                     <option value="Sale" ${data.prod_type === 'Sale' ? 'selected' : ''}>Sale (Available for POS)</option>
                     <option value="Consumable" ${data.prod_type === 'Consumable' ? 'selected' : ''}>Consumable (Used in Services)</option>
                 </select>
                 <small class="text-gray-500">Sale products appear in POS, Consumable products are deducted when services are used</small>
             </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Price *</label>
-                <input type="number" step="0.01" name="prod_price" value="${data.prod_price}" class="border p-2 w-full rounded" required>
+            <div class="mb-4" id="editProductPriceField">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Price <span id="editPriceRequired">*</span></label>
+                <input type="number" step="0.01" name="prod_price" id="editProductPrice" value="${data.prod_price}" class="border p-2 w-full rounded">
+                <small class="text-gray-500 hidden" id="editPriceNote">Price not applicable for consumable products</small>
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Current Available Stock</label>
@@ -2044,6 +2191,9 @@
             if (!document.querySelector('#productModalForm input[name="_method"]')) {
                 document.getElementById('productModalForm').insertAdjacentHTML('afterbegin', '<input type="hidden" name="_method" value="PUT">');
             }
+            
+            // Set initial price field visibility
+            setTimeout(() => toggleProductPriceField('edit'), 0);
         }
 
         function closeProductModal() {
@@ -2889,6 +3039,37 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // TOGGLE PRICE FIELD FOR PRODUCT TYPE
+        function toggleProductPriceField(mode) {
+            const typeSelect = document.getElementById(mode + 'ProductType');
+            const priceField = document.getElementById(mode + 'ProductPriceField');
+            const priceInput = document.getElementById(mode + 'ProductPrice');
+            const priceRequired = document.getElementById(mode + 'PriceRequired');
+            const priceNote = document.getElementById(mode + 'PriceNote');
+            
+            if (!typeSelect || !priceField) return;
+            
+            const selectedType = typeSelect.value;
+            
+            if (selectedType === 'Consumable') {
+                priceField.style.display = 'none';
+                if (priceInput) {
+                    priceInput.removeAttribute('required');
+                    priceInput.value = '0';
+                }
+                if (priceRequired) priceRequired.style.display = 'none';
+                if (priceNote) priceNote.classList.remove('hidden');
+            } else {
+                priceField.style.display = 'block';
+                if (priceInput) {
+                    priceInput.setAttribute('required', 'required');
+                    if (priceInput.value === '0') priceInput.value = '';
+                }
+                if (priceRequired) priceRequired.style.display = 'inline';
+                if (priceNote) priceNote.classList.add('hidden');
+            }
         }
 
         // EQUIPMENT STATUS: UPDATE FROM DROPDOWN
