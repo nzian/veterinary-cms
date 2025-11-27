@@ -2848,18 +2848,16 @@
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Service Type</label>
                     <select name="serv_type" class="border p-2 w-full rounded">
-                        <option value="">Select Service Type</option>
-                        <option value="Preventive Care" ${data.serv_type === 'Preventive Care' ? 'selected' : ''}>Preventive Care</option>
-                        <option value="Diagnostic Services" ${data.serv_type === 'Diagnostic Services' ? 'selected' : ''}>Diagnostic Services</option>
-                        <option value="Surgical Services" ${data.serv_type === 'Surgical Services' ? 'selected' : ''}>Surgical Services</option>
-                        <option value="Emergency & Critical Care" ${data.serv_type === 'Emergency & Critical Care' ? 'selected' : ''}>Emergency & Critical Care</option>
-                        <option value="Reproductive & Breeding" ${data.serv_type === 'Reproductive & Breeding' ? 'selected' : ''}>Reproductive & Breeding</option>
-                        <option value="Grooming & Hygiene" ${data.serv_type === 'Grooming & Hygiene' ? 'selected' : ''}>Grooming & Hygiene</option>
-                        <option value="Wellness & Nutrition" ${data.serv_type === 'Wellness & Nutrition' ? 'selected' : ''}>Wellness & Nutrition</option>
-                        <option value="Additional Fees" ${data.serv_type === 'Additional Fees' ? 'selected' : ''}>Additional Fees</option>
-                        <option value="Other" ${data.serv_type === 'Other' ? 'selected' : ''}>Other</option>
-                        <option value="Boarding & Daycare" ${data.serv_type === 'Boarding & Daycare' ? 'selected' : ''}>Boarding & Daycare</option>
-                    </select>
+                    <option value="">Select Service Type</option>
+                     <option value="Vaccination" ${data.serv_type === 'Vaccination' ? 'selected' : ''}>Vaccination</option>
+                    <option value="Deworming" ${data.serv_type === 'Deworming' ? 'selected' : ''}>Deworming</option>
+                    <option value="Grooming" ${data.serv_type === 'Grooming' ? 'selected' : ''}>Grooming</option>
+                    <option value="Emergency" ${data.serv_type === 'Emergency' ? 'selected' : ''}>Emergency</option>
+                    <option value="Check-up" ${data.serv_type === 'Check-up' ? 'selected' : ''}>Check-up</option>
+                    <option value="Diagnostics" ${data.serv_type === 'Diagnostics' ? 'selected' : ''}>Diagnostics</option>
+                    <option value="Surgical" ${data.serv_type === 'Surgical' ? 'selected' : ''}>Surgical</option>
+                    <option value="Boarding" ${data.serv_type === 'Boarding' ? 'selected' : ''}>Boarding</option>
+                </select>
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Price</label>
