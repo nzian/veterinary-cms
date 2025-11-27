@@ -484,16 +484,17 @@ Route::delete('/user-management/{id}', [BranchManagementController::class, 'dest
 Route::get('/sales-management', [SalesManagementController::class, 'index'])->name('sales.index');
 Route::delete('/sales/billing/{id}', [SalesManagementController::class, 'destroyBilling'])->name('sales.destroyBilling');
 Route::post('/sales/billing/{id}/mark-paid', [SalesManagementController::class, 'markAsPaid'])->name('sales.markAsPaid');
+Route::post('/sales/billing-group/mark-paid', [SalesManagementController::class, 'markGroupAsPaid'])->name('sales.markGroupAsPaid');
+Route::post('/sales/auto-generate-billings', [SalesManagementController::class, 'autoGenerateGroupedBillings'])->name('sales.auto-generate');
+Route::post('/sales/generate-grouped', [SalesManagementController::class, 'generateGroupedBilling'])->name('sales.generate-grouped');
 Route::get('/sales/transaction/{id}/json', [SalesManagementController::class, 'showTransactionJson'])->name('sales.transaction.json');
 Route::get('/sales/transaction/{id}', [SalesManagementController::class, 'showTransaction'])->name('sales.transaction');
-Route::get('/sales/transaction/{id}/json', [SalesManagementController::class, 'showTransactionJson'])->name('sales.transaction.json');
 Route::get('/sales/print-transaction/{id}', [SalesManagementController::class, 'printTransaction'])->name('sales.printTransaction');
 Route::get('/sales/export', [SalesManagementController::class, 'export'])->name('sales.export');
 Route::get('/sales/billing/{id}/receipt', [SalesManagementController::class, 'showReceipt'])->name('sales.billing.receipt');
+Route::get('/sales/grouped-billing/receipt/{owner_id}/{bill_date}', [SalesManagementController::class, 'showGroupedReceipt'])->name('sales.grouped.billing.receipt');
 Route::post('/sales/billing/{id}/pay', [SalesManagementController::class, 'markAsPaid'])->name('sales.billing.pay');
 Route::post('/sales/billing/{billing}/add-product', [SalesManagementController::class, 'addProductToBilling'])->name('sales.billing.addProduct');
-// Add this to your routes/web.php
-// NEW - Use this
 Route::post('/sales/billing/{billId}/add-products', [SalesManagementController::class, 'saveProductsToBilling'])->name('sales.billing.addProducts');
 Route::get('/sms-settings', [SMSSettingsController::class, 'index'])->name('sms-settings.index');
 Route::put('/sms-settings', [SMSSettingsController::class, 'update'])->name('sms-settings.update');

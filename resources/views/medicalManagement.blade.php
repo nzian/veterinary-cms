@@ -1150,7 +1150,21 @@
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($b->visit_date)->format('F j, Y') }}</td>
                                 <td class="border px-4 py-2">{{ $b->pet->pet_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $b->pet->owner->own_name ?? 'N/A' }}</td>
-                                <td class="border px-4 py-2">{{ $b->workflow_status ?? ($b->visit_status ?? '-') }}</td>
+                                <td class="border px-4 py-2">
+                                    @php
+                                        $boardingStatus = null;
+                                        if (isset($b->boardingRecord) && $b->boardingRecord && isset($b->boardingRecord->status)) {
+                                            $boardingStatus = $b->boardingRecord->status;
+                                        } elseif (isset($b->status)) {
+                                            $boardingStatus = $b->status;
+                                        }
+                                    @endphp
+                                    @if(strtolower($boardingStatus) === 'checked in')
+                                        <span class="text-green-700 font-bold">Checked In</span>
+                                    @else
+                                        {{ $b->workflow_status ?? ($b->visit_status ?? '-') }}
+                                    @endif
+                                </td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
                                         <a href="{{ route('medical.visits.perform', ['id' => $b->visit_id]) }}?type=boarding" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">

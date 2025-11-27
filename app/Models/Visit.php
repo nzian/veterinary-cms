@@ -183,23 +183,23 @@ public function checkAllServicesCompleted()
 {
     // Refresh to get latest service statuses
     $this->refresh();
-    
+
     // Get all services for this visit directly from pivot table to ensure fresh data
     $pivotRecords = \Illuminate\Support\Facades\DB::table('tbl_visit_service')
         ->where('visit_id', $this->visit_id)
         ->get();
-    
+
     // If no services, return false
     if ($pivotRecords->isEmpty()) {
         return false;
     }
-    
+
     // Check if ALL services are completed
     $allCompleted = $pivotRecords->every(function($pivot) {
         $status = $pivot->status ?? null;
         return $status === 'completed';
     });
-    
+
     if ($allCompleted) {
         // Update workflow status to Completed
         $this->workflow_status = 'Completed';
@@ -211,7 +211,7 @@ public function checkAllServicesCompleted()
             ->where('ref_type', 'interbranch')
             ->where('ref_status', 'attended')
             ->first();
-        
+
         if ($referral) {
             $referral->update(['ref_status' => 'completed']);
             \Illuminate\Support\Facades\Log::info("Referral {$referral->ref_id} status updated to completed after all services completed for visit {$this->visit_id}");
@@ -316,19 +316,5 @@ public function checkAllServicesCompleted()
     return false;
 }
 
-public function generateBilling()
-{
-    return \App\Models\Billing::create([
-        'bill_date' => now()->toDateString(),
-        'visit_id' => $this->visit_id,
-        'bill_status' => 'pending',
-        'branch_id' => $this->user->branch_id ?? session('active_branch_id'),
-        'total_amount' => $this->calculateTotal(),
-    ]);
-}
-
-protected function calculateTotal()
-{
-    return $this->services->sum('price'); // Assuming price is stored in services table
-}
+// Add missing closing brace for the Visit class
 }

@@ -93,286 +93,160 @@
                 </div>
             </div>
 
+            {{-- Auto-Generate Button --}}
+            <div class="mb-4">
+                <form action="{{ route('sales.auto-generate') }}" method="POST" class="inline">
+                    @csrf
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm">
+                        <i class="fas fa-sync-alt mr-2"></i>Auto-Generate Billings
+                    </button>
+                </form>
+            </div>
+
             {{-- Billing Table --}}
             <div class="w-full overflow-x-auto">
                 <table class="min-w-full table-auto text-sm border text-center">
                     <thead>
                         <tr class="bg-gray-100 text-centered">
+                            <th class="px-2 py-2 border whitespace-nowrap w-8"></th>
                             <th class="px-2 py-2 border whitespace-nowrap">Owner</th>
-                            <th class="px-2 py-2 border whitespace-nowrap">Pet</th>
-                            <th class="px-4 py-2 border">Services & Products</th>
+                            <th class="px-2 py-2 border whitespace-nowrap">Pets</th>
                             <th class="px-4 py-2 border">Total Amount</th>
-                            <th class="px-4 py-2 border">Paid Amount</th>
-                            <th class="px-4 py-2 border">Balance</th>
                             <th class="px-4 py-2 border">Status</th>
                             <th class="px-4 py-2 border">Date</th>
                             <th class="px-4 py-2 border text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($billings as $billing)
+                        @forelse($billings as $index => $groupedBilling)
                             @php
-                                $servicesTotal = 0;
-                                if ($billing->visit && $billing->visit->services) {
-                                    // Calculate services total from pivot table (quantity * unit_price) or use total_price if available
-                                    $servicesTotal = $billing->visit->services->sum(function($service) {
-                                        $quantity = $service->pivot->quantity ?? 1;
-                                        $unitPrice = $service->pivot->unit_price ?? $service->serv_price ?? 0;
-                                        $totalPrice = $service->pivot->total_price ?? ($unitPrice * $quantity);
-                                        return $totalPrice;
-                                    });
-                                    
-                                    // Fallback: if pivot data is missing, use orders from billing
-                                    if ($servicesTotal == 0 && $billing->orders) {
-                                        $servicesTotal = $billing->orders->where('product.prod_category', 'Service')->sum('ord_total');
-                                    }
-                                }
-
-                                // Calculate prescription total - Only include available products with valid prices
-                                $prescriptionTotal = 0;
-                                $prescriptionItems = [];
-                                
-                                if ($billing->visit && $billing->visit->pet) {
-                                    $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit->pet->pet_id)
-                                        ->whereDate('prescription_date', '<=', $billing->bill_date)
-                                        ->whereDate('prescription_date', '>=', date('Y-m-d', strtotime($billing->bill_date . ' -7 days')))
-                                        ->get();
-                                    
-                                    foreach ($prescriptions as $prescription) {
-                                        $medications = json_decode($prescription->medication, true) ?? [];
-                                        foreach ($medications as $medication) {
-                                            $productPrice = 0;
-                                            $productName = $medication['product_name'] ?? 'Unknown medication';
-                                            
-                                            if (isset($medication['product_id']) && $medication['product_id']) {
-                                                // Only include products that are in stock and have a valid price
-                                                $product = \DB::table('tbl_prod')
-                                                    ->where('prod_id', $medication['product_id'])
-                                                    ->where('prod_stocks', '>', 0) 
-                                                    ->where('prod_price', '>', 0)
-                                                    ->first();
-                                                
-                                                if ($product) {
-                                                    $productPrice = (float) $product->prod_price;
-                                                    $prescriptionTotal += $productPrice;
-                                                    
-                                                    // Add to prescription items if product is available
-                                                    $prescriptionItems[] = [
-                                                        'name' => $product->prod_name,
-                                                        'price' => $productPrice,
-                                                        'instructions' => $medication['instructions'] ?? ''
-                                                    ];
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                // REMOVED: Add-on products calculation
-                                // $addOnOrders = $billing->orders->where('source', 'Billing Add-on');
-                                // $addOnTotal = $addOnOrders->sum('ord_total'); 
-                                
-                                // Grand Total now includes ONLY services and prescriptions
-                                $grandTotal = $servicesTotal + $prescriptionTotal;
-                                
-                                // Use paid_amount from database for balance logic
-                                $paidAmount = (float) ($billing->paid_amount ?? 0);
-                                $balance = round($grandTotal - $paidAmount, 2);
-                                
-                                // Status Logic
-                                $billingStatus = strtolower($billing->bill_status ?? 'pending');
-                                if ($balance <= 0.01 && $grandTotal > 0) {
-                                    $billingStatus = 'paid';
-                                } elseif ($paidAmount > 0) {
-                                    $billingStatus = 'partial';
-                                } else {
-                                    $billingStatus = 'pending';
-                                }
+                                // Support both array and object access
+                                $owner = is_array($groupedBilling) ? $groupedBilling['owner'] : $groupedBilling->owner;
+                                $totalAmount = is_array($groupedBilling) ? $groupedBilling['total_amount'] : $groupedBilling->total_amount;
+                                $paidAmount = is_array($groupedBilling) ? $groupedBilling['paid_amount'] : $groupedBilling->paid_amount;
+                                $balance = is_array($groupedBilling) ? $groupedBilling['balance'] : $groupedBilling->balance;
+                                $status = is_array($groupedBilling) ? $groupedBilling['status'] : $groupedBilling->status;
+                                $petCount = is_array($groupedBilling) ? $groupedBilling['pet_count'] : $groupedBilling->pet_count;
+                                $billDate = is_array($groupedBilling) ? $groupedBilling['bill_date'] : $groupedBilling->bill_date;
+                                $petBillings = is_array($groupedBilling) ? $groupedBilling['billings'] : $groupedBilling->billings;
+                                $ownerId = is_array($groupedBilling) ? $groupedBilling['owner_id'] : $groupedBilling->owner_id;
                             @endphp
                             
-                            <tr class="hover:bg-gray-50">
+                            {{-- Main Owner Row --}}
+                            <tr class="hover:bg-gray-50 bg-white border-b-2 border-gray-300">
                                 <td class="px-2 py-2 border">
-                                    {{ $billing->visit?->pet?->owner?->own_name ?? 'N/A' }}
+                                    <button onclick="togglePetDetails({{ $index }})" class="text-blue-600 hover:text-blue-800">
+                                        <i id="icon-{{ $index }}" class="fas fa-chevron-right transition-transform"></i>
+                                    </button>
+                                </td>
+                                <td class="px-2 py-2 border font-semibold">
+                                    {{ $owner->own_name ?? 'N/A' }}
                                 </td>
                                 <td class="px-2 py-2 border">
-                                    <div>
-                                        <div class="font-medium">{{ $billing->visit?->pet?->pet_name ?? 'N/A' }}</div>
-                                        <div class="text-xs text-gray-500">{{ $billing->visit?->pet?->pet_species ?? '' }}</div>
-                                    </div>
-                                </td>
-                                <td class="px-4 py-2 border text-left">
-                                    {{-- Services --}}
-                                    @if($billing->visit && $billing->visit->services && $billing->visit->services->count() > 0)
-                                        <div class="mb-2">
-                                            <div class="font-semibold text-blue-600 text-xs mb-1">SERVICES:</div>
-                                            @foreach($billing->visit->services as $service)
-                                                @php
-                                                    $quantity = $service->pivot->quantity ?? 1;
-                                                    $unitPrice = $service->pivot->unit_price ?? $service->serv_price ?? 0;
-                                                    $totalPrice = $service->pivot->total_price ?? ($unitPrice * $quantity);
-                                                @endphp
-                                                <span class="block text-xs">
-                                                    {{ $service->serv_name ?? 'N/A' }} 
-                                                    @if($quantity > 1)
-                                                        ({{ $quantity }}x)
-                                                    @endif
-                                                    - ₱{{ number_format($totalPrice, 2) }}
-                                                </span>
-                                            @endforeach
-                                        </div>
-                                    @elseif($billing->orders && $billing->orders->where('product.prod_category', 'Service')->count() > 0)
-                                        <div class="mb-2">
-                                            <div class="font-semibold text-blue-600 text-xs mb-1">SERVICES:</div>
-                                            @foreach($billing->orders->where('product.prod_category', 'Service') as $order)
-                                                <span class="block text-xs">
-                                                    {{ $order->product->prod_name ?? 'N/A' }} 
-                                                    @if($order->ord_quantity > 1)
-                                                        ({{ $order->ord_quantity }}x)
-                                                    @endif
-                                                    - ₱{{ number_format($order->ord_total ?? 0, 2) }}
-                                                </span>
-                                            @endforeach
-                                        </div>
-                                    @endif
-                                    
-                                    {{-- Prescription Products --}}
-                                    @if(count($prescriptionItems) > 0)
-                                        <div class="mb-2">
-                                            <div class="font-semibold text-green-600 text-xs mb-1">MEDICATIONS (Prescribed):</div>
-                                            @foreach($prescriptionItems as $item)
-                                                <span class="block text-xs">
-                                                    {{ $item['name'] }}
-                                                        @if($item['price'] > 0)
-                                                            - ₱{{ number_format($item['price'], 2) }}
-                                                        @endif
-                                                </span>
-                                            @endforeach
-                                        </div>
-                                    @endif
-                                    
-                                    {{-- REMOVED: Add-on Products section --}}
-
-                                    @if(count($prescriptionItems) == 0 && (!$billing->visit || !$billing->visit->services || $billing->visit->services->count() == 0))
-                                        <span class="text-gray-500 text-xs">No items</span>
-                                    @endif
+                                    <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
+                                        {{ $petCount }} {{ $petCount > 1 ? 'pets' : 'pet' }}
+                                    </span>
                                 </td>
                                 <td class="px-4 py-2 border">
-                                    <div class="font-bold text-lg">₱{{ number_format($grandTotal, 2) }}</div>
+                                    <div class="font-bold text-lg">₱{{ number_format($totalAmount, 2) }}</div>
                                 </td>
                                 <td class="px-4 py-2 border">
-                                    <div class="font-semibold text-green-600">₱{{ number_format($paidAmount, 2) }}</div>
-                                </td>
-                                <td class="px-4 py-2 border">
-                                    <div class="font-semibold {{ $balance > 0.01 ? 'text-red-600' : 'text-green-600' }}">
-                                        ₱{{ number_format(max(0, $balance), 2) }}
-                                    </div>
-                                </td>
-
-                                <td class="px-4 py-2 border">
-                                    @if($billingStatus === 'paid')
+                                    @if($status === 'paid' || $balance <= 0.01)
                                         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                            <i class="fas fa-check-circle mr-1"></i>
-                                            PAID
-                                        </span>
-                                    @elseif($billingStatus === 'partial')
-                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                            <i class="fas fa-clock mr-1"></i>
-                                            PARTIAL (₱{{ number_format(max(0, $balance), 2) }} due)
+                                            <i class="fas fa-check-circle mr-1"></i> PAID
                                         </span>
                                     @else
                                         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                            <i class="fas fa-clock mr-1"></i>
-                                            PENDING
+                                            <i class="fas fa-exclamation-circle mr-1"></i> UNPAID
                                         </span>
                                     @endif
                                 </td>
-
-                                <td class="px-4 py-2 border">{{ \Carbon\Carbon::parse($billing->bill_date)->format('M d, Y') }}</td>
+                                <td class="px-4 py-2 border">{{ \Carbon\Carbon::parse($billDate)->format('M d, Y') }}</td>
                                 <td class="px-4 py-2 border text-center">
-                                    <div class="flex flex-wrap justify-center items-center gap-1">
-                                        
-                                        @if(hasPermission('view_billing', $can))
-                                            {{-- View Button --}}
-                                            <button onclick="viewBilling(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="view"
-                                                data-bill-id="{{ $billing->bill_id }}"
-                                                data-owner="{{ $billing->visit?->pet?->owner?->own_name ?? 'N/A' }}"
-                                                data-pet="{{ $billing->visit?->pet?->pet_name ?? 'N/A' }}"
-                                                data-pet-species="{{ $billing->visit?->pet?->pet_species ?? 'N/A' }}"
-                                                data-pet-breed="{{ $billing->visit?->pet?->pet_breed ?? 'N/A' }}"
-                                                data-date="{{ \Carbon\Carbon::parse($billing->bill_date)->format('F d, Y') }}"
-                                                data-services-total="{{ $servicesTotal }}"
-                                                data-prescription-total="{{ $prescriptionTotal }}"
-                                                data-grand-total="{{ $grandTotal }}"
-                                                data-status="{{ $billingStatus }}"
-                                                data-services="{{ $billing->visit && $billing->visit->services ? $billing->visit->services->map(function($service) { return $service->serv_name . ' - ₱' . number_format($service->serv_price ?? 0, 2); })->implode('|') : 'No services' }}"
-                                                data-prescription-items="{{ json_encode($prescriptionItems) }}"
-                                                data-branch-name="{{ $billing->visit?->user?->branch?->branch_name ?? 'Main Branch' }}"
-                                                data-branch-address="{{ $billing->visit?->user?->branch?->branch_address ?? 'Branch Address' }}"
-                                                data-branch-contact="{{ $billing->visit?->user?->branch?->branch_contactNum ?? 'Contact Number' }}">
-                                                <i class="fas fa-eye"></i>
-                                            </button>
-                                        @endif
-                                        
-                                        @if($billingStatus !== 'paid' && $grandTotal > 0)
-                                            {{-- Pay Button (Dropdown) --}}
-                                            <div class="relative inline-block">
-                                                <button onclick="togglePaymentOptions({{ $billing->bill_id }})" 
-                                                    class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 text-xs" title="Pay">
-                                                    <i class="fas fa-money-bill"></i> <i class="fas fa-caret-down"></i>
-                                                </button>
-                                                <div id="paymentOptions{{ $billing->bill_id }}" class="hidden absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg z-10 border">
-                                                    {{-- Full payment opens modal with full amount pre-filled --}}
-                                                    <button onclick="initiatePayment({{ $billing->bill_id }}, {{ max(0, $balance) }}, 'full')" 
-                                                        class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                                        <i class="fas fa-check-double mr-2"></i>Full Payment
-                                                    </button>
-                                                    {{-- Initial payment opens modal for partial input --}}
-                                                    <button onclick="initiatePayment({{ $billing->bill_id }}, {{ max(0, $balance) }}, 'partial')" 
-                                                        class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                                        <i class="fas fa-coins mr-2"></i>Initial Payment
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        @else
-                                            <button onclick="openReceiptPopup({{ $billing->bill_id }})" 
-                                                class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="Receipt">
-                                                <i class="fas fa-receipt"></i>
-                                            </button>
-                                        @endif
-
-                                        @if(hasPermission('print_billing', $can))
-                                            <button onclick="directPrintBilling(this)" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="print"
-                                                data-bill-id="{{ $billing->bill_id }}"
-                                                data-owner="{{ $billing->visit?->pet?->owner?->own_name ?? 'N/A' }}"
-                                                data-pet="{{ $billing->visit?->pet?->pet_name ?? 'N/A' }}"
-                                                data-pet-species="{{ $billing->visit?->pet?->pet_species ?? 'N/A' }}"
-                                                data-pet-breed="{{ $billing->visit?->pet?->pet_breed ?? 'N/A' }}"
-                                                data-date="{{ \Carbon\Carbon::parse($billing->bill_date)->format('F d, Y') }}"
-                                                data-services-total="{{ $servicesTotal }}"
-                                                data-prescription-total="{{ $prescriptionTotal }}" 
-                                                data-grand-total="{{ $grandTotal }}"
-                                                data-status="{{ $billingStatus }}"
-                                                data-services="{{ $billing->visit && $billing->visit->services ? $billing->visit->services->map(function($service) { return $service->serv_name . ' - ₱' . number_format($service->serv_price ?? 0, 2); })->implode('|') : 'No services' }}"
-                                                data-prescription-items="{{ json_encode($prescriptionItems) }}"
-                                                data-branch-name="{{ $billing->visit?->user?->branch?->branch_name ?? 'Main Branch' }}"
-                                                data-branch-address="{{ $billing->visit?->user?->branch?->branch_address ?? 'Branch Address' }}"
-                                                data-branch-contact="{{ $billing->visit?->user?->branch?->branch_contactNum ?? 'Contact Number' }}">
-                                                <i class="fas fa-print"></i>
-                                            </button>
-                                        @endif
-
-                                        @if(hasPermission('delete_billing', $can))
-                                            <form method="POST" action="{{ route('sales.destroyBilling', $billing->bill_id) }}"
-                                                onsubmit="return confirm('Are you sure you want to delete this billing?');"
-                                                class="inline-block" title="delete">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit"
-                                                                class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center gap-1 text-xs">
-                                                    <i class="fas fa-trash"></i> 
-                                                </button>
-                                            </form>
-                                        @endif
+                                    @if($status !== 'paid' && $balance > 0.01)
+                                        <button onclick="payForOwner({{ $ownerId }}, '{{ $billDate }}', {{ max(0, $balance) }}, {{ $petCount }})" 
+                                            class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm font-bold shadow-md transition-colors">
+                                            <i class="fas fa-money-bill-wave mr-2"></i>Pay All
+                                        </button>
+                                    @else
+                                        <a href="{{ route('sales.grouped.billing.receipt', ['owner_id' => $ownerId, 'bill_date' => $billDate]) }}" target="_blank"
+                                            class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm font-bold shadow-md transition-colors inline-flex items-center">
+                                            <i class="fas fa-receipt mr-2"></i>Receipt
+                                        </a>
+                                    @endif
+                                </td>
+                            </tr>
+                            
+                            {{-- Expandable pet details row --}}
+                            <tr id="pets-{{ $index }}" class="hidden bg-gray-50">
+                                <td colspan="7" class="px-4 py-3">
+                                    <div class="bg-white rounded-lg shadow-sm p-4">
+                                        <h4 class="font-semibold text-gray-700 mb-3">Pet Details for {{ $owner->own_name }}</h4>
+                                        <table class="w-full">
+                                            <thead class="bg-gray-100">
+                                                <tr>
+                                                    <th class="px-3 py-2 text-left text-xs">Pet Name</th>
+                                                    <th class="px-3 py-2 text-left text-xs">Services</th>
+                                                    <th class="px-3 py-2 text-right text-xs">Total Amount</th>
+                                                    <th class="px-3 py-2 text-center text-xs">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($petBillings as $billing)
+                                                    @php
+                                                        $petTotal = (float) $billing->total_amount;
+                                                        // Fetch prescriptions for this pet on the visit date
+                                                        $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit?->pet_id)
+                                                            ->whereDate('prescription_date', $billing->visit?->visit_date)
+                                                            ->get();
+                                                    @endphp
+                                                    <tr class="border-b hover:bg-gray-50">
+                                                        <td class="px-3 py-2">
+                                                            <div class="font-medium">{{ $billing->visit?->pet?->pet_name ?? 'N/A' }}</div>
+                                                            <div class="text-xs text-gray-500">{{ $billing->visit?->pet?->pet_species ?? '' }}</div>
+                                                        </td>
+                                                        <td class="px-3 py-2 text-left">
+                                                            <div class="mb-1">
+                                                                <span class="font-semibold text-xs">Service(s)</span>
+                                                                @if($billing->visit && $billing->visit->services && $billing->visit->services->count() > 0)
+                                                                    @foreach($billing->visit->services as $service)
+                                                                        <div class="text-xs">• {{ $service->serv_name }} @if(isset($service->pivot->total_price) && $service->pivot->total_price > 0)- ₱{{ number_format($service->pivot->total_price, 2) }}@endif</div>
+                                                                    @endforeach
+                                                                @else
+                                                                    <span class="text-gray-400 text-xs">No services</span>
+                                                                @endif
+                                                            </div>
+                                                            @if($prescriptions->count() > 0)
+                                                                <div class="mt-1">
+                                                                    <span class="font-semibold text-xs">Prescription(s)</span>
+                                                                    @foreach($prescriptions as $prescription)
+                                                                        @php
+                                                                            $medications = json_decode($prescription->medication, true) ?? [];
+                                                                        @endphp
+                                                                        @foreach($medications as $med)
+                                                                            <div class="text-xs">• {{ $med['product_name'] ?? $med['name'] ?? 'Medication' }}@if(isset($med['price'])) - ₱{{ number_format($med['price'], 2) }}@endif</div>
+                                                                        @endforeach
+                                                                    @endforeach
+                                                                </div>
+                                                            @endif
+                                                        </td>
+                                                        <td class="px-3 py-2 text-right font-semibold text-blue-600">₱{{ number_format($petTotal, 2) }}</td>
+                                                        <td class="px-3 py-2 text-center">
+                                                            <div class="flex items-center justify-center gap-2">
+                                                                <button onclick="viewSingleBilling({{ $billing->bill_id }})" 
+                                                                    class="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs" title="View">
+                                                                    <i class="fas fa-eye mr-1"></i>View
+                                                                </button>
+                                                                <button onclick="printSingleBilling({{ $billing->bill_id }})" 
+                                                                    class="bg-purple-500 hover:bg-purple-600 text-white px-2 py-1 rounded text-xs" title="Print">
+                                                                    <i class="fas fa-print mr-1"></i>Print
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </td>
                             </tr>
@@ -396,6 +270,7 @@
         </div>
 
         {{-- Orders Tab Content (Unchanged) --}}
+        <!-- Removed duplicate ordersContent tab -->
         <div id="ordersContent" class="tab-content hidden">
             {{-- Description --}}
             <div class="bg-green-50 border border-green-200 rounded-md px-4 py-2 mb-4">
@@ -403,57 +278,6 @@
                     <i class="fas fa-shopping-cart text-green-500 mr-2"></i>
                     <strong>Direct POS Sales:</strong> Product sales made directly through the Point of Sale system (not linked to visit services)
                 </p>
-            </div>
-            
-            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
-                    <input type="hidden" name="tab" value="orders">
-                    <label for="ordersPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
-                    <select name="perPage" id="ordersPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
-                        @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                            <option value="{{ $limit }}" {{ request('perPage') == $limit ? 'selected' : '' }}>
-                                {{ $limit === 'all' ? 'All' : $limit }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <span class="whitespace-nowrap">entries</span>
-                </form>
-                <div class="relative flex-1 min-w-[200px] max-w-xs">
-                    <input type="search" id="ordersSearch" placeholder="Search sales..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
-                    <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                </div>
-                <div class="flex gap-2">
-                    <button onclick="exportSales()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
-                        Export CSV
-                    </button>
-                    <button onclick="showFilters()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
-                        Filter
-                    </button>
-                </div>
-            </div>
-            <div id="filterSection" class="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200 hidden">
-                <form method="GET" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                    <div class="col-span-1">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                        <input type="date" name="start_date" value="{{ request('start_date') }}" 
-                               class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
-                    </div>
-                    <div class="col-span-1">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                        <input type="date" name="end_date" value="{{ request('end_date') }}" 
-                               class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
-                    </div>
-                    <div class="col-span-1 flex items-end space-x-2">
-                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-medium whitespace-nowrap">
-                            <i class="fas fa-filter mr-1"></i> Apply Filter
-                        </button>
-                    </div>
-                    <div class="col-span-1 flex items-end">
-                        <a href="{{ request()->url() }}" class="w-full bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-medium text-center whitespace-nowrap">
-                            <i class="fas fa-undo mr-1"></i> Reset
-                        </a>
-                    </div>
-                </form>
             </div>
             <div class="overflow-x-auto">
                 <table class="table-auto w-full border-collapse border text-sm text-center">
@@ -472,71 +296,78 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($paginatedTransactions as $transactionId => $transaction)
-                            @php
-                                $orders = $transaction['orders'];
-                                $source = $transaction['source'];
-                                $billId = $transaction['bill_id'] ?? null;
-                                $firstOrder = $orders->first();
-                                $transactionTotal = $orders->sum(function($order) {
-                                    return $order->ord_quantity * ($order->product->prod_price ?? 0);
-                                });
-                                $totalItems = $orders->sum('ord_quantity');
-                            @endphp
-                            <tr class="hover:bg-gray-50">
-                                <td class="border px-4 py-2">{{ $loop->iteration + (($paginator->currentPage() - 1) * $paginator->perPage()) }}</td>
-                                <td class="border px-4 py-2 font-mono text-blue-600">
-                                    #{{ $transactionId }}
-                                </td>
-                                <td class="border px-4 py-2">
-                                    @if($source === 'Billing Payment')
-                                        <span class="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
-                                            <i class="fas fa-file-invoice mr-1"></i>
-                                            Billing #{{ $billId }}
+                        @php
+                            // Support both paginator and collection for paginatedTransactions
+                            $transactionsList = $paginatedTransactions instanceof \Illuminate\Pagination\LengthAwarePaginator
+                                ? $paginatedTransactions->items()
+                                : (is_array($paginatedTransactions) ? $paginatedTransactions : $paginatedTransactions->all());
+                        @endphp
+                        @if(!empty($transactionsList))
+                            @foreach($transactionsList as $transactionId => $transaction)
+                                @php
+                                    $orders = $transaction['orders'];
+                                    $source = $transaction['source'];
+                                    $billId = $transaction['bill_id'] ?? null;
+                                    $firstOrder = $orders->first();
+                                    $transactionTotal = $orders->sum(function($order) {
+                                        return $order->ord_quantity * ($order->product->prod_price ?? 0);
+                                    });
+                                    $totalItems = $orders->sum('ord_quantity');
+                                @endphp
+                                <tr class="hover:bg-gray-50">
+                                    <td class="border px-4 py-2">{{ $loop->iteration + (($paginator->currentPage() - 1) * $paginator->perPage()) }}</td>
+                                    <td class="border px-4 py-2 font-mono text-blue-600">
+                                        #{{ is_string($transactionId) ? $transactionId : (isset($transaction['transaction_id']) ? $transaction['transaction_id'] : 'N/A') }}
+                                    </td>
+                                    <td class="border px-4 py-2">
+                                        @if($source === 'Billing Payment')
+                                            <span class="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                                                <i class="fas fa-file-invoice mr-1"></i>
+                                                Billing #{{ $billId }}
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                                                <i class="fas fa-shopping-cart mr-1"></i>
+                                                Direct Sale
+                                            </span>
+                                        @endif
+                                    </td>
+                                    <td class="border px-4 py-2">
+                                        {{ \Carbon\Carbon::parse($firstOrder->ord_date)->format('M d, Y h:i A') }}
+                                    </td>
+                                    <td class="border px-4 py-2 text-left">
+                                        @foreach($orders as $order)
+                                            <div class="flex justify-between items-center py-1 {{ !$loop->last ? 'border-b border-gray-100' : '' }}">
+                                                <span class="text-gray-700">{{ $order->product->prod_name ?? 'N/A' }}</span>
+                                                <span class="text-sm text-gray-500 ml-2">×{{ $order->ord_quantity }}</span>
+                                            </div>
+                                        @endforeach
+                                    </td>
+                                    <td class="border px-4 py-2 font-semibold">
+                                        {{ $totalItems }}
+                                    </td>
+                                    <td class="border px-4 py-2 font-bold text-green-600">
+                                        ₱{{ number_format($transactionTotal, 2) }}
+                                    </td>
+                                    <td class="border px-4 py-2">
+                                        <span class="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full
+                                            {{ $firstOrder->owner ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800' }}">
+                                            {{ $firstOrder->owner->own_name ?? 'Walk-in Customer' }}
                                         </span>
-                                    @else
-                                        <span class="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                                            <i class="fas fa-shopping-cart mr-1"></i>
-                                            Direct Sale
-                                        </span>
-                                    @endif
-                                </td>
-                                <td class="border px-4 py-2">
-                                    {{ \Carbon\Carbon::parse($firstOrder->ord_date)->format('M d, Y h:i A') }}
-                                </td>
-                                <td class="border px-4 py-2 text-left">
-                                    @foreach($orders as $order)
-                                        <div class="flex justify-between items-center py-1 {{ !$loop->last ? 'border-b border-gray-100' : '' }}">
-                                            <span class="text-gray-700">{{ $order->product->prod_name ?? 'N/A' }}</span>
-                                            <span class="text-sm text-gray-500 ml-2">×{{ $order->ord_quantity }}</span>
-                                        </div>
-                                    @endforeach
-                                </td>
-                                <td class="border px-4 py-2 font-semibold">
-                                    {{ $totalItems }}
-                                </td>
-                                <td class="border px-4 py-2 font-bold text-green-600">
-                                    ₱{{ number_format($transactionTotal, 2) }}
-                                </td>
-                                <td class="border px-4 py-2">
-                                    <span class="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full
-                                        {{ $firstOrder->owner ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800' }}">
-                                        {{ $firstOrder->owner->own_name ?? 'Walk-in Customer' }}
-                                    </span>
-                                </td>
-                                <td class="border px-4 py-2">
-                                    {{ $firstOrder->user->user_name ?? 'N/A' }}
-                                </td>
-                                <td class="border px-4 py-2">
-                                    <button onclick="viewTransaction('{{ $transactionId }}')" 
-                                            class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
-                                            title="View Transaction Details">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                    
-                                </td>
-                            </tr>
-                        @empty
+                                    </td>
+                                    <td class="border px-4 py-2">
+                                        {{ $firstOrder->user->user_name ?? 'N/A' }}
+                                    </td>
+                                    <td class="border px-4 py-2">
+                                        <button onclick="viewTransaction('{{ is_string($transactionId) ? $transactionId : (isset($transaction['transaction_id']) ? $transaction['transaction_id'] : 'N/A') }}')" 
+                                                class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
+                                                title="View Transaction Details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        @else
                             <tr>
                                 <td colspan="10" class="py-8 text-gray-500">
                                     <div class="text-center">
@@ -546,16 +377,14 @@
                                     </div>
                                 </td>
                             </tr>
-                        @endforelse
+                        @endif
                     </tbody>
                 </table>
             </div>
-
             <div class="mt-6">
                 {{ $paginator->appends(request()->query())->links() }}
             </div>
-
-            @if($paginatedTransactions->count() > 0)
+            @if(isset($paginatedTransactions) && $paginatedTransactions->count() > 0)
                 <div class="mt-4 text-sm text-gray-600 text-center">
                     Showing {{ $paginator->firstItem() }} to {{ $paginator->lastItem() }} of {{ $paginator->total() }} transactions
                 </div>
@@ -1118,6 +947,8 @@
 }
 </style>
 
+{{-- SweetAlert2 CDN --}}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
 // Global variables
@@ -1181,6 +1012,185 @@ document.addEventListener('click', function(event) {
         });
     }
 });
+
+// Toggle pet details for grouped billing
+function togglePetDetails(index) {
+    const row = document.getElementById('pets-' + index);
+    const icon = document.getElementById('icon-' + index);
+    
+    if (row && icon) {
+        row.classList.toggle('hidden');
+        icon.classList.toggle('fa-chevron-right');
+        icon.classList.toggle('fa-chevron-down');
+    }
+}
+
+// Pay for all pets of an owner (grouped payment - FULL PAYMENT ONLY)
+function payForOwner(ownerId, billDate, balance, petCount) {
+    if (balance <= 0) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Already Paid',
+            text: 'This billing group has been fully paid.',
+            confirmButtonColor: '#10b981'
+        });
+        return;
+    }
+    
+    Swal.fire({
+        title: 'Full Payment for All Pets',
+        html: `
+            <div class="text-center mb-4">
+                <p class="text-gray-600 mb-2">Payment for ${petCount} pet(s)</p>
+                <p class="text-2xl font-bold text-green-600 mb-4">₱${balance.toFixed(2)}</p>
+                <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4">
+                    <p class="text-sm text-yellow-800">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Full payment only - all pets will be marked as paid
+                    </p>
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="block text-left text-gray-700 font-semibold mb-2">Cash Amount</label>
+                <input type="number" id="groupCashAmount" class="w-full px-4 py-2 border rounded-lg" 
+                       placeholder="Enter cash amount" step="0.01" min="${balance}" value="${balance}">
+            </div>
+            <div class="text-left bg-gray-50 p-3 rounded">
+                <p class="text-gray-700">Change: <span id="groupChange" class="font-bold text-green-600">₱0.00</span></p>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Confirm Full Payment',
+        confirmButtonColor: '#10b981',
+        cancelButtonText: 'Cancel',
+        preConfirm: () => {
+            const cashAmount = parseFloat(document.getElementById('groupCashAmount').value);
+            if (!cashAmount || cashAmount <= 0) {
+                Swal.showValidationMessage('Please enter a valid cash amount');
+                return false;
+            }
+            if (cashAmount < balance) {
+                Swal.showValidationMessage('Cash amount must be at least ₱' + balance.toFixed(2) + ' for full payment');
+                return false;
+            }
+            return cashAmount;
+        },
+        didOpen: () => {
+            const input = document.getElementById('groupCashAmount');
+            const changeDisplay = document.getElementById('groupChange');
+            
+            // Set initial value and calculate change
+            input.value = balance.toFixed(2);
+            
+            input.addEventListener('input', function() {
+                const cashAmount = parseFloat(this.value) || 0;
+                const change = cashAmount - balance;
+                changeDisplay.textContent = '₱' + (change >= 0 ? change.toFixed(2) : '0.00');
+            });
+            
+            // Trigger initial calculation
+            input.dispatchEvent(new Event('input'));
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const cashAmount = result.value;
+            
+            // Send payment request
+            fetch('/sales/billing-group/mark-paid', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({
+                    owner_id: ownerId,
+                    bill_date: billDate,
+                    cash_amount: cashAmount
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Payment Successful',
+                        text: `Payment of ₱${cashAmount.toFixed(2)} has been recorded for all pets.`,
+                        confirmButtonColor: '#10b981'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Payment Failed',
+                        text: data.message || 'Unable to process payment',
+                        confirmButtonColor: '#ef4444'
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'An error occurred while processing payment',
+                    confirmButtonColor: '#ef4444'
+                });
+            });
+        }
+    });
+}
+
+// View single pet billing details
+function viewSingleBilling(billId) {
+    fetch(`/sales/billing/${billId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const billing = data.billing;
+                Swal.fire({
+                    title: 'Billing Details',
+                    html: `
+                        <div class="text-left space-y-3">
+                            <div><strong>Pet:</strong> ${billing.pet_name}</div>
+                            <div><strong>Owner:</strong> ${billing.owner_name}</div>
+                            <div><strong>Date:</strong> ${billing.bill_date}</div>
+                            <div><strong>Services:</strong> ${billing.services}</div>
+                            <hr class="my-3">
+                            <div><strong>Total Amount:</strong> ₱${parseFloat(billing.total_amount).toFixed(2)}</div>
+                            <div><strong>Paid Amount:</strong> ₱${parseFloat(billing.paid_amount).toFixed(2)}</div>
+                            <div><strong>Balance:</strong> ₱${parseFloat(billing.balance).toFixed(2)}</div>
+                            <div><strong>Status:</strong> <span class="px-2 py-1 rounded ${billing.status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${billing.status}</span></div>
+                        </div>
+                    `,
+                    confirmButtonText: 'Close',
+                    confirmButtonColor: '#6366f1',
+                    width: '500px'
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Unable to load billing details',
+                    confirmButtonColor: '#ef4444'
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'An error occurred while loading billing details',
+                confirmButtonColor: '#ef4444'
+            });
+        });
+}
+
+// Print single pet billing
+function printSingleBilling(billId) {
+    window.open(`/sales/billing/${billId}/receipt`, '_blank', 'width=800,height=600');
+}
 
 // Initiate payment (from dropdown)
 function initiatePayment(billId, balance, type) {

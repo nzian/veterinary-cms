@@ -771,6 +771,8 @@ document.addEventListener("DOMContentLoaded", function () {
         posItems.innerHTML = "";
         updateTotals();
         document.getElementById("petOwner").selectedIndex = 0;
+        // Fully reload the page to reset all state for next transaction
+        setTimeout(() => { window.location.reload(); }, 200);
     });
 
     // Close modals when clicking outside
