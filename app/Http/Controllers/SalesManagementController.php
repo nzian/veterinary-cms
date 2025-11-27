@@ -1314,7 +1314,7 @@ class SalesManagementController extends Controller
         $productsTotal = $billing->orders->sum(function($order) {
             return $order->ord_quantity * ($order->product->prod_price ?? 0);
         });
-
+        $productsTotal = 0;
         $grandTotal = $servicesTotal + $prescriptionTotal + $productsTotal;
         
         // Get branch info from visit user
