@@ -542,14 +542,14 @@ class NotificationService
             
             $recentVisits = DB::table('tbl_visit_record')
                 ->join('tbl_pet', 'tbl_visit_record.pet_id', '=', 'tbl_pet.pet_id')
-                ->leftJoin('tbl_owner', 'tbl_pet.own_id', '=', 'tbl_owner.own_id')
+                ->leftJoin('tbl_own', 'tbl_pet.own_id', '=', 'tbl_own.own_id')
                 ->where('tbl_visit_record.created_at', '>=', Carbon::now()->subDay())
-                ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+               /* ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('tbl_visit_record.branch_id', $activeBranchId);
-                })
+                })*/
                 ->orderBy('tbl_visit_record.created_at', 'desc')
                 ->limit(10)
-                ->select('tbl_visit_record.*', 'tbl_pet.pet_name', 'tbl_owner.own_name')
+                ->select('tbl_visit_record.*', 'tbl_pet.pet_name', 'tbl_own.own_name')
                 ->get();
 
             foreach ($recentVisits as $visit) {
@@ -586,7 +586,6 @@ class NotificationService
             
             $recentReferrals = DB::table('tbl_ref')
                 ->join('tbl_pet', 'tbl_ref.pet_id', '=', 'tbl_pet.pet_id')
-                ->leftJoin('tbl_referral_company', 'tbl_ref.ref_company_id', '=', 'tbl_referral_company.id')
                 ->where('tbl_ref.ref_date', '>=', Carbon::now()->subDays(7))
                 ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where(function($q) use ($activeBranchId) {
@@ -595,7 +594,7 @@ class NotificationService
                     });
                 })
                 ->orderBy('tbl_ref.ref_date', 'desc')
-                ->select('tbl_ref.*', 'tbl_pet.pet_name', 'tbl_referral_company.company_name')
+                ->select('tbl_ref.*', 'tbl_pet.pet_name')
                 ->get();
 
             foreach ($recentReferrals as $referral) {
@@ -630,29 +629,29 @@ class NotificationService
             
             $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
             
-            $recentPayments = DB::table('tbl_payment')
-                ->join('tbl_bill', 'tbl_payment.bill_id', '=', 'tbl_bill.bill_id')
+            $recentPayments = DB::table('tbl_pay')
+                ->join('tbl_bill', 'tbl_pay.bill_id', '=', 'tbl_bill.bill_id')
                 ->join('tbl_visit_record', 'tbl_bill.visit_id', '=', 'tbl_visit_record.visit_id')
                 ->join('tbl_pet', 'tbl_visit_record.pet_id', '=', 'tbl_pet.pet_id')
-                ->where('tbl_payment.created_at', '>=', Carbon::now()->subDays(7))
-                ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                ->where('tbl_pay.created_at', '>=', Carbon::now()->subDays(7))
+                /*->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('tbl_visit_record.branch_id', $activeBranchId);
-                })
-                ->orderBy('tbl_payment.created_at', 'desc')
-                ->select('tbl_payment.*', 'tbl_pet.pet_name', 'tbl_bill.bill_total')
+                })*/
+                ->orderBy('tbl_pay.created_at', 'desc')
+                ->select('tbl_pay.*', 'tbl_pet.pet_name', 'tbl_bill.total_amount')
                 ->get();
 
             foreach ($recentPayments as $payment) {
                 $alerts[] = [
-                    'id' => 'payment_' . $payment->payment_id,
+                    'id' => 'payment_' . $payment->pay_id,
                     'type' => 'payment_alert',
                     'icon' => 'fa-money-bill-wave',
                     'color' => 'green',
                     'title' => 'Payment Received',
-                    'message' => 'Payment of ₱' . number_format($payment->payment_amount, 2) . ' received for ' . ($payment->pet_name ?? 'Pet'),
+                    'message' => 'Payment of ₱' . number_format($payment->pay_total, 2) . ' received for ' . ($payment->pet_name ?? 'Pet'),
                     'timestamp' => $payment->created_at,
-                    'route' => route('billing-reports.index'),
-                    'is_read' => $this->isNotificationRead('payment_' . $payment->payment_id)
+                    'route' => route('sales.index'),
+                    'is_read' => $this->isNotificationRead('payment_' . $payment->pay_id)
                 ];
             }
         } catch (\Exception $e) {
@@ -678,30 +677,30 @@ class NotificationService
                 ->join('tbl_visit_record', 'tbl_boarding_record.visit_id', '=', 'tbl_visit_record.visit_id')
                 ->join('tbl_pet', 'tbl_boarding_record.pet_id', '=', 'tbl_pet.pet_id')
                 ->where(function($query) {
-                    $query->whereDate('tbl_boarding_record.checkout_date', '<=', Carbon::today())
-                          ->orWhereNull('tbl_boarding_record.checkout_date');
+                    $query->whereDate('tbl_boarding_record.check_out_date', '<=', Carbon::today())
+                          ->orWhereNull('tbl_boarding_record.check_out_date');
                 })
                 ->where('tbl_boarding_record.status', '!=', 'completed')
-                ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+               /* ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('tbl_visit_record.branch_id', $activeBranchId);
-                })
-                ->orderBy('tbl_boarding_record.checkout_date', 'asc')
+                })*/
+                ->orderBy('tbl_boarding_record.check_out_date', 'asc')
                 ->select('tbl_boarding_record.*', 'tbl_pet.pet_name')
                 ->get();
 
             foreach ($checkouts as $boarding) {
-                $isOverdue = $boarding->checkout_date && Carbon::parse($boarding->checkout_date)->isPast();
+                $isOverdue = $boarding->check_out_date && Carbon::parse($boarding->check_out_date)->isPast();
                 
                 $alerts[] = [
-                    'id' => 'boarding_' . $boarding->boarding_id,
+                    'id' => 'boarding_' . $boarding->board_id,
                     'type' => 'boarding_alert',
                     'icon' => 'fa-door-open',
                     'color' => $isOverdue ? 'red' : 'orange',
                     'title' => $isOverdue ? 'Boarding Overdue' : 'Boarding Checkout Today',
                     'message' => ($boarding->pet_name ?? 'Pet') . ' ' . ($isOverdue ? 'overdue for checkout' : 'checking out today'),
-                    'timestamp' => $boarding->checkout_date ?? $boarding->updated_at,
+                    'timestamp' => $boarding->check_out_date ?? $boarding->updated_at,
                     'route' => route('medical.index') . '?tab=boarding',
-                    'is_read' => $this->isNotificationRead('boarding_' . $boarding->boarding_id)
+                    'is_read' => $this->isNotificationRead('boarding_' . $boarding->board_id)
                 ];
             }
         } catch (\Exception $e) {

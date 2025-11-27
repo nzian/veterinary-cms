@@ -398,7 +398,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         $visitModel->refresh();
         $allServices = $visitModel->services()->get();
         if ($allServices->isNotEmpty() && Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
-            $typesSummary = $allServices->pluck('serv_name')->implode(', ');
+            $typesSummary = $allServices->pluck('serv_type')->implode(', ');
             $visitModel->visit_service_type = $typesSummary;
             $visitModel->save();
         }
@@ -437,7 +437,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
             'remarks' => ['nullable','string'], 
             'workflow_status' => ['nullable','string'],
         ]);
-        
+        //dd($validated);
         $visitModel = Visit::with('pet.owner', 'services')->findOrFail($visitId);
         
         try {
@@ -481,6 +481,10 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                         $query->where('prod_name', $validated['vaccine_name']);
                     }])
                     ->first();
+            }
+            // check if any same type service exist in pivot table
+            if($visitModel->services()->where('tbl_serv.serv_type', $selectedService->serv_type)->exists()){
+                $visitModel->services()->where('tbl_serv.serv_type', $selectedService->serv_type)->detach();            
             }
             
             if ($selectedService && $selectedService->products->isNotEmpty()) {
@@ -641,6 +645,10 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
             }
             
             if ($selectedService && $selectedService->products->isNotEmpty()) {
+                 // check if any same type service exist in pivot table
+                if($visitModel->services()->where('tbl_serv.serv_type', $selectedService->serv_type)->exists()){
+                    $visitModel->services()->where('tbl_serv.serv_type', $selectedService->serv_type)->detach();            
+                }
                 $dewormer = $selectedService->products->first();
                 $quantityUsed = $dewormer->pivot->quantity_used ?? 1;
                 
@@ -817,6 +825,7 @@ public function completeService(Request $request, $visitId, $serviceId)
     
     public function saveGrooming(Request $request, $visitId)
     {
+        //dd($request->all());
         $validated = $request->validate([
             'grooming_type' => ['required','string','max:255'],
             'addon_services' => ['nullable','array'],
@@ -939,7 +948,7 @@ public function completeService(Request $request, $visitId, $serviceId)
         $visitModel->refresh();
         $allServices = $visitModel->services()->get();
         if ($allServices->isNotEmpty()) {
-            $typesSummary = $allServices->pluck('serv_name')->implode(', ');
+            $typesSummary = $allServices->pluck('serv_type')->implode(', ');
             $visitModel->visit_service_type = $typesSummary;
             $visitModel->save();
         }
@@ -1218,6 +1227,10 @@ public function completeService(Request $request, $visitId, $serviceId)
         if (!empty($validated['anesthesia']) && !empty($validated['service_id'])) {
             $selectedService = Service::find($validated['service_id']);
             if ($selectedService) {
+                // check if any same type service exist in pivot table
+                if($visitModel->services()->where('tbl_serv.serv_type', $selectedService->serv_type)->exists()){
+                    $visitModel->services()->where('tbl_serv.serv_type', $selectedService->serv_type)->detach();            
+                }
                 $anesthesiaProduct = $selectedService->products()
                     ->where('prod_name', $validated['anesthesia'])
                     ->first();

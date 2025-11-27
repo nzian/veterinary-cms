@@ -120,6 +120,7 @@
                     <tbody>
                         @forelse($billings as $index => $groupedBilling)
                             @php
+                                
                                 // Support both array and object access
                                 $owner = is_array($groupedBilling) ? $groupedBilling['owner'] : $groupedBilling->owner;
                                 $totalAmount = is_array($groupedBilling) ? $groupedBilling['total_amount'] : $groupedBilling->total_amount;
@@ -230,6 +231,27 @@
                                                 @foreach($petBillings as $billing)
                                                     @php
                                                         $petTotal = (float) $billing->total_amount;
+                                                        if($petTotal <= 0) {
+                                                            // Calculate from visit services and prescriptions if total_amount is zero or not set
+                                                            $petTotal = 0;
+                                                            if($billing->visit && $billing->visit->services) {
+                                                                foreach($billing->visit->services as $service) {
+                                                                    $servicePrice = isset($service->pivot->total_price) ? (float)$service->pivot->total_price : 0;
+                                                                    $petTotal += $servicePrice;
+                                                                }
+                                                            }
+                                                            // Add prescription costs
+                                                            $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit?->pet_id)
+                                                                ->whereDate('prescription_date', $billing->visit?->visit_date)
+                                                                ->get();
+                                                            foreach($prescriptions as $prescription) {
+                                                                $medications = json_decode($prescription->medication, true) ?? [];
+                                                                foreach($medications as $med) {
+                                                                    $medPrice = isset($med['price']) ? (float)$med['price'] : 0;
+                                                                    $petTotal += $medPrice;
+                                                                }
+                                                            }
+                                                        }
                                                         // Fetch prescriptions for this pet on the visit date
                                                         $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit?->pet_id)
                                                             ->whereDate('prescription_date', $billing->visit?->visit_date)
