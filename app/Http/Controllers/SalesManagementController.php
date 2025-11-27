@@ -267,6 +267,7 @@ class SalesManagementController extends Controller
             $date = $billing->bill_date;
             return $ownerId . '_' . $date;
         })->map(function($group) {
+           // dd($group);
             $firstBilling = $group->first();
             $owner = $firstBilling->owner ?? $firstBilling->visit->pet->owner;
 
@@ -295,14 +296,34 @@ class SalesManagementController extends Controller
                 $balance = round($totalAmount - $paidAmount, 2);
             } else {
                 // Fallback: sum all services as before
+                
                 $totalAmount = $group->sum('total_amount');
+                if($totalAmount <= 0){
+                    // recalculate from visit services
+                    $totalAmount = 0;
+                    foreach($group as $billing){
+                        if($billing->visit && $billing->visit->services){
+                            foreach($billing->visit->services as $service){
+                                $price = 0;
+                                if (isset($service->pivot->total_price) && $service->pivot->total_price > 0) {
+                                    $price = $service->pivot->total_price;
+                                } elseif (isset($service->pivot->unit_price) && $service->pivot->unit_price > 0) {
+                                    $price = $service->pivot->unit_price * ($service->pivot->quantity ?? 1);
+                                } elseif (isset($service->serv_price) && $service->serv_price > 0) {
+                                    $price = $service->serv_price;
+                                }
+                                $totalAmount += $price;
+                            }
+                        }
+                    }
+                }
                 $paidAmount = $group->sum('paid_amount');
                 $balance = round($totalAmount - $paidAmount, 2);
             }
 
             // Status: determine group-level status. If all paid => 'paid'.
             // If any billing in the group has 'paid 50%', mark group as 'paid 50%'. Otherwise 'unpaid'.
-            $allPaid = $group->every(function($b) { return strtolower($b->bill_status ?? '') === 'paid' || (float)$b->total_amount - (float)$b->paid_amount <= 0.01; });
+            $allPaid = $group->every(function($b) use ($totalAmount) { return strtolower($b->bill_status ?? '') === 'paid' || (float)$totalAmount - (float)$b->paid_amount <= 0.01; });
             $anyPaid50 = $group->contains(function($b) { return strtolower($b->bill_status ?? '') === 'paid 50%'; });
 
             if ($allPaid && $totalAmount > 0) {
@@ -326,7 +347,7 @@ class SalesManagementController extends Controller
                 'billing_group_id' => $firstBilling->billing_group_id ?? 'SINGLE_' . $firstBilling->bill_id,
             ];
         })->values();
-
+        //dd($groupedBillings);
         // Paginate the grouped results
         $page = $request->get('page', 1);
         $perPage = 10;
@@ -632,7 +653,7 @@ class SalesManagementController extends Controller
     public function showBilling($id)
     {
         try {
-            $billing = Billing::with(['visit.pet.owner', 'visit.services'])->findOrFail($id);
+            $billing = Billing::with(['visit.pet.owner', 'visit.services', 'orders'])->findOrFail($id);
             
             // Calculate services
             $services = $billing->visit->services->map(function($service) {
@@ -642,6 +663,23 @@ class SalesManagementController extends Controller
             })->implode(', ');
             
             $totalAmount = (float) $billing->total_amount;
+            if($totalAmount <= 0){
+                // recalculate from visit services
+                $totalAmount = 0;
+                if($billing->visit && $billing->visit->services){
+                    foreach($billing->visit->services as $service){
+                        $price = 0;
+                        if (isset($service->pivot->total_price) && $service->pivot->total_price > 0) {
+                            $price = $service->pivot->total_price;
+                        } elseif (isset($service->pivot->unit_price) && $service->pivot->unit_price > 0) {
+                            $price = $service->pivot->unit_price * ($service->pivot->quantity ?? 1);
+                        } elseif (isset($service->serv_price) && $service->serv_price > 0) {
+                            $price = $service->serv_price;
+                        }
+                        $totalAmount += $price;
+                    }
+                }
+            }
             $paidAmount = (float) $billing->paid_amount;
             $balance = round($totalAmount - $paidAmount, 2);
             
@@ -706,6 +744,25 @@ class SalesManagementController extends Controller
             $totalPaidSoFar = 0;
             
             foreach ($billings as $billing) {
+                if((float) $billing->total_amount <= 0){
+                    // recalculate from visit services
+                    $recalculatedTotal = 0;
+                    if($billing->visit && $billing->visit->services){
+                        foreach($billing->visit->services as $service){
+                            $price = 0;
+                            if (isset($service->pivot->total_price) && $service->pivot->total_price > 0) {
+                                $price = $service->pivot->total_price;
+                            } elseif (isset($service->pivot->unit_price) && $service->pivot->unit_price > 0) {
+                                $price = $service->pivot->unit_price * ($service->pivot->quantity ?? 1);
+                            } elseif (isset($service->serv_price) && $service->serv_price > 0) {
+                                $price = $service->serv_price;
+                            }
+                            $recalculatedTotal += $price;
+                        }
+                    }
+                    $billing->total_amount = $recalculatedTotal;
+                    $billing->save();
+                }
                 $grandTotal += (float) $billing->total_amount;
                 $totalPaidSoFar += (float) $billing->paid_amount;
             }

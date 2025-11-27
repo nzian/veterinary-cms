@@ -42,7 +42,7 @@ trait BranchDataScope
                 } 
                 
                 // B. Indirect Association (Pets, Owners, Appointments)
-                else if ($branchIdColumn === 'user_id' || in_array($table, ['tbl_pet', 'tbl_owner', 'tbl_appoint'])) {
+                else if ($branchIdColumn === 'user_id' || in_array($table, ['tbl_pet', 'tbl_own', 'tbl_appoint'])) {
                     // This is for records managed by users within the branch.
                     $branchUserIds = \App\Models\User::where('branch_id', $activeBranchId)->pluck('user_id');
                     
