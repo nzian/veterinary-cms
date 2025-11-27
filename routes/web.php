@@ -209,6 +209,9 @@ Route::put('appointments/{appointmentId}/record-vaccine-details', [MedicalManage
     Route::get('/medical-management/prescriptions/{id}/edit', [MedicalManagementController::class, 'editPrescription'])
     ->name('medical.prescriptions.edit');
 
+    // Boarding display (GET) for medical-management prefix
+    Route::get('/visits/{visit}/boarding', [MedicalManagementController::class, 'showBoarding'])->name('medical.visits.boarding.show');
+
     // Referral routes 
     Route::get('/referrals', [MedicalManagementController::class, 'index'])->name('medical.referrals.index');
     Route::post('/referrals', [MedicalManagementController::class, 'storeReferral'])->name('medical.referrals.store');

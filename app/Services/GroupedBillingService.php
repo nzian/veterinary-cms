@@ -8,6 +8,7 @@ use App\Models\Owner;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Models\Payment;
 
 class GroupedBillingService
 {
@@ -88,14 +89,14 @@ class GroupedBillingService
     /**
      * Generate individual billing for a single visit
      */
-    public function generateSingleBilling($visitId)
+    public function generateSingleBilling($visitId, $force = false)
     {
         DB::beginTransaction();
         
         try {
             $visit = Visit::with(['pet.owner', 'services', 'user'])->findOrFail($visitId);
             
-            if ($visit->workflow_status !== 'Completed') {
+            if (!$force && $visit->workflow_status !== 'Completed') {
                 throw new \Exception("Visit is not completed yet (workflow_status: {$visit->workflow_status})");
             }
             
@@ -116,6 +117,34 @@ class GroupedBillingService
                 'paid_amount' => 0,
                 'is_group_parent' => true, // Single billing is its own parent
             ]);
+
+            // If this visit includes a boarding service, create a partial-payment placeholder
+            // so front-end can offer a half-payment option. This placeholder is created with
+            // status 'pending' and payment_type 'partial' and SHOULD NOT be counted as paid
+            // until an actual payment transaction is recorded (status => 'paid').
+            try {
+                $hasBoarding = $visit->services->contains(function ($s) {
+                    $servType = strtolower($s->serv_type ?? '');
+                    $servName = strtolower($s->serv_name ?? '');
+                    return $servType === 'boarding' || strpos($servName, 'boarding') === 0;
+                });
+
+                if ($hasBoarding && $billing && $billing->total_amount > 0) {
+                    $partialAmount = round($billing->total_amount / 2, 2);
+                    Payment::create([
+                        'bill_id' => $billing->bill_id,
+                        'pay_total' => $partialAmount,
+                        'pay_cashAmount' => 0,
+                        'pay_change' => 0,
+                        'payment_type' => 'partial',
+                        'payment_date' => now(),
+                        'transaction_id' => 'PARTIAL-' . $billing->bill_id . '-' . time(),
+                        'status' => 'pending'
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Failed to create partial-payment placeholder: ' . $e->getMessage());
+            }
             
             DB::commit();
             

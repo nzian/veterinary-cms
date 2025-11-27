@@ -172,7 +172,15 @@
                     <form id="payForm" method="POST" action="{{ route('sales.markAsPaid', $billing->bill_id) }}" class="hidden">
                         @csrf
                         <input type="hidden" name="cash_amount" id="cash_amount_field" value="0">
+                        <input type="hidden" name="payment_type" id="payment_type_field" value="full">
                     </form>
+                    @php
+                        // Check if there is a pending partial placeholder created for boarding
+                        $pendingPartial = $billing->payments()->where('payment_type', 'partial')->where('status', 'pending')->first();
+                    @endphp
+                    @if($pendingPartial)
+                        <button type="button" id="payPartialBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded text-xs sm:text-sm" title="Pay 50% partial">Pay Partial (50%)</button>
+                    @endif
                 @else
                     <button onclick="openReceiptPopup({{ $billing->bill_id }})" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-xs sm:text-sm">
                         <i class="fas fa-receipt mr-1"></i> Receipt
@@ -486,8 +494,28 @@
             // Submit to mark as paid (server handles visit completion and redirect)
             const cashField = document.getElementById('cash_amount_field');
             if (cashField) cashField.value = cash.toFixed(2);
+            const paymentTypeField = document.getElementById('payment_type_field');
+            // Only set to full if not intentionally set to partial by a pre-fill
+            if (paymentTypeField && paymentTypeField.value !== 'partial') paymentTypeField.value = 'full';
             payForm.submit();
         });
+
+        // Pay Partial button handler: open the same modal pre-filled with placeholder amount
+        const payPartialBtn = document.getElementById('payPartialBtn');
+        if (payPartialBtn) {
+            payPartialBtn.addEventListener('click', ()=>{
+                const pendingAmount = {{ $pendingPartial ? ($pendingPartial->pay_total + 0) : 0 }};
+                // Open modal and pre-fill cash input
+                modal.classList.remove('hidden');
+                cashInput.value = parseFloat(pendingAmount).toFixed(2);
+                // Trigger input event to update change and enable confirm
+                cashInput.dispatchEvent(new Event('input'));
+                const paymentTypeField = document.getElementById('payment_type_field');
+                if (paymentTypeField) paymentTypeField.value = 'partial';
+                // focus confirm button to allow user to confirm
+                setTimeout(()=> confirmBtn.focus(), 150);
+            });
+        }
     })();
     </script>
 </div>

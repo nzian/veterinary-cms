@@ -130,6 +130,25 @@
                                 $billDate = is_array($groupedBilling) ? $groupedBilling['bill_date'] : $groupedBilling->bill_date;
                                 $petBillings = is_array($groupedBilling) ? $groupedBilling['billings'] : $groupedBilling->billings;
                                 $ownerId = is_array($groupedBilling) ? $groupedBilling['owner_id'] : $groupedBilling->owner_id;
+                                // determine if any billing in this owner group has a boarding service
+                                $groupHasBoarding = false;
+                                foreach ($petBillings as $pb) {
+                                    $b = is_array($pb) ? (object)$pb : $pb;
+                                    if (isset($b->visit) && $b->visit && isset($b->visit->services)) {
+                                        foreach ($b->visit->services as $s) {
+                                            $servType = strtolower($s->serv_type ?? '');
+                                            $servName = strtolower($s->serv_name ?? '');
+                                            if ($servType === 'boarding' || str_contains($servName, 'boarding')) { $groupHasBoarding = true; break 2; }
+                                        }
+                                    }
+                                }
+                                // check if group partial (50%) already paid
+                                $groupPartialPaid = false;
+                                foreach ($petBillings as $pb) {
+                                    $billObj = is_array($pb) ? (object)$pb : $pb;
+                                    if ($billObj->payments()->where('payment_type', 'partial')->where('status', 'paid')->exists()) { $groupPartialPaid = true; break; }
+                                    if (strtolower($billObj->bill_status ?? '') === 'paid 50%') { $groupPartialPaid = true; break; }
+                                }
                             @endphp
                             
                             {{-- Main Owner Row --}}
@@ -147,13 +166,19 @@
                                         {{ $petCount }} {{ $petCount > 1 ? 'pets' : 'pet' }}
                                     </span>
                                 </td>
-                                <td class="px-4 py-2 border">
-                                    <div class="font-bold text-lg">₱{{ number_format($totalAmount, 2) }}</div>
+                                <td class="px-4 py-2 border text-left">
+                                    <div class="text-sm text-gray-500">Total</div>
+                                    <div class="font-bold text-lg text-blue-600">₱{{ number_format($totalAmount, 2) }}</div>
+                                    <div class="text-sm text-gray-700 mt-1">Remaining: <span class="font-semibold">₱{{ number_format($balance, 2) }}</span></div>
                                 </td>
                                 <td class="px-4 py-2 border">
                                     @if($status === 'paid' || $balance <= 0.01)
                                         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                             <i class="fas fa-check-circle mr-1"></i> PAID
+                                        </span>
+                                    @elseif(strtolower($status) === 'paid 50%')
+                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                            <i class="fas fa-hand-holding-dollar mr-1"></i> PAID 50%
                                         </span>
                                     @else
                                         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
@@ -163,16 +188,26 @@
                                 </td>
                                 <td class="px-4 py-2 border">{{ \Carbon\Carbon::parse($billDate)->format('M d, Y') }}</td>
                                 <td class="px-4 py-2 border text-center">
-                                    @if($status !== 'paid' && $balance > 0.01)
-                                        <button onclick="payForOwner({{ $ownerId }}, '{{ $billDate }}', {{ max(0, $balance) }}, {{ $petCount }})" 
-                                            class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm font-bold shadow-md transition-colors">
-                                            <i class="fas fa-money-bill-wave mr-2"></i>Pay All
+                                    @php $groupPartialAmount = round(($totalAmount * 0.5), 2); @endphp
+                                    @if($groupHasBoarding && !$groupPartialPaid)
+                                        {{-- Show owner-level partial (50%) and hide Pay All until partial paid --}}
+                                        <button onclick="payPartialForOwner({{ $ownerId }}, '{{ $billDate }}', {{ $groupPartialAmount }}, {{ $petCount }})" 
+                                            class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 text-sm font-bold shadow-md transition-colors">
+                                            <i class="fas fa-hand-holding-dollar mr-2"></i>Pay Partial (50%) ₱{{ number_format($groupPartialAmount, 2) }}
                                         </button>
                                     @else
-                                        <a href="{{ route('sales.grouped.billing.receipt', ['owner_id' => $ownerId, 'bill_date' => $billDate]) }}" target="_blank"
-                                            class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm font-bold shadow-md transition-colors inline-flex items-center">
-                                            <i class="fas fa-receipt mr-2"></i>Receipt
-                                        </a>
+                                        {{-- Show Pay All when no boarding partial required, or after partial paid --}}
+                                        @if($status !== 'paid' && $balance > 0.01)
+                                            <button onclick="payForOwner({{ $ownerId }}, '{{ $billDate }}', {{ max(0, $balance) }}, {{ $petCount }})" 
+                                                class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm font-bold shadow-md transition-colors">
+                                                <i class="fas fa-money-bill-wave mr-2"></i>Pay All
+                                            </button>
+                                        @else
+                                            <a href="{{ route('sales.grouped.billing.receipt', ['owner_id' => $ownerId, 'bill_date' => $billDate]) }}" target="_blank"
+                                                class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm font-bold shadow-md transition-colors inline-flex items-center">
+                                                <i class="fas fa-receipt mr-2"></i>Receipt
+                                            </a>
+                                        @endif
                                     @endif
                                 </td>
                             </tr>
@@ -231,6 +266,21 @@
                                                             @endif
                                                         </td>
                                                         <td class="px-3 py-2 text-right font-semibold text-blue-600">₱{{ number_format($petTotal, 2) }}</td>
+                                                        @php
+                                                            $pendingPartial = $billing->payments()->where('payment_type', 'partial')->where('status', 'pending')->first();
+                                                            $paidPartialExists = $billing->payments()->where('payment_type', 'partial')->where('status', 'paid')->exists();
+                                                            // Use billing's stored paid amount so partial payments immediately reflect in the balance
+                                                            $paidAmount = (float) $billing->paid_amount;
+                                                            $balance = max(0, $petTotal - $paidAmount);
+                                                            $hasBoarding = false;
+                                                            if ($billing->visit && $billing->visit->services) {
+                                                                $hasBoarding = $billing->visit->services->contains(function($s) {
+                                                                    $servType = strtolower($s->serv_type ?? '');
+                                                                    $servName = strtolower($s->serv_name ?? '');
+                                                                    return $servType === 'boarding' || str_contains($servName, 'boarding');
+                                                                });
+                                                            }
+                                                        @endphp
                                                         <td class="px-3 py-2 text-center">
                                                             <div class="flex items-center justify-center gap-2">
                                                                 <button onclick="viewSingleBilling({{ $billing->bill_id }})" 
@@ -241,6 +291,16 @@
                                                                     class="bg-purple-500 hover:bg-purple-600 text-white px-2 py-1 rounded text-xs" title="Print">
                                                                     <i class="fas fa-print mr-1"></i>Print
                                                                 </button>
+                                                                @if($balance > 0)
+                                                                    {{-- If this billing includes boarding, show partial pay (50%) and hide pet-level full pay --}}
+                                                                    @if($hasBoarding && !$paidPartialExists)
+                                                                        <button onclick="initiatePayment({{ $billing->bill_id }}, {{ $balance }}, 'partial', {{ $petTotal }}, {{ $paidAmount }})" 
+                                                                            class="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded text-xs" title="Pay Partial (50%)">
+                                                                            <i class="fas fa-hand-holding-dollar mr-1"></i>Pay Partial
+                                                                        </button>
+                                                                    @endif
+                                                                    {{-- Pet-level full pay intentionally not shown; owner-level Pay All handles full payments --}}
+                                                                @endif
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1141,6 +1201,88 @@ function payForOwner(ownerId, billDate, balance, petCount) {
     });
 }
 
+// Pay Partial (50%) for owner group — owner-level action
+function payPartialForOwner(ownerId, billDate, partialAmount, petCount) {
+    if (partialAmount <= 0) {
+        Swal.fire({ icon: 'info', title: 'Invalid amount', text: 'Partial amount is invalid.' });
+        return;
+    }
+
+    Swal.fire({
+        title: 'Pay Partial (50%) for All Pets',
+        html: `
+            <div class="text-center mb-4">
+                <p class="text-gray-600 mb-2">Payment for ${petCount} pet(s)</p>
+                <p class="text-2xl font-bold text-yellow-600 mb-4">₱${partialAmount.toFixed(2)}</p>
+                <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4">
+                    <p class="text-sm text-yellow-800">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        This will mark 50% of each pet's billing as paid ("PAID 50%"). Full payment can be completed later via Pay All.
+                    </p>
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="block text-left text-gray-700 font-semibold mb-2">Cash Amount</label>
+                <input type="number" id="groupPartialCash" class="w-full px-4 py-2 border rounded-lg" placeholder="Enter cash amount" step="0.01" min="${partialAmount}" value="${partialAmount}">
+            </div>
+            <div class="text-left bg-gray-50 p-3 rounded">
+                <p class="text-gray-700">Change: <span id="groupPartialChange" class="font-bold text-green-600">₱0.00</span></p>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Confirm Partial Payment',
+        confirmButtonColor: '#f59e0b',
+        cancelButtonText: 'Cancel',
+        preConfirm: () => {
+            const cash = parseFloat(document.getElementById('groupPartialCash').value || '0');
+            if (!cash || cash <= 0) { Swal.showValidationMessage('Please enter a valid cash amount'); return false; }
+            if (cash < partialAmount - 0.01) { Swal.showValidationMessage('Cash amount must be at least ₱' + partialAmount.toFixed(2)); return false; }
+            return cash;
+        },
+        didOpen: () => {
+            const input = document.getElementById('groupPartialCash');
+            const changeDisplay = document.getElementById('groupPartialChange');
+            input.value = partialAmount.toFixed(2);
+            input.addEventListener('input', function() {
+                const cash = parseFloat(this.value) || 0;
+                const change = cash - partialAmount;
+                changeDisplay.textContent = '₱' + (change >= 0 ? change.toFixed(2) : '0.00');
+            });
+            input.dispatchEvent(new Event('input'));
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const cashAmount = result.value;
+            fetch('/sales/billing-group/mark-paid', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({
+                    owner_id: ownerId,
+                    bill_date: billDate,
+                    cash_amount: cashAmount,
+                    payment_type: 'partial'
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Partial Payment Recorded', text: data.message || 'Partial payment applied (PAID 50%)', confirmButtonColor: '#f59e0b' })
+                        .then(() => location.reload());
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Payment Failed', text: data.message || 'Unable to process partial payment', confirmButtonColor: '#ef4444' });
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                Swal.fire({ icon: 'error', title: 'Error', text: 'An error occurred while processing payment', confirmButtonColor: '#ef4444' });
+            });
+        }
+    });
+}
+
 // View single pet billing details
 function viewSingleBilling(billId) {
     fetch(`/sales/billing/${billId}`)
@@ -1193,24 +1335,23 @@ function printSingleBilling(billId) {
 }
 
 // Initiate payment (from dropdown)
-function initiatePayment(billId, balance, type) {
+function initiatePayment(billId, balance, type, totalAmount = null, paidAmount = null) {
     currentBillId = billId;
     
-    // Close dropdown
-    document.getElementById('paymentOptions' + billId).classList.add('hidden');
+    // Close dropdown if exists
+    const paymentOptionsEl = document.getElementById('paymentOptions' + billId);
+    if (paymentOptionsEl) paymentOptionsEl.classList.add('hidden');
 
-    // Find the current row to extract total and paid amount
-    const button = document.querySelector(`button[onclick="togglePaymentOptions(${billId})"]`);
-    const row = button ? button.closest('tr') : null;
-    
-    // Total Amount is in the 4th column (index 3)
-    const totalAmountText = row ? row.querySelector('td:nth-child(4) .font-bold').textContent : '₱0.00';
-    // Paid Amount is in the 5th column (index 4)
-    const paidAmountText = row ? row.querySelector('td:nth-child(5) .font-semibold').textContent : '₱0.00';
-    
-    const totalAmount = parseFloat(totalAmountText.replace(/[^0-9.]/g, '')) || 0;
-    const paidAmount = parseFloat(paidAmountText.replace(/[^0-9.]/g, '')) || 0;
-    
+    // If totals weren't provided, attempt to extract from the table row
+    if (totalAmount === null || paidAmount === null) {
+        const button = document.querySelector(`button[onclick="togglePaymentOptions(${billId})"]`);
+        const row = button ? button.closest('tr') : null;
+        const totalAmountText = row ? row.querySelector('td:nth-child(4) .font-bold').textContent : '₱0.00';
+        const paidAmountText = row ? row.querySelector('td:nth-child(5) .font-semibold').textContent : '₱0.00';
+        totalAmount = parseFloat(totalAmountText.replace(/[^0-9.]/g, '')) || 0;
+        paidAmount = parseFloat(paidAmountText.replace(/[^0-9.]/g, '')) || 0;
+    }
+
     // Open payment modal with the existing total and balance
     openPaymentModal(totalAmount, balance, paidAmount, type);
 }

@@ -195,9 +195,11 @@
         @if($errors->any())
             <div class="bg-red-100 text-red-700 px-4 py-2 mb-4 rounded text-sm">
                 <ul class="list-disc pl-5">
-                    @foreach($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
+                    @if(is_object($errors) && method_exists($errors, 'all'))
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    @endif
                 </ul>
             </div>
         @endif

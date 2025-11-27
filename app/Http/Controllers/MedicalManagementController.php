@@ -45,13 +45,25 @@ class MedicalManagementController extends Controller
         $this->smsService = $smsService;
         $this->groupedBillingService = new GroupedBillingService();
     }
+
+    /**
+     * Display the boarding form or details for a visit (GET).
+     */
+    public function showBoarding($visitId)
+    {
+        // If you already have the boarding tab inside the main medicalManagement view,
+        // redirect to the index page with the `tab=boarding` query so the existing
+        // Blade tab content is used. Include the visit id so the UI can select the visit.
+        return redirect()->route('medical.index', ['tab' => 'boarding', 'visit' => $visitId]);
+    }
+    
 public function updateServiceStatus(Request $request, $visitId, $serviceId)
     {
         try {
             DB::beginTransaction();
             
             $visit = Visit::with('services')->findOrFail($visitId);
-            $service = $visit->services()->where('serv_id', $serviceId)->firstOrFail();
+            $service = $visit->services()->where('tbl_serv.serv_id', $serviceId)->firstOrFail();
             
             $status = $request->input('status', 'completed');
             
@@ -228,6 +240,114 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
 
     // ==================== SERVICE SAVE HANDLERS ====================
 
+    /**
+     * Ensure a service on a visit is marked completed. If the service pivot exists, update it;
+     * otherwise attach the service with completed pivot data. This uses direct DB updates
+     * to avoid potential relationship caching issues.
+     *
+     * @param \App\Models\Visit $visitModel
+     * @param int|null $serviceId
+     * @param array $typeKeywords list of keywords to search serv_type when serviceId not provided
+     * @param int $quantity
+     * @return void
+     */
+    private function ensureServiceCompleted($visitModel, $serviceId = null, array $typeKeywords = [], $quantity = 1)
+    {
+        $visitId = $visitModel->visit_id;
+        \Log::info('[ensureServiceCompleted] called', ['visit_id' => $visitId, 'service_id' => $serviceId, 'typeKeywords' => $typeKeywords, 'quantity' => $quantity]);
+
+        if (!empty($serviceId)) {
+            // If pivot exists, update; else attach
+            $exists = \DB::table('tbl_visit_service')
+                ->where('visit_id', $visitId)
+                ->where('serv_id', $serviceId)
+                ->exists();
+
+            $service = \App\Models\Service::find($serviceId);
+            $unitPrice = $service ? $service->serv_price : 0;
+
+            if ($exists) {
+                \DB::table('tbl_visit_service')
+                    ->where('visit_id', $visitId)
+                    ->where('serv_id', $serviceId)
+                    ->update([
+                        'status' => 'completed',
+                        'completed_at' => now(),
+                        'quantity' => $quantity,
+                        'unit_price' => $unitPrice,
+                        'total_price' => $unitPrice * $quantity,
+                        'updated_at' => now(),
+                    ]);
+                \Log::info('[ensureServiceCompleted] updated pivot', ['visit_id' => $visitId, 'serv_id' => $serviceId]);
+            } else {
+                $visitModel->services()->attach($serviceId, [
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'total_price' => $unitPrice * $quantity,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                \Log::info('[ensureServiceCompleted] attached service and set completed', ['visit_id' => $visitId, 'serv_id' => $serviceId]);
+            }
+
+            return;
+        }
+
+        // No service id provided: try to find a pivot matching the visit and service type keywords
+        if (!empty($typeKeywords)) {
+            $pivot = \DB::table('tbl_visit_service as vs')
+                ->join('tbl_serv as s', 'vs.serv_id', '=', 's.serv_id')
+                ->where('vs.visit_id', $visitId)
+                ->where(function($q) use ($typeKeywords) {
+                    foreach ($typeKeywords as $kw) {
+                        $q->orWhere('s.serv_type', 'LIKE', '%' . $kw . '%');
+                    }
+                })
+                ->select('vs.serv_id')
+                ->first();
+
+            if ($pivot) {
+                $svcId = $pivot->serv_id;
+                $service = \App\Models\Service::find($svcId);
+                $unitPrice = $service ? $service->serv_price : 0;
+                \DB::table('tbl_visit_service')
+                    ->where('visit_id', $visitId)
+                    ->where('serv_id', $svcId)
+                    ->update([
+                        'status' => 'completed',
+                        'completed_at' => now(),
+                        'quantity' => $quantity,
+                        'unit_price' => $unitPrice,
+                        'total_price' => $unitPrice * $quantity,
+                        'updated_at' => now(),
+                    ]);
+                \Log::info('[ensureServiceCompleted] updated pivot by typeKeywords', ['visit_id' => $visitId, 'serv_id' => $svcId]);
+                return;
+            }
+
+            // If no pivot found, try to find a matching service and attach it completed
+            $service = \App\Models\Service::where(function($q) use ($typeKeywords) {
+                foreach ($typeKeywords as $kw) {
+                    $q->orWhere('serv_type', 'LIKE', '%' . $kw . '%');
+                }
+            })->first();
+
+            if ($service) {
+                $visitModel->services()->attach($service->serv_id, [
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                    'quantity' => $quantity,
+                    'unit_price' => $service->serv_price,
+                    'total_price' => $service->serv_price * $quantity,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                \Log::info('[ensureServiceCompleted] attached service by typeKeywords', ['visit_id' => $visitId, 'serv_id' => $service->serv_id]);
+            }
+        }
+    }
     public function saveConsultation(Request $request, $visitId)
     {
         $validated = $request->validate([
@@ -271,22 +391,9 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
             ]
         );
         
-        // Mark THIS service as completed (find consultation service)
-        $consultationService = $visitModel->services()
-            ->where(function($query) {
-                $query->where('serv_type', 'LIKE', '%consultation%')
-                      ->orWhere('serv_type', 'LIKE', '%check up%')
-                      ->orWhere('serv_type', 'LIKE', '%checkup%');
-            })
-            ->first();
-        
-        if ($consultationService) {
-            $visitModel->services()->updateExistingPivot($consultationService->serv_id, [
-                'status' => 'completed',
-                'completed_at' => now()
-            ]);
-        }
-        
+        // Ensure consultation service pivot is marked completed (attach if missing)
+        $this->ensureServiceCompleted($visitModel, null, ['consultation', 'check up', 'checkup'], 1);
+
         // Update visit_service_type to include all services (if column exists)
         $visitModel->refresh();
         $allServices = $visitModel->services()->get();
@@ -311,7 +418,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                 : 'Consultation completed. All services done, but billing generation failed. Please check logs.')
             : 'Consultation saved. Please complete remaining services.';
         
-        return redirect()->route('medical.index', ['tab' => 'consultation'])
+        return redirect()->route('medical.index', ['tab' => 'checkup'])
             ->with($billingExists && $allCompleted ? 'success' : 'warning', $message);
     }
     
@@ -335,31 +442,6 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         
         try {
             DB::beginTransaction();
-            
-            // 1. Mark vaccination service as completed with proper pricing
-            // Use the specific service_id if provided, otherwise find any vaccination service
-            if (!empty($validated['service_id'])) {
-                $vaccinationService = $visitModel->services()
-                    ->where('serv_id', $validated['service_id'])
-                    ->first();
-            } else {
-                $vaccinationService = $visitModel->services()
-                    ->where('serv_type', 'LIKE', '%vaccination%')
-                    ->first();
-            }
-            
-            if ($vaccinationService) {
-                $visitModel->services()->updateExistingPivot($vaccinationService->serv_id, [
-                    'status' => 'completed',
-                    'completed_at' => now(),
-                    'quantity' => 1,
-                    'unit_price' => $vaccinationService->serv_price,
-                    'total_price' => $vaccinationService->serv_price,
-                    'updated_at' => now(),
-                ]);
-            } else {
-                Log::warning("No vaccination service found for visit {$visitModel->visit_id}");
-            }
             
             // 2. Save Vaccination Record (use updateOrInsert to avoid duplicates)
             $dateAdministered = $validated['date_administered'] ?: $visitModel->visit_date;
@@ -438,6 +520,9 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                 $newDose
             );
 
+            // Ensure vaccination service pivot is marked completed (attach if missing)
+            $this->ensureServiceCompleted($visitModel, $validated['service_id'] ?? null, ['vaccination'], 1);
+
             // 5. Update visit_service_type to include all services
             $visitModel->refresh();
             $allServices = $visitModel->services()->get();
@@ -465,8 +550,8 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                     : ' All services completed, but billing generation failed. Please check logs.';
             }
             
-            // Redirect to Care Continuity Appointments tab
-            return redirect()->route('care-continuity.index', ['active_tab' => 'appointments'])->with('success', $successMessage);
+            // Redirect back to the medical vaccination tab
+            return redirect()->route('medical.index', ['tab' => 'vaccination'])->with('success', $successMessage);
             
         } catch (\Exception $e) {
             DB::rollBack();
@@ -493,31 +578,6 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         try {
             DB::beginTransaction();
             
-            // 1. Mark deworming service as completed with proper pricing
-            // Use the specific service_id if provided, otherwise find any deworming service
-            if (!empty($validated['service_id'])) {
-                $dewormingService = $visitModel->services()
-                    ->where('serv_id', $validated['service_id'])
-                    ->first();
-            } else {
-                $dewormingService = $visitModel->services()
-                    ->where('serv_type', 'LIKE', '%deworming%')
-                    ->first();
-            }
-            
-            if ($dewormingService) {
-                $visitModel->services()->updateExistingPivot($dewormingService->serv_id, [
-                    'status' => 'completed',
-                    'completed_at' => now(),
-                    'quantity' => 1,
-                    'unit_price' => $dewormingService->serv_price,
-                    'total_price' => $dewormingService->serv_price,
-                    'updated_at' => now(),
-                ]);
-            } else {
-                Log::warning("No deworming service found for visit {$visitModel->visit_id}");
-            }
-            
             // 2. Save Deworming Record (use updateOrInsert to avoid duplicates)
             $dwBase = $visitModel->visit_date ?? now();
             $dwComputedNextDue = Carbon::parse($dwBase)->addDays(14)->toDateString();
@@ -536,6 +596,33 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                     'updated_at' => now(),
                 ]
             );
+
+            // Ensure the record exists; if not, attempt an insert and log for debugging
+            $dwRecord = DB::table('tbl_deworming_record')
+                ->where('visit_id', $visitModel->visit_id)
+                ->where('pet_id', $visitModel->pet_id)
+                ->first();
+
+            if (!$dwRecord) {
+                $inserted = DB::table('tbl_deworming_record')->insert([
+                    'visit_id' => $visitModel->visit_id,
+                    'pet_id' => $visitModel->pet_id,
+                    'dewormer_name' => $validated['dewormer_name'], 
+                    'service_id' => $validated['service_id'],
+                    'dosage' => $validated['dosage'], 
+                    'next_due_date' => $dwNextDueDate, 
+                    'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
+                    'remarks' => $validated['remarks'], 
+                    'created_at' => now(), 
+                    'updated_at' => now(),
+                ]);
+
+                if (!$inserted) {
+                    Log::error('Failed to insert deworming record for visit ' . $visitModel->visit_id);
+                    DB::rollBack();
+                    return back()->with('error', 'Failed to save deworming record.');
+                }
+            }
 
             // 3. Deduct Inventory based on consumable products linked to the service
             // Find the selected service to get its consumable products
@@ -591,6 +678,9 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                 $dwNewDose
             );
 
+            // Ensure deworming service pivot is marked completed (attach if missing)
+            $this->ensureServiceCompleted($visitModel, $validated['service_id'] ?? null, ['deworming'], 1);
+
             // 4. Update visit_service_type to include all services
             $visitModel->refresh();
             $allServices = $visitModel->services()->get();
@@ -618,8 +708,8 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                     : ' All services completed, but billing generation failed. Please check logs.';
             }
             
-            // Redirect to Care Continuity Appointments tab
-            return redirect()->route('care-continuity.index', ['active_tab' => 'appointments'])->with('success', $successMessage);
+            // Redirect back to the medical deworming tab
+            return redirect()->route('medical.index', ['tab' => 'deworming'])->with('success', $successMessage);
             
         } catch (\Exception $e) {
             DB::rollBack();
@@ -889,64 +979,71 @@ public function completeService(Request $request, $visitId, $serviceId)
 
     public function saveBoarding(Request $request, $visitId)
     {
+        \Log::info('[Boarding] saveBoarding called', ['visitId' => $visitId, 'input' => $request->all(), 'user' => optional(\Auth::user())->user_name]);
+
+        $validated = $request->validate([
+            'checkin' => ['required','date'],
+            'checkout' => ['nullable','date','after_or_equal:checkin'],
+            'room' => ['nullable','string'],
+            'care_instructions' => ['nullable','string'],
+            'monitoring_notes' => ['nullable','string'],
+            'service_id' => ['required', 'exists:tbl_serv,serv_id'],
+            'total_days' => ['required', 'integer', 'min:1'],
+            'daily_rate' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $visitModel = Visit::findOrFail($visitId);
+        $service = Service::findOrFail($validated['service_id']);
+
+        $dailyRate = (float) $service->serv_price;
+        $totalDays = (int) ($validated['total_days'] ?? 1);
+        if ($totalDays < 1 && !empty($validated['checkin']) && !empty($validated['checkout'])) {
+            $start = Carbon::parse($validated['checkin']);
+            $end = Carbon::parse($validated['checkout']);
+            $totalDays = $start->diffInDays($end) ?: 1;
+        }
+
+        $now = Carbon::now();
+        $boardingStatus = 'Checked In';
+        $actualDays = $totalDays;
+        $autoCheckedOut = false;
+        $checkoutDateTime = null;
+        if (!empty($validated['checkout'])) {
+            $checkoutDateTime = Carbon::parse($validated['checkout']);
+            if (strlen($validated['checkout']) <= 10) {
+                $checkoutDateTime->setTime(23, 59, 59);
+            }
+        }
+        if ($checkoutDateTime && $now->greaterThanOrEqualTo($checkoutDateTime)) {
+            $boardingStatus = 'Checked Out';
+            $autoCheckedOut = true;
+            $checkinDate = Carbon::parse($validated['checkin']);
+            $actualDays = $checkinDate->diffInDays($checkoutDateTime) ?: 1;
+        }
+
+        $totalAmount = $dailyRate * $actualDays;
+
+        DB::beginTransaction();
+        $shouldGenerateBillingAfterCommit = false;
         try {
-            // Log all input for debugging
-            Log::info('Boarding saveBoarding input', $request->all());
-
-            // 1. Validation: total_days is required for the duration calculation.
-            $validated = $request->validate([
-                'checkin' => ['required','date'],
-                'checkout' => ['nullable','date','after_or_equal:checkin'],
-                'room' => ['nullable','string'],
-                'care_instructions' => ['nullable','string'],
-                'monitoring_notes' => ['nullable','string'],
-                'service_id' => ['required', 'exists:tbl_serv,serv_id'],
-                'total_days' => ['required', 'integer', 'min:1'],
-                'daily_rate' => ['nullable', 'numeric', 'min:0'],
-            ]);
-
-            $visitModel = Visit::findOrFail($visitId);
-            $service = Service::findOrFail($validated['service_id']);
-
-            // Always use the service price as the daily rate
-            $dailyRate = (float) $service->serv_price;
-
-            // Fallback: If total_days is missing or zero, calculate from dates
-            $totalDays = (int) $validated['total_days'];
-            if ($totalDays < 1 && !empty($validated['checkin']) && !empty($validated['checkout'])) {
-                $start = Carbon::parse($validated['checkin']);
-                $end = Carbon::parse($validated['checkout']);
-                $totalDays = $start->diffInDays($end) ?: 1;
-                Log::warning('Boarding fallback: calculated total_days', ['totalDays' => $totalDays]);
-            }
-
-            // Determine status: Checked In or Checked Out
-            $today = Carbon::today();
-            $checkoutDate = !empty($validated['checkout']) ? Carbon::parse($validated['checkout']) : null;
-            $boardingStatus = 'Checked In';
-            $actualDays = $totalDays;
-            if ($checkoutDate && $today->greaterThanOrEqualTo($checkoutDate)) {
-                $boardingStatus = 'Checked Out';
-                // Calculate actual days stayed (from checkin to today or checkout, whichever is earlier)
-                $checkinDate = Carbon::parse($validated['checkin']);
-                $actualDays = $checkinDate->diffInDays($today) ?: 1;
-                // If today is after checkout, use checkout date
-                if ($today->greaterThan($checkoutDate)) {
-                    $actualDays = $checkinDate->diffInDays($checkoutDate) ?: 1;
-                }
-            }
-
-            $totalAmount = $dailyRate * $actualDays;
-
-            DB::beginTransaction();
-
-            // 2. Get all existing services for this visit to preserve them
+            // preserve existing services except any boarding-type services
+            // (we remove old boarding service lines to avoid duplicates and only add the selected service)
             $existingServices = $visitModel->services()->get();
             $syncData = [];
             foreach ($existingServices as $existingService) {
+                $servType = strtolower($existingService->serv_type ?? '');
+                $servName = strtolower($existingService->serv_name ?? '');
+
+                // Skip any existing boarding-type service entries so we don't bill them twice
+                if ($servType === 'boarding' || strpos($servName, 'boarding') === 0) {
+                    continue;
+                }
+
+                // Also skip if this is the exact service we're about to (re)attach
                 if ($existingService->serv_id == $validated['service_id']) {
                     continue;
                 }
+
                 $syncData[$existingService->serv_id] = [
                     'status' => $existingService->pivot->status ?? 'pending',
                     'completed_at' => $existingService->pivot->completed_at ?? null,
@@ -958,7 +1055,7 @@ public function completeService(Request $request, $visitId, $serviceId)
                 ];
             }
 
-            // 3. Add or update the boarding service with correct pricing
+            // add/update boarding service
             $syncData[$validated['service_id']] = [
                 'status' => $boardingStatus === 'Checked Out' ? 'completed' : 'pending',
                 'completed_at' => $boardingStatus === 'Checked Out' ? now() : null,
@@ -966,24 +1063,18 @@ public function completeService(Request $request, $visitId, $serviceId)
                 'unit_price' => $dailyRate,
                 'total_price' => $totalAmount,
                 'created_at' => now(),
-                'updated_at' => now()
+                'updated_at' => now(),
             ];
-
-            Log::info('Boarding syncData', [
-                'visit_id' => $visitModel->visit_id,
-                'syncData' => $syncData
-            ]);
 
             $visitModel->services()->sync($syncData);
 
-            // 4. Save Boarding Record
             $boardingPayload = [
                 'check_in_date' => $validated['checkin'],
                 'check_out_date' => $validated['checkout'],
                 'room_no' => $request->input('room'),
                 'feeding_schedule' => $request->input('care_instructions'),
                 'daily_notes' => $request->input('monitoring_notes'),
-                'status' => $boardingStatus, // Checked In or Checked Out
+                'status' => $boardingStatus,
                 'handled_by' => Auth::user()->user_name ?? null,
                 'total_days' => $actualDays,
                 'updated_at' => now(),
@@ -991,45 +1082,27 @@ public function completeService(Request $request, $visitId, $serviceId)
             if (Schema::hasColumn('tbl_boarding_record', 'serv_id')) {
                 $boardingPayload['serv_id'] = $validated['service_id'];
             }
+
             DB::table('tbl_boarding_record')->updateOrInsert(
                 ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
                 $boardingPayload
             );
 
-            // Update workflow_status and visit_status
             $visitModel->workflow_status = $boardingStatus;
             $visitModel->visit_status = $boardingStatus;
             $allServices = $visitModel->services()->get();
             if ($allServices->isNotEmpty()) {
-                $typesSummary = $allServices->pluck('serv_name')->implode(', ');
-                $visitModel->visit_service_type = $typesSummary;
+                $visitModel->visit_service_type = $allServices->pluck('serv_name')->implode(', ');
             }
             $visitModel->save();
 
-            // If status is Checked Out, generate billing for actual days
-            if ($boardingStatus === 'Checked Out') {
-                // Check if billing already exists
-                $billingExists = \DB::table('tbl_bill')
-                    ->where('visit_id', $visitModel->visit_id)
-                    ->exists();
-                if (!$billingExists) {
-                    // Generate billing for boarding
-                    try {
-                        if (method_exists($this, 'groupedBillingService') && $this->groupedBillingService) {
-                            $this->groupedBillingService->generateSingleBilling($visitModel->visit_id);
-                        }
-                    } catch (\Throwable $e) {
-                        \Log::warning('Failed to auto-create billing on boarding checkout: '.$e->getMessage());
-                    }
-                }
+            if (in_array($boardingStatus, ['Checked Out', 'Checked In']) || $autoCheckedOut) {
+                $shouldGenerateBillingAfterCommit = true;
             }
 
             DB::commit();
-            $message = 'Boarding record saved. Pet status: ' . $boardingStatus . '.';
-            return redirect()->route('medical.index', ['tab' => 'boarding'])
-                ->with('success', $message);
-
         } catch (\Illuminate\Validation\ValidationException $ve) {
+            DB::rollBack();
             Log::error('Boarding validation failed', ['errors' => $ve->errors(), 'input' => $request->all()]);
             return back()->withErrors($ve->errors())->withInput();
         } catch (\Exception $e) {
@@ -1038,6 +1111,25 @@ public function completeService(Request $request, $visitId, $serviceId)
             Log::error('Stack trace: ' . $e->getTraceAsString());
             return back()->with('error', 'Failed to save boarding record: ' . $e->getMessage())->withInput();
         }
+
+        // generate billing after commit if flagged
+        if ($shouldGenerateBillingAfterCommit) {
+            try {
+                if (property_exists($this, 'groupedBillingService') && $this->groupedBillingService) {
+                    \Log::info('[Boarding Billing Generation] Calling groupedBillingService for visit_id: ' . $visitModel->visit_id);
+                    // Force billing generation for boarding actions (Checked In/Out) to allow testing
+                    $this->groupedBillingService->generateSingleBilling($visitModel->visit_id, true);
+                    \Log::info('[Boarding Billing Generation] Billing generated for visit_id: ' . $visitModel->visit_id);
+                } else {
+                    \Log::warning('[Boarding Billing Generation] groupedBillingService not available for visit_id: ' . $visitModel->visit_id);
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('[Boarding Billing Generation] Failed to auto-create billing: ' . $e->getMessage());
+            }
+        }
+
+        $message = 'Boarding record saved. Pet status: ' . $boardingStatus . '.';
+        return redirect()->route('medical.index', ['tab' => 'boarding'])->with('success', $message);
     }
 
     public function saveDiagnostic(Request $request, $visitId)
@@ -1049,59 +1141,6 @@ public function completeService(Request $request, $visitId, $serviceId)
         ]);
         
         $visitModel = Visit::with('services')->findOrFail($visitId);
-        
-        // Mark diagnostic service as completed with proper pricing
-        // Use the specific service_id if provided, otherwise find any diagnostic service
-        if (!empty($validated['service_id'])) {
-            $diagnosticService = $visitModel->services()
-                ->where('serv_id', $validated['service_id'])
-                ->first();
-            
-            if ($diagnosticService) {
-                $visitModel->services()->updateExistingPivot($diagnosticService->serv_id, [
-                    'status' => 'completed',
-                    'completed_at' => now(),
-                    'quantity' => 1,
-                    'unit_price' => $diagnosticService->serv_price,
-                    'total_price' => $diagnosticService->serv_price,
-                    'updated_at' => now(),
-                ]);
-            } else {
-                // Service not yet attached, attach it
-                $service = Service::find($validated['service_id']);
-                if ($service) {
-                    $visitModel->services()->attach($validated['service_id'], [
-                        'status' => 'completed',
-                        'completed_at' => now(),
-                        'quantity' => 1,
-                        'unit_price' => $service->serv_price,
-                        'total_price' => $service->serv_price,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                }
-            }
-        } else {
-            // Fallback: find any diagnostic service
-            $diagnosticService = $visitModel->services()
-                ->where(function($query) {
-                    $query->where('serv_type', 'LIKE', '%diagnostic%')
-                          ->orWhere('serv_type', 'LIKE', '%diagnostics%')
-                          ->orWhere('serv_type', 'LIKE', '%laboratory%');
-                })
-                ->first();
-            
-            if ($diagnosticService) {
-                $visitModel->services()->updateExistingPivot($diagnosticService->serv_id, [
-                    'status' => 'completed',
-                    'completed_at' => now(),
-                    'quantity' => 1,
-                    'unit_price' => $diagnosticService->serv_price,
-                    'total_price' => $diagnosticService->serv_price,
-                    'updated_at' => now(),
-                ]);
-            }
-        }
         
         DB::table('tbl_diagnostic_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
@@ -1115,6 +1154,9 @@ public function completeService(Request $request, $visitId, $serviceId)
             ]
         );
         
+        // Ensure diagnostic service pivot is marked completed (attach if missing)
+        $this->ensureServiceCompleted($visitModel, $validated['service_id'] ?? null, ['diagnostic', 'diagnostics', 'laboratory'], 1);
+
         // Update visit_service_type to include all services (if column exists)
         $visitModel->refresh();
         $allServices = $visitModel->services()->get();
@@ -1140,8 +1182,8 @@ public function completeService(Request $request, $visitId, $serviceId)
                 : ' All services completed, but billing generation failed. Please check logs.';
         }
         
-        // Redirect to the diagnostic tab
-        return redirect()->route('medical.index', ['tab' => 'diagnostic'])->with('success', $message);
+        // Redirect to the diagnostics tab
+        return redirect()->route('medical.index', ['tab' => 'diagnostics'])->with('success', $message);
     }
 
     public function saveSurgical(Request $request, $visitId)
@@ -1155,58 +1197,6 @@ public function completeService(Request $request, $visitId, $serviceId)
         ]);
         
         $visitModel = Visit::with('services')->findOrFail($visitId);
-        
-        // Mark surgical service as completed with proper pricing
-        // Use the specific service_id if provided, otherwise find any surgical service
-        if (!empty($validated['service_id'])) {
-            $surgicalService = $visitModel->services()
-                ->where('serv_id', $validated['service_id'])
-                ->first();
-            
-            if ($surgicalService) {
-                $visitModel->services()->updateExistingPivot($surgicalService->serv_id, [
-                    'status' => 'completed',
-                    'completed_at' => now(),
-                    'quantity' => 1,
-                    'unit_price' => $surgicalService->serv_price,
-                    'total_price' => $surgicalService->serv_price,
-                    'updated_at' => now(),
-                ]);
-            } else {
-                // Service not yet attached, attach it
-                $service = Service::find($validated['service_id']);
-                if ($service) {
-                    $visitModel->services()->attach($validated['service_id'], [
-                        'status' => 'completed',
-                        'completed_at' => now(),
-                        'quantity' => 1,
-                        'unit_price' => $service->serv_price,
-                        'total_price' => $service->serv_price,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                }
-            }
-        } else {
-            // Fallback: find any surgical service
-            $surgicalService = $visitModel->services()
-                ->where(function($query) {
-                    $query->where('serv_type', 'LIKE', '%surgical%')
-                          ->orWhere('serv_type', 'LIKE', '%surgery%');
-                })
-                ->first();
-            
-            if ($surgicalService) {
-                $visitModel->services()->updateExistingPivot($surgicalService->serv_id, [
-                    'status' => 'completed',
-                    'completed_at' => now(),
-                    'quantity' => 1,
-                    'unit_price' => $surgicalService->serv_price,
-                    'total_price' => $surgicalService->serv_price,
-                    'updated_at' => now(),
-                ]);
-            }
-        }
         
         DB::table('tbl_surgical_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
@@ -1255,6 +1245,9 @@ public function completeService(Request $request, $visitId, $serviceId)
             }
         }
         
+        // Ensure surgical service pivot is marked completed (attach if missing)
+        $this->ensureServiceCompleted($visitModel, $validated['service_id'] ?? null, ['surgical', 'surgery'], 1);
+        
         // Update visit_service_type to include all services (if column exists)
         $visitModel->refresh();
         $allServices = $visitModel->services()->get();
@@ -1295,17 +1288,8 @@ public function completeService(Request $request, $visitId, $serviceId)
         
         $visitModel = Visit::with('services')->findOrFail($visitId);
         
-        // Mark emergency service as completed
-        $emergencyService = $visitModel->services()
-            ->where('serv_type', 'LIKE', '%emergency%')
-            ->first();
-        
-        if ($emergencyService) {
-            $visitModel->services()->updateExistingPivot($emergencyService->serv_id, [
-                'status' => 'completed',
-                'completed_at' => now()
-            ]);
-        }
+        // Mark emergency service as completed (attach if missing)
+        $this->ensureServiceCompleted($visitModel, null, ['emergency'], 1);
         
         DB::table('tbl_emergency_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
@@ -1613,6 +1597,26 @@ public function completeService(Request $request, $visitId, $serviceId)
 
             $visit->workflow_status = $next;
             $visit->save();
+
+            // Boarding: If status is changed to Checked Out, generate billing
+            if (
+                ($type === 'boarding' && strcasecmp($next, 'Checked Out') === 0)
+            ) {
+                $billingExists = \DB::table('tbl_bill')
+                    ->where('visit_id', $visit->visit_id)
+                    ->exists();
+                if (!$billingExists) {
+                    try {
+                        if (property_exists($this, 'groupedBillingService') && $this->groupedBillingService) {
+                                // Force billing generation for boarding Checked Out workflow transition
+                                $this->groupedBillingService->generateSingleBilling($visit->visit_id, true);
+                                \Log::info('Auto-generated billing for boarding visit ' . $visit->visit_id . ' via workflow status update');
+                            }
+                    } catch (\Throwable $e) {
+                        \Log::warning('Failed to auto-create billing for boarding: ' . $e->getMessage());
+                    }
+                }
+            }
 
             if (strcasecmp($next, 'Completed') === 0) {
                 if (!$visit->billing) {

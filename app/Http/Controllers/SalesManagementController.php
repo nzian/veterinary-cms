@@ -300,8 +300,18 @@ class SalesManagementController extends Controller
                 $balance = round($totalAmount - $paidAmount, 2);
             }
 
-            // Status: only paid if fully paid
-            $status = ($balance <= 0.01 && $totalAmount > 0) ? 'paid' : 'unpaid';
+            // Status: determine group-level status. If all paid => 'paid'.
+            // If any billing in the group has 'paid 50%', mark group as 'paid 50%'. Otherwise 'unpaid'.
+            $allPaid = $group->every(function($b) { return strtolower($b->bill_status ?? '') === 'paid' || (float)$b->total_amount - (float)$b->paid_amount <= 0.01; });
+            $anyPaid50 = $group->contains(function($b) { return strtolower($b->bill_status ?? '') === 'paid 50%'; });
+
+            if ($allPaid && $totalAmount > 0) {
+                $status = 'paid';
+            } elseif ($anyPaid50) {
+                $status = 'paid 50%';
+            } else {
+                $status = 'unpaid';
+            }
 
             return [
                 'owner' => $owner,
@@ -666,9 +676,11 @@ class SalesManagementController extends Controller
             'owner_id' => 'required|exists:tbl_own,own_id',
             'bill_date' => 'required|date',
             'cash_amount' => 'required|numeric|min:0.01',
+            'payment_type' => 'nullable|in:full,partial'
         ]);
         
         $cash = (float) $validated['cash_amount'];
+        $paymentType = $validated['payment_type'] ?? 'full';
         $ownerId = $validated['owner_id'];
         $billDate = $validated['bill_date'];
 
@@ -709,12 +721,99 @@ class SalesManagementController extends Controller
                 ], 422);
             }
 
-            if ($cash < $currentBalance) {
-                DB::rollBack();
+            // If requesting a partial payment, require the partial amount (50% of group total)
+            if ($paymentType === 'partial') {
+                $requiredPartial = round($grandTotal * 0.5, 2);
+                if ($cash < $requiredPartial) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Cash amount must be at least ₱' . number_format($requiredPartial, 2)
+                    ], 422);
+                }
+
+                // Process group partial: apply per-billing partial (50%) and mark placeholders/partial payments as paid
+                $transactionKey = 'PAY-GROUP-PARTIAL-' . $ownerId . '-' . time();
+                $remainingCash = $cash;
+                $appliedDetails = [];
+
+                foreach ($billings as $idx => $billing) {
+                    $thisPartial = round((float) $billing->total_amount * 0.5, 2);
+                    if ($thisPartial <= 0) {
+                        continue;
+                    }
+
+                    $placeholder = $billing->payments()->where('payment_type', 'partial')->where('status', 'pending')->first();
+
+                    // Determine cash allocation for this billing (assign full partial amount sequentially)
+                    $allocatedCash = min($thisPartial, $remainingCash);
+
+                    if ($placeholder) {
+                        $placeholder->pay_total = $thisPartial;
+                        $placeholder->pay_cashAmount = $idx === 0 ? $cash : ($placeholder->pay_cashAmount ?? 0);
+                        $placeholder->pay_change = $idx === 0 ? max(0, $cash - $requiredPartial) : ($placeholder->pay_change ?? 0);
+                        $placeholder->payment_date = now();
+                        $placeholder->transaction_id = $transactionKey;
+                        // If we cover the full partial amount for this bill, mark paid
+                        if (abs($allocatedCash - $thisPartial) <= 0.01) {
+                            $placeholder->status = 'paid';
+                        } else {
+                            $placeholder->status = 'partial';
+                            $placeholder->pay_total = $allocatedCash;
+                        }
+                        $placeholder->save();
+
+                        $applied = $allocatedCash;
+                    } else {
+                        // Create a paid partial payment record for this billing
+                        $created = Payment::create([
+                            'bill_id' => $billing->bill_id,
+                            'pay_total' => $allocatedCash,
+                            'pay_cashAmount' => $idx === 0 ? $cash : 0,
+                            'pay_change' => $idx === 0 ? max(0, $cash - $requiredPartial) : 0,
+                            'payment_type' => 'partial',
+                            'payment_date' => now(),
+                            'transaction_id' => $transactionKey,
+                            'status' => abs($allocatedCash - $thisPartial) <= 0.01 ? 'paid' : 'partial'
+                        ]);
+
+                        $applied = $created->pay_total;
+                    }
+
+                    // Update billing paid_amount and status
+                        $billing->paid_amount = (float) $billing->paid_amount + $applied;
+                        $newBalance = (float) $billing->total_amount - $billing->paid_amount;
+                        // If this is the group partial flow and we reached exactly 50% paid, mark as 'paid 50%'
+                        if (abs($billing->paid_amount - ((float)$billing->total_amount * 0.5)) <= 0.01) {
+                            $billing->bill_status = 'paid 50%';
+                        } else {
+                            $billing->bill_status = $newBalance <= 0.01 ? 'paid' : 'partial';
+                        }
+                    $billing->save();
+
+                    // record applied detail for response and logging
+                    $appliedDetails[] = [
+                        'bill_id' => $billing->bill_id,
+                        'applied' => $applied,
+                        'new_paid_amount' => $billing->paid_amount,
+                        'bill_status' => $billing->bill_status,
+                        'remaining_for_bill' => round((float)$billing->total_amount - $billing->paid_amount, 2)
+                    ];
+
+                    Log::info("Group partial applied - Bill: {$billing->bill_id}, applied: {$applied}, new_paid: {$billing->paid_amount}, status: {$billing->bill_status}");
+
+                    $remainingCash = round($remainingCash - $applied, 2);
+                }
+
+                DB::commit();
+
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Cash amount must be at least ₱' . number_format($currentBalance, 2)
-                ], 422);
+                    'success' => true,
+                    'message' => 'Partial payment applied for owner group (50%).',
+                    'change' => max(0, $cash - $requiredPartial),
+                    'final_status' => 'partial',
+                    'applied_details' => $appliedDetails
+                ]);
             }
             
             // Calculate payment amount (always full payment for groups)
@@ -727,48 +826,75 @@ class SalesManagementController extends Controller
             
             foreach ($billings as $billing) {
                 $billingBalance = (float) $billing->total_amount - (float) $billing->paid_amount;
-                
+
                 if ($billingBalance <= 0) {
                     continue; // Skip already paid bills
                 }
-                
+
                 // Calculate proportional payment for this bill
                 $proportion = $billingBalance / $currentBalance;
                 $thisBillPayment = round($proportion * $paymentAmount, 2);
-                
+
                 // Adjust for rounding errors on last bill
                 if ($billing->bill_id === $billings->last()->bill_id) {
                     $thisBillPayment = $remainingPayment;
                 }
-                
-                // Create payment record for this bill
-                Payment::create([
-                    'bill_id' => $billing->bill_id,
-                    'pay_total' => $thisBillPayment,
-                    'pay_cashAmount' => $billing->bill_id === $billings->first()->bill_id ? $cash : 0, // Only show cash on first
-                    'pay_change' => $billing->bill_id === $billings->first()->bill_id ? $change : 0, // Only show change on first
-                    'payment_type' => 'full',
-                    'payment_date' => now(),
-                    'transaction_id' => $transactionKey,
-                    'status' => ($thisBillPayment >= $billingBalance) ? 'paid' : 'partial'
-                ]);
-                
-                // Update billing record
-                $newPaidAmount = (float) $billing->paid_amount + $thisBillPayment;
+
+                // First, if there is a pending partial placeholder, apply portion of this payment to it
+                $placeholder = $billing->payments()->where('payment_type', 'partial')->where('status', 'pending')->first();
+                $appliedToPlaceholder = 0;
+                if ($placeholder && $thisBillPayment > 0) {
+                    $apply = min($thisBillPayment, (float) $placeholder->pay_total);
+                    if ($apply > 0) {
+                        $placeholder->pay_cashAmount = $billing->bill_id === $billings->first()->bill_id ? $cash : ($placeholder->pay_cashAmount ?? 0);
+                        $placeholder->pay_change = $billing->bill_id === $billings->first()->bill_id ? $change : ($placeholder->pay_change ?? 0);
+                        $placeholder->payment_date = now();
+                        $placeholder->transaction_id = $transactionKey;
+                        // If we fully cover the placeholder, mark it paid
+                        if (abs($apply - (float) $placeholder->pay_total) <= 0.01) {
+                            $placeholder->status = 'paid';
+                        } else {
+                            $placeholder->status = 'partial';
+                            $placeholder->pay_total = $apply; // record partial application
+                        }
+                        $placeholder->save();
+
+                        $appliedToPlaceholder = $apply;
+                        $thisBillPayment = round($thisBillPayment - $apply, 2);
+                    }
+                }
+
+                // Create payment record for the remainder (if any)
+                $createdPayment = null;
+                if ($thisBillPayment > 0) {
+                    $createdPayment = Payment::create([
+                        'bill_id' => $billing->bill_id,
+                        'pay_total' => $thisBillPayment,
+                        'pay_cashAmount' => $billing->bill_id === $billings->first()->bill_id ? $cash : 0,
+                        'pay_change' => $billing->bill_id === $billings->first()->bill_id ? $change : 0,
+                        'payment_type' => 'full',
+                        'payment_date' => now(),
+                        'transaction_id' => $transactionKey,
+                        'status' => ($thisBillPayment >= ($billingBalance - $appliedToPlaceholder)) ? 'paid' : 'partial'
+                    ]);
+                }
+
+                // Update billing record: include any applied placeholder amount + created payment
+                $newPaidAmount = (float) $billing->paid_amount + $appliedToPlaceholder + ($createdPayment?->pay_total ?? 0);
                 $newBalance = (float) $billing->total_amount - $newPaidAmount;
                 $isFullyPaid = ($newBalance <= 0.01);
-                
+
                 $billing->paid_amount = $newPaidAmount;
                 $billing->bill_status = $isFullyPaid ? 'paid' : ($newPaidAmount > 0 ? 'partial' : 'pending');
                 $billing->save();
-                
+
                 // Update visit status if fully paid
                 if ($isFullyPaid && $billing->visit) {
                     $billing->visit->visit_status = 'completed';
                     $billing->visit->save();
                 }
-                
-                $remainingPayment -= $thisBillPayment;
+
+                $remainingPayment = round($remainingPayment - ($appliedToPlaceholder + ($createdPayment?->pay_total ?? 0)), 2);
             }
             
             DB::commit();
@@ -902,8 +1028,8 @@ class SalesManagementController extends Controller
             // Total amount = services + prescriptions + add-ons
             $totalAmount = $servicesTotal + $prescriptionTotal + $addOnTotal;
             
-            // Calculate total paid from existing payments
-            $existingPaymentsTotal = (float) $billing->payments->sum('pay_total');
+            // Calculate total paid from existing payments (only count payments with status 'paid')
+            $existingPaymentsTotal = (float) $billing->payments->where('status', 'paid')->sum('pay_total');
             
             // Calculate remaining balance before this payment
             $currentBalance = round($totalAmount - $existingPaymentsTotal, 2);
@@ -942,24 +1068,55 @@ class SalesManagementController extends Controller
             $isFullyPaid = ($newBalance <= 0.01);
             $billingStatus = $isFullyPaid ? 'paid' : 'partial'; // Changed 'pending' to 'partial' if $newTotalPaid > 0
 
+            // If this is a partial payment and it equals 50% of the bill, mark specifically as 'paid 50%'
+            if ($paymentType === 'partial' && abs($newTotalPaid - ($totalAmount * 0.5)) <= 0.01) {
+                $billingStatus = 'paid 50%';
+            }
+
             if ($newTotalPaid == 0) {
                 $billingStatus = 'pending';
             }
 
 
-            // Create payment record
+            // Create or update payment record
             $transactionKey = 'PAY-' . $billId . '-' . time();
-            
-            $payment = Payment::create([
-                'bill_id' => $billing->bill_id,
-                'pay_total' => $paymentAmount,
-                'pay_cashAmount' => $cash,
-                'pay_change' => $change,
-                'payment_type' => $paymentType,
-                'payment_date' => now(),
-                'transaction_id' => $transactionKey,
-                'status' => $billingStatus
-            ]);
+
+            if ($paymentType === 'partial') {
+                // If a pending placeholder partial payment exists, update it to mark as paid
+                $placeholder = $billing->payments()->where('payment_type', 'partial')->where('status', 'pending')->first();
+                if ($placeholder) {
+                    $placeholder->pay_total = $paymentAmount;
+                    $placeholder->pay_cashAmount = $cash;
+                    $placeholder->pay_change = $change;
+                    $placeholder->payment_date = now();
+                    $placeholder->transaction_id = $transactionKey;
+                    $placeholder->status = $billingStatus === 'paid' ? 'paid' : 'partial';
+                    $placeholder->save();
+                    $payment = $placeholder;
+                } else {
+                    $payment = Payment::create([
+                        'bill_id' => $billing->bill_id,
+                        'pay_total' => $paymentAmount,
+                        'pay_cashAmount' => $cash,
+                        'pay_change' => $change,
+                        'payment_type' => $paymentType,
+                        'payment_date' => now(),
+                        'transaction_id' => $transactionKey,
+                        'status' => $billingStatus
+                    ]);
+                }
+            } else {
+                $payment = Payment::create([
+                    'bill_id' => $billing->bill_id,
+                    'pay_total' => $paymentAmount,
+                    'pay_cashAmount' => $cash,
+                    'pay_change' => $change,
+                    'payment_type' => $paymentType,
+                    'payment_date' => now(),
+                    'transaction_id' => $transactionKey,
+                    'status' => $billingStatus
+                ]);
+            }
 
             // CRITICAL FIX: Update billing record with new paid amount
             $billing->paid_amount = $newTotalPaid;
