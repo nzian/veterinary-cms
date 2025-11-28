@@ -70,6 +70,7 @@ class SalesManagementController extends Controller
             }
             // Prescriptions
             $prescModels = \App\Models\Prescription::where('pet_id', $billing->visit->pet_id)
+                ->where('pres_visit_id', $billing->visit_id)
                 ->whereDate('prescription_date', $billing->visit->visit_date)
                 ->get();
             foreach ($prescModels as $presc) {
@@ -731,6 +732,8 @@ class SalesManagementController extends Controller
                 ->where('owner_id', $ownerId)
                 ->where('bill_date', $billDate)
                 ->get();
+
+            //dd($billings);
             
             if ($billings->isEmpty()) {
                 return response()->json([
@@ -1038,6 +1041,8 @@ class SalesManagementController extends Controller
             
             if ($billing->visit && $billing->visit->pet) {
                 $prescriptions = Prescription::where('pet_id', $billing->visit->pet->pet_id)
+                ->where('pres_visit_id', $billing->visit->visit_id)
+                    ->where('pres_visit_id', $billing->visit->visit_id)
                     ->whereDate('prescription_date', '<=', $billing->bill_date)
                     ->whereDate('prescription_date', '>=', date('Y-m-d', strtotime($billing->bill_date . ' -7 days')))
                     ->get();
@@ -1287,6 +1292,7 @@ class SalesManagementController extends Controller
             // Get prescriptions related to this visit's date (within visit timeframe)
             $visitDate = $billing->visit->visit_date ?? $billing->bill_date;
             $prescriptions = Prescription::where('pet_id', $billing->visit->pet->pet_id)
+                ->where('pres_visit_id', $billing->visit->visit_id)
                 ->whereDate('prescription_date', '<=', $visitDate)
                 ->whereDate('prescription_date', '>=', date('Y-m-d', strtotime($visitDate . ' -7 days')))
                 ->get();
