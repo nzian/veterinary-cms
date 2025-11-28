@@ -307,6 +307,7 @@
                                         @php
                                             // Check if prescription exists for this visit's pet on the same date
                                             $visitPrescription = \App\Models\Prescription::where('pet_id', $visit->pet_id)
+                                            ->where('pres_visit_id', $visit->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($visit->visit_date))
                                                 ->first();
                                         @endphp
@@ -428,6 +429,7 @@
                                         </button>
                                         @php
                                             $checkupPrescription = \App\Models\Prescription::where('pet_id', $c->pet_id)
+                                            ->where('pres_visit_id', $c->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($c->visit_date))
                                                 ->first();
                                         @endphp
@@ -533,6 +535,7 @@
                                         </button>
                                         @php
                                             $dewormPrescription = \App\Models\Prescription::where('pet_id', $d->pet_id)
+                                            ->where('pres_visit_id', $d->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($d->visit_date))
                                                 ->first();
                                         @endphp
@@ -638,6 +641,7 @@
                                         </button>
                                         @php
                                             $diagPrescription = \App\Models\Prescription::where('pet_id', $d->pet_id)
+                                            ->where('pres_visit_id', $d->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($d->visit_date))
                                                 ->first();
                                         @endphp
@@ -744,6 +748,7 @@
                                         @php
                                             $surgPrescription = \App\Models\Prescription::where('pet_id', $s->pet_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($s->visit_date))
+                                                ->where('pres_visit_id', $s->visit_id)
                                                 ->first();
                                         @endphp
                                         @if($surgPrescription)
@@ -848,6 +853,7 @@
                                         </button>
                                         @php
                                             $emergPrescription = \App\Models\Prescription::where('pet_id', $e->pet_id)
+                                                ->where('pres_visit_id', $e->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($e->visit_date))
                                                 ->first();
                                         @endphp
@@ -953,6 +959,7 @@
                                         </button>
                                         @php
                                             $vaccPrescription = \App\Models\Prescription::where('pet_id', $v->pet_id)
+                                                ->where('pres_visit_id', $v->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($v->visit_date))
                                                 ->first();
                                         @endphp
@@ -1058,6 +1065,7 @@
                                         </button>
                                         @php
                                             $groomPrescription = \App\Models\Prescription::where('pet_id', $g->pet_id)
+                                                ->where('pres_visit_id', $g->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($g->visit_date))
                                                 ->first();
                                         @endphp
@@ -1177,6 +1185,7 @@
                                         </button>
                                         @php
                                             $boardPrescription = \App\Models\Prescription::where('pet_id', $b->pet_id)
+                                                ->where('pres_visit_id', $b->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($b->visit_date))
                                                 ->first();
                                         @endphp
@@ -1592,7 +1601,7 @@ function addServiceToEdit() {
     const servicesList = document.getElementById('edit_services_list');
     if (!servicesList) return;
     
-    const serviceTypes = ['boarding', 'check up', 'deworming', 'diagnostics', 'emergency', 'grooming', 'surgical', 'vaccination'];
+    const serviceTypes = ['boarding', 'check-up', 'deworming', 'diagnostics', 'emergency', 'grooming', 'surgical', 'vaccination'];
     
     const rowId = `edit_service_row_${editServiceCounter++}`;
     const row = document.createElement('div');
@@ -1708,7 +1717,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 🛑 SERVICE PAIRING RULES (Cannot Be Paired With)
     const servicePairingRules = {
         'surgical': ['grooming', 'vaccination', 'deworming', 'boarding'],
-        'emergency': ['check up', 'grooming', 'vaccination', 'deworming', 'surgical', 'boarding'],
+        'emergency': ['check-up', 'grooming', 'vaccination', 'deworming', 'surgical', 'boarding'],
         'vaccination': ['surgical', 'grooming'],
         'boarding': ['surgical', 'emergency'],
         'diagnostics': ['grooming', 'deworming'],
@@ -1775,7 +1784,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         container.innerHTML = pets.map(p => {
             // Fixed serv_type options (normalized to lowercase)
-            const fixedTypes = ['boarding','check up','deworming','diagnostics','emergency','grooming','surgical','vaccination'];
+            const fixedTypes = ['boarding','check-up','deworming','diagnostics','emergency','grooming','surgical','vaccination'];
             const serviceCheckboxes = fixedTypes.map(type => `
                 <label class='inline-flex items-center mr-3 mb-1'>
                     <input type="checkbox" name="service_type[${p.pet_id}][]" value="${type}" class="service-checkbox mr-1"> ${capitalizeFirstLetter(type)}

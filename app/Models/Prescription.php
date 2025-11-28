@@ -13,7 +13,7 @@ class Prescription extends Model
     use HasFactory, BranchDataScope;
     protected $table = 'tbl_prescription'; // make sure your table name is correct
     protected $primaryKey = 'prescription_id';
-    protected $fillable = ['pet_id', 'prescription_date', 'medication', 'notes',  'user_id', 'branch_id', 'differential_diagnosis'];
+    protected $fillable = ['pet_id', 'prescription_date', 'medication', 'notes',  'user_id', 'branch_id', 'differential_diagnosis','pres_visit_id'];
 
     /**
      * Override the BranchDataScope to include prescriptions for pets with active interbranch referrals

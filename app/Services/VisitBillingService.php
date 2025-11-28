@@ -37,6 +37,7 @@ class VisitBillingService
                 'bill_date' => $visit->visit_date ? Carbon::parse($visit->visit_date)->toDateString() : Carbon::now()->toDateString(),
                 'visit_id' => $visit->visit_id,
                 'bill_status' => 'Pending',
+                'owner_id' => $this->resolveOwnerId($visit),
             ];
             
             // Only add branch_id if column exists

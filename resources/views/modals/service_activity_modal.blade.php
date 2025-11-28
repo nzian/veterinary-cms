@@ -323,6 +323,7 @@
                     @csrf
                     <input type="hidden" name="pet_id" id="activity_prescription_pet_id">
                     <input type="hidden" name="medications_json" id="activity_medications_json">
+                     <input type="hidden" name="pvisit_id" id="activity_prescription_visit_id">
                     <input type="hidden" name="active_tab" value="visits">
 
                     <div>
@@ -437,6 +438,7 @@
         document.getElementById('activity_prescription_pet_id').value = petId;
         document.getElementById('activity_referral_pet_id').value = petId;
         document.getElementById('activity_referral_visit_id').value = String({{ $visit->visit_id ?? '""' }});
+        document.getElementById('activity_prescription_visit_id').value = String({{ $visit->visit_id ?? '""' }});
         const initPetInput = document.getElementById('activity_initial_pet_id');
         const initVisitInput = document.getElementById('activity_initial_visit_id');
         if (initPetInput) initPetInput.value = petId;

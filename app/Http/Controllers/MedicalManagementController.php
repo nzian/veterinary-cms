@@ -195,7 +195,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         $visits = $baseVisitQuery()->paginate((int) $visitPerPage, ['*'], 'visitsPage');
 
         // FIX: Comprehensive service type lists for tabs
-        $checkupTypes = ['check up', 'consultation', 'checkup'];
+        $checkupTypes = ['check-up', 'consultation', 'checkup'];
         $diagnosticTypes = ['diagnostics', 'diagnostic', 'laboratory'];
         $surgicalTypes = ['surgical', 'surgery'];
         
@@ -254,6 +254,8 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
     private function ensureServiceCompleted($visitModel, $serviceId = null, array $typeKeywords = [], $quantity = 1)
     {
         $visitId = $visitModel->visit_id;
+        $branchId = Auth::user()->branch_id ?? session('active_branch_id');
+        //dd($branchId);
         \Log::info('[ensureServiceCompleted] called', ['visit_id' => $visitId, 'service_id' => $serviceId, 'typeKeywords' => $typeKeywords, 'quantity' => $quantity]);
 
         if (!empty($serviceId)) {
@@ -300,6 +302,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
             $pivot = \DB::table('tbl_visit_service as vs')
                 ->join('tbl_serv as s', 'vs.serv_id', '=', 's.serv_id')
                 ->where('vs.visit_id', $visitId)
+                ->where('s.branch_id', $branchId)
                 ->where(function($q) use ($typeKeywords) {
                     foreach ($typeKeywords as $kw) {
                         $q->orWhere('s.serv_type', 'LIKE', '%' . $kw . '%');
@@ -307,7 +310,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                 })
                 ->select('vs.serv_id')
                 ->first();
-
+              
             if ($pivot) {
                 $svcId = $pivot->serv_id;
                 $service = \App\Models\Service::find($svcId);
@@ -328,7 +331,8 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
             }
 
             // If no pivot found, try to find a matching service and attach it completed
-            $service = \App\Models\Service::where(function($q) use ($typeKeywords) {
+            $service = \App\Models\Service::where('branch_id', $branchId)->where(function($q) use ($typeKeywords) {
+                
                 foreach ($typeKeywords as $kw) {
                     $q->orWhere('serv_type', 'LIKE', '%' . $kw . '%');
                 }
@@ -392,7 +396,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         );
         
         // Ensure consultation service pivot is marked completed (attach if missing)
-        $this->ensureServiceCompleted($visitModel, null, ['consultation', 'check up', 'checkup'], 1);
+        $this->ensureServiceCompleted($visitModel, null, ['consultation', 'check up', 'check-up'], 1);
 
         // Update visit_service_type to include all services (if column exists)
         $visitModel->refresh();
@@ -829,7 +833,7 @@ public function completeService(Request $request, $visitId, $serviceId)
         $validated = $request->validate([
             'grooming_type' => ['required','string','max:255'],
             'addon_services' => ['nullable','array'],
-            'addon_services.*' => ['string','max:255'],
+            'addon_services.*' => ['string','nullable','max:255'],
             'instructions' => ['nullable','string'],
             'start_time' => ['nullable','date'], 
             'end_time' => ['nullable','date','after_or_equal:start_time'],
@@ -837,7 +841,7 @@ public function completeService(Request $request, $visitId, $serviceId)
         ]);
         
         $visitModel = Visit::with('groomingAgreement')->findOrFail($visitId);
-        //dd($validated);
+        //dd($visitModel);
         // Check if agreement is signed before proceeding
         if (!$visitModel->groomingAgreement) {
             return redirect()->route('medical.visits.perform', ['id' => $visitId, 'type' => 'grooming'])
@@ -865,11 +869,14 @@ public function completeService(Request $request, $visitId, $serviceId)
         $existingServices = $visitModel->services()->get();
         $syncData = [];
         
-       foreach ($existingServices as $existingService) {
+       foreach ($existingServices as $index => $existingService) {
             // Skip grooming services that are being updated - we'll add them below with new data
             if (in_array($existingService->serv_id, $selectedServiceIds)) {
                 continue;
             }
+            if($visitModel->services()->where('tbl_serv.serv_type', $existingService->serv_type)->whereNotIn('tbl_visit_service.serv_id', $selectedServiceIds)->exists()){
+                    unset($existingServices[$index]);           
+                }
             
             $syncData[$existingService->serv_id] = [
                 'status' => $existingService->pivot->status ?? 'pending',
@@ -881,7 +888,7 @@ public function completeService(Request $request, $visitId, $serviceId)
                 'updated_at' => now(),
             ];
         }
-
+        //dd($syncData);
         // Determine grooming service status based on workflow
         $groomingStatus = 'pending';
         $groomingCompletedAt = null;
@@ -909,6 +916,8 @@ public function completeService(Request $request, $visitId, $serviceId)
                 'updated_at' => now(),
             ];
         }
+
+        //dd($syncData);
         
         // 3. Sync all services (existing + grooming services)
         $visitModel->services()->sync($syncData);
@@ -1161,8 +1170,15 @@ public function completeService(Request $request, $visitId, $serviceId)
                 'date_completed' => $validated['test_datetime'] ? Carbon::parse($validated['test_datetime'])->toDateString() : now()->toDateString(),
                 'status' => 'Completed', 'updated_at' => now(),
             ]
-        );
-        
+        );  
+        /* $selectedService = Service::find($validated['service_id']);
+            if ($selectedService) {
+                // check if any same type service exist in pivot table
+                if($visitModel->services()->where('tbl_serv.serv_type', $selectedService->serv_type)->exists()){
+                    $visitModel->services()->where('tbl_serv.serv_type', $selectedService->serv_type)->detach();            
+                }
+            }*/
+
         // Ensure diagnostic service pivot is marked completed (attach if missing)
         $this->ensureServiceCompleted($visitModel, $validated['service_id'] ?? null, ['diagnostic', 'diagnostics', 'laboratory'], 1);
 
@@ -1228,7 +1244,10 @@ public function completeService(Request $request, $visitId, $serviceId)
             $selectedService = Service::find($validated['service_id']);
             if ($selectedService) {
                 // check if any same type service exist in pivot table
-                if($visitModel->services()->where('tbl_serv.serv_type', $selectedService->serv_type)->exists()){
+                if($visitModel->services()->where('tbl_serv.serv_type', $selectedService->serv_type)->where($selectedService->pivot->serv_id, $validated['service_id'])->exists()){
+                    ;            
+                }
+                else {
                     $visitModel->services()->where('tbl_serv.serv_type', $selectedService->serv_type)->detach();            
                 }
                 $anesthesiaProduct = $selectedService->products()
@@ -1358,10 +1377,11 @@ public function completeService(Request $request, $visitId, $serviceId)
         ]);
 
         $userId = Auth::id() ?? $request->input('user_id');
+        $branchId = Auth::user()->branch_id ?? session('active_branch_id');
         $totalServicesCreated = 0;
         $visitsCreated = 0;
 
-        DB::transaction(function () use ($validated, $userId, $request, &$totalServicesCreated, &$visitsCreated) {
+        DB::transaction(function () use ($validated, $userId, $request, &$totalServicesCreated, $branchId, &$visitsCreated) {
             foreach ($validated['pet_ids'] as $petId) {
                 $pet = Pet::findOrFail($petId);
                 $pet->pet_weight = $request->input("weight.$petId") ?? $pet->pet_weight;
@@ -1395,11 +1415,12 @@ public function completeService(Request $request, $visitId, $serviceId)
                     
                     foreach ($selectedTypes as $selectedType) {
                         // First, try to find by exact service name match
-                        $service = Service::where('serv_name', $selectedType)->first();
+                        $service = Service::where('serv_name', $selectedType)->where('branch_id', $branchId)->first();
                         
                         // If not found by name, find the first service of this type
                         if (!$service) {
                             $service = Service::where('serv_type', $selectedType)
+                                ->where('branch_id', $branchId )
                                 ->orWhere('serv_type', 'LIKE', '%' . $selectedType . '%')
                                 ->orWhere(DB::raw('LOWER(serv_type)'), 'LIKE', '%' . strtolower($selectedType) . '%')
                                 ->first();
@@ -1407,7 +1428,7 @@ public function completeService(Request $request, $visitId, $serviceId)
                         
                         // If still not found, try case-insensitive match
                         if (!$service) {
-                            $service = Service::where(DB::raw('LOWER(serv_name)'), strtolower($selectedType))
+                            $service = Service::where('branch_id', $branchId)->where(DB::raw('LOWER(serv_name)'), strtolower($selectedType))
                                 ->orWhere(DB::raw('LOWER(serv_type)'), strtolower($selectedType))
                                 ->first();
                         }
@@ -1655,6 +1676,8 @@ public function completeService(Request $request, $visitId, $serviceId)
      */
   public function performVisit(Request $request, $id)
     {
+
+        $branchId = Auth::user()->branch_id ?? session('active_branch_id');
         
         $visit = Visit::with(['pet.owner', 'user', 'services'])->findOrFail($id);
 
@@ -1723,7 +1746,8 @@ public function completeService(Request $request, $visitId, $serviceId)
         $petAgeMonths = $this->calculatePetAgeInMonths(optional($visit)->pet);
         $availableAddons = collect();
         if ($blade === 'grooming') {
-            $availableGroomingServices = Service::where('serv_type', 'LIKE', '%' .$serviceType . '%') 
+            $availableGroomingServices = Service::where('serv_type', 'LIKE', '%' .$serviceType . '%')
+                ->where('branch_id', $branchId)
                 ->select('serv_id', 'serv_name', 'serv_price') 
                 ->orderBy('serv_name')
                 ->get();
@@ -1873,8 +1897,8 @@ public function completeService(Request $request, $visitId, $serviceId)
         // Explicitly filter by branch_id to ensure only current branch services are shown
         if ($blade === 'vaccination') {
             $availableServices = Service::where('serv_type', 'like', '%vaccination%')
-                ->when($activeBranchId, function($query) use ($activeBranchId) {
-                    $query->where('branch_id', $activeBranchId);
+                ->when($branchId, function($query) use ($branchId) {
+                    $query->where('branch_id', $branchId);
                 })
                 ->orderBy('serv_name')
                 ->get();
@@ -1908,10 +1932,10 @@ public function completeService(Request $request, $visitId, $serviceId)
                     });
                     
                     // Filter by branch and expiry
-                    $products = $products->filter(function($product) use ($activeBranchId) {
-                        $matchesBranch = !$activeBranchId || $product->branch_id == $activeBranchId;
-                        $notExpired = !$product->prod_expiry || $product->prod_expiry > now();
-                        return $matchesBranch && $notExpired;
+                    $products = $products->filter(function($product) use ($branchId) {
+                        $matchesBranch = !$branchId || $product->branch_id == $branchId;
+                       // $notExpired = !$product->prod_expiry || $product->prod_expiry > now();
+                        return $matchesBranch;
                     })->values();
                     
                     $service->setRelation('products', $products);
@@ -1922,10 +1946,14 @@ public function completeService(Request $request, $visitId, $serviceId)
             
             // Load all vaccine products that are in stock and not expired
             $vaccines = \App\Models\Product::where('prod_category', 'like', '%vaccin%')
-                ->where('prod_stocks', '>', 0)
+            ->leftJoin('product_stock', 'tbl_prod.prod_id', '=', 'product_stock.stock_prod_id')
+                ->when($branchId, function($query) use ($branchId) {
+                    $query->where('tbl_prod.branch_id', $branchId);
+                })
+                ->where('product_stock.quantity', '>', 0)
                 ->where(function($query) {
-                    $query->where('prod_expiry', '>', now())
-                          ->orWhereNull('prod_expiry');
+                    $query->where('expire_date', '>', now())
+                          ->orWhereNull('expire_date');
                 })
                 ->orderBy('prod_name')
                 ->get();
@@ -1935,8 +1963,8 @@ public function completeService(Request $request, $visitId, $serviceId)
         // Explicitly filter by branch_id to ensure only current branch services are shown
         if ($blade === 'deworming') {
             $availableServices = Service::where('serv_type', 'like', '%deworming%')
-                ->when($activeBranchId, function($query) use ($activeBranchId) {
-                    $query->where('branch_id', $activeBranchId);
+                ->when($branchId, function($query) use ($branchId) {
+                    $query->where('branch_id', $branchId);
                 })
                 ->orderBy('serv_name')
                 ->get();
@@ -1987,11 +2015,11 @@ public function completeService(Request $request, $visitId, $serviceId)
         // Explicitly filter by branch_id to ensure only current branch services are shown
         if ($blade === 'diagnostic') {
             $availableServices = Service::where(function($query) {
-                    $query->where('serv_type', 'like', '%diagnostic%')
-                          ->orWhere('serv_type', 'like', '%diagnostics%');
+                    $query->where('serv_type', 'like', '%Diagnostic%')
+                          ->orWhere('serv_type', 'like', '%Diagnostics%');
                 })
-                ->when($activeBranchId, function($query) use ($activeBranchId) {
-                    $query->where('branch_id', $activeBranchId);
+                ->when($branchId, function($query) use ($branchId) {
+                    $query->where('branch_id', $branchId);
                 })
                 ->orderBy('serv_name')
                 ->get();
@@ -2001,8 +2029,8 @@ public function completeService(Request $request, $visitId, $serviceId)
         // Explicitly filter by branch_id to ensure only current branch services are shown
         if ($blade === 'surgical') {
             $availableServices = Service::where('serv_type', 'like', '%surgical%')
-                ->when($activeBranchId, function($query) use ($activeBranchId) {
-                    $query->where('branch_id', $activeBranchId);
+                ->when($branchId, function($query) use ($branchId) {
+                    $query->where('branch_id', $branchId);
                 })
                 ->orderBy('serv_name')
                 ->get();
@@ -2048,9 +2076,12 @@ public function completeService(Request $request, $visitId, $serviceId)
                 }
             }
         }
-
+       // dd($availableServices);
         // ðŸŒŸ NEW LOGIC: Fetch all registered veterinarians
         $veterinarians = User::where('user_role', 'veterinarian')
+                            ->when($branchId, function($query) use ($branchId) {
+                                $query->where('branch_id', $branchId);
+                            })
                             ->orderBy('user_name')
                             ->get();
         
@@ -2191,6 +2222,7 @@ public function completeService(Request $request, $visitId, $serviceId)
         try {
             $request->validate([
                 'pet_id' => 'required|exists:tbl_pet,pet_id',
+                'pvisit_id' => 'nullable|exists:tbl_visit_record,visit_id',
                 'prescription_date' => 'required|date',
                 'medications_json' => 'required|json',
                 'differential_diagnosis' => 'nullable|string',
@@ -2220,6 +2252,7 @@ public function completeService(Request $request, $visitId, $serviceId)
             // Create the prescription record
             $prescription = new Prescription();
             $prescription->pet_id = $request->pet_id;
+            $prescription->visit_id = $request->pvisit_id;
             $prescription->prescription_date = $request->prescription_date;
             $prescription->medication = $request->medications_json; // Store the JSON string directly
             $prescription->differential_diagnosis = $request->differential_diagnosis;

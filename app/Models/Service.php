@@ -28,7 +28,7 @@ class Service extends Model
     // Only allow these service types
     public static $allowedTypes = [
         'boarding',
-        'check up',
+        'check-up',
         'deworming',
         'diagnostics',
         'emergency',

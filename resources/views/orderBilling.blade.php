@@ -242,6 +242,7 @@
                                                             }
                                                             // Add prescription costs
                                                             $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit?->pet_id)
+                                                            ->where('pres_visit_id', $billing->visit?->visit_id)
                                                                 ->whereDate('prescription_date', $billing->visit?->visit_date)
                                                                 ->get();
                                                             foreach($prescriptions as $prescription) {
@@ -254,6 +255,7 @@
                                                         }
                                                         // Fetch prescriptions for this pet on the visit date
                                                         $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit?->pet_id)
+                                                            ->where('pres_visit_id', $billing->visit?->visit_id)
                                                             ->whereDate('prescription_date', $billing->visit?->visit_date)
                                                             ->get();
                                                     @endphp
