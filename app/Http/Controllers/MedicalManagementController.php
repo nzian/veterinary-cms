@@ -163,7 +163,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         $perPage = $request->get('perPage', 10);
         $activeTab = $request->get('tab', 'visits'); 
         $activeBranchId = session('active_branch_id');
-    $user = Auth::user();
+        $user = Auth::user();
         
         if ($user->user_role !== 'superadmin') {
             $activeBranchId = $user->branch_id;
@@ -1242,14 +1242,10 @@ public function completeService(Request $request, $visitId, $serviceId)
         // Deduct Inventory for anesthesia/consumable products
         if (!empty($validated['anesthesia']) && !empty($validated['service_id'])) {
             $selectedService = Service::find($validated['service_id']);
+            //dd($selectedService->pivot);
             if ($selectedService) {
                 // check if any same type service exist in pivot table
-                if($visitModel->services()->where('tbl_serv.serv_type', $selectedService->serv_type)->where($selectedService->pivot->serv_id, $validated['service_id'])->exists()){
-                    ;            
-                }
-                else {
-                    $visitModel->services()->where('tbl_serv.serv_type', $selectedService->serv_type)->detach();            
-                }
+              
                 $anesthesiaProduct = $selectedService->products()
                     ->where('prod_name', $validated['anesthesia'])
                     ->first();
@@ -1481,6 +1477,7 @@ public function completeService(Request $request, $visitId, $serviceId)
             'weight' => 'nullable|numeric', 'temperature' => 'nullable|numeric', 'patient_type' => 'required|string|max:100',
             'visit_status' => 'nullable|string',
         ]);
+        $branchId = Auth::user()->branch_id ?? session('active_branch_id');
 
             $pet = Pet::findOrFail($validated['pet_id']);
             $pet->pet_weight = $validated['weight'] ?? $pet->pet_weight;
@@ -1490,6 +1487,7 @@ public function completeService(Request $request, $visitId, $serviceId)
         $visit->update($validated);
         if ($request->filled('visit_status')) {
             $visit->visit_status = $request->input('visit_status');
+            $visit->workflow_status = $request->input('workflow_status', 'pending');
             $visit->save();
         }
 
@@ -1521,11 +1519,12 @@ public function completeService(Request $request, $visitId, $serviceId)
                 // Now process newly added services
                 foreach ($selectedTypes as $selectedType) {
                     // First, try to find by exact service name match
-                    $service = Service::where('serv_name', $selectedType)->first();
+                    $service = Service::where(['serv_name', $selectedType, 'branch_id', $branchId])->first();
                     
                     // If not found by name, find the first service of this type
                     if (!$service) {
                         $service = Service::where('serv_type', $selectedType)
+                            ->where('branch_id', $branchId )
                             ->orWhere('serv_type', 'LIKE', '%' . $selectedType . '%')
                             ->orWhere(DB::raw('LOWER(serv_type)'), 'LIKE', '%' . strtolower($selectedType) . '%')
                             ->first();
@@ -1534,6 +1533,7 @@ public function completeService(Request $request, $visitId, $serviceId)
                     // If still not found, try case-insensitive match
                     if (!$service) {
                         $service = Service::where(DB::raw('LOWER(serv_name)'), strtolower($selectedType))
+                            ->where('branch_id', $branchId )
                             ->orWhere(DB::raw('LOWER(serv_type)'), strtolower($selectedType))
                             ->first();
                     }
@@ -2066,7 +2066,7 @@ public function completeService(Request $request, $visitId, $serviceId)
                     // Filter by branch and expiry (anesthesia products)
                     $products = $products->filter(function($product) use ($activeBranchId) {
                         $matchesBranch = !$activeBranchId || $product->branch_id == $activeBranchId;
-                        $notExpired = !$product->prod_expiry || $product->prod_expiry > now();
+                        $notExpired = $product->available_stock > 0 || $product->prod_expiry > now();
                         return $matchesBranch && $notExpired;
                     })->values();
                     

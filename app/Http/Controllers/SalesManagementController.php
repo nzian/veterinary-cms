@@ -35,7 +35,7 @@ class SalesManagementController extends Controller
         if ($petBillings->isEmpty()) {
             abort(404, 'No billings found for this owner and date.');
         }
-
+        //dd($petBillings);
         $owner = $petBillings->first()->visit->pet->owner ?? $petBillings->first()->owner;
         $branch = $petBillings->first()->visit->user->branch ?? \App\Models\Branch::first();
         $totalAmount = $petBillings->sum('total_amount');
@@ -68,10 +68,24 @@ class SalesManagementController extends Controller
                     ];
                 }
             }
+            $prescriptions = [];
             // Prescriptions
-            $prescModels = \App\Models\Prescription::where('pet_id', $billing->visit->pet_id)
+            if($billing->visit == null){
+                $billing->load('owner.pets');
+                //dd($billing->owner->pets);
+                if($billing->owner && $billing->owner->pets->count() > 0){
+                    $pet_id = $billing->owner->pets->first()->pet_id;
+                    $petName = $pet->pet_name ?? 'Pet';
+                }   
+            }
+            elseif($billing->visit->pet){
+                $petName = $billing->visit->pet->pet_name ?? 'Pet';
+                $pet_id = $billing->visit->pet->pet_id;
+            }
+            if(!$billing->visit != null){
+                $prescModels = \App\Models\Prescription::where('pet_id', $pet_id)
                 ->where('pres_visit_id', $billing->visit_id)
-                ->whereDate('prescription_date', $billing->visit->visit_date)
+                ->whereDate('prescription_date', $billing->bill_date)
                 ->get();
             foreach ($prescModels as $presc) {
                 $medications = json_decode($presc->medication, true) ?? [];
@@ -93,6 +107,8 @@ class SalesManagementController extends Controller
                     ];
                 }
             }
+        }
+           
             // Products
             if ($billing->orders && $billing->orders->count() > 0) {
                 foreach ($billing->orders as $order) {
@@ -102,11 +118,11 @@ class SalesManagementController extends Controller
                     } elseif (isset($order->product->prod_price) && $order->product->prod_price > 0) {
                         $prodPrice = $order->product->prod_price;
                     }
-                    $products->push([
+                    /*$products->push([
                         'name' => $order->product->prod_name ?? 'Product',
                         'qty' => $order->ord_quantity,
                         'subtotal' => $order->ord_quantity * $prodPrice,
-                    ]);
+                    ]);*/
                 }
             }
         }

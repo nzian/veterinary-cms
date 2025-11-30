@@ -71,7 +71,7 @@ class ProdServEquipController extends Controller
                         'product_name' => $sp->product->prod_name ?? 'Unknown',
                         'quantity_used' => $sp->quantity_used,
                         'is_billable' => $sp->is_billable,
-                        'current_stock' => $sp->product->prod_stocks ?? 0
+                        'current_stock' => ($sp->product->available_stock - $sp->product->usage_from_inventory_transactions) ?? 0
                     ];
                 });
 
@@ -636,6 +636,7 @@ class ProdServEquipController extends Controller
     {
         $activeBranchId = session('active_branch_id');
         $user = auth()->user();
+        $productType = $request->get('productsType', 'All');
 
         if ($user->user_role !== 'superadmin') {
             $activeBranchId = $user->branch_id;
@@ -654,6 +655,9 @@ class ProdServEquipController extends Controller
             ->when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
                 $query->where('branch_id', $activeBranchId);
             })
+            ->when($productType !== 'All', function ($query) use ($productType) {
+                $query->where('prod_type', $productType);
+            })
             ->orderBy('prod_id', 'desc')
             ->paginate($productsPerPage, ['*'], 'productsPage')
             ->appends($request->except('productsPage'));
@@ -661,6 +665,7 @@ class ProdServEquipController extends Controller
         $services = Service::when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
                 $query->where('branch_id', $activeBranchId);
             })
+            ->with(['branch'])
             ->orderBy('serv_id', 'desc')
             ->paginate($servicesPerPage, ['*'], 'servicesPage')
             ->appends($request->except('servicesPage'));
@@ -668,14 +673,18 @@ class ProdServEquipController extends Controller
         $equipment = Equipment::when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
                 $query->where('branch_id', $activeBranchId);
             })
+            ->with(['branch'])
             ->orderBy('equipment_id', 'desc')
             ->paginate($equipmentPerPage, ['*'], 'equipmentPage')
             ->appends($request->except('equipmentPage'));
 
         $branches = Branch::all();
-
+        
         $allProducts = Product::select('prod_id', 'prod_name', 'prod_stocks', 'prod_category')
-                ->where('prod_type', 'Consumable')
+         ->when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
+                $query->where('branch_id', $activeBranchId);
+            })
+            ->where('prod_type', 'Consumable')
                 ->orderBy('prod_id', 'desc')
                 ->get();
 
@@ -1560,7 +1569,7 @@ public function getServiceInventoryOverview()
                 $servicesRemaining = [];
                 foreach ($items as $item) {
                     if ($item->quantity_used > 0) {
-                        $remaining = floor(($product->prod_stocks ?? 0) / $item->quantity_used);
+                        $remaining = floor(($product->available_stock - $product->usage_from_inventory_transactions) / $item->quantity_used);
                         $servicesRemaining[] = [
                             'service_name' => $item->service->serv_name ?? 'Unknown',
                             'remaining_count' => $remaining
@@ -1584,7 +1593,7 @@ public function getServiceInventoryOverview()
                     'product_id' => $prodId,
                     'product_name' => $product->prod_name ?? 'Unknown',
                     'product_category' => $product->prod_category ?? 'N/A',
-                    'current_stock' => $product->prod_stocks ?? 0,
+                    'current_stock' => ($product->available_stock - $product->usage_from_inventory_transactions) ?? 0,
                     'reorder_level' => $product->prod_reorderlevel ?? 0,
                     'services_using' => $services,
                     'total_used_per_service_cycle' => $totalUsedInServices,

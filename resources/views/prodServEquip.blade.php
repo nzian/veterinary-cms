@@ -100,6 +100,19 @@
                         </select>
                         <span class="whitespace-nowrap">entries</span>
                     </form>
+                    <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
+                        <input type="hidden" name="tab" value="products">
+                        <label for="productsType" class="whitespace-nowrap text-sm text-black">Filter</label>
+                        <select name="productsType" id="productsType" onchange="this.form.submit()"
+                            class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                            @foreach (['All', 'Sale', 'Consumable'] as $type)
+                                <option value="{{ $type }}" {{ request('productsType') == $type ? 'selected' : '' }}>
+                                    {{ $type }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <span class="whitespace-nowrap">entries</span>
+                    </form>
                     <div class="relative flex-1 min-w-[200px] max-w-xs">
                         <input type="search" id="productsSearch" placeholder="Search products..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                         <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -161,12 +174,12 @@
                                     <td class="p-2 border">
                                         @php
                                             $stockStatus = '';
-                                            if ($product->prod_stocks <= ($product->prod_reorderlevel ?? 10)) {
+                                            if ($product->available_stock - $product->usage_from_inventory_transactions <= ($product->prod_reorderlevel ?? 10)) {
                                                 $stockStatus = 'text-red-600 font-bold';
                                             }
                                         @endphp
                                         <div>
-                                            <span class="{{ $stockStatus }}">{{ $product->prod_stocks ?? 0 }}</span>
+                                            <span class="{{ $stockStatus }}">{{ $product->available_stock - $product->usage_from_inventory_transactions ?? 0 }}</span>
                                         </div>
                                     </td>
                                     <td class="p-2 border">{{ $product->branch->branch_name ?? 'N/A' }}</td>
@@ -294,6 +307,7 @@
                                 <th class="p-2 border">Type</th>
                                 <th class="p-2 border">Description</th>
                                 <th class="p-2 border">Price</th>
+                                <th class="p-2 border">Branch</th>
                                 <th class="p-2 border">Actions</th>
                             </tr>
                         </thead>
@@ -304,6 +318,7 @@
                                     <td class="p-2 border">{{ $service->serv_type }}</td>
                                     <td class="p-2 border">{{ Str::limit($service->serv_description, 50) }}</td>
                                     <td class="p-2 border">₱{{ number_format($service->serv_price, 2) }}</td>
+                                    <td class="p-2 border">{{ $service->branch->branch_name ?? 'N/A' }}</td>
                                     <td class="p-2 border">
                                         <div class="flex justify-center gap-2">
                                             <button onclick="viewServiceDetails({{ $service->serv_id }})"
@@ -443,6 +458,7 @@
                                 <th class="p-2 border">Category</th>
                                 <th class="p-2 border">Description</th>
                                 <th class="p-2 border">Quantity</th>
+                                <th class="p-2 border">Branch</th>
                                 <th class="p-2 border">Status Breakdown</th>
                                 <th class="p-2 border">Actions</th>
                             </tr>
@@ -460,8 +476,10 @@
                                     </td>
                                     <td class="p-2 border">{{ $equip->equipment_name }}</td>
                                     <td class="p-2 border">{{ $equip->equipment_category ?? 'N/A'}}</td>
+                                    
                                     <td class="p-2 border">{{ Str::limit($equip->equipment_description ?? 'N/A', 50) }}</td>
                                     <td class="p-2 border">{{ $equip->equipment_quantity }}</td>
+                                    <td class="p-2 border">{{ $equip->branch->branch_name ?? 'N/A' }}</td>
                                     <td class="p-2 border">
                                         @php
                                             $totalQty = $equip->equipment_quantity;
@@ -685,7 +703,7 @@
                                 $statusText = 'Good Stock';
                                 $statusClass = 'bg-green-100 text-green-800';
 
-                                if ($product->prod_stocks <= ($product->prod_reorderlevel ?? 10)) {
+                                if ($product->available_stock - $product->usage_from_inventory_transactions <= ($product->prod_reorderlevel ?? 10)) {
                                     $status = 'low';
                                     $statusText = 'Low Stock';
                                     $statusClass = 'bg-orange-100 text-orange-800';
@@ -693,7 +711,7 @@
                             @endphp
                             <tr>
                                 <td class="p-2 border font-medium">{{ $product->prod_name }}</td>
-                                <td class="p-2 border">{{ $product->prod_stocks ?? 0 }}</td>
+                                <td class="p-2 border">{{ $product->available_stock - $product->usage_from_inventory_transactions ?? 0 }}</td>
                                 <td class="p-2 border">{{ $product->prod_reorderlevel ?? 'N/A' }}</td>
                                 <td class="p-2 border">
                                     <span class="{{ ($product->prod_damaged ?? 0) > 0 ? 'text-red-600' : '' }}">
@@ -745,8 +763,8 @@
                             <option value="">-- Select Consumable Product --</option>
                             @foreach($allProducts as $product)
                                 <option value="{{ $product->prod_id }}" data-name="{{ $product->prod_name }}"
-                                    data-stock="{{ $product->prod_stocks }}" data-category="{{ $product->prod_category }}">
-                                    {{ $product->prod_name }} (Stock: {{ $product->prod_stocks }})
+                                    data-stock="{{ $product->available_stock - $product->usage_from_inventory_transactions }}" data-category="{{ $product->prod_category }}">
+                                    {{ $product->prod_name }} (Stock: {{ $product->available_stock - $product->usage_from_inventory_transactions }})
                                 </option>
                             @endforeach
                         </select>
@@ -3166,7 +3184,7 @@
                 const table = document.querySelector(tableSelector);
                 const tbody = table ? table.querySelector('tbody') : null;
                 const sel = document.getElementById(perPageSelectId);
-                const form = formSelector ? document.querySelector(formSelector) : (sel ? sel.form : null);
+                const form = formSeelctor ? document.querySelector(formSelector) : (sel ? sel.form : null);
                 if(!input || !tbody) return;
 
                 const last = getPersist(tab);
