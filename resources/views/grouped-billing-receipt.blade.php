@@ -45,16 +45,17 @@
     @empty
         <div class="item-row"><div class="desc">No services</div></div>
     @endforelse
-
-    <div class="section-title">PRESCRIPTIONS</div>
-    @forelse($prescriptions as $presc)
-        <div class="item-row">
-            <div class="desc">{{ $presc['pet'] }}: {{ $presc['name'] }}</div>
-            <div>₱{{ number_format($presc['price'], 2) }}</div>
-        </div>
-    @empty
-        <div class="item-row"><div class="desc">No prescriptions</div></div>
-    @endforelse
+    @if(!empty($prescriptions))
+        <div class="section-title">PRESCRIPTIONS</div>
+        @forelse($prescriptions as $presc)
+            <div class="item-row">
+                <div class="desc">{{ $presc['pet'] }}: {{ $presc['name'] }}</div>
+                <div>₱{{ number_format($presc['price'], 2) }}</div>
+            </div>
+        @empty
+            <div class="item-row"><div class="desc">No prescriptions</div></div>
+        @endforelse
+    @endif
 
     @if(!empty($products))
         <div class="section-title">PRODUCTS</div>
@@ -68,7 +69,9 @@
 
     <div class="totals">
         <div>Services: ₱{{ number_format(array_sum(array_column($services, 'price')), 2) }}</div>
+        @if(!empty($prescriptions))
         <div>Prescriptions: ₱{{ number_format(array_sum(array_column($prescriptions, 'price')), 2) }}</div>
+        @endif
         @if(!empty($products))
             <div>Products: ₱{{ number_format(
                 collect($products)->sum(function($prod) {

@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\BranchDataScope;
-
+use Illuminate\Support\Facades\DB;
 class Product extends Model
 {
     use HasFactory, BranchDataScope;
@@ -86,6 +86,29 @@ public function getBranchIdColumn()
         
         return max(0, $totalAvailable);
     }
+   /**
+     * Get total stock from all batches (including expired)
+     */
+
+    public function getUsageFromInventoryTransactionsAttribute()
+    {
+        // Assumes tbl_inventory_transactions has columns: prod_id, transaction_type, quantity_changed
+        // and that usage is indicated by a specific transaction_type, e.g., 'used' or similar
+        // Adjust 'used' to your actual usage type if different
+        if($this->prod_type === 'Consumable'){
+            return -1 * DB::table('tbl_inventory_transactions')
+            ->where('prod_id', $this->prod_id)
+            ->where('transaction_type', 'service_usage') // Adjust this as needed        
+            ->sum('quantity_change') ?? 0;
+        }
+        else {
+            return -1 * DB::table('tbl_inventory_transactions')
+            ->where('prod_id', $this->prod_id)
+            ->where('transaction_type', 'order_usage') // Adjust this as needed        
+            ->sum('quantity_change') ?? 0;
+        }
+        
+    } 
 
     /**
      * Get total stock from all batches (including expired)
