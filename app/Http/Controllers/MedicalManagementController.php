@@ -1201,7 +1201,7 @@ public function completeService(Request $request, $visitId, $serviceId)
         $syncData = [];
         $visitModel = Visit::find($visitId);
         $branchId = Auth::user()->branch_id ?? session('active_branch_id');
-        $selectedServiceIds = $validated['service_id'];
+        $selectedServiceIds = [$validated['service_id']];
          $pending_grooming = $visitModel->services()->where(DB::raw('LOWER(serv_type)'), strtolower('Diagnostics'))->where('branch_id', $branchId)->wherePivot('status', 'pending')->pluck('tbl_serv.serv_id')->toArray();
         $to_detach = array_diff($pending_grooming, $selectedServiceIds);
         if(!empty($to_detach)) {
@@ -1275,13 +1275,14 @@ public function completeService(Request $request, $visitId, $serviceId)
     public function saveSurgical(Request $request, $visitId)
     {
         $validated = $request->validate([
-            'surgery_type' => ['required','string'], 'service_id' => ['nullable','integer','exists:tbl_serv,serv_id'],
+            'surgery_type' => ['required','string'], 'service_id' => ['integer','exists:tbl_serv,serv_id'],
             'staff' => ['nullable','string'], 'anesthesia' => ['nullable','string'],
             'start_time' => ['nullable','date'], 'end_time' => ['nullable','date','after_or_equal:start_time'],
             'checklist' => ['nullable','string'], 'post_op_notes' => ['nullable','string'], 'medications_used' => ['nullable','string'],
             'follow_up' => ['nullable','date'], 'workflow_status' => ['nullable','string'],
         ]);
-        
+        $branchId = Auth::user()->branch_id ?? session('active_branch_id');
+        $selectedServiceIds = [$validated['service_id']];
         $visitModel = Visit::with('services')->findOrFail($visitId);
         
         DB::table('tbl_surgical_record')->updateOrInsert(
@@ -1306,6 +1307,11 @@ public function completeService(Request $request, $visitId, $serviceId)
             //dd($selectedService->pivot);
             if ($selectedService) {
                 // check if any same type service exist in pivot table
+                $pending_surgical = $visitModel->services()->where(DB::raw('LOWER(serv_type)'), strtolower('Surgical'))->where('branch_id', $branchId)->wherePivot('status', 'pending')->pluck('tbl_serv.serv_id')->toArray();
+                        $to_detach = array_diff($pending_surgical, $selectedServiceIds);
+                        if(!empty($to_detach)) {
+                            $visitModel->services()->detach($to_detach);
+                        }
               
                 $anesthesiaProduct = $selectedService->products()
                     ->where('prod_name', $validated['anesthesia'])
@@ -1348,7 +1354,10 @@ public function completeService(Request $request, $visitId, $serviceId)
         
         // Check if all services are completed and generate billing
         $allCompleted = $visitModel->checkAllServicesCompleted();
-        
+        $visit_status = $this->getVisitStatusAfterServiceUpdate($visitModel);
+        $visitModel->visit_status = $visit_status;
+        $visitModel->workflow_status = $visit_status;
+        $visitModel->save();
         // Verify billing was actually created
         $visitModel->refresh();
         $billingExists = \Illuminate\Support\Facades\DB::table('tbl_bill')
