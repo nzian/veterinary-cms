@@ -1171,8 +1171,10 @@
                                     @endphp
                                     @if(strtolower($boardingStatus) === 'checked in')
                                         <span class="text-green-700 font-bold">Checked In</span>
+                                    @elseif(strtolower($boardingStatus) === 'checked out')
+                                        <span class="text-red-700 font-bold">Checked Out</span>
                                     @else
-                                        {{ $b->workflow_status ?? ($b->visit_status ?? '-') }}
+                                        {{ $b->workflow_status ?? $b->visit_status ?? '-' }}
                                     @endif
                                 </td>
                                 <td class="border px-2 py-1">

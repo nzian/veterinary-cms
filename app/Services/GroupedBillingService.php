@@ -195,6 +195,8 @@ class GroupedBillingService
     protected function calculateVisitTotal(Visit $visit)
     {
         // Calculate services total - use pivot price if > 0, otherwise use service base price
+        $productsTotal = 0;
+        $servicesTotal = 0;
         $servicesTotal = $visit->services->sum(function ($service) {
             $quantity = $service->pivot->quantity ?? 1;
             
@@ -226,10 +228,12 @@ class GroupedBillingService
         $prescriptionTotal = 0;
         $prescriptions = DB::table('tbl_prescription')
             ->where('pet_id', $visit->pet_id)
-            ->whereDate('prescription_date', $visit->visit_date)
+            ->where('branch_id', $visit->branch_id)
+            ->where('visit_id', $visit->visit_id)
+            ->whereDate('prescription_date', $visit->visit_date) // Not sure if time matters
             ->get();
-        
-        foreach ($prescriptions as $prescription) {
+        if(!$prescriptions->isEmpty()){
+            foreach ($prescriptions as $prescription) {
             if (!empty($prescription->medication)) {
                 $medications = json_decode($prescription->medication, true);
                 if (is_array($medications)) {
@@ -247,6 +251,8 @@ class GroupedBillingService
                 }
             }
         }
+    }
+       
         
         return $servicesTotal + ($productsTotal ?? 0) + $prescriptionTotal;
     }

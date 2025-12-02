@@ -36,13 +36,10 @@ class InventoryService
             }
 
             // Check if we have enough stock
-            if ($product->prod_stocks < $quantity) {
+            if ($product->available_stock - $product->usage_from_inventory_transactions < $quantity) {
                 throw new \Exception("Insufficient stock for product {$product->prod_name}");
             }
-
-            // Deduct the quantity
-            $product->prod_stocks -= $quantity;
-            $product->save();
+           
 
             // Record the transaction
             $transaction = new InventoryTransaction();
@@ -57,7 +54,7 @@ class InventoryService
             DB::commit();
             
             // Check if stock is below reorder level and log a warning
-            if ($product->prod_stocks <= $product->prod_reorderlevel) {
+            if ($product->available_stock - $product->usage_from_inventory_transactions <= $product->prod_reorderlevel) {
                 Log::warning("Product {$product->prod_name} is at or below reorder level. Current stock: {$product->prod_stocks}");
             }
 
