@@ -396,7 +396,7 @@
             
             products.forEach(function(product) {
                 const option = document.createElement('option');
-                option.value = product.prod_name;
+                option.value = product.prod_id;
                 option.dataset.stock = product.prod_stocks;
                 option.dataset.prodId = product.prod_id;
                 option.dataset.quantityUsed = product.quantity_used;

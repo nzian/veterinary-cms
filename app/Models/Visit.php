@@ -203,7 +203,15 @@ public function checkAllServicesCompleted()
     if ($allCompleted) {
         // Update workflow status to Completed
         $this->workflow_status = 'Completed';
-        $this->visit_status = 'arrived'; // Keep as arrived until payment
+        $this->service_status = 'Completed';
+        if(Billing::where('visit_id', $this->visit_id)->exists()) {
+            $this->visit_status = 'Billed';
+            $this->workflow_status = 'Billed';
+        } else {
+            $this->visit_status = 'Ready to Bill'; // Keep as arrived until payment
+            $this->workflow_status = 'Ready to Bill'; // Keep as arrived until payment
+        }
+        //$this->visit_status = 'arrived'; // Keep as arrived until payment
         $this->save();
 
         // Check if this visit was created from a referral and update referral status
@@ -230,6 +238,8 @@ public function checkAllServicesCompleted()
             try {
                 $billing = (new \App\Services\VisitBillingService())->createFromVisit($this);
                 if ($billing && $billing->bill_id) {
+                     $this->visit_status = 'Billed';
+                    $this->workflow_status = 'Billed';
                     \Illuminate\Support\Facades\Log::info("Billing created for visit {$this->visit_id}: Bill ID {$billing->bill_id}");
                     // Reload the relationship
                     $this->load('billing');
