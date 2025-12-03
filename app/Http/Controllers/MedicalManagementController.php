@@ -749,13 +749,13 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
             $dwAppointType = $schedule['next_appoint_type'] ?? ('Deworming Follow-up for ' . $currentDewormName);
             $dwNewDose = $schedule['new_dose'] ?? 1;
 
-            $this->autoScheduleFollowUp(
+           /* $this->autoScheduleFollowUp(
                 $visitModel,
                 $dwAppointType,
                 $dwNextDueDate,
                 $currentDewormName,
                 $dwNewDose
-            );
+            );*/
 
             // Ensure deworming service pivot is marked completed (attach if missing)
             $this->ensureServiceCompleted($visitModel, $validated['service_id'] ?? null, ['deworming'], 1);
