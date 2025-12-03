@@ -464,6 +464,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/branch/clear', [BranchManagementController::class, 'clearBranch'])
         ->name('branch.clear');
     
+    // Notification AJAX endpoint
+    Route::get('/notifications/load', [BranchManagementController::class, 'getNotifications'])
+        ->name('notifications.load');
+    
     // Your other routes...
 });
 

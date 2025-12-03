@@ -427,7 +427,7 @@
                                     $totalItems = $orders->sum('ord_quantity');
                                 @endphp
                                 <tr class="hover:bg-gray-50">
-                                    <td class="border px-4 py-2">{{ $loop->iteration + (($paginator->currentPage() - 1) * $paginator->perPage()) }}</td>
+                                    <td class="border px-4 py-2">{{ $loop->iteration + (($paginator ? ($paginator->currentPage() - 1) * $paginator->perPage() : 0)) }}</td>
                                     <td class="border px-4 py-2 font-mono text-blue-600">
                                         #{{ is_string($transactionId) ? $transactionId : (isset($transaction['transaction_id']) ? $transaction['transaction_id'] : 'N/A') }}
                                     </td>

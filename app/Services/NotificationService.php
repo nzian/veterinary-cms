@@ -82,7 +82,7 @@ class NotificationService
             // Get users who logged in within the last 24 hours
             $recentLogins = User::where('updated_at', '>=', Carbon::now()->subDay())
                 ->where('user_id', '!=', $user->user_id)
-                ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                ->when($activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('branch_id', $activeBranchId);
                 })
                 ->orderBy('updated_at', 'desc')
@@ -122,7 +122,7 @@ class NotificationService
             $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
             
             // Low stock products (using prod_reorderlevel)
-            $lowStockProducts = Product::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+            $lowStockProducts = Product::when($activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('branch_id', $activeBranchId);
                 })
                 ->where('prod_category', '!=', 'Service')
@@ -145,7 +145,7 @@ class NotificationService
             }
 
             // Out of stock products (only from tbl_prod table, not services)
-            $outOfStockProducts = Product::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+            $outOfStockProducts = Product::when( $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('branch_id', $activeBranchId);
                 })
                 ->where('prod_category', '!=', 'Service')
@@ -191,7 +191,7 @@ class NotificationService
             $thirtyDaysFromNow = Carbon::now()->addDays(30);
             
             // --- FIXED QUERY FOR EXPIRING PRODUCTS ---
-            $expiringProducts = Product::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+            $expiringProducts = Product::when( $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('branch_id', $activeBranchId);
                 })
                 ->where(function($query) use ($thirtyDaysFromNow) {
@@ -226,7 +226,7 @@ class NotificationService
             }
 
             // --- FIXED QUERY FOR EXPIRED PRODUCTS ---
-            $expiredProducts = Product::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+            $expiredProducts = Product::when( $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('branch_id', $activeBranchId);
                 })
                 ->whereNotNull('prod_expiry') // Only check products that *can* expire
@@ -268,7 +268,7 @@ class NotificationService
             $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
             
             // Equipment with low quantity (less than 5)
-            $lowEquipment = Equipment::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+            $lowEquipment = Equipment::when( $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('branch_id', $activeBranchId);
                 })
                 ->where('equipment_quantity', '<', 5)
@@ -290,7 +290,7 @@ class NotificationService
             }
 
             // Out of stock equipment
-            $outOfStockEquipment = Equipment::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+            $outOfStockEquipment = Equipment::when( $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('branch_id', $activeBranchId);
                 })
                 ->where('equipment_quantity', '=', 0)
@@ -311,7 +311,7 @@ class NotificationService
             }
 
             // Equipment under maintenance
-            $maintenanceEquipment = Equipment::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+            $maintenanceEquipment = Equipment::when( $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('branch_id', $activeBranchId);
                 })
                 ->where('equipment_maintenance', 1)
@@ -332,7 +332,7 @@ class NotificationService
             }
 
             // Equipment out of service
-            $outOfServiceEquipment = Equipment::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+            $outOfServiceEquipment = Equipment::when( $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('branch_id', $activeBranchId);
                 })
                 ->where('equipment_out_of_service', 1)
@@ -353,7 +353,7 @@ class NotificationService
             }
 
             // Equipment available for use
-            $availableEquipment = Equipment::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+            $availableEquipment = Equipment::when( $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('branch_id', $activeBranchId);
                 })
                 ->where('equipment_available', 1)
@@ -394,7 +394,7 @@ class NotificationService
             $activeBranchId = session('active_branch_id') ?? $user->branch_id;
             $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
             
-            $rescheduledAppointments = Appointment::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+            $rescheduledAppointments = Appointment::when( $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->whereHas('user', function($q) use ($activeBranchId) {
                         $q->where('branch_id', $activeBranchId);
                     });
@@ -439,7 +439,7 @@ class NotificationService
             $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
             
             $arrivedAppointments = Appointment::with(['pet.owner'])
-                ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                ->when( $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->whereHas('user', function($q) use ($activeBranchId) {
                         $q->where('branch_id', $activeBranchId);
                     });
@@ -544,9 +544,9 @@ class NotificationService
                 ->join('tbl_pet', 'tbl_visit_record.pet_id', '=', 'tbl_pet.pet_id')
                 ->leftJoin('tbl_own', 'tbl_pet.own_id', '=', 'tbl_own.own_id')
                 ->where('tbl_visit_record.created_at', '>=', Carbon::now()->subDay())
-               /* ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                ->when($activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('tbl_visit_record.branch_id', $activeBranchId);
-                })*/
+                })
                 ->orderBy('tbl_visit_record.created_at', 'desc')
                 ->limit(10)
                 ->select('tbl_visit_record.*', 'tbl_pet.pet_name', 'tbl_own.own_name')
@@ -587,7 +587,7 @@ class NotificationService
             $recentReferrals = DB::table('tbl_ref')
                 ->join('tbl_pet', 'tbl_ref.pet_id', '=', 'tbl_pet.pet_id')
                 ->where('tbl_ref.ref_date', '>=', Carbon::now()->subDays(7))
-                ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                ->when( $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where(function($q) use ($activeBranchId) {
                         $q->where('tbl_ref.ref_from', $activeBranchId)
                           ->orWhere('tbl_ref.ref_to', $activeBranchId);
@@ -634,7 +634,7 @@ class NotificationService
                 ->join('tbl_visit_record', 'tbl_bill.visit_id', '=', 'tbl_visit_record.visit_id')
                 ->join('tbl_pet', 'tbl_visit_record.pet_id', '=', 'tbl_pet.pet_id')
                 ->where('tbl_pay.created_at', '>=', Carbon::now()->subDays(7))
-                /*->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                /*->when( $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('tbl_visit_record.branch_id', $activeBranchId);
                 })*/
                 ->orderBy('tbl_pay.created_at', 'desc')
@@ -681,7 +681,7 @@ class NotificationService
                           ->orWhereNull('tbl_boarding_record.check_out_date');
                 })
                 ->where('tbl_boarding_record.status', '!=', 'completed')
-               /* ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+               /* ->when( $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('tbl_visit_record.branch_id', $activeBranchId);
                 })*/
                 ->orderBy('tbl_boarding_record.check_out_date', 'asc')
@@ -723,7 +723,7 @@ class NotificationService
             $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
             
             $followUps = Appointment::with(['pet.owner'])
-                ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                ->when( $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->whereHas('user', function($q) use ($activeBranchId) {
                         $q->where('branch_id', $activeBranchId);
                     });
