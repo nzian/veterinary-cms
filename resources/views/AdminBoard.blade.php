@@ -565,9 +565,75 @@
         location.reload();
     }
 
+    /**
+     * Load notifications dynamically via AJAX
+     */
+    function loadNotifications() {
+        console.log('Loading notifications for current user/branch...');
+        
+        fetch('{{ route("notifications.load") }}', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Notifications loaded:', data.notifications.length);
+                
+                // Update notification badge
+                const badge = document.querySelector('.notification-badge');
+                if (badge) {
+                    if (data.unreadCount > 0) {
+                        badge.textContent = data.unreadCount;
+                        badge.style.display = 'flex';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+                
+                // Update notification list in dropdown
+                const notificationList = document.querySelector('#notificationDropdown .max-h-96');
+                if (notificationList && data.html) {
+                    // Parse the HTML and extract just the notification items
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(data.html, 'text/html');
+                    const items = doc.querySelectorAll('[onclick*="markAsReadAndRedirect"]');
+                    
+                    // Rebuild notification list
+                    let html = '';
+                    items.forEach(item => {
+                        html += item.outerHTML;
+                    });
+                    
+                    if (html) {
+                        notificationList.innerHTML = html;
+                    } else if (data.notifications.length === 0) {
+                        notificationList.innerHTML = '<p class="px-4 py-8 text-center text-sm text-gray-500">No notifications</p>';
+                    }
+                }
+            } else {
+                console.error('Failed to load notifications:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading notifications:', error);
+        });
+    }
+
     // Initialize notification badge on page load
     document.addEventListener('DOMContentLoaded', () => {
         updateNotificationBadge();
+        
+        // Check if we need to reload notifications (branch switched)
+        @if(session('reload_notifications'))
+            console.log('Branch switched, reloading notifications...');
+            setTimeout(() => {
+                loadNotifications();
+            }, 500);
+        @endif
     });
 
     // Branch dropdown toggle

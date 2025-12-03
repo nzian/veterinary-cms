@@ -373,9 +373,12 @@ class SalesManagementController extends Controller
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
         
-        // Build query with relationships (NO branch filter: show all POS sales)
+        // Build query with relationships and branch filter
         $query = Order::with(['product', 'user', 'owner', 'payment', 'billing'])
-            ->whereNull('bill_id'); // Only direct POS sales
+            ->whereNull('bill_id') // Only direct POS sales
+            ->whereHas('user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            });
 
         // Apply date filters if provided
         if ($startDate) {
@@ -385,7 +388,7 @@ class SalesManagementController extends Controller
             $query->where('ord_date', '<=', $endDate . ' 23:59:59');
         }
 
-        // Get all direct POS orders
+        // Get all direct POS orders for the active branch
         $allOrders = $query->orderBy('ord_date', 'desc')->get();
 
         // Group direct POS transactions by time, user, and customer
