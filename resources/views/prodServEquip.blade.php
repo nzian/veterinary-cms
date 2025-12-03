@@ -88,28 +88,29 @@
 
             <div id="productInventoryTab" class="main-tab-content hidden">
                 <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                    <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
-                        <input type="hidden" name="tab" value="products">
+                    <div class="flex-shrink-0 flex items-center space-x-2">
                         <label for="productsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
-                        <select name="productsPerPage" id="productsPerPage" onchange="this.form.submit()"
+                        <select name="productsPerPage" id="productsPerPage"
                             class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                             @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                                <option value="{{ $limit }}" {{ request('productsPerPage') == $limit ? 'selected' : '' }}>
+                                <option value="{{ $limit }}" {{ request('productsPerPage', 10) == $limit ? 'selected' : '' }}>
                                     {{ $limit === 'all' ? 'All' : $limit }}
                                 </option>
                             @endforeach
                         </select>
                         <span class="whitespace-nowrap">entries</span>
-                        <label class="whitespace-nowrap text-sm text-black ml-2">Filter</label>
-                        <select name="productsType" id="productsType" onchange="this.form.submit()"
+                    </div>
+                    <div class="flex-shrink-0 flex items-center space-x-2">
+                        <label for="productsType" class="whitespace-nowrap text-sm text-black">Filter</label>
+                        <select name="productsType" id="productsType"
                             class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                             @foreach (['All', 'Sale', 'Consumable'] as $type)
-                                <option value="{{ $type }}" {{ request('productsType') == $type ? 'selected' : '' }}>
+                                <option value="{{ $type }}" {{ request('productsType', 'All') == $type ? 'selected' : '' }}>
                                     {{ $type }}
                                 </option>
                             @endforeach
                         </select>
-                    </form>
+                    </div>
                     <div class="relative flex-1 min-w-[200px] max-w-xs">
                         <input type="search" id="productsSearch" placeholder="Search products..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                         <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -131,7 +132,7 @@
 
 
                 <div class="overflow-x-auto">
-                    <table class="w-full table-auto text-sm border text-center">
+                    <table id="productsTable" class="w-full table-auto text-sm border text-center">
                         <thead class="bg-gray-100">
                             <tr>
                                 <th class="p-2 border">Image</th>
@@ -147,7 +148,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($products as $product)
+                            @foreach($products as $index => $product)
                                 <tr>
                                     <td class="p-2 border">
                                         @if($product->prod_image)
@@ -238,63 +239,25 @@
                         </tbody>
                     </table>
                 </div>
-                    <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>Showing {{ $products->firstItem() ?? 0 }} to {{ $products->lastItem() ?? 0 }} of
-                    {{ $products->total() }} entries</div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    @if ($products->onFirstPage())
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                    @else
-                        <a href="{{ $products->appends(request()->except(['productsPage']))->previousPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                    @endif
+                <div id="productsPagination" class="mt-4"></div>
 
-                    @for ($i = 1; $i <= $products->lastPage(); $i++)
-                        @if ($i == $products->currentPage())
-                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                        @else
-                            <a href="{{ $products->appends(array_merge(request()->except(['productsPage', 'page']), ['productsPage' => $i, 'tab' => 'products']))->url($i) }}"
-                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                        @endif
-                    @endfor
-
-                    @if ($products->hasMorePages())
-                        <a href="{{ $products->appends(request()->except(['productsPage']))->nextPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                    @else
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                    @endif
-                </div>
-            </div>
+            
             </div>
 
             <div id="servicesTab" class="main-tab-content">
                 <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                    <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
-                        <input type="hidden" name="tab" value="services">
+                    <div class="flex-shrink-0 flex items-center space-x-2">
                         <label for="servicesPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
-                        <select name="servicesPerPage" id="servicesPerPage" onchange="this.form.submit()"
+                        <select name="servicesPerPage" id="servicesPerPage"
                             class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                             @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                                <option value="{{ $limit }}" {{ request('servicesPerPage') == $limit ? 'selected' : '' }}>
+                                <option value="{{ $limit }}" {{ request('servicesPerPage', 10) == $limit ? 'selected' : '' }}>
                                     {{ $limit === 'all' ? 'All' : $limit }}
                                 </option>
                             @endforeach
                         </select>
                         <span class="whitespace-nowrap">entries</span>
-                        <label class="whitespace-nowrap text-sm text-black ml-2">Filter</label>
-                        <select id="serviceCategoryFilter" onchange="filterServicesByCategory()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
-                        <option value="">All Categories</option>
-                        <option value="Check up">Check up</option>
-                        <option value="Deworming">Deworming</option>
-                        <option value="Vaccination">Vaccination</option>
-                        <option value="Grooming">Grooming</option>
-                        <option value="Diagnostic">Diagnostics</option>
-                        <option value="Surgical">Surgical</option>
-                        <option value="Boarding">Boarding</option>
-                        <option value="Emergency">Emergency</option>
-                    </select>
-                    </form>
+                    </div>
                     <div class="relative flex-1 min-w-[200px] max-w-xs">
                         <input type="search" id="servicesSearch" placeholder="Search services..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                         <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -312,7 +275,7 @@
                 </div>
 
                 <div class="overflow-x-auto">
-                    <table class="w-full table-auto text-sm border text-center">
+                    <table id="servicesTable" class="w-full table-auto text-sm border text-center">
                         <thead class="bg-gray-100">
                             <tr>
                                 <th class="p-2 border">Name</th>
@@ -324,8 +287,8 @@
                             </tr>
                         </thead>
                        <tbody>
-                            @foreach($services as $service)
-                                <tr class="service-row" data-category="{{ $service->serv_type }}">
+                            @foreach($services as $index => $service)
+                                <tr>
                                     <td class="p-2 border">{{ $service->serv_name }}</td>
                                     <td class="p-2 border">{{ $service->serv_type }}</td>
                                     <td class="p-2 border">{{ Str::limit($service->serv_description, 50) }}</td>
@@ -397,61 +360,25 @@
                         </tbody>
                     </table>
 
-                    <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                        <div>Showing {{ $services->firstItem() ?? 0 }} to {{ $services->lastItem() ?? 0 }} of
-                            {{ $services->total() }} entries</div>
-                        <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                            @if ($services->onFirstPage())
-                                <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                            @else
-                                <a href="{{ $services->appends(request()->except(['servicesPage']))->previousPageUrl() }}"
-                                    class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                            @endif
-
-                            @for ($i = 1; $i <= $services->lastPage(); $i++)
-                                @if ($i == $services->currentPage())
-                                    <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                                @else
-                                    <a href="{{ $services->appends(array_merge(request()->except(['servicesPage', 'page']), ['servicesPage' => $i, 'tab' => 'services']))->url($i) }}"
-                                        class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                                @endif
-                            @endfor
-
-                            @if ($services->hasMorePages())
-                                <a href="{{ $services->appends(request()->except(['servicesPage']))->nextPageUrl() }}"
-                                    class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                            @else
-                                <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                            @endif
-                        </div>
-                    </div>
+                    <div id="servicesPagination" class="mt-4"></div>
 
                 </div>
             </div>
 
             <div id="equipmentTab" class="main-tab-content hidden">
                 <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                    <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
-                        <input type="hidden" name="tab" value="equipment">
+                    <div class="flex-shrink-0 flex items-center space-x-2">
                         <label for="equipmentPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
-                        <select name="equipmentPerPage" id="equipmentPerPage" onchange="this.form.submit()"
+                        <select name="equipmentPerPage" id="equipmentPerPage"
                             class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                             @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                                <option value="{{ $limit }}" {{ request('equipmentPerPage') == $limit ? 'selected' : '' }}>
+                                <option value="{{ $limit }}" {{ request('equipmentPerPage', 10) == $limit ? 'selected' : '' }}>
                                     {{ $limit === 'all' ? 'All' : $limit }}
                                 </option>
                             @endforeach
                         </select>
                         <span class="whitespace-nowrap">entries</span>
-                        <label class="whitespace-nowrap text-sm text-black ml-2">Filter</label>
-                        <select id="equipmentStatusFilter" onchange="filterEquipmentByStatus()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
-                            <option value="">All Status</option>
-                            <option value="available">Available</option>
-                            <option value="in_use">In Use</option>
-                            <option value="maintenance">Maintenance</option>
-                            <option value="out_of_service">Out of Service</option>
-                        </select>
-                    </form>
+                    </div>
                     <div class="relative flex-1 min-w-[200px] max-w-xs">
                         <input type="search" id="equipmentSearch" placeholder="Search equipment..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                         <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -488,7 +415,7 @@
                 </div>
 
                 <div class="overflow-x-auto">
-                    <table class="w-full table-auto text-sm border text-center">
+                    <table id="equipmentTable" class="w-full table-auto text-sm border text-center">
                         <thead class="bg-gray-100">
                             <tr>
                                 <th class="p-2 border">Image</th>
@@ -502,6 +429,7 @@
                             </tr>
                         </thead>
                         <tbody>
+                       
                             @foreach($equipment as $equip)
                                 @php
                                     $eqTotalQty = $equip->equipment_quantity;
@@ -598,34 +526,7 @@
                         </tbody>
                     </table>
                 </div>
-                <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-            <div>Showing {{ $equipment->firstItem() ?? 0 }} to {{ $equipment->lastItem() ?? 0 }} of
-                {{ $equipment->total() }} entries</div>
-            <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                @if ($equipment->onFirstPage())
-                    <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                @else
-                    <a href="{{ $equipment->appends(request()->except(['equipmentPage']))->previousPageUrl() }}"
-                        class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                @endif
-
-                @for ($i = 1; $i <= $equipment->lastPage(); $i++)
-                    @if ($i == $equipment->currentPage())
-                        <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                    @else
-                        <a href="{{ $equipment->appends(array_merge(request()->except(['equipmentPage', 'page']), ['equipmentPage' => $i, 'tab' => 'equipment']))->url($i) }}"
-                            class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                    @endif
-                @endfor
-
-                @if ($equipment->hasMorePages())
-                    <a href="{{ $equipment->appends(request()->except(['equipmentPage']))->nextPageUrl() }}"
-                        class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                @else
-                    <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                @endif
-            </div>
-        </div>
+                <div id="equipmentPagination" class="mt-4"></div>
             </div>
             
         </div>
@@ -1346,6 +1247,70 @@
             if (activeTabInput) {
                 activeTabInput.value = activeTabParam.replace('Tab', '');
             }
+
+            // Initialize ListFilters AFTER tabs are set up
+            setTimeout(() => {
+                if (typeof ListFilter !== 'undefined') {
+                    window.listFilters = window.listFilters || {};
+                    
+                    // Initialize filter for active tab only
+                    if (activeTabParam === 'products') {
+                        const tbody = document.querySelector('#productsTable tbody');
+                        const rowCount = tbody ? tbody.querySelectorAll('tr').length : 0;
+                        console.log('Products tbody found:', !!tbody, 'Row count:', rowCount);
+                        
+                        if (tbody && rowCount > 0) {
+                            window.listFilters['products'] = new ListFilter({
+                                tableSelector: '#productsTable tbody',
+                                searchInputId: 'productsSearch',
+                                perPageSelectId: 'productsPerPage',
+                                paginationContainerId: 'productsPagination',
+                                searchColumns: [1, 2, 3, 4, 5, 7],
+                                filterSelects: [
+                                    { selectId: 'productsType', columnIndex: 3 }
+                                ],
+                                storageKey: 'productsFilter',
+                                noResultsMessage: 'No products found.'
+                            });
+                            console.log('Products filter initialized with', window.listFilters['products'].allRows.length, 'rows');
+                        } else {
+                            console.error('Products table not ready or empty');
+                        }
+                    } else if (activeTabParam === 'services') {
+                        const tbody = document.querySelector('#servicesTable tbody');
+                        const rowCount = tbody ? tbody.querySelectorAll('tr').length : 0;
+                        
+                        if (tbody && rowCount > 0) {
+                            window.listFilters['services'] = new ListFilter({
+                                tableSelector: '#servicesTable tbody',
+                                searchInputId: 'servicesSearch',
+                                perPageSelectId: 'servicesPerPage',
+                                paginationContainerId: 'servicesPagination',
+                                searchColumns: [0, 1, 2, 3, 4],
+                                storageKey: 'servicesFilter',
+                                noResultsMessage: 'No services found.'
+                            });
+                        }
+                    } else if (activeTabParam === 'equipment') {
+                        const tbody = document.querySelector('#equipmentTable tbody');
+                        const rowCount = tbody ? tbody.querySelectorAll('tr').length : 0;
+                        
+                        if (tbody && rowCount > 0) {
+                            window.listFilters['equipment'] = new ListFilter({
+                                tableSelector: '#equipmentTable tbody',
+                                searchInputId: 'equipmentSearch',
+                                perPageSelectId: 'equipmentPerPage',
+                                paginationContainerId: 'equipmentPagination',
+                                searchColumns: [1, 2, 3, 4, 5],
+                                storageKey: 'equipmentFilter',
+                                noResultsMessage: 'No equipment found.'
+                            });
+                        }
+                    }
+                } else {
+                    console.error('ListFilter class not found');
+                }
+            }, 100000);
         });
 
         // ... [MANAGE SERVICE PRODUCTS FUNCTIONS REMAIN UNCHANGED] ...
@@ -4326,30 +4291,63 @@
                 });
             }
 
-            // Products
-            setupTableFilter({
-                inputId: 'productsSearch',
-                tableSelector: '#productInventoryTab table',
-                tab: 'products',
-                perPageSelectId: 'productsPerPage',
-                formSelector: '#productInventoryTab form[action]'
-            });
-            // Services
-            setupTableFilter({
-                inputId: 'servicesSearch',
-                tableSelector: '#servicesTab table',
-                tab: 'services',
-                perPageSelectId: 'servicesPerPage',
-                formSelector: '#servicesTab form[action]'
-            });
-            // Equipment
-            setupTableFilter({
-                inputId: 'equipmentSearch',
-                tableSelector: '#equipmentTab table',
-                tab: 'equipment',
-                perPageSelectId: 'equipmentPerPage',
-                formSelector: '#equipmentTab form[action]'
-            });
+            // Refresh filters when switching tabs (and initialize if needed)
+            const originalSwitchMainTab = window.switchMainTab;
+            window.switchMainTab = function(tabId, tabName) {
+                if (originalSwitchMainTab) originalSwitchMainTab(tabId, tabName);
+                
+                // Initialize or refresh the filter for the active tab
+                setTimeout(() => {
+                    if (typeof ListFilter === 'undefined') return;
+                    
+                    if (tabName === 'products') {
+                        if (!window.listFilters['products']) {
+                            window.listFilters['products'] = new ListFilter({
+                                tableSelector: '#productsTable tbody',
+                                searchInputId: 'productsSearch',
+                                perPageSelectId: 'productsPerPage',
+                                paginationContainerId: 'productsPagination',
+                                searchColumns: [1, 2, 3, 4, 5, 7],
+                                filterSelects: [
+                                    { selectId: 'productsType', columnIndex: 3 }
+                                ],
+                                storageKey: 'productsFilter',
+                                noResultsMessage: 'No products found.'
+                            });
+                        } else {
+                            window.listFilters['products'].refresh();
+                        }
+                    } else if (tabName === 'services') {
+                        if (!window.listFilters['services']) {
+                            window.listFilters['services'] = new ListFilter({
+                                tableSelector: '#servicesTable tbody',
+                                searchInputId: 'servicesSearch',
+                                perPageSelectId: 'servicesPerPage',
+                                paginationContainerId: 'servicesPagination',
+                                searchColumns: [0, 1, 2, 3, 4],
+                                storageKey: 'servicesFilter',
+                                noResultsMessage: 'No services found.'
+                            });
+                        } else {
+                            window.listFilters['services'].refresh();
+                        }
+                    } else if (tabName === 'equipment') {
+                        if (!window.listFilters['equipment']) {
+                            window.listFilters['equipment'] = new ListFilter({
+                                tableSelector: '#equipmentTable tbody',
+                                searchInputId: 'equipmentSearch',
+                                perPageSelectId: 'equipmentPerPage',
+                                paginationContainerId: 'equipmentPagination',
+                                searchColumns: [1, 2, 3, 4, 5],
+                                storageKey: 'equipmentFilter',
+                                noResultsMessage: 'No equipment found.'
+                            });
+                        } else {
+                            window.listFilters['equipment'].refresh();
+                        }
+                    }
+                }, 100);
+            };
         })();
 
         // Service Category Filter - calls the combined filter function
