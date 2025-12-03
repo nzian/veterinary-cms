@@ -164,9 +164,11 @@
                     <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Pet Vaccination Overview</h2>
                     <p class="text-xs sm:text-sm text-gray-500 mt-1">Track vaccination status across all registered pets</p>
                 </div>
+                @if(strtolower(auth()->user()->user_role) === 'veterinarian')
                 <a href="{{ route('medical.index') }}?tab=vaccinations" class="px-3 sm:px-4 py-2 bg-blue-500 text-white text-xs sm:text-sm rounded-lg hover:bg-blue-600 transition-colors">
                     Manage Vaccinations
                 </a>
+                @endif
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -533,7 +535,7 @@
     <div class="bg-white rounded-xl sm:rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div class="p-4 sm:p-6">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-base sm:text-lg font-semibold text-gray-900">Update Pet Visit</h3>
+                <h3 class="text-base sm:text-lg font-semibold text-gray-900">Update Appointment Status</h3>
                 <button id="closeVisitModal" class="text-gray-400 hover:text-gray-600 transition-colors">
                     <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -546,22 +548,33 @@
             
             <div class="space-y-3 sm:space-y-4">
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Visit Status</label>
+                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Appointment Status</label>
                     <select id="visitStatus" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         <option value="pending">Pending</option>
+                        <option value="scheduled">Scheduled</option>
                         <option value="arrived">Arrived</option>
                         <option value="completed">Completed</option>
+                        <option value="missed">Missed</option>
+                        <option value="cancelled">Cancelled</option>
                     </select>
                 </div>
                 
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Visit Notes</label>
-                    <textarea id="visitNotes" rows="3" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Add visit notes..."></textarea>
+                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Notes</label>
+                    <textarea id="visitNotes" rows="3" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Add notes..."></textarea>
+                </div>
+                
+                {{-- Add Visit Button - Only shown when appointment is Arrived --}}
+                <div id="addVisitBtnContainer" class="hidden">
+                    <button id="addVisitBtn" class="w-full px-4 py-2 bg-blue-500 text-white text-sm sm:text-base rounded-lg hover:bg-blue-600 transition-colors">
+                        <i class="fas fa-plus mr-2"></i> Create Visit Entry
+                    </button>
+                    <p class="text-xs text-gray-500 mt-1 text-center">This will create a new visit record in the Visits tab</p>
                 </div>
                 
                 <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
                     <button id="updateVisitBtn" class="flex-1 px-4 py-2 bg-green-500 text-white text-sm sm:text-base rounded-lg hover:bg-green-600 transition-colors">
-                        Update Visit
+                        Update Status
                     </button>
                     <button id="closeVisitModalBtn" class="px-4 py-2 border border-gray-300 text-gray-700 text-sm sm:text-base rounded-lg hover:bg-gray-50 transition-colors">
                         Cancel
@@ -828,6 +841,7 @@
         const profile = document.getElementById('petProfile');
         const statusSelect = document.getElementById('visitStatus');
         const notesTextarea = document.getElementById('visitNotes');
+        const addVisitBtnContainer = document.getElementById('addVisitBtnContainer');
         
         profile.innerHTML = `
             <div class="bg-gray-50 rounded-lg p-3 sm:p-4">
@@ -865,10 +879,65 @@
             </div>
         `;
         
-        statusSelect.value = currentAppointment.status || 'pending';
+        statusSelect.value = (currentAppointment.status || 'pending').toLowerCase();
         notesTextarea.value = currentAppointment.notes || '';
         
+        // Show/hide "Add Visit" button based on current status
+        toggleAddVisitButton(statusSelect.value);
+        
+        // Listen for status change to show/hide Add Visit button
+        statusSelect.onchange = function() {
+            toggleAddVisitButton(this.value);
+        };
+        
         modal.classList.remove('hidden');
+    }
+    
+    function toggleAddVisitButton(status) {
+        const addVisitBtnContainer = document.getElementById('addVisitBtnContainer');
+        if (status === 'arrived') {
+            addVisitBtnContainer.classList.remove('hidden');
+        } else {
+            addVisitBtnContainer.classList.add('hidden');
+        }
+    }
+    
+    function createVisitFromAppointment() {
+        if (!currentAppointment) return;
+        
+        const addVisitBtn = document.getElementById('addVisitBtn');
+        addVisitBtn.disabled = true;
+        addVisitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Creating Visit...';
+        
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        
+        fetch(`/care-continuity/appointments/${currentAppointment.id}/create-visit`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Visit created successfully! Redirecting...', 'success');
+                setTimeout(() => {
+                    window.location.href = data.redirect || '/medical-management?tab=visits';
+                }, 1000);
+            } else {
+                showNotification(data.message || 'Failed to create visit', 'error');
+                addVisitBtn.disabled = false;
+                addVisitBtn.innerHTML = '<i class="fas fa-plus mr-2"></i> Create Visit Entry';
+            }
+        })
+        .catch(error => {
+            showNotification(`Error: ${error.message}`, 'error');
+            addVisitBtn.disabled = false;
+            addVisitBtn.innerHTML = '<i class="fas fa-plus mr-2"></i> Create Visit Entry';
+        });
     }
 
     function updateVisit() {
@@ -927,17 +996,20 @@
             
             showNotification('Appointment updated successfully!', 'success');
             
+            // Show Add Visit button if status changed to arrived
+            toggleAddVisitButton(newStatus);
+            
             document.getElementById('visitModal').classList.add('hidden');
             renderCalendar(currentView);
             
             updateBtn.disabled = false;
-            updateBtn.textContent = 'Update Visit';
+            updateBtn.textContent = 'Update Status';
         })
         .catch(error => {
             showNotification(`Error: ${error.message}`, 'error');
             
             updateBtn.disabled = false;
-            updateBtn.textContent = 'Update Visit';
+            updateBtn.textContent = 'Update Status';
         });
     }
 
@@ -972,6 +1044,7 @@
     document.getElementById('closeVisitModal').onclick = () => visitModal.classList.add('hidden');
     document.getElementById('closeVisitModalBtn').onclick = () => visitModal.classList.add('hidden');
     document.getElementById('updateVisitBtn').onclick = updateVisit;
+    document.getElementById('addVisitBtn').onclick = createVisitFromAppointment;
 
     appointmentModal.onclick = (e) => {
         if (e.target === appointmentModal) {

@@ -134,9 +134,17 @@ Route::resource('prod-serv-equip', App\Http\Controllers\ProdServEquipController:
 // Other routes (make sure to define these too!)
 Route::post('/services/{serviceId}/products', [App\Http\Controllers\ProdServEquipController::class, 'updateServiceProducts']);
 Route::get('/services/{serviceId}/products', [App\Http\Controllers\ProdServEquipController::class, 'getServiceProducts']);
+Route::get('/services/{serviceId}/equipment', [App\Http\Controllers\ProdServEquipController::class, 'getServiceEquipment']);
+Route::post('/services/{serviceId}/equipment', [App\Http\Controllers\ProdServEquipController::class, 'updateServiceEquipment']);
+Route::get('/equipment/by-branch', [App\Http\Controllers\ProdServEquipController::class, 'getEquipmentByBranch']);
+Route::get('/equipment/assignment-history', [App\Http\Controllers\ProdServEquipController::class, 'getEquipmentAssignmentHistory']);
 Route::get('/services/inventory-overview', [App\Http\Controllers\ProdServEquipController::class, 'getServiceInventoryOverview']);
+Route::get('/services/usage-history', [App\Http\Controllers\ProdServEquipController::class, 'getServiceUsageHistory']);
+Route::get('/products/stock-movement-history', [App\Http\Controllers\ProdServEquipController::class, 'getAllStockMovementHistory']);
 Route::get('/products/{id}/service-usage', [App\Http\Controllers\ProdServEquipController::class, 'getProductServiceUsage']);
 Route::get('/products/{id}/view', [App\Http\Controllers\ProdServEquipController::class, 'viewProduct']);
+Route::get('/products/{id}/details-for-service', [App\Http\Controllers\ProdServEquipController::class, 'getProductDetailsForService'])->name('products.detailsForService');
+Route::get('/products/consumable-by-filter', [App\Http\Controllers\ProdServEquipController::class, 'getConsumableProductsByFilter'])->name('products.consumableByFilter');
 Route::get('/services/{id}/view', [App\Http\Controllers\ProdServEquipController::class, 'viewService']);
 Route::get('/equipment/{id}/view', [App\Http\Controllers\ProdServEquipController::class, 'viewEquipment']);
 Route::get('/inventory/{id}/history', [App\Http\Controllers\ProdServEquipController::class, 'viewInventoryHistory']);
@@ -154,11 +162,22 @@ Route::post('equipment', [App\Http\Controllers\ProdServEquipController::class, '
 Route::put('equipment/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateEquipment'])->name('equipment.update');
 Route::delete('equipment/{id}', [App\Http\Controllers\ProdServEquipController::class, 'deleteEquipment'])->name('equipment.destroy');
 
+// Service Equipment Routes (for Boarding services)
+Route::get('/services/{serviceId}/equipment', [App\Http\Controllers\ProdServEquipController::class, 'getServiceEquipment'])->name('services.equipment.get');
+Route::post('/services/{serviceId}/equipment', [App\Http\Controllers\ProdServEquipController::class, 'updateServiceEquipment'])->name('services.equipment.update');
+Route::get('/equipment/by-branch', [App\Http\Controllers\ProdServEquipController::class, 'getEquipmentByBranch'])->name('equipment.byBranch');
+
 Route::put('inventory/update-stock/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateStock'])->name('inventory.updateStock');
 Route::put('inventory/update-damage/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateDamage'])->name('inventory.updateDamage');
 Route::get('products/{id}/stock-batches', [App\Http\Controllers\ProdServEquipController::class, 'getStockBatches'])->name('products.stockBatches');
 
 Route::put('/equipment/{id}/update-status', [App\Http\Controllers\ProdServEquipController::class, 'updateEquipmentStatus'])->name('equipment.updateStatus');
+
+// Manufacturer Routes
+Route::get('manufacturers', [App\Http\Controllers\ProdServEquipController::class, 'getManufacturers'])->name('manufacturers.index');
+Route::post('manufacturers', [App\Http\Controllers\ProdServEquipController::class, 'storeManufacturer'])->name('manufacturers.store');
+Route::put('manufacturers/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateManufacturer'])->name('manufacturers.update');
+Route::delete('manufacturers/{id}', [App\Http\Controllers\ProdServEquipController::class, 'deleteManufacturer'])->name('manufacturers.destroy');
 
 Route::get('medical-management/services/{serviceId}/products', [ProdServEquipController::class, 'getServiceProductsForVaccination'])->name('medical.services.products');
 

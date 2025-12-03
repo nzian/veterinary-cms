@@ -65,6 +65,22 @@ class Service extends Model
         return $this->hasMany(ServiceProduct::class, 'serv_id', 'serv_id');
     }
 
+    public function equipment()
+    {
+        return $this->belongsToMany(
+            Equipment::class,
+            'tbl_service_equipment',
+            'serv_id',
+            'equipment_id'
+        )->withPivot('quantity_used', 'notes')
+         ->withTimestamps();
+    }
+
+    public function serviceEquipment()
+    {
+        return $this->hasMany(ServiceEquipment::class, 'serv_id', 'serv_id');
+    }
+
     public function servicesWithProduct()
 {
     // This loads the Service, and for each attached service (pivot), it tries to load 

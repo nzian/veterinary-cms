@@ -16,6 +16,7 @@ use App\Models\Product;
 use App\Models\ServiceProduct; 
 use App\Models\Visit;
 use App\Models\Equipment; 
+use App\Models\ServiceEquipment;
 use App\Models\MedicalHistory; 
 use App\Models\Bill; 
 use App\Models\AppointServ;
@@ -131,7 +132,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         // FIX 1: Retrieve all data intended for lookup dropdowns
         // Model scopes will automatically include referred pets and owners
         $allPets = Pet::with('owner')->get();
-        $allOwners = Owner::get();
+        $allOwners = Owner::withCount('pets')->get();
         $allBranches = Branch::all();
         
         $allProducts = Product::select('prod_id', 'prod_name', 'prod_stocks', 'prod_price')
@@ -180,6 +181,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
 
         $baseVisitQuery = function() use ($activeBranchId) {
             return Visit::with(['pet.owner', 'user', 'services'])
+                ->whereHas('pet') // Only include visits that have a valid pet
                 ->whereHas('user', fn($q) => $q->where('branch_id', $activeBranchId))
                 ->orderBy('visit_date', 'desc')->orderBy('visit_id', 'desc');
         };
@@ -208,6 +210,42 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         $vaccinationVisits = $paginateQueue(['vaccination'], 'vaccinationVisitsPerPage', 'vaccinationVisitsPage');
         $boardingVisits = $paginateQueue(['boarding'], 'boardingVisitsPerPage', 'boardingVisitsPage');
 
+        // Calculate pending counts for each service type
+        $pendingCounts = [
+            'checkup' => $baseVisitQuery()->whereHas('services', function($sq) use ($checkupTypes) {
+                $sq->whereIn(DB::raw('LOWER(serv_type)'), $checkupTypes)
+                  ->where('tbl_visit_service.status', 'pending');
+            })->count(),
+            'grooming' => $baseVisitQuery()->whereHas('services', function($sq) {
+                $sq->where(DB::raw('LOWER(serv_type)'), 'grooming')
+                  ->where('tbl_visit_service.status', 'pending');
+            })->count(),
+            'vaccination' => $baseVisitQuery()->whereHas('services', function($sq) {
+                $sq->where(DB::raw('LOWER(serv_type)'), 'vaccination')
+                  ->where('tbl_visit_service.status', 'pending');
+            })->count(),
+            'deworming' => $baseVisitQuery()->whereHas('services', function($sq) {
+                $sq->where(DB::raw('LOWER(serv_type)'), 'deworming')
+                  ->where('tbl_visit_service.status', 'pending');
+            })->count(),
+            'diagnostics' => $baseVisitQuery()->whereHas('services', function($sq) use ($diagnosticTypes) {
+                $sq->whereIn(DB::raw('LOWER(serv_type)'), $diagnosticTypes)
+                  ->where('tbl_visit_service.status', 'pending');
+            })->count(),
+            'surgical' => $baseVisitQuery()->whereHas('services', function($sq) use ($surgicalTypes) {
+                $sq->whereIn(DB::raw('LOWER(serv_type)'), $surgicalTypes)
+                  ->where('tbl_visit_service.status', 'pending');
+            })->count(),
+            'emergency' => $baseVisitQuery()->whereHas('services', function($sq) {
+                $sq->where(DB::raw('LOWER(serv_type)'), 'emergency')
+                  ->where('tbl_visit_service.status', 'pending');
+            })->count(),
+            'boarding' => $baseVisitQuery()->whereHas('services', function($sq) {
+                $sq->where(DB::raw('LOWER(serv_type)'), 'boarding')
+                  ->where('tbl_visit_service.status', 'pending');
+            })->count(),
+        ];
+
         $appointments = Appointment::whereHas('user', fn($q) => $q->where('branch_id', $activeBranchId))->with('pet.owner', 'services')->paginate(10);
         $prescriptions = Prescription::whereIn('user_id', $branchUserIds)->with('pet.owner')->paginate(10);
         
@@ -231,7 +269,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         return view('medicalManagement', array_merge(compact(
             'visits', 'consultationVisits', 'groomingVisits', 'dewormingVisits', 'diagnosticsVisits', 
             'surgicalVisits', 'emergencyVisits', 'vaccinationVisits', 'boardingVisits', 
-            'appointments', 'prescriptions', 'referrals', 'activeTab',
+            'appointments', 'prescriptions', 'referrals', 'activeTab', 'pendingCounts',
             // MUST be included explicitly for the Visit Modal to find available owners
             'filteredOwners', 'filteredPets', 'serviceTypes' 
         ), $lookups));
@@ -574,7 +612,9 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
             'service_type' => ['required','string'], // Add service_type validation
             'service_id' => ['nullable','integer','exists:tbl_serv,serv_id'],
             'dewormer_name' => ['required','string'], 
-            'dosage' => ['nullable','string'], 
+            'dosage' => ['nullable','string'],
+            'manufacturer' => ['nullable','string'],
+            'batch_no' => ['nullable','string'],
             'next_due_date' => ['nullable','date'],
             'administered_by' => ['nullable','string'], 
             'remarks' => ['nullable','string'], 
@@ -596,7 +636,9 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                 [
                     'dewormer_name' => $validated['dewormer_name'], 
                     'service_id' => $validated['service_id'],
-                    'dosage' => $validated['dosage'], 
+                    'dosage' => $validated['dosage'],
+                    'manufacturer' => $validated['manufacturer'],
+                    'batch_no' => $validated['batch_no'],
                     'next_due_date' => $dwNextDueDate, 
                     'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
                     'remarks' => $validated['remarks'], 
@@ -617,7 +659,9 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                     'pet_id' => $visitModel->pet_id,
                     'dewormer_name' => $validated['dewormer_name'], 
                     'service_id' => $validated['service_id'],
-                    'dosage' => $validated['dosage'], 
+                    'dosage' => $validated['dosage'],
+                    'manufacturer' => $validated['manufacturer'],
+                    'batch_no' => $validated['batch_no'],
                     'next_due_date' => $dwNextDueDate, 
                     'administered_by' => $validated['administered_by'] ?? Auth::user()->user_name,
                     'remarks' => $validated['remarks'], 
@@ -1003,6 +1047,7 @@ public function completeService(Request $request, $visitId, $serviceId)
             'checkin' => ['required','date'],
             'checkout' => ['nullable','date','after_or_equal:checkin'],
             'room' => ['nullable','string'],
+            'equipment_id' => ['nullable', 'exists:tbl_equipment,equipment_id'],
             'care_instructions' => ['nullable','string'],
             'monitoring_notes' => ['nullable','string'],
             'service_id' => ['required', 'exists:tbl_serv,serv_id'],
@@ -1086,6 +1131,17 @@ public function completeService(Request $request, $visitId, $serviceId)
 
             $visitModel->services()->sync($syncData);
 
+            // Get equipment ID from request
+            $equipmentId = $request->input('equipment_id');
+            
+            // Get existing boarding record to check for previous equipment assignment
+            $existingBoardingRecord = DB::table('tbl_boarding_record')
+                ->where('visit_id', $visitModel->visit_id)
+                ->where('pet_id', $visitModel->pet_id)
+                ->first();
+            
+            $previousEquipmentId = $existingBoardingRecord->equipment_id ?? null;
+
             $boardingPayload = [
                 'check_in_date' => $validated['checkin'],
                 'check_out_date' => $validated['checkout'],
@@ -1100,11 +1156,64 @@ public function completeService(Request $request, $visitId, $serviceId)
             if (Schema::hasColumn('tbl_boarding_record', 'serv_id')) {
                 $boardingPayload['serv_id'] = $validated['service_id'];
             }
+            if (Schema::hasColumn('tbl_boarding_record', 'equipment_id')) {
+                $boardingPayload['equipment_id'] = $equipmentId;
+            }
 
             DB::table('tbl_boarding_record')->updateOrInsert(
                 ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
                 $boardingPayload
             );
+
+            // Update equipment status based on boarding status
+            if ($equipmentId) {
+                $equipment = Equipment::find($equipmentId);
+                if ($equipment) {
+                    if ($boardingStatus === 'Checked In') {
+                        // Mark equipment as "In Use" when checking in
+                        // Decrease available count by 1
+                        $newAvailable = max(0, ($equipment->equipment_available ?? $equipment->equipment_quantity) - 1);
+                        $equipment->update([
+                            'equipment_status' => $newAvailable > 0 ? 'available' : 'in use',
+                            'equipment_available' => $newAvailable
+                        ]);
+                        \Log::info('[Boarding] Equipment updated for check-in', [
+                            'equipment_id' => $equipmentId,
+                            'new_available' => $newAvailable,
+                            'status' => $newAvailable > 0 ? 'available' : 'in use'
+                        ]);
+                    } elseif ($boardingStatus === 'Checked Out') {
+                        // Mark equipment as "Available" when checking out
+                        // Increase available count by 1 (but not more than total quantity)
+                        $newAvailable = min($equipment->equipment_quantity, ($equipment->equipment_available ?? 0) + 1);
+                        $equipment->update([
+                            'equipment_status' => 'available',
+                            'equipment_available' => $newAvailable
+                        ]);
+                        \Log::info('[Boarding] Equipment updated for check-out', [
+                            'equipment_id' => $equipmentId,
+                            'new_available' => $newAvailable
+                        ]);
+                    }
+                }
+            }
+
+            // If equipment was changed, release the previous equipment
+            if ($previousEquipmentId && $previousEquipmentId != $equipmentId && $boardingStatus !== 'Checked Out') {
+                $prevEquipment = Equipment::find($previousEquipmentId);
+                if ($prevEquipment) {
+                    // Increase available count for the released equipment
+                    $newAvailable = min($prevEquipment->equipment_quantity, ($prevEquipment->equipment_available ?? 0) + 1);
+                    $prevEquipment->update([
+                        'equipment_status' => 'available',
+                        'equipment_available' => $newAvailable
+                    ]);
+                    \Log::info('[Boarding] Previous equipment released', [
+                        'previous_equipment_id' => $previousEquipmentId,
+                        'new_available' => $newAvailable
+                    ]);
+                }
+            }
 
             $visitModel->workflow_status = $boardingStatus;
             $visitModel->visit_status = $boardingStatus;
@@ -1216,6 +1325,7 @@ public function completeService(Request $request, $visitId, $serviceId)
         $validated = $request->validate([
             'surgery_type' => ['required','string'], 'service_id' => ['nullable','integer','exists:tbl_serv,serv_id'],
             'staff' => ['nullable','string'], 'anesthesia' => ['nullable','string'],
+            'dosage' => ['nullable','string'], 'manufacturer' => ['nullable','string'], 'batch_no' => ['nullable','string'],
             'start_time' => ['nullable','date'], 'end_time' => ['nullable','date','after_or_equal:start_time'],
             'checklist' => ['nullable','string'], 'post_op_notes' => ['nullable','string'], 'medications_used' => ['nullable','string'],
             'follow_up' => ['nullable','date'], 'workflow_status' => ['nullable','string'],
@@ -1233,6 +1343,9 @@ public function completeService(Request $request, $visitId, $serviceId)
                 'end_time' => $validated['end_time'],
                 'surgeon' => $validated['staff'], 
                 'anesthesia_used' => $validated['anesthesia'],
+                'dosage' => $validated['dosage'],
+                'manufacturer' => $validated['manufacturer'],
+                'batch_no' => $validated['batch_no'],
                 'findings' => $validated['checklist'] ?? null, 
                 'status' => 'Completed', 
                 'updated_at' => now(),
@@ -1370,6 +1483,10 @@ public function completeService(Request $request, $visitId, $serviceId)
             'weight' => 'nullable',
             'temperature' => 'nullable',
             'patient_type' => 'required|string|max:100',
+            'cage_ward_number' => 'nullable|string|max:50',
+            'admission_notes' => 'nullable|string',
+            'is_priority' => 'nullable|boolean',
+            'admission_date' => 'nullable|date',
         ]);
 
         $userId = Auth::id() ?? $request->input('user_id');
@@ -1384,6 +1501,17 @@ public function completeService(Request $request, $visitId, $serviceId)
                 $pet->pet_temperature = $request->input("temperature.$petId") ?? $pet->pet_temperature;
                 $pet->save();
                 
+                // Determine visit status based on patient type
+                $visitStatus = 'arrived';
+                $isPriority = false;
+                
+                if ($validated['patient_type'] === 'Inpatient') {
+                    $visitStatus = 'admitted';
+                } elseif ($validated['patient_type'] === 'Emergency') {
+                    $visitStatus = 'arrived';
+                    $isPriority = $request->input('is_priority', true);
+                }
+                
                 $data = [
                     'visit_date' => $validated['visit_date'],
                     'pet_id' => $petId,
@@ -1391,8 +1519,12 @@ public function completeService(Request $request, $visitId, $serviceId)
                     'weight' => $request->input("weight.$petId") ?? null,
                     'temperature' => $request->input("temperature.$petId") ?? null,
                     'patient_type' => $validated['patient_type'],
-                    'visit_status' => 'arrived',
+                    'visit_status' => $visitStatus,
                     'workflow_status' => 'Pending',
+                    'cage_ward_number' => $validated['cage_ward_number'] ?? null,
+                    'admission_notes' => $validated['admission_notes'] ?? null,
+                    'is_priority' => $isPriority,
+                    'admission_date' => $validated['patient_type'] === 'Inpatient' ? ($validated['admission_date'] ?? now()) : null,
                 ];
 
                 $visit = Visit::create($data);
@@ -1877,6 +2009,40 @@ public function completeService(Request $request, $visitId, $serviceId)
                 })
                 ->orderBy('serv_name')
                 ->get();
+            
+            // Load equipment (cages/rooms) for each boarding service
+            foreach($availableServices as $service) {
+                $equipmentIds = DB::table('tbl_service_equipment')
+                    ->where('serv_id', $service->serv_id)
+                    ->pluck('equipment_id')
+                    ->toArray();
+                
+                if (!empty($equipmentIds)) {
+                    $equipment = Equipment::whereIn('equipment_id', $equipmentIds)
+                        ->where('equipment_category', 'Furniture & General Clinic Equipment')
+                        ->get();
+                    
+                    // Attach pivot data and filter to only available equipment
+                    $equipment = $equipment->map(function($eq) use ($service) {
+                        $pivotData = DB::table('tbl_service_equipment')
+                            ->where('serv_id', $service->serv_id)
+                            ->where('equipment_id', $eq->equipment_id)
+                            ->first();
+                        
+                        if ($pivotData) {
+                            $eq->pivot = (object)[
+                                'quantity_used' => $pivotData->quantity_used ?? 1,
+                                'notes' => $pivotData->notes ?? null
+                            ];
+                        }
+                        return $eq;
+                    });
+                    
+                    $service->setRelation('equipment', $equipment);
+                } else {
+                    $service->setRelation('equipment', collect([]));
+                }
+            }
         } else {
             $availableServices = collect();
         }

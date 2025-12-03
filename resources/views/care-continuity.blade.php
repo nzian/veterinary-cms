@@ -242,11 +242,32 @@
             @if(method_exists($appointments, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $appointments->firstItem() }} to {{ $appointments->lastItem() }} of
+                    Showing {{ $appointments->firstItem() ?? 0 }} to {{ $appointments->lastItem() ?? 0 }} of
                     {{ $appointments->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $appointments->appends(['active_tab' => 'appointments'])->links() }}
+                    @if ($appointments->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $appointments->appends(['active_tab' => 'appointments'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $appointments->lastPage(); $i++)
+                        @if ($i == $appointments->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $appointments->appends(['active_tab' => 'appointments'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($appointments->hasMorePages())
+                        <a href="{{ $appointments->appends(['active_tab' => 'appointments'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -383,11 +404,32 @@
             @if(method_exists($prescriptions, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $prescriptions->firstItem() }} to {{ $prescriptions->lastItem() }} of
+                    Showing {{ $prescriptions->firstItem() ?? 0 }} to {{ $prescriptions->lastItem() ?? 0 }} of
                     {{ $prescriptions->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $prescriptions->appends(['active_tab' => 'prescriptions'])->links() }}
+                    @if ($prescriptions->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $prescriptions->appends(['active_tab' => 'prescriptions'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $prescriptions->lastPage(); $i++)
+                        @if ($i == $prescriptions->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $prescriptions->appends(['active_tab' => 'prescriptions'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($prescriptions->hasMorePages())
+                        <a href="{{ $prescriptions->appends(['active_tab' => 'prescriptions'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -560,11 +602,32 @@
             @if(method_exists($referrals, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $referrals->firstItem() }} to {{ $referrals->lastItem() }} of
+                    Showing {{ $referrals->firstItem() ?? 0 }} to {{ $referrals->lastItem() ?? 0 }} of
                     {{ $referrals->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $referrals->appends(['active_tab' => 'referrals'])->links() }}
+                    @if ($referrals->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $referrals->appends(['active_tab' => 'referrals'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $referrals->lastPage(); $i++)
+                        @if ($i == $referrals->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $referrals->appends(['active_tab' => 'referrals'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($referrals->hasMorePages())
+                        <a href="{{ $referrals->appends(['active_tab' => 'referrals'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif

@@ -33,6 +33,7 @@ class POSController extends Controller
         // 2. FETCH AND FILTER OWNERS (Customers) 
         // Only show owners created by users within the current branch
         $ownersQuery = Owner::select('own_id', 'own_name')
+            ->withCount('pets')
             ->orderBy('own_name', 'asc');
             
         if (!empty($branchUserIds)) {
@@ -45,6 +46,7 @@ class POSController extends Controller
         $owners->prepend((object)[
             'own_id' => 0,
             'own_name' => 'Walk-in Customer',
+            'pets_count' => 0,
         ]);
 
         // 3. FETCH AND FILTER PRODUCTS (Items)

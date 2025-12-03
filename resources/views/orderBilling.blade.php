@@ -86,21 +86,26 @@
                         @endforeach
                     </select>
                     <span class="whitespace-nowrap">entries</span>
+                    <label class="whitespace-nowrap text-sm text-black ml-2">Filter</label>
+                    <select id="billingStatusFilter" onchange="filterBillingByStatus()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                        <option value="">All Status</option>
+                        <option value="unpaid">Unpaid</option>
+                        <option value="paid 50%">Paid 50%</option>
+                        <option value="paid">Paid</option>
+                    </select>
                 </form>
                 <div class="relative flex-1 min-w-[200px] max-w-xs">
                     <input type="search" id="billingSearch" placeholder="Search billing..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
-            </div>
-
-            {{-- Auto-Generate Button --}}
-            <div class="mb-4">
-                <form action="{{ route('sales.auto-generate') }}" method="POST" class="inline">
-                    @csrf
-                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm">
-                        <i class="fas fa-sync-alt mr-2"></i>Auto-Generate Billings
-                    </button>
-                </form>
+                <div class="flex gap-2">
+                    <form action="{{ route('sales.auto-generate') }}" method="POST" class="inline">
+                        @csrf
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1.5 rounded whitespace-nowrap">
+                            <i class="fas fa-sync-alt mr-1"></i>Auto-Generate Billings
+                        </button>
+                    </form>
+                </div>
             </div>
 
             {{-- Billing Table --}}
@@ -346,11 +351,38 @@
             </div>
 
             {{-- Billing Pagination --}}
-            <div class="mt-4 overflow-x-auto">
-                <div class="flex justify-center">
-                    {{ $billings->links() }}
+            @if(isset($billings) && method_exists($billings, 'links'))
+            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+                <div>
+                    Showing {{ $billings->firstItem() ?? 0 }} to {{ $billings->lastItem() ?? 0 }} of
+                    {{ $billings->total() }} entries
+                </div>
+                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
+                    @if ($billings->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $billings->appends(['tab' => 'billing'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $billings->lastPage(); $i++)
+                        @if ($i == $billings->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $billings->appends(['tab' => 'billing'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($billings->hasMorePages())
+                        <a href="{{ $billings->appends(['tab' => 'billing'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
+            @endif
         </div>
 
         {{-- Orders Tab Content (Unchanged) --}}
@@ -363,6 +395,33 @@
                     <strong>Direct POS Sales:</strong> Product sales made directly through the Point of Sale system (not linked to visit services)
                 </p>
             </div>
+            
+            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
+                <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
+                    <input type="hidden" name="tab" value="orders">
+                    <label for="ordersPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
+                    <select name="ordersPerPage" id="ordersPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                        @foreach ([10, 20, 50, 100, 'all'] as $limit)
+                            <option value="{{ $limit }}" {{ request('ordersPerPage') == $limit ? 'selected' : '' }}>
+                                {{ $limit === 'all' ? 'All' : $limit }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <span class="whitespace-nowrap">entries</span>
+                    <label class="whitespace-nowrap text-sm text-black ml-2">Filter</label>
+                    <select id="ordersDateFilter" onchange="filterOrdersByDate()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                        <option value="">All Time</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                    </select>
+                </form>
+                <div class="relative flex-1 min-w-[200px] max-w-xs">
+                    <input type="search" id="ordersSearch" placeholder="Search orders..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                    <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                </div>
+            </div>
+
             <div class="overflow-x-auto">
                 <table class="table-auto w-full border-collapse border text-sm text-center">
                     <thead class="bg-gray-200">
@@ -465,13 +524,37 @@
                     </tbody>
                 </table>
             </div>
-            <div class="mt-6">
-                {{ $paginator->appends(request()->query())->links() }}
-            </div>
-            @if(isset($paginatedTransactions) && $paginatedTransactions->count() > 0)
-                <div class="mt-4 text-sm text-gray-600 text-center">
-                    Showing {{ $paginator->firstItem() }} to {{ $paginator->lastItem() }} of {{ $paginator->total() }} transactions
+            @if(isset($paginator) && method_exists($paginator, 'links'))
+            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
+                <div>
+                    Showing {{ $paginator->firstItem() ?? 0 }} to {{ $paginator->lastItem() ?? 0 }} of
+                    {{ $paginator->total() }} entries
                 </div>
+                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
+                    @if ($paginator->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $paginator->appends(request()->query())->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $paginator->lastPage(); $i++)
+                        @if ($i == $paginator->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $paginator->appends(request()->query())->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($paginator->hasMorePages())
+                        <a href="{{ $paginator->appends(request()->query())->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
+                </div>
+            </div>
             @endif
         </div>
     </div>
@@ -2056,12 +2139,139 @@ function setupFilter(inputId, tableSelector){
     const tbody = table ? table.querySelector('tbody') : null;
     if(!input || !tbody) return;
     input.addEventListener('input', function(){
-        const q = this.value.toLowerCase();
-        tbody.querySelectorAll('tr').forEach(tr => {
-            const text = tr.textContent.toLowerCase();
-            tr.style.display = text.includes(q) ? '' : 'none';
-        });
+        filterBillingTable();
     });
+}
+
+// Filter billing by status
+window.filterBillingByStatus = function() {
+    filterBillingTable();
+}
+
+// Combined filter function for billing (search + status)
+function filterBillingTable() {
+    const searchInput = document.getElementById('billingSearch');
+    const statusFilter = document.getElementById('billingStatusFilter');
+    const table = document.querySelector('#billingContent table.min-w-full');
+    const tbody = table ? table.querySelector('tbody') : null;
+    
+    if (!tbody) return;
+    
+    const searchQuery = searchInput ? searchInput.value.toLowerCase() : '';
+    const statusValue = statusFilter ? statusFilter.value.toLowerCase() : '';
+    
+    // Get all main owner rows and their detail rows
+    const allRows = tbody.querySelectorAll('tr');
+    
+    allRows.forEach(tr => {
+        // Skip detail rows (pet-details-*) - they will follow their parent
+        if (tr.id && tr.id.startsWith('pet-details-')) {
+            return;
+        }
+        
+        const text = tr.textContent.toLowerCase();
+        
+        // Check search match
+        const searchMatch = !searchQuery || text.includes(searchQuery);
+        
+        // Check status match - look for status badge in the row
+        let statusMatch = true;
+        if (statusValue) {
+            const statusCell = tr.querySelector('td:nth-child(5)'); // Status is 5th column
+            if (statusCell) {
+                const statusText = statusCell.textContent.toLowerCase().trim();
+                statusMatch = statusText.includes(statusValue);
+            }
+        }
+        
+        const shouldShow = searchMatch && statusMatch;
+        tr.style.display = shouldShow ? '' : 'none';
+        
+        // Also hide/show the corresponding pet details row
+        const rowIndex = tr.querySelector('button[onclick^="togglePetDetails"]');
+        if (rowIndex) {
+            const onclickAttr = rowIndex.getAttribute('onclick');
+            const match = onclickAttr.match(/togglePetDetails\((\d+)\)/);
+            if (match) {
+                const index = match[1];
+                const detailsRow = document.getElementById('pet-details-' + index);
+                if (detailsRow) {
+                    detailsRow.style.display = shouldShow ? '' : 'none';
+                }
+            }
+        }
+    });
+}
+
+// Filter orders by date (daily, weekly, monthly)
+window.filterOrdersByDate = function() {
+    filterOrdersTable();
+}
+
+// Combined filter function for orders (search + date)
+function filterOrdersTable() {
+    const searchInput = document.getElementById('ordersSearch');
+    const dateFilter = document.getElementById('ordersDateFilter');
+    const table = document.querySelector('#ordersContent table');
+    const tbody = table ? table.querySelector('tbody') : null;
+    
+    if (!tbody) return;
+    
+    const searchQuery = searchInput ? searchInput.value.toLowerCase() : '';
+    const dateValue = dateFilter ? dateFilter.value : '';
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const allRows = tbody.querySelectorAll('tr');
+    
+    allRows.forEach(tr => {
+        const text = tr.textContent.toLowerCase();
+        
+        // Check search match
+        const searchMatch = !searchQuery || text.includes(searchQuery);
+        
+        // Check date match
+        let dateMatch = true;
+        if (dateValue) {
+            // Find the date cell (4th column - Sale Date)
+            const dateCell = tr.querySelector('td:nth-child(4)');
+            if (dateCell) {
+                const dateText = dateCell.textContent.trim();
+                // Parse the date (format: "Dec 03, 2025 10:30 AM")
+                const rowDate = new Date(dateText);
+                rowDate.setHours(0, 0, 0, 0);
+                
+                if (dateValue === 'daily') {
+                    // Same day as today
+                    dateMatch = rowDate.getTime() === today.getTime();
+                } else if (dateValue === 'weekly') {
+                    // Within last 7 days
+                    const weekAgo = new Date(today);
+                    weekAgo.setDate(weekAgo.getDate() - 7);
+                    dateMatch = rowDate >= weekAgo && rowDate <= today;
+                } else if (dateValue === 'monthly') {
+                    // Within last 30 days
+                    const monthAgo = new Date(today);
+                    monthAgo.setDate(monthAgo.getDate() - 30);
+                    dateMatch = rowDate >= monthAgo && rowDate <= today;
+                }
+            }
+        }
+        
+        const shouldShow = searchMatch && dateMatch;
+        tr.style.display = shouldShow ? '' : 'none';
+    });
+}
+
+// Setup orders search to also trigger combined filter
+function setupOrdersFilter() {
+    const input = document.getElementById('ordersSearch');
+    if (input) {
+        input.addEventListener('input', function() {
+            filterOrdersTable();
+        });
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function(){
@@ -2074,7 +2284,7 @@ document.addEventListener('DOMContentLoaded', function(){
     
     // Setup client-side filters
     setupFilter('billingSearch', '#billingContent table.min-w-full');
-    setupFilter('ordersSearch', '#ordersContent table');
+    setupOrdersFilter(); // Use custom filter for orders
 });
 </script>
 @endsection

@@ -14,6 +14,9 @@
             'post_op_notes' => $serviceData->post_op_instructions ?? null,
             'staff' => $serviceData->surgeon ?? null,
             'anesthesia' => $serviceData->anesthesia_used ?? null,
+            'dosage' => $serviceData->dosage ?? null,
+            'manufacturer' => $serviceData->manufacturer ?? null,
+            'batch_no' => $serviceData->batch_no ?? null,
         ];
     }
     
@@ -127,6 +130,31 @@
                             <small class="text-xs text-gray-500 mt-1" id="anesthesia_helper_text">
                                 Select a surgical service first to see available anesthesia products.
                             </small>
+                        </div>
+                        
+                        {{-- Dosage field (auto-filled from product) --}}
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Dosage</label>
+                            <input type="text" name="dosage" id="dosage_input" class="w-full border border-gray-300 p-3 rounded-lg" 
+                                placeholder="Auto-filled from product (can be changed)" 
+                                value="{{ old('dosage', $__surg['dosage'] ?? '') }}" />
+                            <small class="text-xs text-gray-500" id="dosage_info">Auto-filled from product dosage (can be changed)</small>
+                        </div>
+                        
+                        {{-- Manufacturer field (auto-filled) --}}
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Manufacturer</label>
+                            <input type="text" name="manufacturer" id="manufacturer_input" class="w-full border border-gray-300 p-3 rounded-lg bg-gray-50" 
+                                value="{{ old('manufacturer', $__surg['manufacturer'] ?? '') }}" placeholder="Auto-filled from product" readonly/>
+                            <small class="text-xs text-gray-500">Auto-filled from selected anesthesia product</small>
+                        </div>
+                        
+                        {{-- Batch No. field (auto-filled with FEFO) --}}
+                        <div class="sm:col-span-2">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Batch No.</label>
+                            <input type="text" name="batch_no" id="batch_no_input" class="w-full border border-gray-300 p-3 rounded-lg bg-gray-50" 
+                                value="{{ old('batch_no', $__surg['batch_no'] ?? '') }}" placeholder="Auto-filled (FEFO)" readonly/>
+                            <small class="text-xs text-gray-500" id="batch_info">Auto-filled from earliest expiring batch</small>
                         </div>
                         <div class="grid grid-cols-2 gap-3 sm:col-span-2">
                             <div>
@@ -346,6 +374,13 @@
         // Clear and populate anesthesia select
         anesthesiaSelect.innerHTML = '<option value="">Select Anesthesia Product</option>';
         
+        // Clear dosage, manufacturer and batch fields when service changes
+        document.getElementById('dosage_input').value = '';
+        document.getElementById('dosage_info').textContent = 'Auto-filled from product dosage (can be changed)';
+        document.getElementById('manufacturer_input').value = '';
+        document.getElementById('batch_no_input').value = '';
+        document.getElementById('batch_info').textContent = 'Auto-filled from earliest expiring batch';
+        
         if (productsData) {
           try {
             const products = JSON.parse(productsData);
@@ -360,6 +395,7 @@
                 const option = document.createElement('option');
                 option.value = product.prod_name;
                 option.setAttribute('data-prod-id', product.prod_id);
+                option.setAttribute('data-quantity-used', product.quantity_used || 1);
                 
                 let optionText = product.prod_name;
                 if (product.prod_stocks !== undefined) {
@@ -396,6 +432,11 @@
           anesthesiaSelect.innerHTML = '<option value="">No anesthesia products available</option>';
         }
       });
+      
+      // Listen for anesthesia selection changes to fetch product details
+      anesthesiaSelect.addEventListener('change', function() {
+        fetchProductDetails();
+      });
 
       // Trigger change event if there's a pre-selected value
       if (surgeryTypeSelector.value) {
@@ -406,9 +447,82 @@
           const savedAnesthesia = "{{ $__surg['anesthesia'] ?? '' }}";
           if (savedAnesthesia && anesthesiaSelect) {
             anesthesiaSelect.value = savedAnesthesia;
+            fetchProductDetails();
           }
         }, 100);
       }
+    }
+    
+    function fetchProductDetails() {
+      const selectedOption = anesthesiaSelect.options[anesthesiaSelect.selectedIndex];
+      const prodId = selectedOption ? selectedOption.getAttribute('data-prod-id') : null;
+      const quantityUsed = selectedOption ? selectedOption.getAttribute('data-quantity-used') : null;
+      
+      const dosageInput = document.getElementById('dosage_input');
+      const dosageInfo = document.getElementById('dosage_info');
+      const manufacturerInput = document.getElementById('manufacturer_input');
+      const batchNoInput = document.getElementById('batch_no_input');
+      const batchInfo = document.getElementById('batch_info');
+      
+      // Clear fields if no product selected
+      if (!prodId || !selectedOption.value) {
+        dosageInput.value = '';
+        dosageInfo.textContent = 'Auto-filled from product dosage (can be changed)';
+        manufacturerInput.value = '';
+        batchNoInput.value = '';
+        batchInfo.textContent = 'Auto-filled from earliest expiring batch';
+        return;
+      }
+      
+      // Set dosage from quantity_used (the configured dosage for this product)
+      if (quantityUsed) {
+        dosageInput.value = quantityUsed + ' ml';
+        dosageInfo.innerHTML = `<span class="text-green-600">Dosage: ${quantityUsed} ml (from product configuration)</span>`;
+      } else {
+        dosageInput.value = '';
+        dosageInfo.textContent = 'Enter dosage (can be changed)';
+      }
+      
+      // Show loading state
+      manufacturerInput.value = 'Loading...';
+      batchNoInput.value = 'Loading...';
+      
+      // Fetch product details from API
+      fetch(`/products/${prodId}/details-for-service`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.success && data.product) {
+            // Set manufacturer
+            manufacturerInput.value = data.product.manufacturer_name || 'N/A';
+            
+            // Set batch number (FEFO - First Expire First Out)
+            if (data.product.batch_no) {
+              batchNoInput.value = data.product.batch_no;
+              
+              // Show expiry info
+              if (data.product.batch_expire_date) {
+                const expiryDate = new Date(data.product.batch_expire_date);
+                const formattedDate = expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                batchInfo.innerHTML = `<span class="text-green-600">Batch expires: ${formattedDate} (Qty: ${data.product.batch_quantity})</span>`;
+              } else {
+                batchInfo.innerHTML = `<span class="text-gray-600">Batch quantity: ${data.product.batch_quantity}</span>`;
+              }
+            } else {
+              batchNoInput.value = 'No batch available';
+              batchInfo.innerHTML = '<span class="text-red-600">⚠️ No stock batch found for this product</span>';
+            }
+          } else {
+            manufacturerInput.value = 'N/A';
+            batchNoInput.value = 'N/A';
+            batchInfo.textContent = 'Could not fetch batch information';
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching product details:', error);
+          manufacturerInput.value = 'Error';
+          batchNoInput.value = 'Error';
+          batchInfo.textContent = 'Error fetching batch information';
+        });
     }
   });
 </script>
