@@ -457,7 +457,10 @@
 
             <div class="mb-3 hidden" id="license_field">
                 <label class="block text-sm font-medium mb-1">License Number</label>
-                <input type="text" name="user_licenseNum" class="w-full border rounded px-2 py-1 text-sm">
+                <input type="text" name="user_licenseNum" class="w-full border rounded px-2 py-1 text-sm"
+                    maxlength="7" pattern="[0-9]*" inputmode="numeric"
+                    oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
+                    placeholder="7 digits only">
             </div>
 
             <div class="mb-3">
@@ -502,7 +505,10 @@
 
             <div class="mb-3">
                 <label class="block text-sm font-medium mb-1">Contact Number</label>
-                <input type="text" name="user_contactNum" required class="w-full border rounded px-2 py-1 text-sm">
+                <input type="text" name="user_contactNum" required class="w-full border rounded px-2 py-1 text-sm"
+                    maxlength="11" pattern="[0-9]*" inputmode="numeric"
+                    oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
+                    placeholder="Numbers only (max 11 digits)">
             </div>
 
             <div class="mb-3">
@@ -527,7 +533,10 @@
 
             <div class="mb-3 hidden" id="license_field_branch">
                 <label class="block text-sm font-medium mb-1">License Number</label>
-                <input type="text" name="user_licenseNum" class="w-full border rounded px-2 py-1 text-sm">
+                <input type="text" name="user_licenseNum" class="w-full border rounded px-2 py-1 text-sm"
+                    maxlength="7" pattern="[0-9]*" inputmode="numeric"
+                    oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
+                    placeholder="7 digits only">
             </div>
 
             <div class="flex justify-end space-x-2 mt-4">
@@ -565,7 +574,10 @@
             <div class="mb-3">
                 <label class="block text-sm font-medium mb-1">Contact Number</label>
                 <input type="text" name="user_contactNum" id="edit_user_contact" required
-                    class="w-full border rounded px-2 py-1 text-sm">
+                    class="w-full border rounded px-2 py-1 text-sm"
+                    maxlength="11" pattern="[0-9]*" inputmode="numeric"
+                    oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
+                    placeholder="Numbers only (max 11 digits)">
             </div>
 
             <div class="mb-3">
@@ -591,7 +603,10 @@
 
             <div class="mb-3 hidden" id="edit_license_field">
                 <label class="block text-sm font-medium mb-1">License Number</label>
-                <input type="text" name="user_licenseNum" id="edit_user_license" class="w-full border rounded px-2 py-1 text-sm">
+                <input type="text" name="user_licenseNum" id="edit_user_license" class="w-full border rounded px-2 py-1 text-sm"
+                    maxlength="7" pattern="[0-9]*" inputmode="numeric"
+                    oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
+                    placeholder="7 digits only">
             </div>
 
             <div class="mb-3">

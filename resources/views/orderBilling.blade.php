@@ -320,16 +320,6 @@
                                                                     class="bg-purple-500 hover:bg-purple-600 text-white px-2 py-1 rounded text-xs" title="Print">
                                                                     <i class="fas fa-print mr-1"></i>Print
                                                                 </button>
-                                                                @if($balance > 0)
-                                                                    {{-- If this billing includes boarding, show partial pay (50%) and hide pet-level full pay --}}
-                                                                    @if($hasBoarding && !$paidPartialExists)
-                                                                        <button onclick="initiatePayment({{ $billing->bill_id }}, {{ $balance }}, 'partial', {{ $petTotal }}, {{ $paidAmount }})" 
-                                                                            class="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded text-xs" title="Pay Partial (50%)">
-                                                                            <i class="fas fa-hand-holding-dollar mr-1"></i>Pay Partial
-                                                                        </button>
-                                                                    @endif
-                                                                    {{-- Pet-level full pay intentionally not shown; owner-level Pay All handles full payments --}}
-                                                                @endif
                                                             </div>
                                                         </td>
                                                     </tr>
