@@ -82,7 +82,7 @@ class POSController extends Controller
                 'items.*.price' => 'required|numeric|min:0',
                 'total' => 'required|numeric|min:0',
                 'cash' => 'required|numeric|min:0',
-                'owner_id' => 'nullable|integer',
+                'owner_id' => 'required|integer|min:0', // Customer selection is required
             ]);
 
             $cash = $validated['cash'];

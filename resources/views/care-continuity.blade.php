@@ -122,8 +122,8 @@
         <!-- ==================== APPOINTMENTS TAB ==================== -->
         <div id="appointmentsContent" class="tab-content {{ request('tab', 'appointments') == 'appointments' ? '' : 'hidden' }}">
             <!-- Show Entries and Search for Appointments -->
-            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                <div class="flex-shrink-0 flex items-center space-x-2">
+            <div class="flex flex-wrap items-center justify-start gap-3 mt-4 text-sm font-semibold text-black pb-2">
+                <div class="flex items-center space-x-2">
                     <label for="appointmentsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
                     <select name="appointmentsPerPage" id="appointmentsPerPage" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
@@ -134,8 +134,20 @@
                     </select>
                     <span class="whitespace-nowrap">entries</span>
                 </div>
-                <div class="relative flex-shrink-0 w-64">
-                    <input type="search" id="appointmentsSearch" placeholder="Search appointments..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                
+                <label class="whitespace-nowrap text-sm text-black">Status</label>
+                <select id="appointmentsStatusFilter" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                    <option value="">All Status</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="pending">Pending</option>
+                    <option value="arrived">Arrived</option>
+                    <option value="completed">Completed</option>
+                    <option value="rescheduled">Rescheduled</option>
+                    <option value="missed">Missed</option>
+                </select>
+                
+                <div class="relative ml-auto">
+                    <input type="search" id="appointmentsSearch" placeholder="Search appointments..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
             </div>
@@ -238,7 +250,7 @@
             </div>
 
             <!-- Pagination -->
-            <div id="appointmentsPagination" class="mt-4"></div>
+            <div id="appointmentsPagination" class="mt-6 flex justify-end"></div>
         </div>
 
         <!-- ==================== PRESCRIPTIONS TAB ==================== -->
@@ -406,8 +418,8 @@
         <!-- ==================== REFERRALS TAB ==================== -->
         <div id="referralsContent" class="tab-content hidden">
             <!-- Show Entries and Search for Referrals -->
-            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                <div class="flex-shrink-0 flex items-center space-x-2">
+            <div class="flex flex-wrap items-center justify-start gap-3 mt-4 text-sm font-semibold text-black pb-2">
+                <div class="flex items-center space-x-2">
                     <label for="referralsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
                     <select name="referralsPerPage" id="referralsPerPage" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
@@ -418,8 +430,18 @@
                     </select>
                     <span class="whitespace-nowrap">entries</span>
                 </div>
-                <div class="relative flex-shrink-0 w-64">
-                    <input type="search" id="referralsSearch" placeholder="Search referrals..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                
+                <label class="whitespace-nowrap text-sm text-black">Status</label>
+                <select id="referralsStatusFilter" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                    <option value="">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="referred">Referred</option>
+                    <option value="attended">Attended</option>
+                    <option value="completed">Completed</option>
+                </select>
+                
+                <div class="relative ml-auto">
+                    <input type="search" id="referralsSearch" placeholder="Search referrals..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
                 <!--<button onclick="openReferralModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
@@ -560,7 +582,7 @@
             </div>
 
             <!-- Pagination for Referrals -->
-            <div id="referralsPagination" class="mt-4"></div>
+            <div id="referralsPagination" class="mt-6 flex justify-end"></div>
         </div>
     </div>
 </div>
@@ -1789,27 +1811,7 @@ function setupVaccineProductSearchListener(searchInputId, productIdInputId, sugg
 
 // ==================== APPOINTMENT FUNCTIONS ====================
 
-function openAddModal() {
-    // Reset the form
-    document.getElementById('addForm').reset();
-    
-    // Clear any existing service selections
-    selectedServices = [];
-    document.getElementById('selectedServicesDisplay').value = '';
-    
-    // Remove any existing hidden service inputs
-    const existingInputs = document.querySelectorAll('#addForm input[name="services[]"]');
-    existingInputs.forEach(n => n.remove());
-    
-    // Show the modal
-    document.getElementById('addModal').classList.remove('hidden');
-    document.getElementById('addModal').classList.add('flex');
-}
 
-function closeAddModal() {
-    document.getElementById('addModal').classList.remove('flex');
-    document.getElementById('addModal').classList.add('hidden');
-}
 
 function openEditModal(appointment) {
     // Point to Care Continuity update route
@@ -3024,7 +3026,7 @@ function closeViewReferralModal() {
 }
 
 // Form submission debugging for appointments
-document.getElementById('addForm').addEventListener('submit', function(e) {
+/*document.getElementById('addForm').addEventListener('submit', function(e) {
     const formData = new FormData(this);
     const services = formData.getAll('services[]');
     
@@ -3032,7 +3034,7 @@ document.getElementById('addForm').addEventListener('submit', function(e) {
         console.warn('No services found in form data!');
     }
 });
-
+*/
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     setupCSRF();
@@ -3572,6 +3574,9 @@ document.addEventListener('DOMContentLoaded', function() {
         perPageSelectId: 'appointmentsPerPage',
         paginationContainerId: 'appointmentsPagination',
         searchColumns: [1, 2, 3, 4, 5, 6], // Date, Type, Pet, Owner, Contact, Status
+        filterSelects: [
+            { selectId: 'appointmentsStatusFilter', columnIndex: 6 } // Status column
+        ],
         storageKey: 'appointmentsFilter',
         noResultsMessage: 'No appointments found.'
     });
@@ -3583,6 +3588,9 @@ document.addEventListener('DOMContentLoaded', function() {
         perPageSelectId: 'referralsPerPage',
         paginationContainerId: 'referralsPagination',
         searchColumns: [1, 2, 3, 4, 5, 6], // Date, Pet, Owner, Referred To, Description, Status
+        filterSelects: [
+            { selectId: 'referralsStatusFilter', columnIndex: 6 } // Status column
+        ],
         storageKey: 'referralsFilter',
         noResultsMessage: 'No referrals found.'
     });

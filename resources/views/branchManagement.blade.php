@@ -172,17 +172,18 @@
                     </select>
                     <span>entries</span>
                 </form>
-                <div class="flex items-center gap-2 flex-wrap">
-                    <div class="relative">
-                        <input type="search" id="usersSearch" placeholder="Search users..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
-                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                    </div>
-                    <select id="usersRole" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                 <select id="usersRole" class="border border-gray-400 rounded px-2 py-1 text-sm">
                         <option value="All">All Roles</option>
                         <option value="veterinarian">Veterinarian</option>
                         <option value="receptionist">Receptionist</option>
                         <option value="superadmin">Super Admin</option>
                     </select>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <div class="relative">
+                        <input type="search" id="usersSearch" placeholder="Search users..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                   
                 </div>
             </div>
             <br>

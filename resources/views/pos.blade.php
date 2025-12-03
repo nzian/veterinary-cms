@@ -601,6 +601,14 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
         
+        // CHECK: Customer must be selected
+        const selectedOwner = document.getElementById("petOwner");
+        if (selectedOwner.value === "0" || selectedOwner.value === "") {
+            alert("Please select a customer before proceeding to payment.");
+            selectedOwner.focus();
+            return;
+        }
+        
         // Update payment modal content
         document.getElementById("paymentModalTitle").textContent = "Process Product Sale";
         document.getElementById("paymentModalSubtitle").textContent = "Enter the cash amount received for the products";

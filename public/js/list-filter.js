@@ -273,7 +273,7 @@ class ListFilter {
         }
         
         for (let i = startPage; i <= endPage; i++) {
-            const activeClass = i === this.currentPage ? 'bg-blue-500 text-white' : 'bg-white hover:bg-gray-100';
+            const activeClass = i === this.currentPage ? 'bg-[#0f7ea0] text-white' : 'bg-white hover:bg-gray-100';
             paginationHTML += `
                 <button onclick="listFilters['${this.config.storageKey}'].goToPage(${i})" 
                     class="px-3 py-1 ${activeClass} border-r border-gray-400">${i}</button>
