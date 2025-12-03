@@ -283,18 +283,21 @@
                     <span class="whitespace-nowrap">entries</span>
                 </form>
                 <div class="flex items-center gap-2 flex-wrap">
-                    <div class="relative">
-                        <input type="search" id="visitsSearch" placeholder="Search visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
-                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                    </div>
-                    <select id="visitsStatus" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                     <select id="visitsStatus" class="border border-gray-400 rounded px-2 py-1 text-sm">
                         <option value="All">All Status</option>
                         <option value="Arrived">Arrived</option>
                         <option value="Billed">Billed</option>
                         <option value="Pending">Pending</option>
                         <option value="Complete">Complete</option>
                         <option value="Completed">Completed</option>
-                    </select>
+                        </select>
+                    </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <div class="relative">
+                        <input type="search" id="visitsSearch" placeholder="Search visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                   
                 </div>
                 @if(auth()->check() && in_array(auth()->user()->user_role, ['receptionist']))
                 <button onclick="openAddVisitModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86] whitespace-nowrap ml-2">
@@ -452,10 +455,6 @@
                     <span class="whitespace-nowrap">entries</span>
                 </form>
                 <div class="flex items-center gap-2 flex-wrap">
-                    <div class="relative">
-                        <input type="search" id="checkupSearch" placeholder="Search check-up visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
-                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                    </div>
                     <select id="checkupStatus" class="border border-gray-400 rounded px-2 py-1 text-sm">
                         <option value="All">All Status</option>
                         <option value="Arrived">Arrived</option>
@@ -464,6 +463,13 @@
                         <option value="Complete">Complete</option>
                         <option value="Completed">Completed</option>
                     </select>
+                    </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <div class="relative">
+                        <input type="search" id="checkupSearch" placeholder="Search check-up visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                    
                 </div>
             </div>
             <br>
