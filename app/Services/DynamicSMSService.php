@@ -9,7 +9,7 @@ class DynamicSMSService
     // Built-in PhilSMS Configuration - NO DATABASE NEEDED
     private $apiKey ='206|xUk8okVvNTEODDKgJ1I9IYTGLfrrzfa3g6e2zJKJ8ee7ebb3';
     private $senderId = 'PHILSMS';
-    private $apiUrl = 'https://dashboard.philsms.com/api/v3/';
+    private $apiUrl = 'https://dashboard.philsms.com/api/v3/sms/send';
     private $isActive = true;
 
     public function __construct()
@@ -122,7 +122,7 @@ class DynamicSMSService
         $appointDate = \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y');
         $appointTime = \Carbon\Carbon::parse($appointment->appoint_time)->format('g:i A');
         
-        return "Hello {$ownerName}, this is from Pets 2Go. Your appointment for {$petName} has been scheduled on {$appointDate} at {$appointTime}. Please arrive 15 minutes early. Thank you!";
+        return "Hello {$ownerName}, this is from Pets 2Go. Your appointment for {$petName} has been scheduled on {$appointDate}. Please arrive before 4 PM. Thank you!";
     }
 
     /**
@@ -135,7 +135,7 @@ class DynamicSMSService
         $appointDate = \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y');
         $appointTime = \Carbon\Carbon::parse($appointment->appoint_time)->format('g:i A');
         
-        return "Hello {$ownerName}, this is from Pets 2Go. This is a reminder for {$petName}'s follow-up appointment on {$appointDate} at {$appointTime}. Please arrive 15 minutes early. Thank you!";
+        return "Hello {$ownerName}, this is from Pets 2Go. This is a reminder for {$petName}'s follow-up appointment on {$appointDate} . Please arrive before 4PM. Thank you!";
     }
 
     /**
@@ -148,7 +148,7 @@ class DynamicSMSService
         $appointDate = \Carbon\Carbon::parse($appointment->appoint_date)->format('M d, Y');
         $appointTime = \Carbon\Carbon::parse($appointment->appoint_time)->format('g:i A');
         
-        return "Hello {$ownerName}, this is from Pets 2Go. {$petName}'s appointment has been rescheduled to {$appointDate} at {$appointTime}. Please arrive 15 minutes early. Thank you for your understanding!";
+        return "Hello {$ownerName}, this is from Pets 2Go. {$petName}'s appointment has been rescheduled to {$appointDate}. Please arrive before 4PM. Thank you for your understanding!";
     }
 
     /**
@@ -334,7 +334,7 @@ class DynamicSMSService
         $toBranchContact = $referral->refToBranch->branch_contactNum ?? '';
         
         $message = "Hello {$ownerName},\n\n"
-                 . "{$petName}'s appointment on {$appointDate} at {$appointTime} has been REFERRED from {$fromBranch} to:\n\n"
+                 . "{$petName}'s appointment on {$appointDate}  has been REFERRED from {$fromBranch} to:\n\n"
                  . "Branch: {$toBranch}\n"
                  . "Address: {$toBranchAddress}\n";
         
@@ -360,7 +360,7 @@ class DynamicSMSService
         $newTime = \Carbon\Carbon::parse($appointment->appoint_time)->format('g:i A');
         
         return "Hello {$ownerName},\n\n"
-             . "{$petName}'s appointment has been rescheduled to {$newDate} at {$newTime}.\n\n"
+             . "{$petName}'s appointment has been rescheduled to {$newDate}. Please arrived before 4 AM.\n\n"
              . "Thank you!\n\n"
              . "- Pets 2Go Veterinary Clinic";
     }

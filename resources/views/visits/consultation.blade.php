@@ -117,7 +117,9 @@
                                     <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (kg) <span class="text-red-500">*</span></label>
                                     <input type="number" step="0.01" name="weight" value="{{ old('weight', $__checkup['weight'] ?? '') }}"
                                            class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                                           placeholder="Enter weight" required>
+                                           placeholder="Enter weight" required min="1" max="90"
+                                           oninput="if(this.value < 1) this.value=1; if(this.value > 90) this.value=90;">
+                                    <small class="text-gray-500">Allowed range: 1kg - 90kg</small>
                                 </div>
                                 <div>
                                     <label class="block text-sm font-semibold text-gray-700 mb-1">Temperature (°C) <span class="text-red-500">*</span></label>
@@ -202,10 +204,4 @@
         </div>
     </div>
 </div>
-
-@include('modals.service_activity_modal', [
-    'allPets' => $allPets, 
-    'allBranches' => $allBranches, 
-    'allProducts' => $allProducts,
-])
 @endsection

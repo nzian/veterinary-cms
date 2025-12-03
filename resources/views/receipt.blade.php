@@ -42,7 +42,21 @@
           <tbody>
             @forelse($orders as $order)
               <tr class="border-b">
-                <td class="px-3 py-2">{{ $order->product->prod_name ?? 'Item' }}</td>
+                <td class="px-3 py-2">
+                  {{ $order->product->prod_name ?? 'Item' }}
+                  @php
+                    $days = null;
+                    if (Str::contains(Str::lower($order->product->prod_name ?? ''), 'boarding') && isset($billing->visit)) {
+                      $boardingService = $billing->visit->services->first(function($service) use ($order) {
+                        return Str::contains(Str::lower($service->serv_name), 'boarding');
+                      });
+                      $days = $boardingService && isset($boardingService->pivot->quantity) ? $boardingService->pivot->quantity : null;
+                    }
+                  @endphp
+                  @if(!is_null($days))
+                    <br><span class="text-xs text-gray-500">Days: {{ $days }}</span>
+                  @endif
+                </td>
                 <td class="px-3 py-2 text-center">{{ $order->ord_quantity ?? 1 }}</td>
                 <td class="px-3 py-2 text-right">₱{{ number_format(($order->ord_price ?? optional($order->product)->prod_price ?? 0), 2) }}</td>
                 <td class="px-3 py-2 text-right">₱{{ number_format(($order->ord_quantity ?? 1) * ($order->ord_price ?? optional($order->product)->prod_price ?? 0), 2) }}</td>

@@ -7,14 +7,21 @@
     if (isset($serviceData) && $serviceData) {
         $__surg = [
             'surgery_type' => $serviceData->procedure_name ?? null,
+            'service_id' => $serviceData->service_id ?? null,
             'start_time' => $serviceData->start_time,
             'end_time' => $serviceData->end_time,
             'checklist' => $serviceData->findings ?? null,
             'post_op_notes' => $serviceData->post_op_instructions ?? null,
             'staff' => $serviceData->surgeon ?? null,
             'anesthesia' => $serviceData->anesthesia_used ?? null,
+            'dosage' => $serviceData->dosage ?? null,
+            'manufacturer' => $serviceData->manufacturer ?? null,
+            'batch_no' => $serviceData->batch_no ?? null,
         ];
     }
+    
+    // Get pet species for filtering surgical services
+    $petSpecies = strtolower($visit->pet->pet_species ?? '');
 @endphp
 <div class="min-h-screen bg-gradient-to-br from-rose-50 to-red-50 p-4 sm:p-6">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -55,29 +62,99 @@
 
         {{-- Row 3+: Main Content (full width) --}}
         <div class="space-y-6">
-            <form action="{{ route('medical.visits.surgical.save', $visit->visit_id) }}" method="POST" class="space-y-6">
+            <form action="{{ route('medical.visits.surgical.save', $visit->visit_id) }}" method="POST" class="space-y-6" id="surgical_form">
                 @csrf
                 <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
                 <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
+                <input type="hidden" name="service_id" id="service_id_hidden" value="{{ old('service_id', $__surg['service_id'] ?? '') }}">
 
                 {{-- Surgical Record Card --}}
                 <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
                     <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-file-medical mr-2 text-green-600"></i> Procedure Details</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {{-- Service Type Selector --}}
                         <div class="sm:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Surgery Type / Procedure Name <span class="text-red-500">*</span></label>
-                            <input type="text" name="surgery_type" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                required value="{{ old('surgery_type', $__surg['surgery_type'] ?? '') }}" placeholder="e.g. Spay/Neuter, Fracture Repair"/>
+                            <select name="surgery_type" id="surgery_type_selector" class="w-full border border-gray-300 p-3 rounded-lg" required>
+                                <option value="">Select Surgical Service</option>
+                                @forelse($availableServices as $service)
+                                    @php
+                                        $productsData = $service->products->map(function($p) {
+                                            return [
+                                                'prod_id' => $p->prod_id,
+                                                'prod_name' => $p->prod_name,
+                                                'prod_stocks' => $p->prod_stocks,
+                                                'prod_expiry' => $p->prod_expiry,
+                                                'quantity_used' => $p->pivot->quantity_used ?? 1
+                                            ];
+                                        })->toArray();
+                                        
+                                        // Check if service matches pet species
+                                        $serviceName = strtolower($service->serv_name ?? '');
+                                        $matchesSpecies = false;
+                                        
+                                        if ($petSpecies === 'dog' && (str_contains($serviceName, 'dog') || str_contains($serviceName, 'canine'))) {
+                                            $matchesSpecies = true;
+                                        } elseif ($petSpecies === 'cat' && (str_contains($serviceName, 'cat') || str_contains($serviceName, 'feline'))) {
+                                            $matchesSpecies = true;
+                                        } elseif (!str_contains($serviceName, 'dog') && !str_contains($serviceName, 'cat') && !str_contains($serviceName, 'canine') && !str_contains($serviceName, 'feline')) {
+                                            // Show services that don't specify species (generic services)
+                                            $matchesSpecies = true;
+                                        }
+                                    @endphp
+                                    @if($matchesSpecies)
+                                    <option value="{{ $service->serv_name }}" 
+                                            data-service-id="{{ $service->serv_id }}"
+                                            data-price="{{ $service->serv_price }}"
+                                            data-products='@json($productsData)'
+                                            {{ ($__surg['surgery_type'] ?? '') === $service->serv_name ? 'selected' : '' }}>
+                                        {{ $service->serv_name }} - ₱{{ number_format($service->serv_price, 2) }}
+                                    </option>
+                                    @endif
+                                @empty
+                                    <option value="" disabled>No surgical services available</option>
+                                @endforelse
+                            </select>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Surgeon / Assistant(s)</label>
                             <input type="text" name="staff" class="w-full border border-gray-300 p-3 rounded-lg" 
                                 placeholder="Lead Vet & Tech/Assistants" value="{{ old('staff', $__surg['staff'] ?? (auth()->user()->user_name ?? '')) }}" />
                         </div>
-                        <div>
+                        {{-- Anesthesia Product Selection --}}
+                        <div class="sm:col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Anesthesia Used</label>
-                            <input type="text" name="anesthesia" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                placeholder="e.g. Isoflurane, Propofol" value="{{ old('anesthesia', $__surg['anesthesia'] ?? '') }}" />
+                            <select name="anesthesia" id="anesthesia_select" class="w-full border border-gray-300 p-3 rounded-lg" disabled>
+                                <option value="">First select a surgical service</option>
+                            </select>
+                            <small class="text-xs text-gray-500 mt-1" id="anesthesia_helper_text">
+                                Select a surgical service first to see available anesthesia products.
+                            </small>
+                        </div>
+                        
+                        {{-- Dosage field (auto-filled from product) --}}
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Dosage</label>
+                            <input type="text" name="dosage" id="dosage_input" class="w-full border border-gray-300 p-3 rounded-lg" 
+                                placeholder="Auto-filled from product (can be changed)" 
+                                value="{{ old('dosage', $__surg['dosage'] ?? '') }}" />
+                            <small class="text-xs text-gray-500" id="dosage_info">Auto-filled from product dosage (can be changed)</small>
+                        </div>
+                        
+                        {{-- Manufacturer field (auto-filled) --}}
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Manufacturer</label>
+                            <input type="text" name="manufacturer" id="manufacturer_input" class="w-full border border-gray-300 p-3 rounded-lg bg-gray-50" 
+                                value="{{ old('manufacturer', $__surg['manufacturer'] ?? '') }}" placeholder="Auto-filled from product" readonly/>
+                            <small class="text-xs text-gray-500">Auto-filled from selected anesthesia product</small>
+                        </div>
+                        
+                        {{-- Batch No. field (auto-filled with FEFO) --}}
+                        <div class="sm:col-span-2">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Batch No.</label>
+                            <input type="text" name="batch_no" id="batch_no_input" class="w-full border border-gray-300 p-3 rounded-lg bg-gray-50" 
+                                value="{{ old('batch_no', $__surg['batch_no'] ?? '') }}" placeholder="Auto-filled (FEFO)" readonly/>
+                            <small class="text-xs text-gray-500" id="batch_info">Auto-filled from earliest expiring batch</small>
                         </div>
                         <div class="grid grid-cols-2 gap-3 sm:col-span-2">
                             <div>
@@ -99,35 +176,9 @@
                     </div>
                 </div>
 
-                {{-- Post-Op Instructions Card --}}
-                <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
-                    <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-medkit mr-2 text-purple-600"></i> Post-Op & Recovery</h3>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Post-op Notes</label>
-                            <textarea name="post_op_notes" rows="3" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                      placeholder="Recovery progress, complications, immediate needs.">{{ old('post_op_notes', $__surg['post_op_notes'] ?? '') }}</textarea>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Discharge Medications/Instructions</label>
-                            <textarea name="medications_used" rows="2" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                      placeholder="Pain relief, antibiotics, bandage care instructions.">{{ old('medications_used', $__surg['medications_used'] ?? '') }}</textarea>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Follow-up Recheck Date</label>
-                            <input type="date" name="follow_up" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                   value="{{ old('follow_up') }}"/>
-                        </div>
-                    </div>
-                </div>
-
                 {{-- Action Buttons --}}
                 <div class="flex justify-between items-center pt-4">
-                    <button type="button" 
-                            onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_id ?? 'N/A' }}', 'Surgical')"
-                            class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold shadow-md transition flex items-center gap-2">
-                        <i class="fas fa-tasks"></i> Service Actions
-                    </button>
+                   
                     
                     <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
                         <i class="fas fa-save mr-1"></i> Save Surgical Record
@@ -301,11 +352,178 @@
     const m = document.getElementById('medicalHistoryModal'); 
     if(m){ m.classList.add('hidden'); } 
   }
-</script>
 
-@include('modals.service_activity_modal', [
-    'allPets' => $allPets, 
-    'allBranches' => $allBranches, 
-    'allProducts' => $allProducts,
-])
+  // Handle surgical service selection and populate anesthesia products
+  document.addEventListener('DOMContentLoaded', function() {
+    const surgeryTypeSelector = document.getElementById('surgery_type_selector');
+    const anesthesiaSelect = document.getElementById('anesthesia_select');
+    const serviceIdHidden = document.getElementById('service_id_hidden');
+    const anesthesiaHelperText = document.getElementById('anesthesia_helper_text');
+
+    if (surgeryTypeSelector) {
+      surgeryTypeSelector.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        const serviceId = selectedOption.getAttribute('data-service-id');
+        const productsData = selectedOption.getAttribute('data-products');
+
+        // Update hidden service_id field
+        if (serviceIdHidden) {
+          serviceIdHidden.value = serviceId || '';
+        }
+
+        // Clear and populate anesthesia select
+        anesthesiaSelect.innerHTML = '<option value="">Select Anesthesia Product</option>';
+        
+        // Clear dosage, manufacturer and batch fields when service changes
+        document.getElementById('dosage_input').value = '';
+        document.getElementById('dosage_info').textContent = 'Auto-filled from product dosage (can be changed)';
+        document.getElementById('manufacturer_input').value = '';
+        document.getElementById('batch_no_input').value = '';
+        document.getElementById('batch_info').textContent = 'Auto-filled from earliest expiring batch';
+        
+        if (productsData) {
+          try {
+            const products = JSON.parse(productsData);
+            
+            if (products.length > 0) {
+              anesthesiaSelect.disabled = false;
+              anesthesiaHelperText.textContent = 'Select anesthesia product from the list';
+              anesthesiaHelperText.classList.remove('text-red-500');
+              anesthesiaHelperText.classList.add('text-gray-500');
+              
+              products.forEach(function(product) {
+                const option = document.createElement('option');
+                option.value = product.prod_name;
+                option.setAttribute('data-prod-id', product.prod_id);
+                option.setAttribute('data-quantity-used', product.quantity_used || 1);
+                
+                let optionText = product.prod_name;
+                if (product.prod_stocks !== undefined) {
+                  optionText += ` (Stock: ${product.prod_stocks})`;
+                }
+                if (product.prod_expiry) {
+                  optionText += ` - Exp: ${product.prod_expiry}`;
+                }
+                
+                option.textContent = optionText;
+                
+                // Disable if out of stock
+                if (product.prod_stocks <= 0) {
+                  option.disabled = true;
+                  option.textContent += ' - OUT OF STOCK';
+                }
+                
+                anesthesiaSelect.appendChild(option);
+              });
+            } else {
+              anesthesiaSelect.disabled = true;
+              anesthesiaSelect.innerHTML = '<option value="">No anesthesia products linked to this service</option>';
+              anesthesiaHelperText.textContent = 'No products available. Please add products to this service in the inventory.';
+              anesthesiaHelperText.classList.remove('text-gray-500');
+              anesthesiaHelperText.classList.add('text-red-500');
+            }
+          } catch (e) {
+            console.error('Error parsing products data:', e);
+            anesthesiaSelect.disabled = true;
+            anesthesiaHelperText.textContent = 'Error loading products';
+          }
+        } else {
+          anesthesiaSelect.disabled = true;
+          anesthesiaSelect.innerHTML = '<option value="">No anesthesia products available</option>';
+        }
+      });
+      
+      // Listen for anesthesia selection changes to fetch product details
+      anesthesiaSelect.addEventListener('change', function() {
+        fetchProductDetails();
+      });
+
+      // Trigger change event if there's a pre-selected value
+      if (surgeryTypeSelector.value) {
+        surgeryTypeSelector.dispatchEvent(new Event('change'));
+        
+        // After populating anesthesia dropdown, restore saved anesthesia value
+        setTimeout(function() {
+          const savedAnesthesia = "{{ $__surg['anesthesia'] ?? '' }}";
+          if (savedAnesthesia && anesthesiaSelect) {
+            anesthesiaSelect.value = savedAnesthesia;
+            fetchProductDetails();
+          }
+        }, 100);
+      }
+    }
+    
+    function fetchProductDetails() {
+      const selectedOption = anesthesiaSelect.options[anesthesiaSelect.selectedIndex];
+      const prodId = selectedOption ? selectedOption.getAttribute('data-prod-id') : null;
+      const quantityUsed = selectedOption ? selectedOption.getAttribute('data-quantity-used') : null;
+      
+      const dosageInput = document.getElementById('dosage_input');
+      const dosageInfo = document.getElementById('dosage_info');
+      const manufacturerInput = document.getElementById('manufacturer_input');
+      const batchNoInput = document.getElementById('batch_no_input');
+      const batchInfo = document.getElementById('batch_info');
+      
+      // Clear fields if no product selected
+      if (!prodId || !selectedOption.value) {
+        dosageInput.value = '';
+        dosageInfo.textContent = 'Auto-filled from product dosage (can be changed)';
+        manufacturerInput.value = '';
+        batchNoInput.value = '';
+        batchInfo.textContent = 'Auto-filled from earliest expiring batch';
+        return;
+      }
+      
+      // Set dosage from quantity_used (the configured dosage for this product)
+      if (quantityUsed) {
+        dosageInput.value = quantityUsed + ' ml';
+        dosageInfo.innerHTML = `<span class="text-green-600">Dosage: ${quantityUsed} ml (from product configuration)</span>`;
+      } else {
+        dosageInput.value = '';
+        dosageInfo.textContent = 'Enter dosage (can be changed)';
+      }
+      
+      // Show loading state
+      manufacturerInput.value = 'Loading...';
+      batchNoInput.value = 'Loading...';
+      
+      // Fetch product details from API
+      fetch(`/products/${prodId}/details-for-service`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.success && data.product) {
+            // Set manufacturer
+            manufacturerInput.value = data.product.manufacturer_name || 'N/A';
+            
+            // Set batch number (FEFO - First Expire First Out)
+            if (data.product.batch_no) {
+              batchNoInput.value = data.product.batch_no;
+              
+              // Show expiry info
+              if (data.product.batch_expire_date) {
+                const expiryDate = new Date(data.product.batch_expire_date);
+                const formattedDate = expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                batchInfo.innerHTML = `<span class="text-green-600">Batch expires: ${formattedDate} (Qty: ${data.product.batch_quantity})</span>`;
+              } else {
+                batchInfo.innerHTML = `<span class="text-gray-600">Batch quantity: ${data.product.batch_quantity}</span>`;
+              }
+            } else {
+              batchNoInput.value = 'No batch available';
+              batchInfo.innerHTML = '<span class="text-red-600">⚠️ No stock batch found for this product</span>';
+            }
+          } else {
+            manufacturerInput.value = 'N/A';
+            batchNoInput.value = 'N/A';
+            batchInfo.textContent = 'Could not fetch batch information';
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching product details:', error);
+          manufacturerInput.value = 'Error';
+          batchNoInput.value = 'Error';
+          batchInfo.textContent = 'Error fetching batch information';
+        });
+    }
+  });
+</script>
 @endsection

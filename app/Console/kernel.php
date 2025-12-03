@@ -14,7 +14,12 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         $schedule->command('app:auto-cancel-old-appointments')
-             ->everyMinute()
+             ->daily()
+             ->withoutOverlapping();
+             
+        // Send follow-up appointment reminders daily at 9:00 AM
+        $schedule->command('app:send-followup-reminders')
+             ->dailyAt('09:00')
              ->withoutOverlapping();
     }
 

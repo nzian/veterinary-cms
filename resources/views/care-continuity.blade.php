@@ -123,18 +123,17 @@
         <div id="appointmentsContent" class="tab-content {{ request('tab', 'appointments') == 'appointments' ? '' : 'hidden' }}">
             <!-- Show Entries and Search for Appointments -->
             <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
-                    <input type="hidden" name="active_tab" value="appointments">
+                <div class="flex-shrink-0 flex items-center space-x-2">
                     <label for="appointmentsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
-                    <select name="appointmentsPerPage" id="appointmentsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                    <select name="appointmentsPerPage" id="appointmentsPerPage" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                            <option value="{{ $limit }}" {{ request('appointmentsPerPage') == $limit ? 'selected' : '' }}>
+                            <option value="{{ $limit }}" {{ request('appointmentsPerPage', 10) == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
                     <span class="whitespace-nowrap">entries</span>
-                </form>
+                </div>
                 <div class="relative flex-shrink-0 w-64">
                     <input type="search" id="appointmentsSearch" placeholder="Search appointments..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -144,7 +143,7 @@
 
             <!-- Appointments Table -->
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="appointmentsTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -160,7 +159,7 @@
                     <tbody>
                         @forelse($appointments as $index => $appointment)
                             <tr>
-                                <td class="border px-2 py-2">{{ $appointments->firstItem() + $index }}</td>
+                                <td class="border px-2 py-2">{{ $index + 1 }}</td>
                                 <td class="border px-4 py-2">
                                     {{ \Carbon\Carbon::parse($appointment->appoint_date)->format('F j, Y') }}
                                 </td>
@@ -169,10 +168,12 @@
                                 <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_contactnum}}</td>
                                 <td class="border px-4 py-2">
-                                    <span class="px-2 py-1 rounded text-xs 
-                                        {{ $appointment->appoint_status == 'completed' ? 'bg-green-100 text-green-800' : 
-                                           ($appointment->appoint_status == 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                                           ($appointment->appoint_status == 'refer' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800')) }}">
+                                    <span class="px-2 py-1 rounded text-xs
+                                        @if(strtolower($appointment->appoint_status) == 'missed') bg-red-100 text-red-700
+                                        @elseif(in_array(strtolower($appointment->appoint_status), ['scheduled','pending'])) bg-blue-100 text-blue-700
+                                        @elseif(in_array(strtolower($appointment->appoint_status), ['reschedule','rescheduled'])) bg-orange-100 text-orange-700
+                                        @elseif(in_array(strtolower($appointment->appoint_status), ['arrive','arrived','completed'])) bg-green-100 text-green-700
+                                        @else bg-gray-100 text-gray-700 @endif">
                                         {{ ucfirst($appointment->appoint_status) }}
                                     </span>
                                 </td>
@@ -189,19 +190,19 @@
             </button>
         @endif
         
-        @if(hasPermission('refer_appointment', $can) && $appointment->appoint_status != 'refer')
+       <!-- @if(hasPermission('refer_appointment', $can) && $appointment->appoint_status != 'refer')
             <button onclick="openReferralModal({{ $appointment->appoint_id }})"
                 class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 flex items-center gap-1 text-xs" title="refer">
                 <i class="fas fa-share"></i>
             </button>
         @endif
 
-        @if(hasPermission('prescribe_appointment', $can))
+           @if(hasPermission('prescribe_appointment', $can))
             <button onclick="openPrescriptionFromAppointment({{ $appointment->appoint_id }}, '{{ $appointment->pet?->pet_name ?? '' }}', '{{ $appointment->appoint_date }}')"
                 class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="prescribe">
                 <i class="fas fa-prescription"></i>
             </button>
-        @endif
+        @endif-->
 
         @if(strtolower($appointment->appoint_status) === 'arrived')
             <form action="{{ route('care-continuity.appointments.create-visit', $appointment->appoint_id) }}" method="POST" class="inline">
@@ -237,17 +238,7 @@
             </div>
 
             <!-- Pagination -->
-            @if(method_exists($appointments, 'links'))
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>
-                    Showing {{ $appointments->firstItem() }} to {{ $appointments->lastItem() }} of
-                    {{ $appointments->total() }} entries
-                </div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $appointments->appends(['active_tab' => 'appointments'])->links() }}
-                </div>
-            </div>
-            @endif
+            <div id="appointmentsPagination" class="mt-4"></div>
         </div>
 
         <!-- ==================== PRESCRIPTIONS TAB ==================== -->
@@ -381,11 +372,32 @@
             @if(method_exists($prescriptions, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $prescriptions->firstItem() }} to {{ $prescriptions->lastItem() }} of
+                    Showing {{ $prescriptions->firstItem() ?? 0 }} to {{ $prescriptions->lastItem() ?? 0 }} of
                     {{ $prescriptions->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $prescriptions->appends(['active_tab' => 'prescriptions'])->links() }}
+                    @if ($prescriptions->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $prescriptions->appends(['active_tab' => 'prescriptions'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $prescriptions->lastPage(); $i++)
+                        @if ($i == $prescriptions->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $prescriptions->appends(['active_tab' => 'prescriptions'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($prescriptions->hasMorePages())
+                        <a href="{{ $prescriptions->appends(['active_tab' => 'prescriptions'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -395,18 +407,17 @@
         <div id="referralsContent" class="tab-content hidden">
             <!-- Show Entries and Search for Referrals -->
             <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
-                    <input type="hidden" name="active_tab" value="referrals">
+                <div class="flex-shrink-0 flex items-center space-x-2">
                     <label for="referralsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
-                    <select name="referralsPerPage" id="referralsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                    <select name="referralsPerPage" id="referralsPerPage" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                            <option value="{{ $limit }}" {{ request('referralsPerPage') == $limit ? 'selected' : '' }}>
+                            <option value="{{ $limit }}" {{ request('referralsPerPage', 10) == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
                     <span class="whitespace-nowrap">entries</span>
-                </form>
+                </div>
                 <div class="relative flex-shrink-0 w-64">
                     <input type="search" id="referralsSearch" placeholder="Search referrals..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -419,7 +430,7 @@
 
             <!-- Referrals Table -->
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="referralsTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -435,37 +446,86 @@
                     <tbody>
                         @forelse($referrals ?? [] as $index => $referral)
                             <tr>
+                                <td class="border px-2 py-2">{{ $index + 1 }}</td>
+                                <td class="border px-2 py-2">{{ \Carbon\Carbon::parse($referral->ref_date)->format('F j, Y') }}</td>
+                                <td class="border px-2 py-2">{{ $referral->pet?->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-2 py-2">{{ $referral->pet?->owner?->own_name ?? 'N/A' }}</td>
                                 <td class="border px-2 py-2">
-                                    @if(method_exists($referrals, 'firstItem'))
-                                        {{ $referrals->firstItem() + $index }}
+                                    @if($referral->ref_type === 'external')
+                                        {{ $referral->external_clinic_name ?? 'External Clinic' }}
                                     @else
-                                        {{ $index + 1 }}
+                                        {{ $referral->refToBranch?->branch_name ?? 'N/A' }}
                                     @endif
                                 </td>
-                                <td class="border px-2 py-2">{{ \Carbon\Carbon::parse($referral->ref_date)->format('F j, Y') }}</td>
-                                <td class="border px-2 py-2">{{ $referral->appointment?->pet?->pet_name ?? 'N/A' }}</td>
-                                <td class="border px-2 py-2">{{ $referral->appointment?->pet?->owner?->own_name ?? 'N/A' }}</td>
-                                <td class="border px-2 py-2">{{ $referral->refToBranch?->branch_name ?? 'N/A' }}</td>
                                 <td class="border px-2 py-2">{{ Str::limit($referral->ref_description, 50) }}</td>
                                 <td class="border px-2 py-2">
-                                    <span class="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs">
-                                        Referred
+                                    <span class="px-2 py-1 rounded text-xs
+                                        @if($referral->ref_status === 'completed') bg-green-100 text-green-800
+                                        @elseif($referral->ref_status === 'attended') bg-pink-100 text-pink-800
+                                        @elseif($referral->ref_status === 'referred') bg-purple-100 text-purple-800
+                                        @else bg-yellow-100 text-yellow-800
+                                        @endif">
+                                        {{ ucfirst($referral->ref_status) }}
                                     </span>
                                 </td>
                                 <td class="border px-2 py-1">
     <div class="flex justify-center items-center gap-1">
         @if(hasPermission('view_referrals', $can))
-            <button onclick="viewReferral({{ $referral->ref_id }})"
+            <button onclick="viewReferral(this)"
+                data-ref-id="{{ $referral->ref_id }}"
+                data-ref-date="{{ \Carbon\Carbon::parse($referral->ref_date)->format('F j, Y') }}"
+                data-pet-name="{{ $referral->pet?->pet_name ?? 'N/A' }}"
+                data-owner-name="{{ $referral->pet?->owner?->own_name ?? 'N/A' }}"
+                data-owner-contact="{{ $referral->pet?->owner?->own_contactnum ?? 'N/A' }}"
+                data-pet-age="{{ $referral->pet?->pet_age ?? 'N/A' }}"
+                data-pet-gender="{{ strtoupper($referral->pet?->pet_gender ?? 'N/A') }}"
+                data-medical-history="{{ e($referral->medical_history ?? '') }}"
+                data-tests-conducted="{{ e($referral->tests_conducted ?? '') }}"
+                data-medications-given="{{ e($referral->medications_given ?? '') }}"
+                data-ref-description="{{ e($referral->ref_description) }}"
+                data-ref-to-branch="{{ $referral->ref_to_display ?? ($referral->external_clinic_name ?? ($referral->refToBranch?->branch_name ?? 'N/A')) }}"
                 class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 flex items-center gap-1 text-xs" title="view">
                 <i class="fas fa-eye"></i>
             </button>
         @endif
         
-        @if(hasPermission('print_referral', $can))
-            <button onclick="printReferral({{ $referral->ref_id }})"
+        @if(hasPermission('print_referral', $can) && $referral->ref_type === 'external')
+            <button onclick="printReferral(this)"
+                data-ref-id="{{ $referral->ref_id }}"
+                data-ref-date="{{ \Carbon\Carbon::parse($referral->ref_date)->format('F j, Y') }}"
+                data-pet-name="{{ $referral->pet?->pet_name ?? 'N/A' }}"
+                data-owner-name="{{ $referral->pet?->owner?->own_name ?? 'N/A' }}"
+                data-owner-contact="{{ $referral->pet?->owner?->own_contactnum ?? 'N/A' }}"
+                data-pet-age="{{ $referral->pet?->pet_age ?? 'N/A' }}"
+                data-pet-gender="{{ strtoupper($referral->pet?->pet_gender ?? 'N/A') }}"
+                data-medical-history="{{ e($referral->medical_history ?? '') }}"
+                data-tests-conducted="{{ e($referral->tests_conducted ?? '') }}"
+                data-medications-given="{{ e($referral->medications_given ?? '') }}"
+                data-ref-description="{{ e($referral->ref_description) }}"
+                data-ref-to-branch="{{ $referral->ref_to_display ?? ($referral->external_clinic_name ?? ($referral->refToBranch?->branch_name ?? 'N/A')) }}"
                 class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 flex items-center gap-1 text-xs" title="print">
                 <i class="fas fa-print"></i>
             </button>
+        @endif
+
+        @php
+            $activeBranchId = session('active_branch_id');
+            if(auth()->user()->user_role !== 'superadmin') {
+                $activeBranchId = auth()->user()->branch_id;
+            }
+            $isReferredBranch = $referral->ref_to == $activeBranchId;
+            $isPending = $referral->ref_status === 'pending';
+            $isInterbranch = $referral->ref_type === 'interbranch';
+        @endphp
+
+        @if($isReferredBranch && $isPending && $isInterbranch)
+            <form action="{{ route('care-continuity.referrals.create-visit', $referral->ref_id) }}" method="POST" class="inline">
+                @csrf
+                <button type="submit"
+                    class="bg-emerald-500 text-white px-2 py-1 rounded hover:bg-emerald-600 flex items-center gap-1 text-xs" title="Add Visit">
+                    <i class="fas fa-notes-medical"></i>
+                </button>
+            </form>
         @endif
         
         @if(hasPermission('edit_referral', $can))
@@ -487,14 +547,6 @@
                 </button>
             </form>
         @endif
-
-        <form action="{{ route('care-continuity.referrals.create-visit', $referral->ref_id) }}" method="POST" class="inline">
-            @csrf
-            <button type="submit"
-                class="bg-emerald-500 text-white px-2 py-1 rounded hover:bg-emerald-600 flex items-center gap-1 text-xs" title="Add Visit">
-                <i class="fas fa-notes-medical"></i>
-            </button>
-        </form>
     </div>
 </td>
                             </tr>
@@ -508,17 +560,7 @@
             </div>
 
             <!-- Pagination for Referrals -->
-            @if(method_exists($referrals, 'links'))
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>
-                    Showing {{ $referrals->firstItem() }} to {{ $referrals->lastItem() }} of
-                    {{ $referrals->total() }} entries
-                </div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $referrals->appends(['active_tab' => 'referrals'])->links() }}
-                </div>
-            </div>
-            @endif
+            <div id="referralsPagination" class="mt-4"></div>
         </div>
     </div>
 </div>
@@ -922,7 +964,7 @@
                         <div class="mb-2"><strong>CONTACT #:</strong> <span id="view_owner_contact">-</span></div>
                     </div>
                     <div class="text-right">
-                        <div class="mb-2"><strong>DOB:</strong> <span id="view_pet_dob">-</span></div>
+                        <div class="mb-2"><strong>AGE:</strong> <span id="view_pet_age">-</span></div>
                         <div class="mb-2"><strong>GENDER:</strong> <span id="view_pet_gender">-</span></div>
                     </div>
                 </div>
@@ -931,20 +973,20 @@
             <!-- History Section -->
             <div class="form-section mb-6">
                 <div class="section-title font-bold text-base text-gray-800 mb-4 border-b border-gray-300 pb-2">HISTORY:</div>
-                <div id="view_medical_history" class="text-sm text-gray-700 mb-4">No medical history provided</div>
+                <div id="view_medical_history" class="text-sm text-gray-700 mb-4" style="white-space: pre-wrap; word-break: keep-all;">No medical history provided</div>
             </div>
             
             <!-- Test Conducted Section -->
             <div class="form-section mb-6">
                 <div class="section-title font-bold text-base text-gray-800 mb-4 border-b border-gray-300 pb-2">TEST CONDUCTED:</div>
-                <div id="view_tests_conducted" class="text-sm text-gray-700 mb-4">No tests documented</div>
+                <div id="view_tests_conducted" class="text-sm text-gray-700 mb-4" style="white-space: pre-wrap; word-break: keep-all;">No tests documented</div>
                 <div class="test-note text-center font-bold text-gray-600 mt-4 text-sm italic">***NO FURTHER TESTS WERE PERFORMED***</div>
             </div>
             
             <!-- Medications Given Section -->
             <div class="form-section mb-6">
                 <div class="section-title font-bold text-base text-gray-800 mb-4 border-b border-gray-300 pb-2">MEDS GIVEN:</div>
-                <div id="view_medications_given" class="text-sm text-gray-700 mb-4">No medications documented</div>
+                <div id="view_medications_given" class="text-sm text-gray-700 mb-4" style="white-space: pre-wrap; word-break: keep-all;">No medications documented</div>
                 <div class="med-note text-center font-bold text-gray-600 mt-4 text-sm italic">***NO OTHER MEDICATIONS GIVEN***</div>
             </div>
             
@@ -1273,7 +1315,7 @@
 @media print {
     @page {
         margin: 0.3in;
-        size: A4;
+        size: letter;
     }
     
     body * {
@@ -2790,46 +2832,49 @@ function editReferral(referralId) {
     });
 }
 
-function viewReferral(referralId) {
-    fetch(`/medical-management/referrals/${referralId}`, {
-        headers: {
-            'X-CSRF-TOKEN': window.csrfToken || '{{ csrf_token() }}',
-            'Accept': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        // Populate the form-style fields
-        document.getElementById('view_ref_date').textContent = formatReferralDate(data.ref_date) || '-';
-        document.getElementById('view_pet_name').textContent = (data.pet_name || '-').toUpperCase();
-        document.getElementById('view_pet_gender').textContent = (data.pet_gender || '-').toUpperCase();
-        document.getElementById('view_pet_dob').textContent = formatReferralDate(data.pet_dob) || '-';
-        document.getElementById('view_owner_name').textContent = (data.owner_name || '-').toUpperCase();
-        document.getElementById('view_owner_contact').textContent = data.owner_contact || '-';
-        
-        // Format medical history as a list
-        document.getElementById('view_medical_history').innerHTML = formatListContent(data.medical_history, 'No medical history provided');
-        
-        // Format tests conducted
-        document.getElementById('view_tests_conducted').innerHTML = formatListContent(data.tests_conducted, 'No tests documented');
-        
-        // Format medications given as a list
-        document.getElementById('view_medications_given').innerHTML = formatListContent(data.medications_given, 'No medications documented');
-        
-        // Reason for referral
-        document.getElementById('view_ref_description').textContent = data.ref_description || '-';
-        
-        // Branch information
-        document.getElementById('view_ref_from_branch').textContent = (data.ref_by_branch || 'PETS 2GO VETERINARY CLINIC').toUpperCase();
-        document.getElementById('view_ref_to_branch').textContent = (data.ref_to_branch || '-').toUpperCase();
-        
-        currentReferralId = referralId;
-        document.getElementById('viewReferralModal').classList.remove('hidden');
-    })
-    .catch(error => {
-        console.error('Error fetching referral details:', error);
-        alert('Error loading referral details');
-    });
+function viewReferral(el) {
+    // Get data from button attributes
+    const data = {
+        ref_date: el.dataset.refDate || '-',
+        pet_name: el.dataset.petName || '-',
+        owner_name: el.dataset.ownerName || '-',
+        owner_contact: el.dataset.ownerContact || '-',
+        pet_age: el.dataset.petAge || '-',
+        pet_gender: el.dataset.petGender || '-',
+        medical_history: el.dataset.medicalHistory || '',
+        tests_conducted: el.dataset.testsConducted || '',
+        medications_given: el.dataset.medicationsGiven || '',
+        ref_description: el.dataset.refDescription || '-',
+        ref_to_branch: el.dataset.refToBranch || '-',
+        ref_by_branch: 'PETS 2GO VETERINARY CLINIC'
+    };
+
+    // Populate the form-style fields
+    document.getElementById('view_ref_date').textContent = data.ref_date;
+    document.getElementById('view_pet_name').textContent = (data.pet_name || '-').toUpperCase();
+    document.getElementById('view_pet_gender').textContent = (data.pet_gender || '-').toUpperCase();
+    document.getElementById('view_pet_age').textContent = data.pet_age || '-';
+    document.getElementById('view_owner_name').textContent = (data.owner_name || '-').toUpperCase();
+    document.getElementById('view_owner_contact').textContent = data.owner_contact || '-';
+    
+    // Format medical history as a list
+    document.getElementById('view_medical_history').innerHTML = formatListContent(data.medical_history, 'No medical history provided');
+    
+    // Format tests conducted
+    document.getElementById('view_tests_conducted').innerHTML = formatListContent(data.tests_conducted, 'No tests documented');
+    
+    // Format medications given as a list
+    document.getElementById('view_medications_given').innerHTML = formatListContent(data.medications_given, 'No medications documented');
+    
+    // Reason for referral
+    document.getElementById('view_ref_description').textContent = data.ref_description || '-';
+    
+    // Branch information
+    document.getElementById('view_ref_from_branch').textContent = (data.ref_by_branch || 'PETS 2GO VETERINARY CLINIC').toUpperCase();
+    document.getElementById('view_ref_to_branch').textContent = (data.ref_to_branch || '-').toUpperCase();
+    
+    currentReferralId = el.dataset.refId;
+    document.getElementById('viewReferralModal').classList.remove('hidden');
 }
 
 function formatReferralDate(dateString) {
@@ -2850,54 +2895,52 @@ function formatListContent(content, defaultText) {
         return `<em class="text-gray-500">${defaultText}</em>`;
     }
     
-    // Split by common delimiters and create a list
-    const items = content.split(/[;,\n]/).map(item => item.trim()).filter(item => item.length > 0);
+    // Split by semicolon delimiter and create a list
+    const items = content.split(';').map(item => item.trim()).filter(item => item.length > 0);
     
     if (items.length > 1) {
-        return '<ul class="history-list pl-0 list-none">' + 
-               items.map(item => `<li class="mb-2 pl-5 relative before:content-['-'] before:absolute before:left-0 before:font-bold">${item}</li>`).join('') + 
+        return '<ul class="history-list pl-0 list-none" style="white-space: pre-wrap; word-break: keep-all;">' + 
+               items.map(item => `<li class="mb-2" style="white-space: pre-wrap; word-break: keep-all;">${item}</li>`).join('') + 
                '</ul>';
     } else {
-        return `<p class="mb-0">${content}</p>`;
+        return `<p class="mb-0" style="white-space: pre-wrap; word-break: keep-all;">${content}</p>`;
     }
 }
 
-function printReferral(referralId) {
-    // Fetch referral data for printing
-    fetch(`/medical-management/referrals/${referralId}`, {
-        headers: {
-            'X-CSRF-TOKEN': window.csrfToken || '{{ csrf_token() }}',
-            'Accept': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        // Create print content with the referral data
-        const printContent = createReferralPrintContent(data);
-        document.getElementById('printReferralContent').innerHTML = printContent;
-        
-        // Remove all print classes first
-        document.getElementById('printContainer').classList.remove('print-prescription', 'print-referral');
-        document.getElementById('printReferralContainer').classList.remove('print-prescription', 'print-referral');
-        
-        // Hide prescription container
-        document.getElementById('printContainer').style.display = 'none';
-        
-        // Show referral container with print class
-        const printContainer = document.getElementById('printReferralContainer');
-        printContainer.style.display = 'block';
-        printContainer.classList.add('print-referral');
-        
-        setTimeout(() => {
-            window.print();
-            printContainer.style.display = 'none';
-            printContainer.classList.remove('print-referral');
-        }, 200);
-    })
-    .catch(error => {
-        console.error('Error fetching referral for printing:', error);
-        alert('Error loading referral for printing');
-    });
+function printReferral(el) {
+    // Build data object from button data-* attributes
+    const data = {
+        ref_date: el.dataset.refDate || '-',
+        pet_name: el.dataset.petName || '-',
+        owner_name: el.dataset.ownerName || '-',
+        owner_contact: el.dataset.ownerContact || '-',
+        pet_age: el.dataset.petAge || '-',
+        pet_gender: el.dataset.petGender || '-',
+        medical_history: el.dataset.medicalHistory || '',
+        tests_conducted: el.dataset.testsConducted || '',
+        medications_given: el.dataset.medicationsGiven || '',
+        ref_description: el.dataset.refDescription || '-',
+        ref_to_branch: el.dataset.refToBranch || '-',
+        ref_by_branch: 'PETS 2GO VETERINARY CLINIC'
+    };
+
+    const printContent = createReferralPrintContent(data);
+    document.getElementById('printReferralContent').innerHTML = printContent;
+
+    // Prepare containers
+    document.getElementById('printContainer').classList.remove('print-prescription', 'print-referral');
+    document.getElementById('printReferralContainer').classList.remove('print-prescription', 'print-referral');
+    document.getElementById('printContainer').style.display = 'none';
+
+    const printContainer = document.getElementById('printReferralContainer');
+    printContainer.style.display = 'block';
+    printContainer.classList.add('print-referral');
+
+    setTimeout(() => {
+        window.print();
+        printContainer.style.display = 'none';
+        printContainer.classList.remove('print-referral');
+    }, 150);
 }
 
 function createReferralPrintContent(data) {
@@ -2913,7 +2956,7 @@ function createReferralPrintContent(data) {
         <div class="patient-info mb-3">
             <div class="grid grid-cols-3 gap-2 text-sm">
                 <div>
-                    <div class="mb-1"><strong>DATE:</strong> ${formatReferralDate(data.ref_date) || '-'}</div>
+                    <div class="mb-1"><strong>DATE:</strong> ${(data.ref_date || '-')}</div>
                     <div class="mb-1"><strong>NAME OF PET:</strong> ${(data.pet_name || '-').toUpperCase()}</div>
                 </div>
                 <div class="text-center">
@@ -2921,7 +2964,7 @@ function createReferralPrintContent(data) {
                     <div><strong>CONTACT #:</strong> ${data.owner_contact || '-'}</div>
                 </div>
                 <div class="text-right">
-                    <div><strong>DOB:</strong> ${formatReferralDate(data.pet_dob) || '-'}</div>
+                    <div><strong>AGE:</strong> ${(data.pet_age || '-')}</div>
                     <div><strong>GENDER:</strong> ${(data.pet_gender || '-').toUpperCase()}</div>
                 </div>
             </div>
@@ -2930,20 +2973,20 @@ function createReferralPrintContent(data) {
         <!-- History Section -->
         <div class="form-section mb-3">
             <div class="section-title font-bold text-sm text-gray-800 mb-2 border-b border-gray-300 pb-1">HISTORY:</div>
-            <div class="text-sm text-gray-700 mb-2">${formatListContent(data.medical_history, 'No medical history provided')}</div>
+            <div class="text-sm text-gray-700 mb-2" style="white-space: pre-wrap; word-break: keep-all;">${formatListContent(data.medical_history, 'No medical history provided')}</div>
         </div>
         
         <!-- Test Conducted Section -->
         <div class="form-section mb-3">
             <div class="section-title font-bold text-sm text-gray-800 mb-2 border-b border-gray-300 pb-1">TEST CONDUCTED:</div>
-            <div class="text-sm text-gray-700 mb-2">${formatListContent(data.tests_conducted, 'No tests documented')}</div>
+            <div class="text-sm text-gray-700 mb-2" style="white-space: pre-wrap; word-break: keep-all;">${formatListContent(data.tests_conducted, 'No tests documented')}</div>
             <div class="test-note text-center font-bold text-gray-600 mt-2 text-sm italic">***NO FURTHER TESTS WERE PERFORMED***</div>
         </div>
         
         <!-- Medications Given Section -->
         <div class="form-section mb-3">
             <div class="section-title font-bold text-sm text-gray-800 mb-2 border-b border-gray-300 pb-1">MEDS GIVEN:</div>
-            <div class="text-sm text-gray-700 mb-2">${formatListContent(data.medications_given, 'No medications documented')}</div>
+            <div class="text-sm text-gray-700 mb-2" style="white-space: pre-wrap; word-break: keep-all;">${formatListContent(data.medications_given, 'No medications documented')}</div>
             <div class="med-note text-center font-bold text-gray-600 mt-2 text-sm italic">***NO OTHER MEDICATIONS GIVEN***</div>
         </div>
         
@@ -3518,69 +3561,46 @@ function closeViewAppointmentModal() {
     document.getElementById('viewAppointmentModal').classList.add('hidden');
 }
 
-// Simple search functionality for appointments and referrals
+// Initialize ListFilter for client-side filtering and pagination
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Initializing search functionality...');
+    console.log('Initializing list filters...');
     
-    // Function to initialize search for a specific input and table
-    function initSearch(inputId, tableId) {
-        const searchInput = document.getElementById(inputId);
-        const table = document.querySelector(tableId);
-        
-        if (!searchInput || !table) {
-            console.error(`Search elements not found for ${inputId} and ${tableId}`);
-            return;
-        }
-        
-        // Add input event listener
-        searchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const rows = table.querySelectorAll('tbody tr');
-            
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
-            });
-        });
-        
-        // Add clear button
-        const clearButton = document.createElement('button');
-        clearButton.innerHTML = '&times;';
-        clearButton.className = 'absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600';
-        clearButton.style.display = 'none';
-        clearButton.onclick = function(e) {
-            e.preventDefault();
-            searchInput.value = '';
-            searchInput.dispatchEvent(new Event('input'));
-            this.style.display = 'none';
-        };
-        
-        searchInput.parentNode.style.position = 'relative';
-        searchInput.parentNode.appendChild(clearButton);
-        
-        // Show/hide clear button based on input
-        searchInput.addEventListener('input', function() {
-            clearButton.style.display = this.value ? 'block' : 'none';
-        });
-    }
-    
-    // Initialize search for appointments
-    initSearch('appointmentsSearch', '#appointmentsContent table');
-    
-    // Initialize search for referrals
-    initSearch('referralsSearch', '#referralsContent table');
-    
-    // Reinitialize search when switching tabs
-    document.body.addEventListener('click', function(e) {
-        const tabButton = e.target.closest('button[onclick^="showTab"]');
-        if (tabButton) {
-            // Small delay to ensure tab content is loaded
-            setTimeout(() => {
-                initSearch('appointmentsSearch', '#appointmentsContent table');
-                initSearch('referralsSearch', '#referralsContent table');
-            }, 200);
-        }
+    // Initialize Appointments Filter
+    window.listFilters['appointments'] = new ListFilter({
+        tableSelector: '#appointmentsTable tbody',
+        searchInputId: 'appointmentsSearch',
+        perPageSelectId: 'appointmentsPerPage',
+        paginationContainerId: 'appointmentsPagination',
+        searchColumns: [1, 2, 3, 4, 5, 6], // Date, Type, Pet, Owner, Contact, Status
+        storageKey: 'appointmentsFilter',
+        noResultsMessage: 'No appointments found.'
     });
+    
+    // Initialize Referrals Filter
+    window.listFilters['referrals'] = new ListFilter({
+        tableSelector: '#referralsTable tbody',
+        searchInputId: 'referralsSearch',
+        perPageSelectId: 'referralsPerPage',
+        paginationContainerId: 'referralsPagination',
+        searchColumns: [1, 2, 3, 4, 5, 6], // Date, Pet, Owner, Referred To, Description, Status
+        storageKey: 'referralsFilter',
+        noResultsMessage: 'No referrals found.'
+    });
+    
+    // Refresh filters when switching tabs
+    const originalShowTab = window.showTab;
+    window.showTab = function(tab) {
+        if (originalShowTab) originalShowTab(tab);
+        
+        // Refresh the filter for the active tab
+        setTimeout(() => {
+            if (tab === 'appointments' && window.listFilters['appointments']) {
+                window.listFilters['appointments'].refresh();
+            } else if (tab === 'referrals' && window.listFilters['referrals']) {
+                window.listFilters['referrals'].refresh();
+            }
+        }, 100);
+    };
 });
 </script>
 

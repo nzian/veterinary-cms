@@ -38,30 +38,7 @@
             </div>
         </div>
 
-        {{--- ADDED ROW 3: Separate Action Buttons (Ordered as requested) ---}}
-        <div class="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap gap-4 justify-between sm:justify-start">
-            <button type="button" 
-                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_name ?? 'N/A' }}', 'Initial')"
-                    class="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-notes-medical"></i> **Initial Assessment**
-            </button>
-            <button type="button" 
-                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_name ?? 'N/A' }}', 'Prescription')"
-                    class="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-prescription"></i> **Prescription**
-            </button>
-            <button type="button" 
-                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_name ?? 'N/A' }}', 'Appointment')"
-                    class="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-calendar-plus"></i> **Set Appointment**
-            </button>
-            <button type="button" 
-                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_name ?? 'N/A' }}', 'Referral')"
-                    class="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-share"></i> **Referral**
-            </button>
-        </div>
-        {{--- END ADDED ROW 3 ---}}
+       
 
         {{-- Row 4+: Main Content (full width) --}}
         <div class="space-y-6">
@@ -71,17 +48,22 @@
                 if (isset($serviceData) && $serviceData) {
                     $__diag = [
                         'test_type' => $serviceData->test_type ?? null,
+                        'service_id' => $serviceData->service_id ?? null,
                         'results_text' => $serviceData->results ?? null,
                         'interpretation' => $serviceData->remarks ?? null,
                         'staff' => $serviceData->collected_by ?? null,
                         'test_datetime' => $serviceData->date_completed,
                     ];
                 }
+                
+                // Get pet species for filtering diagnostic services
+                $petSpecies = strtolower($visit->pet->pet_species ?? '');
             @endphp
-            <form action="{{ route('medical.visits.diagnostic.save', $visit->visit_id) }}" method="POST" class="space-y-6" enctype="multipart/form-data">
+            <form action="{{ route('medical.visits.diagnostic.save', $visit->visit_id) }}" method="POST" class="space-y-6" enctype="multipart/form-data" id="diagnostic_form">
                 @csrf
                 <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
                 <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
+                <input type="hidden" name="service_id" id="service_id_hidden" value="{{ old('service_id', $__diag['service_id'] ?? '') }}">
 
                 {{-- Diagnostic Details Card --}}
                 <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
@@ -89,15 +71,34 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Test Type <span class="text-red-500">*</span></label>
-                            <select name="test_type" class="w-full border border-gray-300 p-3 rounded-lg" required>
-                                @php($selectedType = old('test_type', $__diag['test_type'] ?? ''))
-                                <option value="" disabled {{ empty($selectedType) ? 'selected' : '' }}>Select test</option>
-                                <option value="CBC" {{ $selectedType === 'CBC' ? 'selected' : '' }}>CBC (Complete Blood Count)</option>
-                                <option value="Blood Chemistry" {{ $selectedType === 'Blood Chemistry' ? 'selected' : '' }}>Blood Chemistry</option>
-                                <option value="X-ray" {{ $selectedType === 'X-ray' ? 'selected' : '' }}>X-ray (Radiograph)</option>
-                                <option value="Fecal" {{ $selectedType === 'Fecal' ? 'selected' : '' }}>Fecalysis</option>
-                                <option value="Urinalysis" {{ $selectedType === 'Urinalysis' ? 'selected' : '' }}>Urinalysis</option>
-                                <option value="Ultrasound" {{ $selectedType === 'Ultrasound' ? 'selected' : '' }}>Ultrasound</option>
+                            <select name="test_type" id="test_type_selector" class="w-full border border-gray-300 p-3 rounded-lg" required>
+                                <option value="">Select Diagnostic Service</option>
+                                @forelse($availableServices as $service)
+                                    @php
+                                        // Check if service matches pet species
+                                        $serviceName = strtolower($service->serv_name ?? '');
+                                        $matchesSpecies = false;
+                                        
+                                        if ($petSpecies === 'dog' && (str_contains($serviceName, 'dog') || str_contains($serviceName, 'canine'))) {
+                                            $matchesSpecies = true;
+                                        } elseif ($petSpecies === 'cat' && (str_contains($serviceName, 'cat') || str_contains($serviceName, 'feline'))) {
+                                            $matchesSpecies = true;
+                                        } elseif (!str_contains($serviceName, 'dog') && !str_contains($serviceName, 'cat') && !str_contains($serviceName, 'canine') && !str_contains($serviceName, 'feline')) {
+                                            // Show services that don't specify species (generic services)
+                                            $matchesSpecies = true;
+                                        }
+                                    @endphp
+                                    @if($matchesSpecies)
+                                    <option value="{{ $service->serv_name }}" 
+                                            data-service-id="{{ $service->serv_id }}"
+                                            data-price="{{ $service->serv_price }}"
+                                            {{ ($__diag['test_type'] ?? '') === $service->serv_name ? 'selected' : '' }}>
+                                        {{ $service->serv_name }} - ₱{{ number_format($service->serv_price, 2) }}
+                                    </option>
+                                    @endif
+                                @empty
+                                    <option value="" disabled>No diagnostic services available</option>
+                                @endforelse
                             </select>
                         </div>
                         <div>
@@ -276,13 +277,6 @@
   </div>
 </div>
 
-{{-- All modals for the Service Actions included here (via the include) --}}
-@include('modals.service_activity_modal', [
-    'allPets' => $allPets, 
-    'allBranches' => $allBranches, 
-    'allProducts' => $allProducts,
-])
-
 <script>
     function openPetProfileModal() { 
         const m = document.getElementById('petProfileModal'); 
@@ -303,6 +297,29 @@
         const m = document.getElementById('medicalHistoryModal'); 
         if(m){ m.classList.add('hidden'); } 
     }
+
+    // Handle diagnostic service selection
+    document.addEventListener('DOMContentLoaded', function() {
+        const testTypeSelector = document.getElementById('test_type_selector');
+        const serviceIdHidden = document.getElementById('service_id_hidden');
+
+        if (testTypeSelector) {
+            testTypeSelector.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                const serviceId = selectedOption.getAttribute('data-service-id');
+
+                // Update hidden service_id field
+                if (serviceIdHidden) {
+                    serviceIdHidden.value = serviceId || '';
+                }
+            });
+
+            // Trigger change event if there's a pre-selected value
+            if (testTypeSelector.value) {
+                testTypeSelector.dispatchEvent(new Event('change'));
+            }
+        }
+    });
 </script>
 
 @endsection

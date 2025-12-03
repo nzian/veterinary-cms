@@ -59,6 +59,9 @@ Route::middleware(['auth', 'isSuperAdmin'])->group(function () {
 });
 
 Route::middleware(['auth'])->group(function () {
+
+    // AJAX: Update appointment status to missed
+    Route::post('/appointments/{id}/mark-missed', [\App\Http\Controllers\DashboardController::class, 'markAppointmentMissed'])->name('appointments.markMissed');
     Route::get('/vet/appointments', [MedicalManagementController::class, 'vetAppointments'])->name('vet.appointments');
 });
 
@@ -131,9 +134,17 @@ Route::resource('prod-serv-equip', App\Http\Controllers\ProdServEquipController:
 // Other routes (make sure to define these too!)
 Route::post('/services/{serviceId}/products', [App\Http\Controllers\ProdServEquipController::class, 'updateServiceProducts']);
 Route::get('/services/{serviceId}/products', [App\Http\Controllers\ProdServEquipController::class, 'getServiceProducts']);
+Route::get('/services/{serviceId}/equipment', [App\Http\Controllers\ProdServEquipController::class, 'getServiceEquipment']);
+Route::post('/services/{serviceId}/equipment', [App\Http\Controllers\ProdServEquipController::class, 'updateServiceEquipment']);
+Route::get('/equipment/by-branch', [App\Http\Controllers\ProdServEquipController::class, 'getEquipmentByBranch']);
+Route::get('/equipment/assignment-history', [App\Http\Controllers\ProdServEquipController::class, 'getEquipmentAssignmentHistory']);
 Route::get('/services/inventory-overview', [App\Http\Controllers\ProdServEquipController::class, 'getServiceInventoryOverview']);
+Route::get('/services/usage-history', [App\Http\Controllers\ProdServEquipController::class, 'getServiceUsageHistory']);
+Route::get('/products/stock-movement-history', [App\Http\Controllers\ProdServEquipController::class, 'getAllStockMovementHistory']);
 Route::get('/products/{id}/service-usage', [App\Http\Controllers\ProdServEquipController::class, 'getProductServiceUsage']);
 Route::get('/products/{id}/view', [App\Http\Controllers\ProdServEquipController::class, 'viewProduct']);
+Route::get('/products/{id}/details-for-service', [App\Http\Controllers\ProdServEquipController::class, 'getProductDetailsForService'])->name('products.detailsForService');
+Route::get('/products/consumable-by-filter', [App\Http\Controllers\ProdServEquipController::class, 'getConsumableProductsByFilter'])->name('products.consumableByFilter');
 Route::get('/services/{id}/view', [App\Http\Controllers\ProdServEquipController::class, 'viewService']);
 Route::get('/equipment/{id}/view', [App\Http\Controllers\ProdServEquipController::class, 'viewEquipment']);
 Route::get('/inventory/{id}/history', [App\Http\Controllers\ProdServEquipController::class, 'viewInventoryHistory']);
@@ -151,10 +162,22 @@ Route::post('equipment', [App\Http\Controllers\ProdServEquipController::class, '
 Route::put('equipment/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateEquipment'])->name('equipment.update');
 Route::delete('equipment/{id}', [App\Http\Controllers\ProdServEquipController::class, 'deleteEquipment'])->name('equipment.destroy');
 
+// Service Equipment Routes (for Boarding services)
+Route::get('/services/{serviceId}/equipment', [App\Http\Controllers\ProdServEquipController::class, 'getServiceEquipment'])->name('services.equipment.get');
+Route::post('/services/{serviceId}/equipment', [App\Http\Controllers\ProdServEquipController::class, 'updateServiceEquipment'])->name('services.equipment.update');
+Route::get('/equipment/by-branch', [App\Http\Controllers\ProdServEquipController::class, 'getEquipmentByBranch'])->name('equipment.byBranch');
+
 Route::put('inventory/update-stock/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateStock'])->name('inventory.updateStock');
 Route::put('inventory/update-damage/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateDamage'])->name('inventory.updateDamage');
+Route::get('products/{id}/stock-batches', [App\Http\Controllers\ProdServEquipController::class, 'getStockBatches'])->name('products.stockBatches');
 
 Route::put('/equipment/{id}/update-status', [App\Http\Controllers\ProdServEquipController::class, 'updateEquipmentStatus'])->name('equipment.updateStatus');
+
+// Manufacturer Routes
+Route::get('manufacturers', [App\Http\Controllers\ProdServEquipController::class, 'getManufacturers'])->name('manufacturers.index');
+Route::post('manufacturers', [App\Http\Controllers\ProdServEquipController::class, 'storeManufacturer'])->name('manufacturers.store');
+Route::put('manufacturers/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateManufacturer'])->name('manufacturers.update');
+Route::delete('manufacturers/{id}', [App\Http\Controllers\ProdServEquipController::class, 'deleteManufacturer'])->name('manufacturers.destroy');
 
 Route::get('medical-management/services/{serviceId}/products', [ProdServEquipController::class, 'getServiceProductsForVaccination'])->name('medical.services.products');
 
@@ -205,13 +228,19 @@ Route::put('appointments/{appointmentId}/record-vaccine-details', [MedicalManage
     Route::get('/medical-management/prescriptions/{id}/edit', [MedicalManagementController::class, 'editPrescription'])
     ->name('medical.prescriptions.edit');
 
+    // Boarding display (GET) for medical-management prefix
+    Route::get('/visits/{visit}/boarding', [MedicalManagementController::class, 'showBoarding'])->name('medical.visits.boarding.show');
+
     // Referral routes 
-    Route::get('/referrals', [MedicalManagementController::class, 'index'])->name('medical.referrals.index'); // ADD THIS LINE
+    Route::get('/referrals', [MedicalManagementController::class, 'index'])->name('medical.referrals.index');
     Route::post('/referrals', [MedicalManagementController::class, 'storeReferral'])->name('medical.referrals.store');
     Route::get('/referrals/{id}/edit', [MedicalManagementController::class, 'editReferral'])->name('medical.referrals.edit');
     Route::put('/referrals/{id}', [MedicalManagementController::class, 'updateReferral'])->name('medical.referrals.update');
     Route::get('/referrals/{id}', [MedicalManagementController::class, 'showReferral'])->name('medical.referrals.show');
     Route::delete('/referrals/{id}', [MedicalManagementController::class, 'destroyReferral'])->name('medical.referrals.destroy');
+    Route::get('/referrals/{id}/view', [MedicalManagementController::class, 'viewReferral'])->name('medical.referrals.view');
+    Route::get('/referrals/{id}/print', [MedicalManagementController::class, 'printReferral'])->name('medical.referrals.print');
+    Route::post('/referrals/{id}/create-visit', [MedicalManagementController::class, 'createVisitFromReferral'])->name('medical.referrals.create-visit');
 
 Route::prefix('visits')->group(function () {
     Route::get('/{visitId}/workspace', [VisitWorkspaceController::class, 'index'])
@@ -477,15 +506,17 @@ Route::delete('/user-management/{id}', [BranchManagementController::class, 'dest
 Route::get('/sales-management', [SalesManagementController::class, 'index'])->name('sales.index');
 Route::delete('/sales/billing/{id}', [SalesManagementController::class, 'destroyBilling'])->name('sales.destroyBilling');
 Route::post('/sales/billing/{id}/mark-paid', [SalesManagementController::class, 'markAsPaid'])->name('sales.markAsPaid');
-Route::get('/sales/transaction/{id}', [SalesManagementController::class, 'showTransaction'])->name('sales.transaction');
+Route::post('/sales/billing-group/mark-paid', [SalesManagementController::class, 'markGroupAsPaid'])->name('sales.markGroupAsPaid');
+Route::post('/sales/auto-generate-billings', [SalesManagementController::class, 'autoGenerateGroupedBillings'])->name('sales.auto-generate');
+Route::post('/sales/generate-grouped', [SalesManagementController::class, 'generateGroupedBilling'])->name('sales.generate-grouped');
 Route::get('/sales/transaction/{id}/json', [SalesManagementController::class, 'showTransactionJson'])->name('sales.transaction.json');
+Route::get('/sales/transaction/{id}', [SalesManagementController::class, 'showTransaction'])->name('sales.transaction');
 Route::get('/sales/print-transaction/{id}', [SalesManagementController::class, 'printTransaction'])->name('sales.printTransaction');
 Route::get('/sales/export', [SalesManagementController::class, 'export'])->name('sales.export');
 Route::get('/sales/billing/{id}/receipt', [SalesManagementController::class, 'showReceipt'])->name('sales.billing.receipt');
+Route::get('/sales/grouped-billing/receipt/{owner_id}/{bill_date}', [SalesManagementController::class, 'showGroupedReceipt'])->name('sales.grouped.billing.receipt');
 Route::post('/sales/billing/{id}/pay', [SalesManagementController::class, 'markAsPaid'])->name('sales.billing.pay');
 Route::post('/sales/billing/{billing}/add-product', [SalesManagementController::class, 'addProductToBilling'])->name('sales.billing.addProduct');
-// Add this to your routes/web.php
-// NEW - Use this
 Route::post('/sales/billing/{billId}/add-products', [SalesManagementController::class, 'saveProductsToBilling'])->name('sales.billing.addProducts');
 Route::get('/sms-settings', [SMSSettingsController::class, 'index'])->name('sms-settings.index');
 Route::put('/sms-settings', [SMSSettingsController::class, 'update'])->name('sms-settings.update');

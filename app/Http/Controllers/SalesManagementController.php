@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\Prescription;
 use App\Models\Payment;
 use App\Models\Product;
+use App\Models\Visit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,121 @@ use Carbon\Carbon;
 
 class SalesManagementController extends Controller
 {
+
+    /**
+     * Show grouped receipt for all pets of an owner for a billing date
+     */
+    public function showGroupedReceipt($owner_id, $bill_date)
+    {
+        // Get all billings for this owner and date
+        $petBillings = \App\Models\Billing::with([
+            'visit.pet',
+            'visit.services',
+            'orders.product',
+            'visit.user.branch',
+        ])->where('owner_id', $owner_id)
+          ->whereDate('bill_date', $bill_date)
+          ->get();
+
+        if ($petBillings->isEmpty()) {
+            abort(404, 'No billings found for this owner and date.');
+        }
+        //dd($petBillings);
+        $owner = $petBillings->first()->visit->pet->owner ?? $petBillings->first()->owner;
+        $branch = $petBillings->first()->visit->user->branch ?? \App\Models\Branch::first();
+        $totalAmount = $petBillings->sum('total_amount');
+        $paidAmount = $petBillings->sum('paid_amount');
+        $balance = $totalAmount - $paidAmount;
+        $billDate = $bill_date;
+
+        // Gather all services and prescriptions for all pets
+        $services = [];
+        $prescriptions = [];
+        $products = collect();
+        foreach ($petBillings as $billing) {
+            $petName = $billing->visit->pet->pet_name ?? 'Pet';
+            // Services
+            if ($billing->visit && $billing->visit->services) {
+                foreach ($billing->visit->services as $service) {
+                    // Prefer pivot total_price, fallback to unit_price, then serv_price
+                    $price = 0;
+                    if (isset($service->pivot->total_price) && $service->pivot->total_price > 0) {
+                        $price = $service->pivot->total_price;
+                    } elseif (isset($service->pivot->unit_price) && $service->pivot->unit_price > 0) {
+                        $price = $service->pivot->unit_price * ($service->pivot->quantity ?? 1);
+                    } elseif (isset($service->serv_price) && $service->serv_price > 0) {
+                        $price = $service->serv_price;
+                    }
+                    $services[] = [
+                        'pet' => $petName,
+                        'name' => $service->serv_name,
+                        'price' => $price,
+                    ];
+                }
+            }
+            $prescriptions = [];
+            // Prescriptions
+            if($billing->visit == null){
+                $billing->load('owner.pets');
+                //dd($billing->owner->pets);
+                if($billing->owner && $billing->owner->pets->count() > 0){
+                    $pet_id = $billing->owner->pets->first()->pet_id;
+                    $petName = $pet->pet_name ?? 'Pet';
+                }   
+            }
+            elseif($billing->visit->pet){
+                $petName = $billing->visit->pet->pet_name ?? 'Pet';
+                $pet_id = $billing->visit->pet->pet_id;
+            }
+            if(!$billing->visit != null){
+                $prescModels = \App\Models\Prescription::where('pet_id', $pet_id)
+                ->where('pres_visit_id', $billing->visit_id)
+                ->whereDate('prescription_date', $billing->bill_date)
+                ->get();
+            foreach ($prescModels as $presc) {
+                $medications = json_decode($presc->medication, true) ?? [];
+                foreach ($medications as $med) {
+                    // Try to get price from multiple possible keys
+                    $medPrice = 0;
+                    if (isset($med['price']) && $med['price'] > 0) {
+                        $medPrice = $med['price'];
+                    } elseif (isset($med['prod_price']) && $med['prod_price'] > 0) {
+                        $medPrice = $med['prod_price'];
+                    } elseif (isset($med['unit_price']) && $med['unit_price'] > 0) {
+                        $qty = $med['qty'] ?? $med['quantity'] ?? 1;
+                        $medPrice = $med['unit_price'] * $qty;
+                    }
+                    $prescriptions[] = [
+                        'pet' => $petName,
+                        'name' => $med['product_name'] ?? $med['name'] ?? 'Medication',
+                        'price' => $medPrice,
+                    ];
+                }
+            }
+        }
+           
+            // Products
+            if ($billing->orders && $billing->orders->count() > 0) {
+                foreach ($billing->orders as $order) {
+                    $prodPrice = 0;
+                    if (isset($order->ord_price) && $order->ord_price > 0) {
+                        $prodPrice = $order->ord_price;
+                    } elseif (isset($order->product->prod_price) && $order->product->prod_price > 0) {
+                        $prodPrice = $order->product->prod_price;
+                    }
+                    /*$products->push([
+                        'name' => $order->product->prod_name ?? 'Product',
+                        'qty' => $order->ord_quantity,
+                        'subtotal' => $order->ord_quantity * $prodPrice,
+                    ]);*/
+                }
+            }
+        }
+
+        return view('grouped-billing-receipt', compact(
+            'owner', 'billDate', 'petBillings', 'branch', 'totalAmount', 'paidAmount', 'balance', 'services', 'prescriptions', 'products'
+        ));
+    }
         /**
      * Show details for a POS transaction (direct sale or billing payment not linked to visit)
      */
@@ -124,9 +240,12 @@ class SalesManagementController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
+    protected $groupedBillingService;
+
     public function __construct()
     {
         $this->middleware('auth');
+        $this->groupedBillingService = new \App\Services\GroupedBillingService();
     }   
     public function index(Request $request)
     {
@@ -137,22 +256,19 @@ class SalesManagementController extends Controller
             $activeBranchId = $user->branch_id;
         }
 
-        // Filter billings by branch through visit -> user relationship
-        // ONLY show bills that are linked to visits (visit_id is NOT NULL)
-        // This ensures Billing Management tab only shows visit service bills
-        $billings = Billing::with([
+        // Get all billings with visits for the active branch
+        $allBillings = Billing::with([
             'visit.pet.owner', 
             'visit.services',
             'visit.user.branch',
-            'orders.product'
+            'orders.product',
+            'owner'
         ])
-        ->whereNotNull('visit_id') // ✅ Filter to only visit-based bills
+        ->whereNotNull('visit_id')
         ->where(function($query) use ($activeBranchId) {
-            // Try to filter by visit.user.branch_id
             $query->whereHas('visit.user', function($q) use ($activeBranchId) {
                 $q->where('branch_id', $activeBranchId);
             })
-            // Also include billings with branch_id directly set (if column exists)
             ->orWhere(function($q) use ($activeBranchId) {
                 if (\Schema::hasColumn('tbl_bill', 'branch_id')) {
                     $q->where('branch_id', $activeBranchId);
@@ -160,18 +276,107 @@ class SalesManagementController extends Controller
             });
         })
         ->orderBy('bill_date', 'desc')
-        ->paginate(10);
+        ->get();
+
+        // Group billings by owner and date
+        $groupedBillings = $allBillings->groupBy(function($billing) {
+            $ownerId = $billing->owner_id ?? $billing->visit->pet->owner->own_id;
+            $date = $billing->bill_date;
+            return $ownerId . '_' . $date;
+        })->map(function($group) {
+           // dd($group);
+            $firstBilling = $group->first();
+            $owner = $firstBilling->owner ?? $firstBilling->visit->pet->owner;
+
+            // Only include boarding services for boarding bills
+            $boardingBillings = $group->filter(function($billing) {
+                if (!$billing->visit) return false;
+                // Check if any service is boarding
+                return $billing->visit->services->contains(function($service) {
+                    return strtolower($service->serv_type ?? '') === 'boarding';
+                });
+            });
+
+            if ($boardingBillings->isNotEmpty()) {
+                // Calculate total for boarding only
+                $totalAmount = 0;
+                foreach ($boardingBillings as $billing) {
+                    foreach ($billing->visit->services as $service) {
+                        if (strtolower($service->serv_type ?? '') === 'boarding') {
+                            $days = $service->pivot->quantity ?? 1; // quantity = total days
+                            $unitPrice = $service->pivot->unit_price ?? $service->serv_price ?? 0;
+                            $totalAmount += $unitPrice * $days;
+                        }
+                    }
+                }
+                $paidAmount = $boardingBillings->sum('paid_amount');
+                $balance = round($totalAmount - $paidAmount, 2);
+            } else {
+                // Fallback: sum all services as before
+                
+                $totalAmount = $group->sum('total_amount');
+                if($totalAmount <= 0){
+                    // recalculate from visit services
+                    $totalAmount = 0;
+                    foreach($group as $billing){
+                        if($billing->visit && $billing->visit->services){
+                            foreach($billing->visit->services as $service){
+                                $price = 0;
+                                if (isset($service->pivot->total_price) && $service->pivot->total_price > 0) {
+                                    $price = $service->pivot->total_price;
+                                } elseif (isset($service->pivot->unit_price) && $service->pivot->unit_price > 0) {
+                                    $price = $service->pivot->unit_price * ($service->pivot->quantity ?? 1);
+                                } elseif (isset($service->serv_price) && $service->serv_price > 0) {
+                                    $price = $service->serv_price;
+                                }
+                                $totalAmount += $price;
+                            }
+                        }
+                    }
+                }
+                $paidAmount = $group->sum('paid_amount');
+                $balance = round($totalAmount - $paidAmount, 2);
+            }
+
+            // Status: determine group-level status. If all paid => 'paid'.
+            // If any billing in the group has 'paid 50%', mark group as 'paid 50%'. Otherwise 'unpaid'.
+            $allPaid = $group->every(function($b) use ($totalAmount) { return strtolower($b->bill_status ?? '') === 'paid' || (float)$totalAmount - (float)$b->paid_amount <= 0.01; });
+            $anyPaid50 = $group->contains(function($b) { return strtolower($b->bill_status ?? '') === 'paid 50%'; });
+
+            if ($allPaid && $totalAmount > 0) {
+                $status = 'paid';
+            } elseif ($anyPaid50) {
+                $status = 'paid 50%';
+            } else {
+                $status = 'unpaid';
+            }
+
+            return [
+                'owner' => $owner,
+                'owner_id' => $owner->own_id,
+                'bill_date' => $firstBilling->bill_date,
+                'billings' => $group,
+                'total_amount' => $totalAmount,
+                'paid_amount' => $paidAmount,
+                'balance' => $balance,
+                'status' => $status,
+                'pet_count' => $group->count(),
+                'billing_group_id' => $firstBilling->billing_group_id ?? 'SINGLE_' . $firstBilling->bill_id,
+            ];
+        })->values();
+        //dd($groupedBillings);
+        
+        // Return all grouped billings for client-side filtering
+        $billings = $groupedBillings;
 
         // Get date filters
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
         
-        // Build query with relationships and branch filter
+        // Build query with relationships (NO branch filter: show all POS sales)
         $query = Order::with(['product', 'user', 'owner', 'payment', 'billing'])
-            ->whereHas('user', function($q) use ($activeBranchId) {
-                $q->where('branch_id', $activeBranchId);
-            });
-        
+            ->whereNull('bill_id'); // Only direct POS sales
+
         // Apply date filters if provided
         if ($startDate) {
             $query->where('ord_date', '>=', $startDate);
@@ -179,9 +384,63 @@ class SalesManagementController extends Controller
         if ($endDate) {
             $query->where('ord_date', '<=', $endDate . ' 23:59:59');
         }
-        
-        // Get all orders
+
+        // Get all direct POS orders
         $allOrders = $query->orderBy('ord_date', 'desc')->get();
+
+        // Group direct POS transactions by time, user, and customer
+        $transactions = [];
+        $processedOrderIds = [];
+        foreach ($allOrders as $order) {
+            if (in_array($order->ord_id, $processedOrderIds)) {
+                continue;
+            }
+            $orderTime = \Carbon\Carbon::parse($order->ord_date);
+            $transactionKey = 'SALE-' . $order->ord_id;
+            $transactionSource = 'Direct Sale';
+            $relatedOrders = $allOrders->filter(function($o) use ($order, $orderTime, $processedOrderIds) {
+                if (in_array($o->ord_id, $processedOrderIds)) {
+                    return false;
+                }
+                $oTime = \Carbon\Carbon::parse($o->ord_date);
+                $timeDiff = abs($orderTime->diffInSeconds($oTime));
+                $sameUser = ($o->user_id ?? 0) === ($order->user_id ?? 0);
+                $sameCustomer = ($o->own_id ?? 0) === ($order->own_id ?? 0);
+                return $timeDiff <= 1 && $sameUser && $sameCustomer;
+            });
+            if ($relatedOrders->isNotEmpty()) {
+                $transactions[$transactionKey] = [
+                    'orders' => $relatedOrders,
+                    'source' => $transactionSource,
+                    'bill_id' => null
+                ];
+                foreach ($relatedOrders as $ro) {
+                    $processedOrderIds[] = $ro->ord_id;
+                }
+            }
+        }
+
+        // Sort transactions by date (newest first)
+        $transactions = collect($transactions)->sortByDesc(function($transaction) {
+            return $transaction['orders']->first()->ord_date;
+        });
+
+        // Paginate transactions
+        $page = $request->get('page', 1);
+        $perPage = 15;
+        $offset = ($page - 1) * $perPage;
+        $totalTransactions = $transactions->count();
+        $paginatedTransactions = $transactions->slice($offset, $perPage);
+        $paginator = new \Illuminate\Pagination\LengthAwarePaginator(
+            $paginatedTransactions,
+            $totalTransactions,
+            $perPage,
+            $page,
+            [
+                'path' => $request->url(),
+                'pageName' => 'page',
+            ]
+        );
         
         // Create transaction grouping with source tracking
         $transactions = [];
@@ -250,24 +509,10 @@ class SalesManagementController extends Controller
             return $transaction['orders']->first()->ord_date;
         });
         
-        // Paginate transactions
-        $page = $request->get('page', 1);
-        $perPage = 15;
-        $offset = ($page - 1) * $perPage;
-        
+        // Return all transactions for client-side filtering
+        $paginatedTransactions = $transactions;
+        $paginator = null;
         $totalTransactions = $transactions->count();
-        $paginatedTransactions = $transactions->slice($offset, $perPage);
-        
-        $paginator = new \Illuminate\Pagination\LengthAwarePaginator(
-            $paginatedTransactions,
-            $totalTransactions,
-            $perPage,
-            $page,
-            [
-                'path' => $request->url(),
-                'pageName' => 'page',
-            ]
-        );
         
         // Calculate order totals
         $totalSales = $allOrders->sum(function($order) {
@@ -297,11 +542,441 @@ class SalesManagementController extends Controller
         return redirect()->route('billings.show', $visit->billing->bill_id);
     }
 
-    $billing = $visit->generateBilling();
-    
-    return redirect()->route('billings.show', $billing->bill_id)
-        ->with('success', 'Billing generated successfully');
+    try {
+        $billing = $this->groupedBillingService->generateSingleBilling($visit->visit_id);
+        
+        return redirect()->route('sales.index')
+            ->with('success', 'Billing generated successfully');
+    } catch (\Exception $e) {
+        return back()->with('error', 'Failed to generate billing: ' . $e->getMessage());
+    }
 }
+
+    /**
+     * Auto-generate grouped billings for completed visits by owner
+     */
+    public function autoGenerateGroupedBillings(Request $request)
+    {
+        try {
+            $activeBranchId = session('active_branch_id') ?? auth()->user()->branch_id;
+            $today = Carbon::today()->toDateString();
+            
+            // Get all completed visits for TODAY that don't have billing yet
+            $visits = Visit::with(['pet.owner', 'billing'])
+                ->whereDate('visit_date', $today)
+                ->where('workflow_status', 'Completed')
+                ->whereHas('user', function($q) use ($activeBranchId) {
+                    $q->where('branch_id', $activeBranchId);
+                })
+                ->get();
+            
+            // Filter out visits that already have billing
+            $visitsWithoutBilling = $visits->filter(function($visit) {
+                return $visit->billing === null;
+            });
+            
+            if ($visitsWithoutBilling->isEmpty()) {
+                return redirect()->route('sales.index')
+                    ->with('info', 'No completed visits found without billing for today');
+            }
+            
+            // Group visits by owner
+            $groupedByOwner = $visitsWithoutBilling->groupBy(function($visit) {
+                return $visit->pet->owner->own_id;
+            });
+            
+            $generatedCount = 0;
+            $errors = [];
+            
+            foreach ($groupedByOwner as $ownerId => $ownerVisits) {
+                try {
+                    if ($ownerVisits->count() === 1) {
+                        $this->groupedBillingService->generateSingleBilling($ownerVisits->first()->visit_id);
+                    } else {
+                        $this->groupedBillingService->generateGroupedBilling($ownerVisits->pluck('visit_id')->toArray());
+                    }
+                    $generatedCount++;
+                } catch (\Exception $e) {
+                    $errors[] = "Owner ID {$ownerId}: " . $e->getMessage();
+                }
+            }
+            
+            if ($generatedCount > 0) {
+                $message = "Successfully generated {$generatedCount} billing(s) for today's visits";
+                if (!empty($errors)) {
+                    $message .= " with some errors: " . implode('; ', $errors);
+                }
+                return redirect()->route('sales.index')->with('success', $message);
+            } else {
+                return redirect()->route('sales.index')
+                    ->with('error', 'Failed to generate billings: ' . implode('; ', $errors));
+            }
+            
+        } catch (\Exception $e) {
+            return redirect()->route('sales.index')
+                ->with('error', 'Auto-generation failed: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Generate grouped billing for specific visits
+     */
+    public function generateGroupedBilling(Request $request)
+    {
+        $validated = $request->validate([
+            'visit_ids' => 'required|array',
+            'visit_ids.*' => 'exists:tbl_visit_record,visit_id'
+        ]);
+        
+        try {
+            $billing = $this->groupedBillingService->generateGroupedBilling($validated['visit_ids']);
+            
+            return redirect()->route('sales.index')
+                ->with('success', 'Grouped billing generated successfully for ' . count($validated['visit_ids']) . ' visits');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to generate grouped billing: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Show single billing details (for viewing individual pet billing)
+     */
+    public function showBilling($id)
+    {
+        try {
+            $billing = Billing::with(['visit.pet.owner', 'visit.services', 'orders'])->findOrFail($id);
+            
+            // Calculate services
+            $services = $billing->visit->services->map(function($service) {
+                $quantity = $service->pivot->quantity ?? 1;
+                $unitPrice = $service->pivot->unit_price ?? $service->serv_price;
+                return $service->serv_name . ' (x' . $quantity . ')';
+            })->implode(', ');
+            
+            $totalAmount = (float) $billing->total_amount;
+            if($totalAmount <= 0){
+                // recalculate from visit services
+                $totalAmount = 0;
+                if($billing->visit && $billing->visit->services){
+                    foreach($billing->visit->services as $service){
+                        $price = 0;
+                        if (isset($service->pivot->total_price) && $service->pivot->total_price > 0) {
+                            $price = $service->pivot->total_price;
+                        } elseif (isset($service->pivot->unit_price) && $service->pivot->unit_price > 0) {
+                            $price = $service->pivot->unit_price * ($service->pivot->quantity ?? 1);
+                        } elseif (isset($service->serv_price) && $service->serv_price > 0) {
+                            $price = $service->serv_price;
+                        }
+                        $totalAmount += $price;
+                    }
+                }
+            }
+            $paidAmount = (float) $billing->paid_amount;
+            $balance = round($totalAmount - $paidAmount, 2);
+            
+            return response()->json([
+                'success' => true,
+                'billing' => [
+                    'bill_id' => $billing->bill_id,
+                    'pet_name' => $billing->visit->pet->pet_name ?? 'N/A',
+                    'owner_name' => $billing->visit->pet->owner->own_name ?? 'N/A',
+                    'bill_date' => \Carbon\Carbon::parse($billing->bill_date)->format('M d, Y'),
+                    'services' => $services ?: 'No services',
+                    'total_amount' => $totalAmount,
+                    'paid_amount' => $paidAmount,
+                    'balance' => $balance,
+                    'status' => $balance <= 0 ? 'Paid' : 'Unpaid'
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load billing details: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    /**
+     * Mark grouped billing as paid (payment for all pets of an owner)
+     */
+    public function markGroupAsPaid(Request $request)
+    {
+        $validated = $request->validate([
+            'owner_id' => 'required|exists:tbl_own,own_id',
+            'bill_date' => 'required|date',
+            'cash_amount' => 'required|numeric|min:0.01',
+            'payment_type' => 'nullable|in:full,partial'
+        ]);
+        
+        $cash = (float) $validated['cash_amount'];
+        $paymentType = $validated['payment_type'] ?? 'full';
+        $ownerId = $validated['owner_id'];
+        $billDate = $validated['bill_date'];
+
+        DB::beginTransaction();
+        
+        try {
+            // Get all billings for this owner on this date
+            $billings = Billing::with(['visit.pet.owner', 'visit.services', 'visit.user', 'payments'])
+                ->whereNotNull('visit_id')
+                ->where('owner_id', $ownerId)
+                ->where('bill_date', $billDate)
+                ->get();
+
+            //dd($billings);
+            
+            if ($billings->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No billings found for this owner on this date'
+                ], 404);
+            }
+            
+            // Calculate total amount for all billings (all pets)
+            $grandTotal = 0;
+            $totalPaidSoFar = 0;
+            
+            foreach ($billings as $billing) {
+                if((float) $billing->total_amount <= 0){
+                    // recalculate from visit services
+                    $recalculatedTotal = 0;
+                    if($billing->visit && $billing->visit->services){
+                        foreach($billing->visit->services as $service){
+                            $price = 0;
+                            if (isset($service->pivot->total_price) && $service->pivot->total_price > 0) {
+                                $price = $service->pivot->total_price;
+                            } elseif (isset($service->pivot->unit_price) && $service->pivot->unit_price > 0) {
+                                $price = $service->pivot->unit_price * ($service->pivot->quantity ?? 1);
+                            } elseif (isset($service->serv_price) && $service->serv_price > 0) {
+                                $price = $service->serv_price;
+                            }
+                            $recalculatedTotal += $price;
+                        }
+                    }
+                    $billing->total_amount = $recalculatedTotal;
+                    $billing->save();
+                }
+                $grandTotal += (float) $billing->total_amount;
+                $totalPaidSoFar += (float) $billing->paid_amount;
+            }
+            
+            $currentBalance = round($grandTotal - $totalPaidSoFar, 2);
+            
+            // Validation
+            if ($currentBalance <= 0.01) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'All bills for this owner are already fully paid'
+                ], 422);
+            }
+
+            // If requesting a partial payment, require the partial amount (50% of group total)
+            if ($paymentType === 'partial') {
+                $requiredPartial = round($grandTotal * 0.5, 2);
+                if ($cash < $requiredPartial) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Cash amount must be at least ₱' . number_format($requiredPartial, 2)
+                    ], 422);
+                }
+
+                // Process group partial: apply per-billing partial (50%) and mark placeholders/partial payments as paid
+                $transactionKey = 'PAY-GROUP-PARTIAL-' . $ownerId . '-' . time();
+                $remainingCash = $cash;
+                $appliedDetails = [];
+
+                foreach ($billings as $idx => $billing) {
+                    $thisPartial = round((float) $billing->total_amount * 0.5, 2);
+                    if ($thisPartial <= 0) {
+                        continue;
+                    }
+
+                    $placeholder = $billing->payments()->where('payment_type', 'partial')->where('status', 'pending')->first();
+
+                    // Determine cash allocation for this billing (assign full partial amount sequentially)
+                    $allocatedCash = min($thisPartial, $remainingCash);
+
+                    if ($placeholder) {
+                        $placeholder->pay_total = $thisPartial;
+                        $placeholder->pay_cashAmount = $idx === 0 ? $cash : ($placeholder->pay_cashAmount ?? 0);
+                        $placeholder->pay_change = $idx === 0 ? max(0, $cash - $requiredPartial) : ($placeholder->pay_change ?? 0);
+                        $placeholder->payment_date = now();
+                        $placeholder->transaction_id = $transactionKey;
+                        // If we cover the full partial amount for this bill, mark paid
+                        if (abs($allocatedCash - $thisPartial) <= 0.01) {
+                            $placeholder->status = 'paid';
+                        } else {
+                            $placeholder->status = 'partial';
+                            $placeholder->pay_total = $allocatedCash;
+                        }
+                        $placeholder->save();
+
+                        $applied = $allocatedCash;
+                    } else {
+                        // Create a paid partial payment record for this billing
+                        $created = Payment::create([
+                            'bill_id' => $billing->bill_id,
+                            'pay_total' => $allocatedCash,
+                            'pay_cashAmount' => $idx === 0 ? $cash : 0,
+                            'pay_change' => $idx === 0 ? max(0, $cash - $requiredPartial) : 0,
+                            'payment_type' => 'partial',
+                            'payment_date' => now(),
+                            'transaction_id' => $transactionKey,
+                            'status' => abs($allocatedCash - $thisPartial) <= 0.01 ? 'paid' : 'partial'
+                        ]);
+
+                        $applied = $created->pay_total;
+                    }
+
+                    // Update billing paid_amount and status
+                        $billing->paid_amount = (float) $billing->paid_amount + $applied;
+                        $newBalance = (float) $billing->total_amount - $billing->paid_amount;
+                        // If this is the group partial flow and we reached exactly 50% paid, mark as 'paid 50%'
+                        if (abs($billing->paid_amount - ((float)$billing->total_amount * 0.5)) <= 0.01) {
+                            $billing->bill_status = 'paid 50%';
+                        } else {
+                            $billing->bill_status = $newBalance <= 0.01 ? 'paid' : 'partial';
+                        }
+                    $billing->save();
+
+                    // record applied detail for response and logging
+                    $appliedDetails[] = [
+                        'bill_id' => $billing->bill_id,
+                        'applied' => $applied,
+                        'new_paid_amount' => $billing->paid_amount,
+                        'bill_status' => $billing->bill_status,
+                        'remaining_for_bill' => round((float)$billing->total_amount - $billing->paid_amount, 2)
+                    ];
+
+                    Log::info("Group partial applied - Bill: {$billing->bill_id}, applied: {$applied}, new_paid: {$billing->paid_amount}, status: {$billing->bill_status}");
+
+                    $remainingCash = round($remainingCash - $applied, 2);
+                }
+
+                DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Partial payment applied for owner group (50%).',
+                    'change' => max(0, $cash - $requiredPartial),
+                    'final_status' => 'partial',
+                    'applied_details' => $appliedDetails
+                ]);
+            }
+            
+            // Calculate payment amount (always full payment for groups)
+            $paymentAmount = $currentBalance;
+            $change = $cash - $currentBalance;
+            
+            // Distribute payment proportionally across all billings
+            $remainingPayment = $paymentAmount;
+            $transactionKey = 'PAY-GROUP-' . $ownerId . '-' . time();
+            
+            foreach ($billings as $billing) {
+                $billingBalance = (float) $billing->total_amount - (float) $billing->paid_amount;
+
+                if ($billingBalance <= 0) {
+                    continue; // Skip already paid bills
+                }
+
+                // Calculate proportional payment for this bill
+                $proportion = $billingBalance / $currentBalance;
+                $thisBillPayment = round($proportion * $paymentAmount, 2);
+
+                // Adjust for rounding errors on last bill
+                if ($billing->bill_id === $billings->last()->bill_id) {
+                    $thisBillPayment = $remainingPayment;
+                }
+
+                // First, if there is a pending partial placeholder, apply portion of this payment to it
+                $placeholder = $billing->payments()->where('payment_type', 'partial')->where('status', 'pending')->first();
+                $appliedToPlaceholder = 0;
+                if ($placeholder && $thisBillPayment > 0) {
+                    $apply = min($thisBillPayment, (float) $placeholder->pay_total);
+                    if ($apply > 0) {
+                        $placeholder->pay_cashAmount = $billing->bill_id === $billings->first()->bill_id ? $cash : ($placeholder->pay_cashAmount ?? 0);
+                        $placeholder->pay_change = $billing->bill_id === $billings->first()->bill_id ? $change : ($placeholder->pay_change ?? 0);
+                        $placeholder->payment_date = now();
+                        $placeholder->transaction_id = $transactionKey;
+                        // If we fully cover the placeholder, mark it paid
+                        if (abs($apply - (float) $placeholder->pay_total) <= 0.01) {
+                            $placeholder->status = 'paid';
+                        } else {
+                            $placeholder->status = 'partial';
+                            $placeholder->pay_total = $apply; // record partial application
+                        }
+                        $placeholder->save();
+
+                        $appliedToPlaceholder = $apply;
+                        $thisBillPayment = round($thisBillPayment - $apply, 2);
+                    }
+                }
+
+                // Create payment record for the remainder (if any)
+                $createdPayment = null;
+                if ($thisBillPayment > 0) {
+                    $createdPayment = Payment::create([
+                        'bill_id' => $billing->bill_id,
+                        'pay_total' => $thisBillPayment,
+                        'pay_cashAmount' => $billing->bill_id === $billings->first()->bill_id ? $cash : 0,
+                        'pay_change' => $billing->bill_id === $billings->first()->bill_id ? $change : 0,
+                        'payment_type' => 'full',
+                        'payment_date' => now(),
+                        'transaction_id' => $transactionKey,
+                        'status' => ($thisBillPayment >= ($billingBalance - $appliedToPlaceholder)) ? 'paid' : 'partial'
+                    ]);
+                }
+
+                // Update billing record: include any applied placeholder amount + created payment
+                $newPaidAmount = (float) $billing->paid_amount + $appliedToPlaceholder + ($createdPayment?->pay_total ?? 0);
+                $newBalance = (float) $billing->total_amount - $newPaidAmount;
+                $isFullyPaid = ($newBalance <= 0.01);
+
+                $billing->paid_amount = $newPaidAmount;
+                $billing->bill_status = $isFullyPaid ? 'paid' : ($newPaidAmount > 0 ? 'partial' : 'pending');
+                $billing->save();
+
+                // Update visit status if fully paid
+                if ($isFullyPaid && $billing->visit) {
+                    $billing->visit->visit_status = 'completed';
+                    $billing->visit->save();
+                }
+
+                $remainingPayment = round($remainingPayment - ($appliedToPlaceholder + ($createdPayment?->pay_total ?? 0)), 2);
+            }
+            
+            DB::commit();
+            
+            $allPaid = $billings->every(function($b) {
+                return $b->bill_status === 'paid';
+            });
+            
+            $finalStatus = $allPaid ? 'paid' : 'partial';
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Payment processed successfully for all pets!',
+                'change' => $change,
+                'final_status' => $finalStatus,
+                'paid_amount' => $totalPaidSoFar + $paymentAmount,
+                'total_amount' => $grandTotal,
+                'remaining_balance' => $currentBalance - $paymentAmount,
+                'pet_count' => $billings->count()
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error('Grouped payment processing error: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to process payment: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
     public function markAsPaid(Request $request, $billId)
     {
         $validated = $request->validate([
@@ -356,6 +1031,8 @@ class SalesManagementController extends Controller
             
             if ($billing->visit && $billing->visit->pet) {
                 $prescriptions = Prescription::where('pet_id', $billing->visit->pet->pet_id)
+                ->where('pres_visit_id', $billing->visit->visit_id)
+                    ->where('pres_visit_id', $billing->visit->visit_id)
                     ->whereDate('prescription_date', '<=', $billing->bill_date)
                     ->whereDate('prescription_date', '>=', date('Y-m-d', strtotime($billing->bill_date . ' -7 days')))
                     ->get();
@@ -403,8 +1080,8 @@ class SalesManagementController extends Controller
             // Total amount = services + prescriptions + add-ons
             $totalAmount = $servicesTotal + $prescriptionTotal + $addOnTotal;
             
-            // Calculate total paid from existing payments
-            $existingPaymentsTotal = (float) $billing->payments->sum('pay_total');
+            // Calculate total paid from existing payments (only count payments with status 'paid')
+            $existingPaymentsTotal = (float) $billing->payments->where('status', 'paid')->sum('pay_total');
             
             // Calculate remaining balance before this payment
             $currentBalance = round($totalAmount - $existingPaymentsTotal, 2);
@@ -443,29 +1120,66 @@ class SalesManagementController extends Controller
             $isFullyPaid = ($newBalance <= 0.01);
             $billingStatus = $isFullyPaid ? 'paid' : 'partial'; // Changed 'pending' to 'partial' if $newTotalPaid > 0
 
+            // If this is a partial payment and it equals 50% of the bill, mark specifically as 'paid 50%'
+            if ($paymentType === 'partial' && abs($newTotalPaid - ($totalAmount * 0.5)) <= 0.01) {
+                $billingStatus = 'paid 50%';
+            }
+
             if ($newTotalPaid == 0) {
                 $billingStatus = 'pending';
             }
 
 
-            // Create payment record
+            // Create or update payment record
             $transactionKey = 'PAY-' . $billId . '-' . time();
-            
-            $payment = Payment::create([
-                'bill_id' => $billing->bill_id,
-                'pay_total' => $paymentAmount,
-                'pay_cashAmount' => $cash,
-                'pay_change' => $change,
-                'payment_type' => $paymentType,
-                'payment_date' => now(),
-                'transaction_id' => $transactionKey,
-                'status' => $billingStatus
-            ]);
+
+            if ($paymentType === 'partial') {
+                // If a pending placeholder partial payment exists, update it to mark as paid
+                $placeholder = $billing->payments()->where('payment_type', 'partial')->where('status', 'pending')->first();
+                if ($placeholder) {
+                    $placeholder->pay_total = $paymentAmount;
+                    $placeholder->pay_cashAmount = $cash;
+                    $placeholder->pay_change = $change;
+                    $placeholder->payment_date = now();
+                    $placeholder->transaction_id = $transactionKey;
+                    $placeholder->status = $billingStatus === 'paid' ? 'paid' : 'partial';
+                    $placeholder->save();
+                    $payment = $placeholder;
+                } else {
+                    $payment = Payment::create([
+                        'bill_id' => $billing->bill_id,
+                        'pay_total' => $paymentAmount,
+                        'pay_cashAmount' => $cash,
+                        'pay_change' => $change,
+                        'payment_type' => $paymentType,
+                        'payment_date' => now(),
+                        'transaction_id' => $transactionKey,
+                        'status' => $billingStatus
+                    ]);
+                }
+            } else {
+                $payment = Payment::create([
+                    'bill_id' => $billing->bill_id,
+                    'pay_total' => $paymentAmount,
+                    'pay_cashAmount' => $cash,
+                    'pay_change' => $change,
+                    'payment_type' => $paymentType,
+                    'payment_date' => now(),
+                    'transaction_id' => $transactionKey,
+                    'status' => $billingStatus
+                ]);
+            }
 
             // CRITICAL FIX: Update billing record with new paid amount
             $billing->paid_amount = $newTotalPaid;
             $billing->bill_status = $billingStatus;
             $billing->save();
+
+            // Update visit status to completed when billing is fully paid
+            if ($isFullyPaid && $billing->visit) {
+                $billing->visit->visit_status = 'completed';
+                $billing->visit->save();
+            }
 
             // Update associated orders if fully paid (only update those not already paid)
             if ($isFullyPaid) {
@@ -478,7 +1192,7 @@ class SalesManagementController extends Controller
                 foreach ($unpaidOrders as $order) {
                     if ($order->product) {
                         // Decrease the product stock
-                        $order->product->decrement('prod_stock', $order->ord_quantity);
+                        $order->product->decrement('prod_stocks', $order->ord_quantity);
                     }
                 }
                 
@@ -535,6 +1249,82 @@ class SalesManagementController extends Controller
                 'message' => 'Failed to process payment: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Show receipt for a billing record (related to visit and visit services)
+     */
+    public function showReceipt($billId)
+    {
+        $billing = Billing::with([
+            'visit.pet.owner',
+            'visit.services',
+            'visit.user.branch',
+            'orders.product'
+        ])->findOrFail($billId);
+
+        // Billing must be related to a visit
+        if (!$billing->visit) {
+            abort(404, 'This billing record is not associated with a visit.');
+        }
+
+        // Calculate services total from visit services
+        $servicesTotal = 0;
+        if ($billing->visit->services && $billing->visit->services->count() > 0) {
+            $servicesTotal = $billing->visit->services->sum('serv_price');
+        }
+
+        // Calculate prescription total from visit-related prescriptions
+        $prescriptionTotal = 0;
+        $prescriptionItems = [];
+        
+        if ($billing->visit->pet) {
+            // Get prescriptions related to this visit's date (within visit timeframe)
+            $visitDate = $billing->visit->visit_date ?? $billing->bill_date;
+            $prescriptions = Prescription::where('pet_id', $billing->visit->pet->pet_id)
+                ->where('pres_visit_id', $billing->visit->visit_id)
+                ->whereDate('prescription_date', '<=', $visitDate)
+                ->whereDate('prescription_date', '>=', date('Y-m-d', strtotime($visitDate . ' -7 days')))
+                ->get();
+            
+            foreach ($prescriptions as $prescription) {
+                $medications = json_decode($prescription->medication, true) ?? [];
+                foreach ($medications as $medication) {
+                    if (isset($medication['product_id']) && $medication['product_id']) {
+                        $product = Product::find($medication['product_id']);
+                        
+                        if ($product) {
+                            $prescriptionItems[] = [
+                                'name' => $product->prod_name,
+                                'price' => $product->prod_price,
+                                'instructions' => $medication['instructions'] ?? ''
+                            ];
+                            $prescriptionTotal += $product->prod_price;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Calculate products total from orders
+        $productsTotal = $billing->orders->sum(function($order) {
+            return $order->ord_quantity * ($order->product->prod_price ?? 0);
+        });
+        $productsTotal = 0;
+        $grandTotal = $servicesTotal + $prescriptionTotal + $productsTotal;
+        
+        // Get branch info from visit user
+        $branch = $billing->visit->user?->branch ?? \App\Models\Branch::first();
+        
+        return view('billing-receipt', compact(
+            'billing',
+            'servicesTotal',
+            'prescriptionTotal',
+            'prescriptionItems',
+            'productsTotal',
+            'grandTotal',
+            'branch'
+        ));
     }
 
     public function destroyBilling($billId) 
@@ -624,13 +1414,21 @@ class SalesManagementController extends Controller
             ];
         }
 
+        // Get branch information
+        $branch = auth()->user()->branch ?? \App\Models\Branch::first();
+        
         return response()->json([
             'transactionType' => $transactionType,
             'date' => Carbon::parse($firstOrder->ord_date)->format('M d, Y h:i A'),
             'customer' => $firstOrder->owner->own_name ?? 'Walk-in Customer',
             'cashier' => $firstOrder->user->user_name ?? 'N/A',
             'total' => number_format($total, 2),
-            'orders' => $orderData
+            'orders' => $orderData,
+            'branch' => [
+                'name' => $branch->branch_name ?? 'Main Branch',
+                'address' => 'Address: ' . ($branch->branch_address ?? 'Branch Address'),
+                'contact' => 'Contact No: ' . ($branch->branch_contactNum ?? 'Contact Number')
+            ]
         ]);
     }
 }

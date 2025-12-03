@@ -65,7 +65,7 @@ class GlobalSearchController extends Controller
                           ->orWhere('own_contactnum', 'like', "%{$query}%")
                           ->orWhere('own_location', 'like', "%{$query}%");
                     })
-                    ->when($branchId && Schema::hasColumn('tbl_owner', 'branch_id'), function($q) use ($branchId) {
+                    ->when($branchId && Schema::hasColumn('tbl_own', 'branch_id'), function($q) use ($branchId) {
                         $q->where('branch_id', $branchId);
                     })
                     ->limit(10)

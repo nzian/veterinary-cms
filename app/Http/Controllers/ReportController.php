@@ -13,7 +13,7 @@ class ReportController extends Controller
 {
     public function index(Request $request)
     {
-        $reportType = $request->get('report', 'appointments');
+        $reportType = $request->get('report', 'visits');
         $startDate = $request->get('start_date');
         $endDate = $request->get('end_date');
         $branch = $request->get('branch');
@@ -62,14 +62,14 @@ class ReportController extends Controller
 
         // Define titles for each report type
         $titles = [
-            'appointments' => 'Appointment Details',
+            'visits' => 'Visit Details',
             'owner_pets' => 'Pet Owner and Their Pets',
-            'appointment_billing' => 'Appointment with Billing & Payment',
+            'visit_billing' => 'Visit with Billing & Payment',
             'product_purchases' => 'Product Purchase Report',
             'referrals' => 'Inter-Branch Referral Report',
-            'service_appointments' => 'Services in Appointments',
-            'branch_appointments' => 'Branch Appointment Schedule',
-            'multi_service_appointments' => 'Multiple Services Appointments',
+            'visit_services' => 'Services in Visits',
+            'branch_visits' => 'Branch Visit Schedule',
+            'multi_service_visits' => 'Multiple Services Visits',
             'billing_orders' => 'Billing with Orders',
             'product_sales' => 'Product Sales by User',
             'payment_collection' => 'Payment Collection Report',
@@ -106,17 +106,16 @@ class ReportController extends Controller
     private function getRecordByType($reportType, $recordId)
     {
         switch($reportType) {
-            case 'appointments':
-            case 'branch_appointments':
-            case 'multi_service_appointments':
-                // FIX: Updated getAppointmentDetails to join branch via user
-                return $this->getAppointmentDetails($recordId);
+            case 'visits':
+            case 'branch_visits':
+            case 'multi_service_visits':
+                return $this->getVisitDetails($recordId);
 
             case 'owner_pets':
                 return $this->getOwnerPetsDetails($recordId);
 
-            case 'appointment_billing':
-                return $this->getAppointmentBillingDetails($recordId);
+            case 'visit_billing':
+                return $this->getVisitBillingDetails($recordId);
 
             case 'product_purchases':
                 return $this->getProductPurchaseDetails($recordId);
@@ -125,8 +124,8 @@ class ReportController extends Controller
             case 'referral_medical':
                 return $this->getReferralDetails($recordId);
 
-            case 'service_appointments':
-                return $this->getServiceAppointmentDetails($recordId);
+            case 'visit_services':
+                return $this->getVisitServiceDetails($recordId);
 
             case 'branch_users':
                 return $this->getBranchUserDetails($recordId);
@@ -163,7 +162,7 @@ class ReportController extends Controller
 
     public function export(Request $request)
     {
-        $reportType = $request->get('report', 'appointments');
+        $reportType = $request->get('report', 'visits');
         $startDate = $request->get('start_date');
         $endDate = $request->get('end_date');
         $branch = $request->get('branch');
@@ -217,20 +216,20 @@ class ReportController extends Controller
     private function generateReports($startDate = null, $endDate = null, $branch = null, $status = null)
     {
         return [
-            'appointments' => [
-                'title' => 'Appointment Management Report',
-                'description' => 'Pet Owner owns the Pet who has an Appointment handled by a User',
-                'data' => $this->getAppointmentsReport($startDate, $endDate, $branch, $status)
+            'visits' => [
+                'title' => 'Visit Management Report',
+                'description' => 'Pet Owner owns the Pet who has a Visit handled by a Veterinarian with Services',
+                'data' => $this->getVisitsReport($startDate, $endDate, $branch, $status)
             ],
             'owner_pets' => [
                 'title' => 'Pet Owner and Their Pets',
                 'description' => 'Complete list of pet owners with all their registered pets',
                 'data' => $this->getOwnerPetsReport($startDate, $endDate)
             ],
-            'appointment_billing' => [
-                'title' => 'Appointment with Billing & Payment',
-                'description' => 'Pet Owner has a Pet with an Appointment that includes Billing and Payment',
-                'data' => $this->getAppointmentBillingReport($startDate, $endDate, $branch)
+            'visit_billing' => [
+                'title' => 'Visit with Billing & Payment',
+                'description' => 'Pet Owner has a Pet with a Visit that includes Billing and Payment',
+                'data' => $this->getVisitBillingReport($startDate, $endDate, $branch)
             ],
             'product_purchases' => [
                 'title' => 'Product Purchase Report',
@@ -242,20 +241,20 @@ class ReportController extends Controller
                 'description' => 'Pet Owner has a Pet with an Appointment and a User creates a Referral to another Branch',
                 'data' => $this->getReferralsReport($startDate, $endDate, $branch)
             ],
-            'service_appointments' => [
-                'title' => 'Services in Appointments',
-                'description' => 'Services provided during an Appointment for a Pet owned by a Pet Owner and managed by an assigned User',
-                'data' => $this->getServiceAppointmentsReport($startDate, $endDate, $branch)
+            'visit_services' => [
+                'title' => 'Services in Visits',
+                'description' => 'Services provided during a Visit for a Pet owned by a Pet Owner and managed by a Veterinarian',
+                'data' => $this->getVisitServicesReport($startDate, $endDate, $branch)
             ],
             'branch_users' => [
                 'title' => 'Users Assigned per Branch',
                 'description' => 'Users assigned per Branches with role and status information',
                 'data' => $this->getBranchUsersReport($branch)
             ],
-            'branch_appointments' => [
-                'title' => 'Branch Appointment Schedule',
-                'description' => 'User schedules an Appointment for a Pet owned by a Pet Owner at a Branch',
-                'data' => $this->getBranchAppointmentsReport($startDate, $endDate, $branch)
+            'branch_visits' => [
+                'title' => 'Branch Visit Schedule',
+                'description' => 'Veterinarian handles a Visit for a Pet owned by a Pet Owner at a Branch',
+                'data' => $this->getBranchVisitsReport($startDate, $endDate, $branch)
             ],
             'billing_orders' => [
                 'title' => 'Billing with Orders',
@@ -282,10 +281,10 @@ class ReportController extends Controller
                 'description' => 'Prescriptions issued by Users per Branch',
                 'data' => $this->getPrescriptionsReport($startDate, $endDate, $branch)
             ],
-            'multi_service_appointments' => [
-                'title' => 'Multiple Services Appointments',
-                'description' => 'Appointments with Multiple Services and Total Service Price',
-                'data' => $this->getMultiServiceAppointmentsReport($startDate, $endDate)
+            'multi_service_visits' => [
+                'title' => 'Multiple Services Visits',
+                'description' => 'Visits with Multiple Services and Total Service Price',
+                'data' => $this->getMultiServiceVisitsReport($startDate, $endDate)
             ],
             'branch_equipment' => [
                 'title' => 'Branch Equipment Summary',
@@ -318,47 +317,47 @@ class ReportController extends Controller
     // ==================== REPORT QUERY METHODS (FIXED) ====================
 
     /**
-     * FIX: Get username where role is veterinarian within the branch (linked via user_id)
+     * Get Visits Report - based on tbl_visit_record
      */
-    private function getAppointmentsReport($startDate, $endDate, $branch, $status)
+    private function getVisitsReport($startDate, $endDate, $branch, $status)
     {
-        $query = DB::table('tbl_appoint as a')
-            ->join('tbl_pet as p', 'a.pet_id', '=', 'p.pet_id')
+        $query = DB::table('tbl_visit_record as v')
+            ->join('tbl_pet as p', 'v.pet_id', '=', 'p.pet_id')
             ->join('tbl_own as o', 'p.own_id', '=', 'o.own_id')
-            // 1. Join to get the Scheduler/Handler (u) and their Branch ID
-            ->join('tbl_user as u', 'a.user_id', '=', 'u.user_id')
+            ->join('tbl_user as u', 'v.user_id', '=', 'u.user_id')
             ->leftJoin('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id')
-            // 2. Join to find any Veterinarian (v) in the Scheduler's Branch (u.branch_id)
-            ->leftJoin('tbl_user as v', function ($join) {
-                $join->on('v.branch_id', '=', 'u.branch_id')
-                     ->where('v.user_role', '=', 'veterinarian');
-            })
+            ->leftJoin('tbl_visit_service as vs', 'v.visit_id', '=', 'vs.visit_id')
+            ->leftJoin('tbl_serv as s', 'vs.serv_id', '=', 's.serv_id')
             ->select(
-                'a.appoint_id',
+                'v.visit_id',
                 'o.own_name as owner_name',
                 DB::raw('REPLACE(o.own_contactnum, ",", "") as owner_contact'),
                 'p.pet_name',
                 'p.pet_species',
                 'p.pet_breed',
-                'a.appoint_date',
-                DB::raw('DATE_FORMAT(a.appoint_time, "%h:%i %p") as appoint_time'),
-                'a.appoint_status as status',
-                'a.appoint_type',
+                'v.visit_date',
+                'v.patient_type',
+                'v.visit_status as status',
+                'v.workflow_status',
+                'v.weight',
+                'v.temperature',
                 'b.branch_name',
-                DB::raw("COALESCE(GROUP_CONCAT(DISTINCT v.user_name SEPARATOR ', '), u.user_name) as veterinarian")
+                'u.user_name as veterinarian',
+                DB::raw("GROUP_CONCAT(DISTINCT s.serv_name SEPARATOR ', ') as services")
             )
             ->groupBy(
-                'a.appoint_id', 'o.own_name', 'o.own_contactnum', 'p.pet_name', 
-                'p.pet_species', 'p.pet_breed', 'a.appoint_date', 'a.appoint_time', 
-                'a.appoint_status', 'a.appoint_type', 'b.branch_name', 'u.user_name'
+                'v.visit_id', 'o.own_name', 'o.own_contactnum', 'p.pet_name', 
+                'p.pet_species', 'p.pet_breed', 'v.visit_date', 'v.patient_type',
+                'v.visit_status', 'v.workflow_status', 'v.weight', 'v.temperature',
+                'b.branch_name', 'u.user_name'
             );
 
-        if ($startDate) $query->whereDate('a.appoint_date', '>=', $startDate);
-        if ($endDate) $query->whereDate('a.appoint_date', '<=', $endDate);
+        if ($startDate) $query->whereDate('v.visit_date', '>=', $startDate);
+        if ($endDate) $query->whereDate('v.visit_date', '<=', $endDate);
         if ($branch) $query->where('u.branch_id', $branch);
-        if ($status) $query->where('a.appoint_status', $status);
+        if ($status) $query->where('v.visit_status', $status);
 
-        return $query->orderBy('a.appoint_date', 'desc')->get();
+        return $query->orderBy('v.visit_date', 'desc')->get();
     }
 
     /**
@@ -381,28 +380,28 @@ class ReportController extends Controller
             )
             ->groupBy('o.own_id', 'o.own_name', 'o.own_contactnum', 'o.own_location');
 
-        // Assuming a `created_at` field or similar on `tbl_own`
-        if ($startDate) $query->whereDate('o.created_at', '>=', $startDate); 
-        if ($endDate) $query->whereDate('o.created_at', '<=', $endDate);
+        // Filter by pet registration date
+        if ($startDate) $query->whereDate('p.pet_registration', '>=', $startDate); 
+        if ($endDate) $query->whereDate('p.pet_registration', '<=', $endDate);
 
         return $query->get();
     }
 
-    private function getAppointmentBillingReport($startDate, $endDate, $branch)
+    private function getVisitBillingReport($startDate, $endDate, $branch)
     {
         $query = DB::table('tbl_own as o')
             ->join('tbl_pet as p', 'o.own_id', '=', 'p.own_id')
-            ->join('tbl_appoint as a', 'p.pet_id', '=', 'a.pet_id')
-            ->join('tbl_bill as b', 'a.appoint_id', '=', 'b.appoint_id')
+            ->join('tbl_visit_record as v', 'p.pet_id', '=', 'v.pet_id')
+            ->join('tbl_bill as b', 'v.visit_id', '=', 'b.visit_id')
             ->join('tbl_pay as pay', 'b.bill_id', '=', 'pay.bill_id')
-            ->leftJoin('tbl_user as u', 'a.user_id', '=', 'u.user_id')
-            ->leftJoin('tbl_branch as br', 'u.branch_id', '=', 'br.branch_id') // FIX: Join Branch via User
+            ->leftJoin('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+            ->leftJoin('tbl_branch as br', 'u.branch_id', '=', 'br.branch_id')
             ->select(
-                'a.appoint_id',
+                'v.visit_id',
                 'o.own_name',
                 'p.pet_name',
-                'a.appoint_date',
-                'a.appoint_type',
+                'v.visit_date',
+                'v.patient_type',
                 'b.bill_id',
                 'b.bill_status',
                 'pay.pay_total',
@@ -411,11 +410,11 @@ class ReportController extends Controller
                 'br.branch_name'
             );
 
-        if ($startDate) $query->whereDate('a.appoint_date', '>=', $startDate);
-        if ($endDate) $query->whereDate('a.appoint_date', '<=', $endDate);
+        if ($startDate) $query->whereDate('v.visit_date', '>=', $startDate);
+        if ($endDate) $query->whereDate('v.visit_date', '<=', $endDate);
         if ($branch) $query->where('u.branch_id', $branch);
 
-        return $query->orderBy('a.appoint_date', 'desc')->get();
+        return $query->orderBy('v.visit_date', 'desc')->get();
     }
 
     private function getProductPurchasesReport($startDate, $endDate, $branch)
@@ -445,7 +444,7 @@ class ReportController extends Controller
     }
 
     /**
-     * FIX: 'referred_to' must be the branch name not the branch id
+     * Get Referrals Report - based on visits instead of appointments
      */
     private function getReferralsReport($startDate, $endDate, $branch)
     {
@@ -454,8 +453,8 @@ class ReportController extends Controller
         }
 
         $query = DB::table('tbl_ref as r')
-            ->join('tbl_appoint as a', 'r.appoint_id', '=', 'a.appoint_id')
-            ->join('tbl_pet as p', 'a.pet_id', '=', 'p.pet_id')
+            ->join('tbl_visit_record as v', 'r.visit_id', '=', 'v.visit_id')
+            ->join('tbl_pet as p', 'v.pet_id', '=', 'p.pet_id')
             ->join('tbl_own as o', 'p.own_id', '=', 'o.own_id')
             ->join('tbl_user as u', 'r.ref_by', '=', 'u.user_id')
             ->leftJoin('tbl_branch as b1', 'u.branch_id', '=', 'b1.branch_id') // Referring Branch
@@ -464,11 +463,11 @@ class ReportController extends Controller
                 'r.ref_id',
                 'o.own_name',
                 'p.pet_name',
-                'a.appoint_date',
+                'v.visit_date',
                 'r.ref_date',
                 'r.ref_description',
-                'b1.branch_name as referred_by', // Referring Branch Name
-                'b2.branch_name as referred_to', // FIX: Referred To Branch Name
+                'b1.branch_name as referred_by',
+                'b2.branch_name as referred_to',
                 'u.user_name as created_by'
             );
 
@@ -479,35 +478,32 @@ class ReportController extends Controller
         return $query->orderBy('r.ref_date', 'desc')->get();
     }
 
-    private function getServiceAppointmentsReport($startDate, $endDate, $branch)
+    private function getVisitServicesReport($startDate, $endDate, $branch)
     {
-        if (!DB::getSchemaBuilder()->hasTable('tbl_appoint_serv')) {
-            return collect();
-        }
-
-        $query = DB::table('tbl_appoint_serv as aps')
-            ->join('tbl_appoint as a', 'aps.appoint_id', '=', 'a.appoint_id')
-            ->join('tbl_serv as s', 'aps.serv_id', '=', 's.serv_id')
-            ->join('tbl_pet as p', 'a.pet_id', '=', 'p.pet_id')
+        $query = DB::table('tbl_visit_service as vs')
+            ->join('tbl_visit_record as v', 'vs.visit_id', '=', 'v.visit_id')
+            ->join('tbl_serv as s', 'vs.serv_id', '=', 's.serv_id')
+            ->join('tbl_pet as p', 'v.pet_id', '=', 'p.pet_id')
             ->join('tbl_own as o', 'p.own_id', '=', 'o.own_id')
-            ->join('tbl_user as u', 'a.user_id', '=', 'u.user_id')
-            ->leftJoin('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id') // FIX: Join Branch via User
+            ->join('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+            ->leftJoin('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id')
             ->select(
-                'aps.appoint_serv_id',
+                'vs.id as visit_service_id',
                 'o.own_name',
                 'p.pet_name',
                 's.serv_name',
                 's.serv_price',
-                'a.appoint_date',
-                'u.user_name as handled_by',
+                'vs.status as service_status',
+                'v.visit_date',
+                'u.user_name as veterinarian',
                 'b.branch_name'
             );
 
-        if ($startDate) $query->whereDate('a.appoint_date', '>=', $startDate);
-        if ($endDate) $query->whereDate('a.appoint_date', '<=', $endDate);
+        if ($startDate) $query->whereDate('v.visit_date', '>=', $startDate);
+        if ($endDate) $query->whereDate('v.visit_date', '<=', $endDate);
         if ($branch) $query->where('u.branch_id', $branch);
 
-        return $query->orderBy('a.appoint_date', 'desc')->get();
+        return $query->orderBy('v.visit_date', 'desc')->get();
     }
 
     /**
@@ -534,31 +530,38 @@ class ReportController extends Controller
     }
 
     /**
-     * FIX: appointment time must be 12 hours format (AND fix branch joining via user table)
+     * Branch Visit Schedule Report
      */
-    private function getBranchAppointmentsReport($startDate, $endDate, $branch)
+    private function getBranchVisitsReport($startDate, $endDate, $branch)
     {
-        $query = DB::table('tbl_appoint as a')
-            ->join('tbl_pet as p', 'a.pet_id', '=', 'p.pet_id')
+        $query = DB::table('tbl_visit_record as v')
+            ->join('tbl_pet as p', 'v.pet_id', '=', 'p.pet_id')
             ->join('tbl_own as o', 'p.own_id', '=', 'o.own_id')
-            ->join('tbl_user as u', 'a.user_id', '=', 'u.user_id')
-            ->join('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id') // FIX: Join Branch via User
+            ->join('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+            ->join('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id')
+            ->leftJoin('tbl_visit_service as vs', 'v.visit_id', '=', 'vs.visit_id')
+            ->leftJoin('tbl_serv as s', 'vs.serv_id', '=', 's.serv_id')
             ->select(
-                'a.appoint_id',
-                'u.user_name as scheduler',
+                'v.visit_id',
+                'u.user_name as veterinarian',
                 'o.own_name',
                 'p.pet_name',
-                'a.appoint_date',
-                DB::raw('DATE_FORMAT(a.appoint_time, "%h:%i %p") as appoint_time'),
-                'a.appoint_type',
-                'b.branch_name'
+                'v.visit_date',
+                'v.patient_type',
+                'v.visit_status',
+                'b.branch_name',
+                DB::raw("GROUP_CONCAT(DISTINCT s.serv_name SEPARATOR ', ') as services")
+            )
+            ->groupBy(
+                'v.visit_id', 'u.user_name', 'o.own_name', 'p.pet_name',
+                'v.visit_date', 'v.patient_type', 'v.visit_status', 'b.branch_name'
             );
 
-        if ($startDate) $query->whereDate('a.appoint_date', '>=', $startDate);
-        if ($endDate) $query->whereDate('a.appoint_date', '<=', $endDate);
-        if ($branch) $query->where('u.branch_id', $branch); // Filter by User's branch_id
+        if ($startDate) $query->whereDate('v.visit_date', '>=', $startDate);
+        if ($endDate) $query->whereDate('v.visit_date', '<=', $endDate);
+        if ($branch) $query->where('u.branch_id', $branch);
 
-        return $query->orderBy('a.appoint_date', 'desc')->get();
+        return $query->orderBy('v.visit_date', 'desc')->get();
     }
 
     private function getBillingOrdersReport($startDate, $endDate)
@@ -612,17 +615,17 @@ class ReportController extends Controller
     {
         $query = DB::table('tbl_pay as pay')
             ->join('tbl_bill as b', 'pay.bill_id', '=', 'b.bill_id')
-            ->join('tbl_appoint as a', 'b.appoint_id', '=', 'a.appoint_id')
-            ->join('tbl_pet as p', 'a.pet_id', '=', 'p.pet_id')
+            ->join('tbl_visit_record as v', 'b.visit_id', '=', 'v.visit_id')
+            ->join('tbl_pet as p', 'v.pet_id', '=', 'p.pet_id')
             ->join('tbl_own as o', 'p.own_id', '=', 'o.own_id')
-            ->join('tbl_user as u', 'a.user_id', '=', 'u.user_id')
+            ->join('tbl_user as u', 'v.user_id', '=', 'u.user_id')
             ->leftJoin('tbl_branch as br', 'u.branch_id', '=', 'br.branch_id') // FIX: Join Branch via User
             ->select(
                 'pay.pay_id',
                 'u.user_name as collected_by',
                 'o.own_name',
                 'p.pet_name',
-                'a.appoint_date',
+                'v.visit_date',
                 'b.bill_id',
                 'pay.pay_total',
                 'pay.pay_cashAmount',
@@ -634,7 +637,7 @@ class ReportController extends Controller
         if ($endDate) $query->whereDate('b.bill_date', '<=', $endDate);
         if ($branch) $query->where('u.branch_id', $branch);
 
-        return $query->orderBy('a.appoint_date', 'desc')->get();
+        return $query->orderBy('v.visit_date', 'desc')->get();
     }
 
     private function getMedicalHistoryReport($startDate, $endDate)
@@ -701,31 +704,29 @@ class ReportController extends Controller
 
         return $query->orderBy('pr.prescription_date', 'desc')->get();
     }
-    private function getMultiServiceAppointmentsReport($startDate, $endDate)
+    private function getMultiServiceVisitsReport($startDate, $endDate)
     {
-        if (!DB::getSchemaBuilder()->hasTable('tbl_appoint_serv')) {
-            return collect();
-        }
-
-        $query = DB::table('tbl_appoint_serv as aps')
-            ->join('tbl_appoint as a', 'aps.appoint_id', '=', 'a.appoint_id')
-            ->join('tbl_serv as s', 'aps.serv_id', '=', 's.serv_id')
-            ->join('tbl_pet as p', 'a.pet_id', '=', 'p.pet_id')
+        $query = DB::table('tbl_visit_service as vs')
+            ->join('tbl_visit_record as v', 'vs.visit_id', '=', 'v.visit_id')
+            ->join('tbl_serv as s', 'vs.serv_id', '=', 's.serv_id')
+            ->join('tbl_pet as p', 'v.pet_id', '=', 'p.pet_id')
             ->join('tbl_own as o', 'p.own_id', '=', 'o.own_id')
             ->select(
-                'a.appoint_id',
-                'a.appoint_date',
+                'v.visit_id',
+                'v.visit_date',
                 'p.pet_name',
                 'o.own_name',
                 DB::raw('GROUP_CONCAT(s.serv_name SEPARATOR ", ") as services'),
-                DB::raw('SUM(s.serv_price) as total_service_price')
+                DB::raw('SUM(s.serv_price) as total_service_price'),
+                DB::raw('COUNT(vs.serv_id) as service_count')
             )
-            ->groupBy('a.appoint_id', 'a.appoint_date', 'p.pet_name', 'o.own_name');
+            ->groupBy('v.visit_id', 'v.visit_date', 'p.pet_name', 'o.own_name')
+            ->having('service_count', '>', 1);
 
-        if ($startDate) $query->whereDate('a.appoint_date', '>=', $startDate);
-        if ($endDate) $query->whereDate('a.appoint_date', '<=', $endDate);
+        if ($startDate) $query->whereDate('v.visit_date', '>=', $startDate);
+        if ($endDate) $query->whereDate('v.visit_date', '<=', $endDate);
 
-        return $query->orderBy('a.appoint_date', 'desc')->get();
+        return $query->orderBy('v.visit_date', 'desc')->get();
     }
 
     /**
@@ -818,7 +819,7 @@ class ReportController extends Controller
     {
         $query = DB::table('tbl_pay as pay')
             ->join('tbl_bill as bl', 'pay.bill_id', '=', 'bl.bill_id')
-            ->join('tbl_appoint as a', 'bl.appoint_id', '=', 'a.appoint_id')
+            ->join('tbl_visit_record as a', 'bl.visit_id', '=', 'a.visit_id')
             ->join('tbl_user as u', 'a.user_id', '=', 'u.user_id')
             ->join('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id') // FIX: Join Branch via User
             ->select(
@@ -873,18 +874,48 @@ class ReportController extends Controller
     /**
      * FIX: Join Branch via User to resolve 'tbl_appoint.branch_id' error.
      */
-    private function getAppointmentDetails($appointmentId)
+    private function getVisitDetails($visitId)
     {
-        return DB::table('tbl_appoint')
-            ->join('tbl_pet', 'tbl_pet.pet_id', '=', 'tbl_appoint.pet_id')
+        return DB::table('tbl_visit_record')
+            ->join('tbl_pet', 'tbl_pet.pet_id', '=', 'tbl_visit_record.pet_id')
             ->join('tbl_own', 'tbl_own.own_id', '=', 'tbl_pet.own_id')
-            ->leftJoin('tbl_user', 'tbl_user.user_id', '=', 'tbl_appoint.user_id')
-            // FIX: Join branch using the user's branch ID
-            ->leftJoin('tbl_branch', 'tbl_branch.branch_id', '=', 'tbl_user.branch_id') 
-            ->leftJoin('tbl_bill', 'tbl_bill.appoint_id', '=', 'tbl_appoint.appoint_id')
+            ->leftJoin('tbl_user', 'tbl_user.user_id', '=', 'tbl_visit_record.user_id')
+            ->leftJoin('tbl_branch', 'tbl_branch.branch_id', '=', 'tbl_user.branch_id')
+            ->leftJoin('tbl_bill', 'tbl_bill.visit_id', '=', 'tbl_visit_record.visit_id')
             ->leftJoin('tbl_pay', 'tbl_pay.bill_id', '=', 'tbl_bill.bill_id')
-            ->select('*')
-            ->where('tbl_appoint.appoint_id', $appointmentId)
+            ->select('tbl_visit_record.*', 'tbl_pet.*', 'tbl_own.*', 'tbl_user.user_name', 'tbl_branch.branch_name', 
+                     'tbl_bill.bill_id', 'tbl_bill.bill_status', 'tbl_pay.pay_total')
+            ->where('tbl_visit_record.visit_id', $visitId)
+            ->first();
+    }
+
+    private function getVisitServiceDetails($visitServiceId)
+    {
+        return DB::table('tbl_visit_service')
+            ->join('tbl_visit_record', 'tbl_visit_record.visit_id', '=', 'tbl_visit_service.visit_id')
+            ->join('tbl_serv', 'tbl_serv.serv_id', '=', 'tbl_visit_service.serv_id')
+            ->join('tbl_pet', 'tbl_pet.pet_id', '=', 'tbl_visit_record.pet_id')
+            ->join('tbl_own', 'tbl_own.own_id', '=', 'tbl_pet.own_id')
+            ->leftJoin('tbl_user', 'tbl_user.user_id', '=', 'tbl_visit_record.user_id')
+            ->leftJoin('tbl_branch', 'tbl_branch.branch_id', '=', 'tbl_user.branch_id')
+            ->select('tbl_visit_service.*', 'tbl_visit_record.visit_date', 'tbl_serv.serv_name', 'tbl_serv.serv_price',
+                     'tbl_pet.pet_name', 'tbl_own.own_name', 'tbl_user.user_name', 'tbl_branch.branch_name')
+            ->where('tbl_visit_service.id', $visitServiceId)
+            ->first();
+    }
+
+    private function getVisitBillingDetails($visitId)
+    {
+        return DB::table('tbl_visit_record')
+            ->join('tbl_pet', 'tbl_pet.pet_id', '=', 'tbl_visit_record.pet_id')
+            ->join('tbl_own', 'tbl_own.own_id', '=', 'tbl_pet.own_id')
+            ->join('tbl_bill', 'tbl_bill.visit_id', '=', 'tbl_visit_record.visit_id')
+            ->join('tbl_pay', 'tbl_pay.bill_id', '=', 'tbl_bill.bill_id')
+            ->leftJoin('tbl_user', 'tbl_user.user_id', '=', 'tbl_visit_record.user_id')
+            ->leftJoin('tbl_branch', 'tbl_branch.branch_id', '=', 'tbl_user.branch_id')
+            ->select('tbl_visit_record.*', 'tbl_pet.*', 'tbl_own.*', 'tbl_user.user_name', 'tbl_branch.branch_name',
+                     'tbl_bill.*', 'tbl_pay.*')
+            ->where('tbl_visit_record.visit_id', $visitId)
             ->first();
     }
 

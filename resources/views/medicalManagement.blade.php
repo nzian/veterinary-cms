@@ -1,5 +1,7 @@
 @extends('AdminBoard')
 
+<script src="{{ asset('js/list-filter-new.js') }}"></script>
+
 @php
     $userRole = strtolower(auth()->user()->user_role ?? '');
     
@@ -44,42 +46,91 @@
         {{-- Tab Navigation --}}
         <div class="border-b border-gray-200 mb-4 sm:mb-6 overflow-x-auto">
             <nav class="-mb-px flex space-x-2 sm:space-x-4 md:space-x-6 items-center" style="min-width: max-content;">
+                @if(in_array($userRole, ['receptionist', 'veterinarian', 'superadmin']))
                 <button onclick="showTab('visits')" id="visits-tab" 
                     class="tab-button py-2 px-1 sm:px-2 border-b-2 font-medium text-sm sm:text-base active whitespace-nowrap">
                     <span class="font-bold text-lg sm:text-xl">Visits</span>
                 </button>
-                <button onclick="showTab('vaccination')" id="vaccination-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
-                    <h2 class="font-bold text-xl">Vaccination</h2>
-                </button>
+                @endif
+                
+                @if($userRole === 'receptionist')
                 <button onclick="showTab('grooming')" id="grooming-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Grooming</h2>
+                    @if(isset($pendingCounts['grooming']) && $pendingCounts['grooming'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['grooming'] }}
+                        </span>
+                    @endif
                 </button>
+                @endif
+                
                 <button onclick="showTab('boarding')" id="boarding-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Boarding</h2>
+                    @if(isset($pendingCounts['boarding']) && $pendingCounts['boarding'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['boarding'] }}
+                        </span>
+                    @endif
                 </button>
+                
+                @if($userRole === 'veterinarian')
                 <button onclick="showTab('checkup')" id="checkup-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Check-up</h2>
+                    @if(isset($pendingCounts['checkup']) && $pendingCounts['checkup'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['checkup'] }}
+                        </span>
+                    @endif
+                </button>
+                <button onclick="showTab('vaccination')" id="vaccination-tab" 
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
+                    <h2 class="font-bold text-xl">Vaccination</h2>
+                    @if(isset($pendingCounts['vaccination']) && $pendingCounts['vaccination'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['vaccination'] }}
+                        </span>
+                    @endif
                 </button>
                 <button onclick="showTab('deworming')" id="deworming-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Deworming</h2>
-                </button>
-                <button onclick="showTab('diagnostics')" id="diagnostics-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
-                    <h2 class="font-bold text-xl">Diagnostics</h2>
+                    @if(isset($pendingCounts['deworming']) && $pendingCounts['deworming'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['deworming'] }}
+                        </span>
+                    @endif
                 </button>
                 <button onclick="showTab('surgical')" id="surgical-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Surgical</h2>
+                    @if(isset($pendingCounts['surgical']) && $pendingCounts['surgical'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['surgical'] }}
+                        </span>
+                    @endif
+                </button>
+                <button onclick="showTab('diagnostics')" id="diagnostics-tab" 
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
+                    <h2 class="font-bold text-xl">Diagnostics</h2>
+                    @if(isset($pendingCounts['diagnostics']) && $pendingCounts['diagnostics'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['diagnostics'] }}
+                        </span>
+                    @endif
                 </button>
                 <button onclick="showTab('emergency')" id="emergency-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Emergency</h2>
+                    @if(isset($pendingCounts['emergency']) && $pendingCounts['emergency'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['emergency'] }}
+                        </span>
+                    @endif
                 </button>
+                @endif
             </nav>
         </div>
 
@@ -133,10 +184,10 @@
                                 <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_contactnum }}</td>
                                 <td class="border px-4 py-2">
-                                    <span class="px-2 py-1 rounded text-xs 
-                                        {{ $appointment->appoint_status == 'completed' ? 'bg-green-100 text-green-800' : 
-                                           ($appointment->appoint_status == 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                                           ($appointment->appoint_status == 'refer' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800')) }}">
+                                    <span class="px-2 py-1 rounded text-xs
+                                        @if(in_array(strtolower($appointment->appoint_status), ['complete','completed','arrive','arrived'])) bg-green-100 text-green-700
+                                        @elseif(in_array(strtolower($appointment->appoint_status), ['pending'])) bg-yellow-100 text-yellow-700
+                                        @else bg-gray-100 text-gray-700 @endif">
                                         {{ ucfirst($appointment->appoint_status) }}
                                     </span>
                                 </td>
@@ -161,11 +212,32 @@
             @if(isset($appointments) && method_exists($appointments, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $appointments->firstItem() }} to {{ $appointments->lastItem() }} of
+                    Showing {{ $appointments->firstItem() ?? 0 }} to {{ $appointments->lastItem() ?? 0 }} of
                     {{ $appointments->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $appointments->appends(['active_tab' => 'appointments'])->links() }}
+                    @if ($appointments->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $appointments->appends(['active_tab' => 'appointments'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $appointments->lastPage(); $i++)
+                        @if ($i == $appointments->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $appointments->appends(['active_tab' => 'appointments'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($appointments->hasMorePages())
+                        <a href="{{ $appointments->appends(['active_tab' => 'appointments'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -186,9 +258,11 @@
         @if($errors->any())
             <div class="bg-red-100 text-red-700 px-4 py-2 mb-4 rounded text-sm">
                 <ul class="list-disc pl-5">
-                    @foreach($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
+                    @if(is_object($errors) && method_exists($errors, 'all'))
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    @endif
                 </ul>
             </div>
         @endif
@@ -208,9 +282,19 @@
                     </select>
                     <span class="whitespace-nowrap">entries</span>
                 </form>
-                <div class="relative flex-1 min-w-[200px] max-w-xs">
-                    <input type="search" id="visitsSearch" placeholder="Search visits..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
-                    <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <div class="relative">
+                        <input type="search" id="visitsSearch" placeholder="Search visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                    <select id="visitsStatus" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                        <option value="All">All Status</option>
+                        <option value="Arrived">Arrived</option>
+                        <option value="Billed">Billed</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Complete">Complete</option>
+                        <option value="Completed">Completed</option>
+                    </select>
                 </div>
                 @if(auth()->check() && in_array(auth()->user()->user_role, ['receptionist']))
                 <button onclick="openAddVisitModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86] whitespace-nowrap ml-2">
@@ -221,7 +305,7 @@
             <br>
 
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="visitsTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -275,15 +359,52 @@
                                     @endphp
                                     {{ !empty($__types) ? implode(', ', $__types) : ($__summary ?: '-') }}
                                 </td>
-                                <td class="border px-4 py-2">{{ $visit->visit_status ?? '-' }}</td>
+                                <td class="border px-4 py-2">
+                                    <span class="px-2 py-1 rounded text-xs
+                                        @if(in_array(strtolower($visit->visit_status), ['complete','completed','arrive','arrived'])) bg-green-100 text-green-700
+                                        @elseif(isset($visit->services) && $visit->services->where('serv_type', 'pending')->count() > 0) bg-yellow-100 text-yellow-700
+                                        @else bg-gray-100 text-gray-700 @endif">
+                                        {{ ucfirst($visit->visit_status) ?? '-' }}
+                                    </span>
+                                </td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        @if(auth()->check() && in_array(auth()->user()->user_role, ['veterinarian']) && !in_array(auth()->user()->user_role, ['super_admin']))
                                         <a href="{{ route('medical.visits.perform', ['id' => $visit->visit_id]) }}" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="openInitialAssessment({{ $visit->visit_id }}, {{ $visit->pet_id }}, '{{ $visit->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                        @endif
+                                        <button type="button" onclick="openInitialAssessment({{ $visit->visit_id }}, {{ $visit->pet_id ?? 0 }}, '{{ $visit->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @php
+                                            // Check if prescription exists for this visit's pet on the same date
+                                            $visitPrescription = $visit->pet_id ? \App\Models\Prescription::where('pet_id', $visit->pet_id)
+                                            ->where('pres_visit_id', $visit->visit_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($visit->visit_date))
+                                                ->first() : null;
+                                        @endphp
+                                        @if($visitPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $visitPrescription->prescription_id }}"
+                                            data-pet="{{ $visitPrescription->pet->pet_name }}"
+                                            data-species="{{ $visitPrescription->pet->pet_species }}"
+                                            data-breed="{{ $visitPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $visitPrescription->pet->pet_weight }}"
+                                            data-age="{{ $visitPrescription->pet->pet_age }}"
+                                            data-temp="{{ $visitPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $visitPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($visitPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $visitPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $visitPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $visitPrescription->notes }}"
+                                            data-branch-name="{{ $visitPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $visitPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $visitPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                         @if(hasPermission('edit_appointment', $can))
                                         <button onclick="openEditVisitModal({{ $visit->visit_id }}, false)" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs" title="edit">
                                             <i class="fas fa-pen"></i>
@@ -311,17 +432,9 @@
                 </table>
             </div>
 
-            @if(isset($visits) && method_exists($visits, 'links'))
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>
-                    Showing {{ $visits->firstItem() }} to {{ $visits->lastItem() }} of
-                    {{ $visits->total() }} entries
-                </div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $visits->appends(['active_tab' => 'visits'])->links() }}
-                </div>
+            <div id="visitsPagination" class="flex justify-between items-center mt-4">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
-            @endif
         </div>
 
         <div id="checkupContent" class="tab-content hidden">
@@ -338,9 +451,19 @@
                     </select>
                     <span class="whitespace-nowrap">entries</span>
                 </form>
-                <div class="relative flex-1 min-w-[200px] max-w-xs">
-                    <input type="search" id="checkupSearch" placeholder="Search check-up visits..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
-                    <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <div class="relative">
+                        <input type="search" id="checkupSearch" placeholder="Search check-up visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                    <select id="checkupStatus" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                        <option value="All">All Status</option>
+                        <option value="Arrived">Arrived</option>
+                        <option value="Billed">Billed</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Complete">Complete</option>
+                        <option value="Completed">Completed</option>
+                    </select>
                 </div>
             </div>
             <br>
@@ -376,9 +499,36 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $c->visit_id]) }}?type=check-up" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="openInitialAssessment({{ $c->visit_id }}, {{ $c->pet_id }}, '{{ $c->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                        <button type="button" onclick="openInitialAssessment({{ $c->visit_id }}, {{ $c->pet_id ?? 0 }}, '{{ $c->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @php
+                                            $checkupPrescription = $c->pet_id ? \App\Models\Prescription::where('pet_id', $c->pet_id)
+                                            ->where('pres_visit_id', $c->visit_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($c->visit_date))
+                                                ->first() : null;
+                                        @endphp
+                                        @if($checkupPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $checkupPrescription->prescription_id }}"
+                                            data-pet="{{ $checkupPrescription->pet->pet_name }}"
+                                            data-species="{{ $checkupPrescription->pet->pet_species }}"
+                                            data-breed="{{ $checkupPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $checkupPrescription->pet->pet_weight }}"
+                                            data-age="{{ $checkupPrescription->pet->pet_age }}"
+                                            data-temp="{{ $checkupPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $checkupPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($checkupPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $checkupPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $checkupPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $checkupPrescription->notes }}"
+                                            data-branch-name="{{ $checkupPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $checkupPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $checkupPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -390,14 +540,39 @@
                     </tbody>
                 </table>
             </div>
+            
+            <div id="checkupPagination" class="flex justify-between items-center mt-4">
+                <!-- Pagination will be generated by JavaScript -->
+            </div>
             @if(isset($consultationVisits) && method_exists($consultationVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $consultationVisits->firstItem() }} to {{ $consultationVisits->lastItem() }} of
+                    Showing {{ $consultationVisits->firstItem() ?? 0 }} to {{ $consultationVisits->lastItem() ?? 0 }} of
                     {{ $consultationVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $consultationVisits->appends(['tab' => 'checkup'])->links() }}
+                    @if ($consultationVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $consultationVisits->appends(['active_tab' => 'checkup'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $consultationVisits->lastPage(); $i++)
+                        @if ($i == $consultationVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $consultationVisits->appends(['active_tab' => 'checkup'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($consultationVisits->hasMorePages())
+                        <a href="{{ $consultationVisits->appends(['active_tab' => 'checkup'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -424,7 +599,7 @@
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="dewormingTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -455,9 +630,36 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $d->visit_id]) }}?type=deworming" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                        <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id ?? 0 }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @php
+                                            $dewormPrescription = $d->pet_id ? \App\Models\Prescription::where('pet_id', $d->pet_id)
+                                            ->where('pres_visit_id', $d->visit_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($d->visit_date))
+                                                ->first() : null;
+                                        @endphp
+                                        @if($dewormPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $dewormPrescription->prescription_id }}"
+                                            data-pet="{{ $dewormPrescription->pet->pet_name }}"
+                                            data-species="{{ $dewormPrescription->pet->pet_species }}"
+                                            data-breed="{{ $dewormPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $dewormPrescription->pet->pet_weight }}"
+                                            data-age="{{ $dewormPrescription->pet->pet_age }}"
+                                            data-temp="{{ $dewormPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $dewormPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($dewormPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $dewormPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $dewormPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $dewormPrescription->notes }}"
+                                            data-branch-name="{{ $dewormPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $dewormPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $dewormPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -472,11 +674,32 @@
             @if(isset($dewormingVisits) && method_exists($dewormingVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $dewormingVisits->firstItem() }} to {{ $dewormingVisits->lastItem() }} of
+                    Showing {{ $dewormingVisits->firstItem() ?? 0 }} to {{ $dewormingVisits->lastItem() ?? 0 }} of
                     {{ $dewormingVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $dewormingVisits->appends(['tab' => 'deworming'])->links() }}
+                    @if ($dewormingVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $dewormingVisits->appends(['active_tab' => 'deworming'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $dewormingVisits->lastPage(); $i++)
+                        @if ($i == $dewormingVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $dewormingVisits->appends(['active_tab' => 'deworming'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($dewormingVisits->hasMorePages())
+                        <a href="{{ $dewormingVisits->appends(['active_tab' => 'deworming'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -503,7 +726,7 @@
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="diagnosticsTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -534,9 +757,36 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $d->visit_id]) }}?type=diagnostic" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                        <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id ?? 0 }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @php
+                                            $diagPrescription = $d->pet_id ? \App\Models\Prescription::where('pet_id', $d->pet_id)
+                                            ->where('pres_visit_id', $d->visit_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($d->visit_date))
+                                                ->first() : null;
+                                        @endphp
+                                        @if($diagPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $diagPrescription->prescription_id }}"
+                                            data-pet="{{ $diagPrescription->pet->pet_name }}"
+                                            data-species="{{ $diagPrescription->pet->pet_species }}"
+                                            data-breed="{{ $diagPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $diagPrescription->pet->pet_weight }}"
+                                            data-age="{{ $diagPrescription->pet->pet_age }}"
+                                            data-temp="{{ $diagPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $diagPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($diagPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $diagPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $diagPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $diagPrescription->notes }}"
+                                            data-branch-name="{{ $diagPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $diagPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $diagPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -551,11 +801,32 @@
             @if(isset($diagnosticsVisits) && method_exists($diagnosticsVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $diagnosticsVisits->firstItem() }} to {{ $diagnosticsVisits->lastItem() }} of
+                    Showing {{ $diagnosticsVisits->firstItem() ?? 0 }} to {{ $diagnosticsVisits->lastItem() ?? 0 }} of
                     {{ $diagnosticsVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $diagnosticsVisits->appends(['tab' => 'diagnostics'])->links() }}
+                    @if ($diagnosticsVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $diagnosticsVisits->appends(['active_tab' => 'diagnostics'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $diagnosticsVisits->lastPage(); $i++)
+                        @if ($i == $diagnosticsVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $diagnosticsVisits->appends(['active_tab' => 'diagnostics'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($diagnosticsVisits->hasMorePages())
+                        <a href="{{ $diagnosticsVisits->appends(['active_tab' => 'diagnostics'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -582,7 +853,7 @@
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="surgicalTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -613,9 +884,36 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $s->visit_id]) }}?type=surgical" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="openInitialAssessment({{ $s->visit_id }}, {{ $s->pet_id }}, '{{ $s->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                        <button type="button" onclick="openInitialAssessment({{ $s->visit_id }}, {{ $s->pet_id ?? 0 }}, '{{ $s->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @php
+                                            $surgPrescription = $s->pet_id ? \App\Models\Prescription::where('pet_id', $s->pet_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($s->visit_date))
+                                                ->where('pres_visit_id', $s->visit_id)
+                                                ->first() : null;
+                                        @endphp
+                                        @if($surgPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $surgPrescription->prescription_id }}"
+                                            data-pet="{{ $surgPrescription->pet->pet_name }}"
+                                            data-species="{{ $surgPrescription->pet->pet_species }}"
+                                            data-breed="{{ $surgPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $surgPrescription->pet->pet_weight }}"
+                                            data-age="{{ $surgPrescription->pet->pet_age }}"
+                                            data-temp="{{ $surgPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $surgPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($surgPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $surgPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $surgPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $surgPrescription->notes }}"
+                                            data-branch-name="{{ $surgPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $surgPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $surgPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -630,11 +928,32 @@
             @if(isset($surgicalVisits) && method_exists($surgicalVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $surgicalVisits->firstItem() }} to {{ $surgicalVisits->lastItem() }} of
+                    Showing {{ $surgicalVisits->firstItem() ?? 0 }} to {{ $surgicalVisits->lastItem() ?? 0 }} of
                     {{ $surgicalVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $surgicalVisits->appends(['tab' => 'surgical'])->links() }}
+                    @if ($surgicalVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $surgicalVisits->appends(['active_tab' => 'surgical'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $surgicalVisits->lastPage(); $i++)
+                        @if ($i == $surgicalVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $surgicalVisits->appends(['active_tab' => 'surgical'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($surgicalVisits->hasMorePages())
+                        <a href="{{ $surgicalVisits->appends(['active_tab' => 'surgical'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -661,7 +980,7 @@
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="emergencyTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -692,6 +1011,36 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $e->visit_id]) }}?type=emergency" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
+                                        <button type="button" onclick="openInitialAssessment({{ $e->visit_id }}, {{ $e->pet_id ?? 0 }}, '{{ $e->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                            <i class="fas fa-notes-medical"></i>
+                                        </button>
+                                        @php
+                                            $emergPrescription = $e->pet_id ? \App\Models\Prescription::where('pet_id', $e->pet_id)
+                                                ->where('pres_visit_id', $e->visit_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($e->visit_date))
+                                                ->first() : null;
+                                        @endphp
+                                        @if($emergPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $emergPrescription->prescription_id }}"
+                                            data-pet="{{ $emergPrescription->pet->pet_name }}"
+                                            data-species="{{ $emergPrescription->pet->pet_species }}"
+                                            data-breed="{{ $emergPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $emergPrescription->pet->pet_weight }}"
+                                            data-age="{{ $emergPrescription->pet->pet_age }}"
+                                            data-temp="{{ $emergPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $emergPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($emergPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $emergPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $emergPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $emergPrescription->notes }}"
+                                            data-branch-name="{{ $emergPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $emergPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $emergPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -706,11 +1055,32 @@
             @if(isset($emergencyVisits) && method_exists($emergencyVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $emergencyVisits->firstItem() }} to {{ $emergencyVisits->lastItem() }} of
+                    Showing {{ $emergencyVisits->firstItem() ?? 0 }} to {{ $emergencyVisits->lastItem() ?? 0 }} of
                     {{ $emergencyVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $emergencyVisits->appends(['tab' => 'emergency'])->links() }}
+                    @if ($emergencyVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $emergencyVisits->appends(['active_tab' => 'emergency'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $emergencyVisits->lastPage(); $i++)
+                        @if ($i == $emergencyVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $emergencyVisits->appends(['active_tab' => 'emergency'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($emergencyVisits->hasMorePages())
+                        <a href="{{ $emergencyVisits->appends(['active_tab' => 'emergency'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -737,7 +1107,7 @@
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="vaccinationTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -768,6 +1138,36 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $v->visit_id]) }}?type=vaccination" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
+                                        <button type="button" onclick="openInitialAssessment({{ $v->visit_id }}, {{ $v->pet_id ?? 0 }}, '{{ $v->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                            <i class="fas fa-notes-medical"></i>
+                                        </button>
+                                        @php
+                                            $vaccPrescription = $v->pet_id ? \App\Models\Prescription::where('pet_id', $v->pet_id)
+                                                ->where('pres_visit_id', $v->visit_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($v->visit_date))
+                                                ->first() : null;
+                                        @endphp
+                                        @if($vaccPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $vaccPrescription->prescription_id }}"
+                                            data-pet="{{ $vaccPrescription->pet->pet_name }}"
+                                            data-species="{{ $vaccPrescription->pet->pet_species }}"
+                                            data-breed="{{ $vaccPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $vaccPrescription->pet->pet_weight }}"
+                                            data-age="{{ $vaccPrescription->pet->pet_age }}"
+                                            data-temp="{{ $vaccPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $vaccPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($vaccPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $vaccPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $vaccPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $vaccPrescription->notes }}"
+                                            data-branch-name="{{ $vaccPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $vaccPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $vaccPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -782,11 +1182,32 @@
             @if(isset($vaccinationVisits) && method_exists($vaccinationVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $vaccinationVisits->firstItem() }} to {{ $vaccinationVisits->lastItem() }} of
+                    Showing {{ $vaccinationVisits->firstItem() ?? 0 }} to {{ $vaccinationVisits->lastItem() ?? 0 }} of
                     {{ $vaccinationVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $vaccinationVisits->appends(['tab' => 'vaccination'])->links() }}
+                    @if ($vaccinationVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $vaccinationVisits->appends(['active_tab' => 'vaccination'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $vaccinationVisits->lastPage(); $i++)
+                        @if ($i == $vaccinationVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $vaccinationVisits->appends(['active_tab' => 'vaccination'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($vaccinationVisits->hasMorePages())
+                        <a href="{{ $vaccinationVisits->appends(['active_tab' => 'vaccination'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -813,7 +1234,7 @@
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="groomingTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -844,7 +1265,36 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $g->visit_id]) }}?type=grooming" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                       
+                                        <button type="button" onclick="openInitialAssessment({{ $g->visit_id }}, {{ $g->pet_id ?? 0 }}, '{{ $g->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                            <i class="fas fa-notes-medical"></i>
+                                        </button>
+                                        @php
+                                            $groomPrescription = $g->pet_id ? \App\Models\Prescription::where('pet_id', $g->pet_id)
+                                                ->where('pres_visit_id', $g->visit_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($g->visit_date))
+                                                ->first() : null;
+                                        @endphp
+                                        @if($groomPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $groomPrescription->prescription_id }}"
+                                            data-pet="{{ $groomPrescription->pet->pet_name }}"
+                                            data-species="{{ $groomPrescription->pet->pet_species }}"
+                                            data-breed="{{ $groomPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $groomPrescription->pet->pet_weight }}"
+                                            data-age="{{ $groomPrescription->pet->pet_age }}"
+                                            data-temp="{{ $groomPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $groomPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($groomPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $groomPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $groomPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $groomPrescription->notes }}"
+                                            data-branch-name="{{ $groomPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $groomPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $groomPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -859,11 +1309,32 @@
             @if(isset($groomingVisits) && method_exists($groomingVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $groomingVisits->firstItem() }} to {{ $groomingVisits->lastItem() }} of
+                    Showing {{ $groomingVisits->firstItem() ?? 0 }} to {{ $groomingVisits->lastItem() ?? 0 }} of
                     {{ $groomingVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $groomingVisits->appends(['tab' => 'grooming'])->links() }}
+                    @if ($groomingVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $groomingVisits->appends(['active_tab' => 'grooming'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $groomingVisits->lastPage(); $i++)
+                        @if ($i == $groomingVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $groomingVisits->appends(['active_tab' => 'grooming'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($groomingVisits->hasMorePages())
+                        <a href="{{ $groomingVisits->appends(['active_tab' => 'grooming'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -890,7 +1361,7 @@
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="boardingTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -915,13 +1386,58 @@
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($b->visit_date)->format('F j, Y') }}</td>
                                 <td class="border px-4 py-2">{{ $b->pet->pet_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $b->pet->owner->own_name ?? 'N/A' }}</td>
-                                <td class="border px-4 py-2">{{ $b->workflow_status ?? ($b->visit_status ?? '-') }}</td>
+                                <td class="border px-4 py-2">
+                                    @php
+                                        $boardingStatus = null;
+                                        if (isset($b->boardingRecord) && $b->boardingRecord && isset($b->boardingRecord->status)) {
+                                            $boardingStatus = $b->boardingRecord->status;
+                                        } elseif (isset($b->status)) {
+                                            $boardingStatus = $b->status;
+                                        }
+                                    @endphp
+                                    @if(strtolower($boardingStatus) === 'checked in')
+                                        <span class="text-green-700 font-bold">Checked In</span>
+                                    @elseif(strtolower($boardingStatus) === 'checked out')
+                                        <span class="text-red-700 font-bold">Checked Out</span>
+                                    @else
+                                        {{ $b->workflow_status ?? $b->visit_status ?? '-' }}
+                                    @endif
+                                </td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
                                         <a href="{{ route('medical.visits.perform', ['id' => $b->visit_id]) }}?type=boarding" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                       
+                                        <button type="button" onclick="openInitialAssessment({{ $b->visit_id }}, {{ $b->pet_id ?? 0 }}, '{{ $b->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                            <i class="fas fa-notes-medical"></i>
+                                        </button>
+                                        @php
+                                            $boardPrescription = $b->pet_id ? \App\Models\Prescription::where('pet_id', $b->pet_id)
+                                                ->where('pres_visit_id', $b->visit_id)
+                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($b->visit_date))
+                                                ->first() : null;
+                                        @endphp
+                                        @if($boardPrescription)
+                                        <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
+                                            data-id="{{ $boardPrescription->prescription_id }}"
+                                            data-pet="{{ $boardPrescription->pet->pet_name }}"
+                                            data-species="{{ $boardPrescription->pet->pet_species }}"
+                                            data-breed="{{ $boardPrescription->pet->pet_breed }}"
+                                            data-weight="{{ $boardPrescription->pet->pet_weight }}"
+                                            data-age="{{ $boardPrescription->pet->pet_age }}"
+                                            data-temp="{{ $boardPrescription->pet->pet_temperature }}"
+                                            data-gender="{{ $boardPrescription->pet->pet_gender }}"
+                                            data-date="{{ \Carbon\Carbon::parse($boardPrescription->prescription_date)->format('F d, Y') }}"
+                                            data-medication="{{ $boardPrescription->medication }}"
+                                            data-differential-diagnosis="{{ $boardPrescription->differential_diagnosis }}"
+                                            data-notes="{{ $boardPrescription->notes }}"
+                                            data-branch-name="{{ $boardPrescription->branch->branch_name ?? 'Main Branch' }}"
+                                            data-branch-address="{{ $boardPrescription->branch->branch_address ?? 'Branch Address' }}"
+                                            data-branch-contact="{{ $boardPrescription->branch->branch_contactNum ?? 'Contact Number' }}" 
+                                            title="print prescription">
+                                            <i class="fas fa-prescription"></i>
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -936,23 +1452,44 @@
             @if(isset($boardingVisits) && method_exists($boardingVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $boardingVisits->firstItem() }} to {{ $boardingVisits->lastItem() }} of
+                    Showing {{ $boardingVisits->firstItem() ?? 0 }} to {{ $boardingVisits->lastItem() ?? 0 }} of
                     {{ $boardingVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $boardingVisits->appends(['tab' => 'boarding'])->links() }}
+                    @if ($boardingVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $boardingVisits->appends(['active_tab' => 'boarding'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $boardingVisits->lastPage(); $i++)
+                        @if ($i == $boardingVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $boardingVisits->appends(['active_tab' => 'boarding'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($boardingVisits->hasMorePages())
+                        <a href="{{ $boardingVisits->appends(['active_tab' => 'boarding'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
         </div>
 
-        <div id="addVisitModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50">
-            <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-5">
-                <div class="flex justify-between items-center mb-4">
+        <div id="addVisitModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50 overflow-y-auto">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-5 my-8 mx-auto max-h-[90vh] flex flex-col">
+                <div class="flex justify-between items-center mb-4 flex-shrink-0">
                     <h3 class="text-lg font-bold">Add Visit</h3>
                     <button onclick="closeAddVisitModal()" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button>
                 </div>
-                <form id="addVisitForm" method="POST" action="{{ route('medical.visits.store') }}" class="space-y-4">
+                <form id="addVisitForm" method="POST" action="{{ route('medical.visits.store') }}" class="space-y-4 overflow-y-auto flex-grow pr-2">
                     @csrf
                     <input type="hidden" name="active_tab" value="visits">
                     <div class="grid grid-cols-2 gap-4">
@@ -965,8 +1502,71 @@
                             <select id="add_owner_id" class="border border-gray-300 rounded px-3 py-2 w-full">
                                 <option value="" selected disabled>Select owner</option>
                                 @foreach(($filteredOwners ?? []) as $owner)
-                                    <option value="{{ $owner->own_id }}">{{ $owner->own_name }}</option>
+                                    <option value="{{ $owner->own_id }}">{{ $owner->own_name }} ({{ $owner->pets_count ?? 0 }} {{ ($owner->pets_count ?? 0) == 1 ? 'pet' : 'pets' }})</option>
                                 @endforeach
+                                    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+                                    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+                                    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+                                    <script>
+                                    document.addEventListener('DOMContentLoaded', function() {
+                                        // Custom matcher for substring search
+                                        function matchCustom(params, data) {
+                                            if ($.trim(params.term) === '') {
+                                                return data;
+                                            }
+                                            if (typeof data.text === 'undefined') {
+                                                return null;
+                                            }
+                                            if (data.text.toLowerCase().indexOf(params.term.toLowerCase()) > -1) {
+                                                return data;
+                                            }
+                                            return null;
+                                        }
+                                        const ownerSelect = $('#add_owner_id');
+                                        if (ownerSelect.length) {
+                                            ownerSelect.select2({
+                                                width: '100%',
+                                                placeholder: 'Select owner',
+                                                allowClear: true,
+                                                matcher: matchCustom,
+                                                minimumResultsForSearch: 0 // always show search box
+                                            });
+                                            // Prevent dropdown from opening on input focus (but allow arrow click and search)
+                                            ownerSelect.on('select2:opening', function(e) {
+                                                // Only block if focus triggered (not arrow or search)
+                                                if (document.activeElement === this && !window._select2AllowOpen) {
+                                                    e.preventDefault();
+                                                }
+                                                window._select2AllowOpen = false;
+                                            });
+                                            // Allow open on arrow click
+                                            ownerSelect.next('.select2-container').find('.select2-selection__arrow').on('mousedown', function(e) {
+                                                window._select2AllowOpen = true;
+                                            });
+                                            // Allow open on keyboard (Alt+Down, etc.)
+                                            ownerSelect.on('keydown', function(e) {
+                                                if ((e.key === 'ArrowDown' || e.key === 'Enter') && !ownerSelect.data('select2').isOpen()) {
+                                                    window._select2AllowOpen = true;
+                                                }
+                                            });
+                                        }
+                                    });
+                                    </script>
+                                    <!-- Select2 JS and CSS -->
+                                    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+                                    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+                                    <script>
+                                    document.addEventListener('DOMContentLoaded', function() {
+                                        if (window.jQuery && $('#add_owner_id').length) {
+                                            $('#add_owner_id').select2({
+                                                dropdownParent: $('#addVisitModal'),
+                                                width: '100%',
+                                                placeholder: 'Select owner',
+                                                allowClear: true
+                                            });
+                                        }
+                                    });
+                                    </script>
                             </select>
                         </div>
                         <div class="col-span-2">
@@ -978,11 +1578,66 @@
                         </div>
                         <div class="col-span-2">
                             <label class="block text-sm font-medium">Patient Type</label>
-                            <select name="patient_type" id="add_patient_type" class="border border-gray-300 rounded px-3 py-2 w-full" required>
+                            <select name="patient_type" id="add_patient_type" class="border border-gray-300 rounded px-3 py-2 w-full" required onchange="togglePatientTypeFields()">
                                 @foreach(['Outpatient','Inpatient','Emergency'] as $pt)
                                     <option value="{{ $pt }}">{{ $pt }}</option>
                                 @endforeach
                             </select>
+                            <p class="text-xs text-gray-500 mt-1" id="patient_type_hint">Standard outpatient visit.</p>
+                        </div>
+                        
+                        {{-- Inpatient Fields (shown when Inpatient is selected) --}}
+                        <div id="inpatient_fields" class="col-span-2 hidden">
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                                <div class="flex items-center gap-2 text-blue-700 font-medium">
+                                    <i class="fas fa-procedures"></i>
+                                    <span>Inpatient Admission Details</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Cage/Ward Number</label>
+                                        <input type="text" name="cage_ward_number" id="add_cage_ward_number" 
+                                            class="border border-gray-300 rounded px-3 py-2 w-full" 
+                                            placeholder="e.g., Cage 1, Ward A">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Admission Date</label>
+                                        <input type="datetime-local" name="admission_date" id="add_admission_date" 
+                                            class="border border-gray-300 rounded px-3 py-2 w-full">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Admission Notes</label>
+                                    <textarea name="admission_notes" id="add_admission_notes" rows="2" 
+                                        class="border border-gray-300 rounded px-3 py-2 w-full" 
+                                        placeholder="Reason for admission, initial observations, special care instructions..."></textarea>
+                                </div>
+                                <p class="text-xs text-blue-600">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Inpatient visits stay open and can have multiple services added during the stay (Surgical, Diagnostics, Check-up, Boarding, etc.)
+                                </p>
+                            </div>
+                        </div>
+                        
+                        {{-- Emergency Fields (shown when Emergency is selected) --}}
+                        <div id="emergency_fields" class="col-span-2 hidden">
+                            <div class="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
+                                <div class="flex items-center gap-2 text-red-700 font-medium">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <span>Emergency Visit - High Priority</span>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Emergency Notes</label>
+                                    <textarea name="admission_notes" id="add_emergency_notes" rows="2" 
+                                        class="border border-gray-300 rounded px-3 py-2 w-full" 
+                                        placeholder="Emergency situation description, symptoms, initial assessment..."></textarea>
+                                </div>
+                                <input type="hidden" name="is_priority" id="add_is_priority" value="0">
+                                <p class="text-xs text-red-600">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Emergency visits are marked as high priority. You can add Emergency service, Diagnostics, Surgical, and other services as needed.
+                                </p>
+                            </div>
                         </div>
                     </div>
                     <div class="flex justify-end gap-2 pt-2">
@@ -993,13 +1648,13 @@
             </div>
         </div>
 
-        <div id="editVisitModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50">
-            <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-5">
-                <div class="flex justify-between items-center mb-4">
+        <div id="editVisitModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50 overflow-y-auto">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-5 my-8 mx-auto max-h-[90vh] flex flex-col">
+                <div class="flex justify-between items-center mb-4 flex-shrink-0">
                     <h3 class="text-lg font-bold" id="editVisitTitle">Edit Visit</h3>
                     <button onclick="closeEditVisitModal()" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button>
                 </div>
-                <form id="editVisitForm" method="POST" action="#" class="space-y-4">
+                <form id="editVisitForm" method="POST" action="#" class="space-y-4 overflow-y-auto flex-grow pr-2">
                     @csrf
                     @method('PUT')
                     <input type="hidden" name="active_tab" value="visits">
@@ -1034,13 +1689,20 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium">Status</label>
-                            <select name="visit_status" id="edit_visit_status" class="border border-gray-300 rounded px-3 py-2 w-full">
-                                <option value="arrived">Arrived</option>
-                                <option value="completed">Completed</option>
-                                <option value="cancelled">Cancelled</option>
-                            </select>
+                            <input type="text" name="visit_status" id="edit_visit_status" class="border border-gray-300 rounded px-3 py-2 w-full bg-gray-100" readonly>
                         </div>
                     </div>
+                    
+                    <div class="border-t pt-4 mt-4">
+                        <label class="block text-sm font-medium mb-2">Services</label>
+                        <div class="space-y-2 mb-3" id="edit_services_list">
+                            <!-- Services will be populated here -->
+                        </div>
+                        <button type="button" onclick="addServiceToEdit()" class="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600">
+                            <i class="fas fa-plus mr-1"></i> Add Service Type
+                        </button>
+                    </div>
+                    
                     <div class="flex justify-end gap-2 pt-2">
                         <button type="button" onclick="closeEditVisitModal()" class="px-4 py-2 border rounded">Cancel</button>
                         <button type="submit" class="px-4 py-2 bg-[#0f7ea0] text-white rounded">Update</button>
@@ -1143,6 +1805,40 @@ function showTab(tabName) {
 }
 
 // ===== Visits Modals =====
+function togglePatientTypeFields() {
+    const patientType = document.getElementById('add_patient_type').value;
+    const inpatientFields = document.getElementById('inpatient_fields');
+    const emergencyFields = document.getElementById('emergency_fields');
+    const patientTypeHint = document.getElementById('patient_type_hint');
+    const isPriorityInput = document.getElementById('add_is_priority');
+    
+    // Hide all conditional fields first
+    if (inpatientFields) inpatientFields.classList.add('hidden');
+    if (emergencyFields) emergencyFields.classList.add('hidden');
+    if (isPriorityInput) isPriorityInput.value = '0';
+    
+    if (patientType === 'Inpatient') {
+        // Show inpatient fields
+        if (inpatientFields) inpatientFields.classList.remove('hidden');
+        if (patientTypeHint) patientTypeHint.textContent = 'Patient will be admitted. Status: Admitted (not arrived until checked in).';
+        
+        // Set default admission date to now
+        const admissionDateInput = document.getElementById('add_admission_date');
+        if (admissionDateInput && !admissionDateInput.value) {
+            const now = new Date();
+            admissionDateInput.value = now.toISOString().slice(0, 16);
+        }
+    } else if (patientType === 'Emergency') {
+        // Show emergency fields
+        if (emergencyFields) emergencyFields.classList.remove('hidden');
+        if (patientTypeHint) patientTypeHint.textContent = 'High priority emergency case.';
+        if (isPriorityInput) isPriorityInput.value = '1';
+    } else {
+        // Outpatient - default
+        if (patientTypeHint) patientTypeHint.textContent = 'Standard outpatient visit.';
+    }
+}
+
 function openAddVisitModal() {
     showTab('visits');
     const modal = document.getElementById('addVisitModal');
@@ -1155,6 +1851,9 @@ function openAddVisitModal() {
     const dateInput = document.getElementById('add_visit_date');
     if (dateInput) dateInput.value = today;
     
+    // Reset patient type fields visibility
+    togglePatientTypeFields();
+    
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 }
@@ -1162,6 +1861,25 @@ function openAddVisitModal() {
 function closeAddVisitModal() {
     const modal = document.getElementById('addVisitModal');
     if (!modal) return;
+    
+    // Clear any validation errors
+    document.querySelectorAll('.validation-error').forEach(el => el.remove());
+    
+    // Reset form
+    const form = document.getElementById('addVisitForm');
+    if (form) form.reset();
+    
+    // Clear pets container
+    const petsContainer = document.getElementById('add_owner_pets_container');
+    if (petsContainer) {
+        petsContainer.innerHTML = '<div class="text-gray-500 text-sm">Select an owner to load their pets.</div>';
+    }
+    
+    // Reset Select2 if initialized
+    if (window.jQuery && $('#add_owner_id').data('select2')) {
+        $('#add_owner_id').val(null).trigger('change');
+    }
+    
     modal.classList.add('hidden');
     modal.classList.remove('flex');
 }
@@ -1194,10 +1912,28 @@ function openEditVisitModal(visitId, attending) {
         if (weightInput) weightInput.value = v.weight ?? '';
         if (tempInput) tempInput.value = v.temperature ?? '';
         if (typeSelect) typeSelect.value = capitalizeFirstLetter(v.patient_type) ?? 'Outpatient';
-        if (statusSelect && v.visit_status) {
-            statusSelect.value = v.visit_status;
-        } else if (statusSelect && attending) {
-            statusSelect.value = 'arrived';
+        if (statusSelect) {
+            statusSelect.value = capitalizeFirstLetter(v.visit_status || 'pending');
+        }
+
+        // Load service types
+        const servicesList = document.getElementById('edit_services_list');
+        if (servicesList) {
+            servicesList.innerHTML = '';
+            if (v.services && v.services.length > 0) {
+                // Get unique service types from services
+                const serviceTypesSet = new Set();
+                v.services.forEach(service => {
+                    const serviceType = (service.serv_type || service.serv_name || '').toLowerCase();
+                    if (serviceType) {
+                        serviceTypesSet.add(serviceType);
+                    }
+                });
+                // Add a row for each unique service type
+                serviceTypesSet.forEach(serviceType => {
+                    addServiceToEditRow(serviceType);
+                });
+            }
         }
 
         modal.classList.remove('hidden');
@@ -1216,6 +1952,58 @@ function closeEditVisitModal() {
     if (!modal) return;
     modal.classList.add('hidden');
     modal.classList.remove('flex');
+}
+
+// Service management functions for edit visit
+let editServiceCounter = 0;
+
+function addServiceToEdit() {
+    const servicesList = document.getElementById('edit_services_list');
+    if (!servicesList) return;
+    
+    const serviceTypes = ['boarding', 'check-up', 'deworming', 'diagnostics', 'emergency', 'grooming', 'surgical', 'vaccination'];
+    
+    const rowId = `edit_service_row_${editServiceCounter++}`;
+    const row = document.createElement('div');
+    row.id = rowId;
+    row.className = 'flex gap-2 items-center';
+    row.innerHTML = `
+        <select name="service_type[]" class="border border-gray-300 rounded px-3 py-2 flex-1" required>
+            <option value="">Select Service Type</option>
+            ${serviceTypes.map(type => `<option value="${type}">${capitalizeFirstLetter(type)}</option>`).join('')}
+        </select>
+        <button type="button" onclick="removeEditServiceRow('${rowId}')" class="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+            <i class="fas fa-trash"></i>
+        </button>
+    `;
+    servicesList.appendChild(row);
+}
+
+function addServiceToEditRow(serviceType) {
+    const servicesList = document.getElementById('edit_services_list');
+    if (!servicesList) return;
+    
+    const serviceTypes = ['boarding', 'check up', 'deworming', 'diagnostics', 'emergency', 'grooming', 'surgical', 'vaccination'];
+    
+    const rowId = `edit_service_row_${editServiceCounter++}`;
+    const row = document.createElement('div');
+    row.id = rowId;
+    row.className = 'flex gap-2 items-center';
+    row.innerHTML = `
+        <select name="service_type[]" class="border border-gray-300 rounded px-3 py-2 flex-1" required>
+            <option value="">Select Service Type</option>
+            ${serviceTypes.map(type => `<option value="${type}" ${type === serviceType ? 'selected' : ''}>${capitalizeFirstLetter(type)}</option>`).join('')}
+        </select>
+        <button type="button" onclick="removeEditServiceRow('${rowId}')" class="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+            <i class="fas fa-trash"></i>
+        </button>
+    `;
+    servicesList.appendChild(row);
+}
+
+function removeEditServiceRow(rowId) {
+    const row = document.getElementById(rowId);
+    if (row) row.remove();
 }
 
 // Advance workflow status inline for service tabs
@@ -1252,15 +2040,29 @@ async function advanceWorkflow(visitId, btn, type){
 document.addEventListener('DOMContentLoaded', function() {
     setupCSRF();
     
-    // Default to Visits tab on load
+    // Default tab based on user role
     try { 
-        // Read the 'tab' URL parameter, or default to 'visits'
+        // Read the 'tab' URL parameter, or default based on role
         const urlParams = new URLSearchParams(window.location.search);
-        const activeTab = urlParams.get('tab') || 'visits';
+        const userRole = '{{ $userRole }}';
+        let defaultTab = 'grooming'; // default for all
+        if (userRole === 'receptionist') {
+            defaultTab = 'visits';
+        } else if (userRole === 'veterinarian') {
+            defaultTab = 'checkup';
+        }
+        const activeTab = urlParams.get('tab') || defaultTab;
         showTab(activeTab); 
     } catch(e) {
-        // Fallback in case of an issue
-        showTab('visits');
+        // Fallback based on role
+        const userRole = '{{ $userRole }}';
+        if (userRole === 'receptionist') {
+            showTab('visits');
+        } else if (userRole === 'veterinarian') {
+            showTab('checkup');
+        } else {
+            showTab('grooming');
+        }
     }
     
     const ownerSelect = document.getElementById('add_owner_id');
@@ -1275,7 +2077,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 🛑 SERVICE PAIRING RULES (Cannot Be Paired With)
     const servicePairingRules = {
         'surgical': ['grooming', 'vaccination', 'deworming', 'boarding'],
-        'emergency': ['check up', 'grooming', 'vaccination', 'deworming', 'surgical', 'boarding'],
+        'emergency': ['check-up', 'grooming', 'vaccination', 'deworming', 'surgical', 'boarding'],
         'vaccination': ['surgical', 'grooming'],
         'boarding': ['surgical', 'emergency'],
         'diagnostics': ['grooming', 'deworming'],
@@ -1342,16 +2144,14 @@ document.addEventListener('DOMContentLoaded', function() {
         
         container.innerHTML = pets.map(p => {
             // Fixed serv_type options (normalized to lowercase)
-            const fixedTypes = ['boarding','check up','deworming','diagnostics','emergency','grooming','surgical','vaccination'];
+            const fixedTypes = ['boarding','check-up','deworming','diagnostics','emergency','grooming','surgical','vaccination'];
             const serviceCheckboxes = fixedTypes.map(type => `
                 <label class='inline-flex items-center mr-3 mb-1'>
                     <input type="checkbox" name="service_type[${p.pet_id}][]" value="${type}" class="service-checkbox mr-1"> ${capitalizeFirstLetter(type)}
                 </label>
             `).join('');
-            
             const species = String(p.pet_species || '').toLowerCase();
             const icon = species === 'cat' ? '<i class="fas fa-cat text-gray-600 mr-1" title="Cat"></i>' : (species === 'dog' ? '<i class="fas fa-dog text-gray-600 mr-1" title="Dog"></i>' : '');
-            
             return `
             <div class="border border-gray-200 rounded p-3">
                 <label class="flex items-start gap-3">
@@ -1361,7 +2161,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="grid grid-cols-4 gap-3 mt-2 text-sm items-end">
                             <div>
                                 <label class="block text-xs text-gray-600">Weight (kg)</label>
-                                <input type="number" step="0.01" name="weight[${p.pet_id}]" class="border border-gray-300 rounded px-2 py-1 w-full" placeholder="e.g. 3.50">
+                                <input type="number" step="0.01" name="weight[${p.pet_id}]" class="border border-gray-300 rounded px-2 py-1 w-full pet-weight-input" placeholder="e.g. 3.50" min="1" max="90" data-pet="${p.pet_id}">
+                                <div class="error-message" style="display:none"></div>
                             </div>
                             <div>
                                 <label class="block text-xs text-gray-600">Temperature (°C)</label>
@@ -1410,96 +2211,229 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (ownerSelect) {
+        // For native select
         ownerSelect.addEventListener('change', function() {
             renderOwnerPets(this.value);
         });
+        // For Select2
+        if (window.jQuery && $(ownerSelect).data('select2')) {
+            $(ownerSelect).on('select2:select', function(e) {
+                renderOwnerPets(e.params.data.id);
+            });
+            $(ownerSelect).on('select2:clear', function(e) {
+                renderOwnerPets('');
+            });
+        }
     }
 });
 
-// Persistent client-side search for Visits with auto-switch to 'All'
-document.addEventListener('DOMContentLoaded', function(){
-    function getKey(){ return 'mm_search_visits'; }
-    function setPersist(val){ try{ localStorage.setItem(getKey(), val); }catch(e){} }
-    function getPersist(){ try{ return localStorage.getItem(getKey()) || ''; }catch(e){ return ''; } }
-    function filterBody(tbody, q){
-        const needle = String(q || '').toLowerCase();
-        tbody.querySelectorAll('tr').forEach(tr => {
-            const text = tr.textContent.toLowerCase();
-            tr.style.display = !needle || text.includes(needle) ? '' : 'none';
-        });
-    }
-    const input = document.getElementById('visitsSearch');
-    const table = document.querySelector('#visitsContent table');
-    const tbody = table ? table.querySelector('tbody') : null;
-    const sel = document.getElementById('visitPerPage');
-    const form = document.querySelector('#visitsContent form[action]') || (sel ? sel.form : null);
-    if(!input || !tbody) return;
-
-    const last = getPersist();
-    if(last){
-        input.value = last;
-        if (sel && sel.value !== 'all') {
-            sel.value = 'all';
-            if (form) form.submit();
-            return;
-        }
-        filterBody(tbody, last);
-    }
-    input.addEventListener('input', function(){
-        const q = this.value.trim();
-        setPersist(q);
-        if (q && sel && sel.value !== 'all') {
-            sel.value = 'all';
-            if (form) form.submit();
-            return;
-        }
-        filterBody(tbody, q);
+// Initialize all ListFilter instances for medical management tabs
+document.addEventListener('DOMContentLoaded', function() {
+    // Main visits table with status filtering
+    new ListFilter({
+        tableSelector: '#visitsTable',
+        searchInputId: 'visitsSearch',
+        perPageSelectId: 'visitPerPage',
+        paginationContainerId: 'visitsPagination',
+        searchColumns: [1, 2, 3, 4, 7, 8, 9], // Date, Pet, Species, Owner, Patient Type, Service Type, Status columns
+        filterSelects: [
+            { selectId: 'visitsStatus', columnIndex: 9 } // Status column (0-based)
+        ]
     });
-});
-
-// Generic search binder for other tabs
-document.addEventListener('DOMContentLoaded', function(){
-    function bindSearch(inputId, tableSelector, perPageSelectId, storageKey){
+    
+    // Basic search for other tabs until their table structure is updated
+    function bindBasicSearch(inputId, tableSelector, storageKey) {
         const input = document.getElementById(inputId);
         const table = document.querySelector(tableSelector);
         const tbody = table ? table.querySelector('tbody') : null;
-        const sel = document.getElementById(perPageSelectId);
-        if(!input || !tbody) return;
-        function setPersist(val){ try{ localStorage.setItem(storageKey, val); }catch(e){} }
-        function getPersist(){ try{ return localStorage.getItem(storageKey) || ''; }catch(e){ return ''; } }
-        function filterBody(q){
-            const needle = String(q || '').toLowerCase();
+        if (!input || !tbody) return;
+        
+        function setPersist(val) { 
+            try { localStorage.setItem(storageKey, val); } catch(e) {} 
+        }
+        function getPersist() { 
+            try { return localStorage.getItem(storageKey) || ''; } catch(e) { return ''; } 
+        }
+        function filterRows(query) {
+            const needle = String(query || '').toLowerCase();
             tbody.querySelectorAll('tr').forEach(tr => {
                 const text = tr.textContent.toLowerCase();
                 tr.style.display = !needle || text.includes(needle) ? '' : 'none';
             });
         }
+        
         const last = getPersist();
-        if(last){
+        if (last) {
             input.value = last;
-            if (sel && sel.value !== 'all') {
-                sel.value = 'all';
-                if (sel.form) sel.form.submit();
-                return;
-            }
-            filterBody(last);
+            filterRows(last);
         }
-        input.addEventListener('input', function(){
+        
+        input.addEventListener('input', function() {
             const q = this.value.trim();
             setPersist(q);
-            if (q && sel && sel.value !== 'all') {
-                sel.value = 'all';
-                if (sel.form) sel.form.submit();
-                return;
-            }
-            filterBody(q);
+            filterRows(q);
         });
     }
-    bindSearch('checkupSearch', '#checkupContent table', 'consultationVisitsPerPage', 'mm_search_checkup');
-    bindSearch('dewormingSearch', '#dewormingContent table', 'dewormingVisitsPerPage', 'mm_search_deworming');
-    bindSearch('diagnosticsSearch', '#diagnosticsContent table', 'diagnosticsVisitsPerPage', 'mm_search_diagnostics');
-    bindSearch('surgicalSearch', '#surgicalContent table', 'surgicalVisitsPerPage', 'mm_search_surgical');
-    bindSearch('emergencySearch', '#emergencyContent table', 'emergencyVisitsPerPage', 'mm_search_emergency');
+    
+    // Bind basic search for other tabs
+    bindBasicSearch('checkupSearch', '#checkupTable', 'mm_search_checkup');
+    bindBasicSearch('dewormingSearch', '#dewormingTable', 'mm_search_deworming'); 
+    bindBasicSearch('diagnosticsSearch', '#diagnosticsTable', 'mm_search_diagnostics');
+    bindBasicSearch('surgicalSearch', '#surgicalTable', 'mm_search_surgical');
+    bindBasicSearch('emergencySearch', '#emergencyTable', 'mm_search_emergency');
+    bindBasicSearch('vaccinationSearch', '#vaccinationTable', 'mm_search_vaccination');
+    bindBasicSearch('groomingSearch', '#groomingTable', 'mm_search_grooming');
+    bindBasicSearch('boardingSearch', '#boardingTable', 'mm_search_boarding');
+});
+
+// Add Visit Form Validation
+document.addEventListener('DOMContentLoaded', function() {
+    const addVisitForm = document.getElementById('addVisitForm');
+    const submitButton = addVisitForm.querySelector('button[type="submit"]');
+    
+    function validateAddVisitForm() {
+        const errors = [];
+        
+        // 1. Check if at least one pet is selected
+        const selectedPets = document.querySelectorAll('#add_owner_pets_container input[name="pet_ids[]"]:checked');
+        if (selectedPets.length === 0) {
+            errors.push('Please select at least one pet');
+        }
+        
+        // 2. Check weight and temperature for selected pets
+        selectedPets.forEach((checkbox, index) => {
+            const petId = checkbox.value;
+            const petContainer = checkbox.closest('.border');
+            if (petContainer) {
+                const weightInput = petContainer.querySelector(`input[name="weight[${petId}]"]`);
+                const tempInput = petContainer.querySelector(`input[name="temperature[${petId}]"]`);
+                const petNameElement = petContainer.querySelector('.font-medium');
+                const petName = petNameElement ? petNameElement.textContent.replace(/^\s*[♦♠♥♣]\s*/, '').trim() : `Pet ${index + 1}`;
+                
+                if (weightInput && (!weightInput.value || weightInput.value.trim() === '')) {
+                    errors.push(`Please enter weight for ${petName}`);
+                }
+                if (tempInput && (!tempInput.value || tempInput.value.trim() === '')) {
+                    errors.push(`Please enter temperature for ${petName}`);
+                }
+                
+                // 3. Check if at least one service type is selected for this pet
+                const selectedServices = petContainer.querySelectorAll(`input[name="service_type[${petId}][]"]:checked`);
+                if (selectedServices.length === 0) {
+                    errors.push(`Please select at least one service type for ${petName}`);
+                }
+            }
+        });
+        
+        return errors;
+    }
+    
+    function updateSubmitButton() {
+        const errors = validateAddVisitForm();
+        if (errors.length > 0) {
+            submitButton.disabled = true;
+            submitButton.classList.add('opacity-50', 'cursor-not-allowed');
+            submitButton.classList.remove('hover:bg-[#0d6d8a]');
+        } else {
+            submitButton.disabled = false;
+            submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            submitButton.classList.add('hover:bg-[#0d6d8a]');
+        }
+    }
+    
+    function showValidationErrors(errors) {
+        // Remove existing error messages
+        document.querySelectorAll('.validation-error').forEach(el => el.remove());
+        
+        if (errors.length > 0) {
+            const errorContainer = document.createElement('div');
+            errorContainer.className = 'validation-error bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4';
+            
+            const errorList = document.createElement('ul');
+            errorList.className = 'list-disc list-inside';
+            
+            errors.forEach(error => {
+                const errorItem = document.createElement('li');
+                errorItem.textContent = error;
+                errorList.appendChild(errorItem);
+            });
+            
+            errorContainer.appendChild(errorList);
+            
+            // Insert error container at the top of the form
+            const firstElement = addVisitForm.querySelector('.space-y-4');
+            firstElement.insertBefore(errorContainer, firstElement.firstChild);
+        }
+    }
+    
+    // Add event listeners for real-time validation
+    function addValidationListeners() {
+        // Listen for changes in the pets container
+        const petsContainer = document.getElementById('add_owner_pets_container');
+        if (petsContainer) {
+            petsContainer.addEventListener('change', updateSubmitButton);
+            petsContainer.addEventListener('input', updateSubmitButton);
+        }
+        
+        // Listen for owner selection changes
+        const ownerSelect = document.getElementById('add_owner_id');
+        if (ownerSelect) {
+            ownerSelect.addEventListener('change', function() {
+                setTimeout(updateSubmitButton, 500); // Delay to allow pets to load
+            });
+            
+            // For Select2
+            if (window.jQuery && $(ownerSelect).data('select2')) {
+                $(ownerSelect).on('select2:select select2:clear', function() {
+                    setTimeout(updateSubmitButton, 500);
+                });
+            }
+        }
+    }
+    
+    // Initialize MutationObserver to watch for changes in pets container
+    function initializePetContainerObserver() {
+        const petsContainer = document.getElementById('add_owner_pets_container');
+        if (petsContainer) {
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'childList') {
+                        // Pets were added/removed, update validation
+                        setTimeout(updateSubmitButton, 100);
+                    }
+                });
+            });
+            
+            observer.observe(petsContainer, {
+                childList: true,
+                subtree: true
+            });
+        }
+    }
+    
+    // Initialize validation listeners and observer
+    addValidationListeners();
+    initializePetContainerObserver();
+    updateSubmitButton();
+    
+    // Form submission validation
+    addVisitForm.addEventListener('submit', function(e) {
+        const errors = validateAddVisitForm();
+        if (errors.length > 0) {
+            e.preventDefault();
+            showValidationErrors(errors);
+            
+            // Scroll to error message
+            const errorElement = document.querySelector('.validation-error');
+            if (errorElement) {
+                errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            return false;
+        }
+        
+        // Remove any existing error messages on successful validation
+        document.querySelectorAll('.validation-error').forEach(el => el.remove());
+    });
 });
 </script>
 
@@ -1527,6 +2461,164 @@ document.addEventListener('DOMContentLoaded', function(){
         }
     }
     window.openInitialAssessment = openInitialAssessment;
+
+    // Prescription Print Functions
+    function populatePrescriptionData(button) {
+        let medications = [];
+        try {
+            medications = JSON.parse(button.dataset.medication || '[]');
+        } catch (e) {
+            if (button.dataset.medication) {
+                const oldMeds = button.dataset.medication.split(';');
+                medications = oldMeds.map(med => ({
+                    product_name: med.trim(),
+                    instructions: '[Instructions will be added here]'
+                }));
+            }
+        }
+        
+        const prescriptionData = {
+            id: button.dataset.id,
+            pet: button.dataset.pet,
+            weight: button.dataset.weight || 'N/A',
+            temp: button.dataset.temp || 'N/A',
+            age: button.dataset.age || 'N/A',
+            gender: button.dataset.gender || 'N/A',
+            date: button.dataset.date,
+            medications: medications,
+            differentialDiagnosis: button.dataset.differentialDiagnosis || 'Not specified',
+            notes: button.dataset.notes || 'No specific recommendations',
+            branchName: button.dataset.branchName.toUpperCase(),
+            branchAddress: 'Address: ' + button.dataset.branchAddress,
+            branchContact: "Contact No: " + button.dataset.branchContact
+        };
+        
+        return prescriptionData;
+    }
+
+    function updatePrescriptionContent(targetId, data) {
+        const container = document.getElementById(targetId);
+        
+        container.innerHTML = `
+            <div class="header flex items-center justify-between border-b-2 border-black pb-6 mb-6">
+                <div class="flex-shrink-0">
+                    <img src="{{ asset('images/pets2go.png') }}" alt="Pets2GO Logo" class="w-28 h-28 object-contain">
+                </div>
+                <div class="flex-grow text-center">
+                    <div class="clinic-name text-2xl font-bold text-[#a86520] tracking-wide">
+                        PETS 2GO VETERINARY CLINIC
+                    </div>
+                    <div class="branch-name text-lg font-bold underline text-center mt-1">
+                        ${data.branchName}
+                    </div>
+                    <div class="clinic-details text-sm text-gray-700 mt-1 text-center leading-tight">
+                        <div>${data.branchAddress}</div>
+                        <div>${data.branchContact}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="prescription-body">
+                <div class="patient-info mb-6">
+                    <div class="grid grid-cols-3 gap-2 text-sm">
+                        <div>
+                            <div class="mb-2"><strong>DATE:</strong> ${data.date}</div>
+                            <div class="mb-2"><strong>NAME OF PET:</strong> ${data.pet}</div>
+                        </div>
+                        <div class="text-center">
+                            <div><strong>WEIGHT:</strong> ${data.weight}</div>
+                            <div><strong>TEMP:</strong> ${data.temp}</div>
+                        </div>
+                        <div class="text-right">
+                            <div><strong>AGE:</strong> ${data.age}</div>
+                            <div><strong>GENDER:</strong> ${data.gender}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rx-symbol text-left my-8 text-6xl font-bold text-gray-800">℞</div>
+
+                <div class="medication-section mb-8">
+                    <div class="section-title text-base font-bold mb-4">MEDICATION</div>
+                    <div class="space-y-3">
+                        ${data.medications && data.medications.length > 0 ? data.medications.map((med, index) => `
+                            <div class="medication-item">
+                                <div class="text-sm font-medium text-red-600 mb-1">${index+1}. ${med.product_name || med.name || 'Unknown medication'}</div>
+                                <div class="text-sm text-gray-700 ml-4"><strong>SIG.</strong> ${med.instructions || '[Instructions will be added here]'}</div>
+                            </div>
+                        `).join('') : '<div class="medication-item text-gray-500">No medications prescribed</div>'}
+                    </div>
+                </div>
+
+                <div class="differential-diagnosis mb-6">
+                    <h3 class="text-base font-bold mb-2">DIFFERENTIAL DIAGNOSIS:</h3>
+                    <div class="text-sm bg-blue-50 p-3 rounded border-l-4 border-blue-500">${data.differentialDiagnosis || 'Not specified'}</div>
+                </div>
+
+                <div class="recommendations mb-8">
+                    <h3 class="text-base font-bold mb-4">RECOMMENDATION/REMINDER:</h3>
+                    <div class="text-sm">${data.notes}</div>
+                </div>
+
+                <div class="footer text-right pt-8 border-t-2 border-black">
+                    <div class="doctor-info text-sm">
+                        <div class="doctor-name font-bold mb-1">JAN JERICK M. GO DVM</div>
+                        <div class="license-info text-gray-600">License No.: 0012045</div>
+                        <div class="license-info text-gray-600">Attending Veterinarian</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function directPrintPrescription(button) {
+        const data = populatePrescriptionData(button);
+        updatePrescriptionContent('printContent', data);
+        
+        const printContainer = document.getElementById('printContainer');
+        printContainer.style.display = 'block';
+        printContainer.classList.add('print-prescription');
+        
+        setTimeout(() => {
+            window.print();
+            printContainer.style.display = 'none';
+            printContainer.classList.remove('print-prescription');
+        }, 200);
+    }
+    window.directPrintPrescription = directPrintPrescription;
+    
   </script>
+
+  {{-- Print Container for Prescriptions --}}
+  <div id="printContainer" style="display: none;">
+    <div id="printContent" class="prescription-container bg-white p-10"></div>
+  </div>
+
+  <style>
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        
+        .print-prescription,
+        .print-prescription * {
+            visibility: visible;
+        }
+        
+        .print-prescription {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            z-index: 9999;
+        }
+        
+        .print-prescription .prescription-container {
+            max-width: 8.5in;
+            margin: 0 auto;
+            padding: 0.5in;
+        }
+    }
+  </style>
 
 @endsection

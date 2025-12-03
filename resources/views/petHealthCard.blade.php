@@ -56,9 +56,12 @@
         }
         
         /* Force colors to print */
-        .bg-blue-main, .color-blue-main, .bg-orange-main, .color-orange-main, .bg-gray-100 {
+        .bg-blue-main, .color-blue-main, .bg-orange-main, .color-orange-main, .bg-gray-100, 
+        .bg-blue-light, .bg-orange-light, .bg-white, .border-blue-400, .border-orange-300, 
+        .border-blue-300, .border-orange-600, .text-gray-600, .text-gray-800, .text-blue-700 {
             -webkit-print-color-adjust: exact !important;
             color-adjust: exact !important;
+            print-color-adjust: exact !important;
         }
 
         /* Table header styles */
@@ -151,7 +154,7 @@
                     </td>
                     
                     {{-- Due Date Column --}}
-                    <td class="border border-gray-400 px-1 text-center">
+                    <td class="border border-gray-400 px-1 text-center font-bold color-orange-main">
                         {{ $record->due_date ? \Carbon\Carbon::parse($record->due_date)->format('M d, Y') : '--' }}
                     </td>
                     
@@ -188,10 +191,40 @@
                 <h3 class="color-blue-main font-bold text-xl mb-4 border-b border-blue-300 pb-2">
                     <i class="fas fa-clipboard-list mr-2"></i> NOTES / MEMO
                 </h3>
-                <div class="border border-gray-300 flex-1 p-3 space-y-2 text-sm overflow-hidden">
-                    @for($i = 0; $i < 20; $i++)
-                        <div class="border-b border-gray-200 h-5"></div>
-                    @endfor
+                <div class="border border-gray-300 flex-1 p-3 text-xs overflow-hidden">
+                    @if(isset($followUpAppointments) && $followUpAppointments->count() > 0)
+                        <h4 class="font-bold color-orange-main text-sm mb-2">UPCOMING FOLLOW-UP APPOINTMENTS:</h4>
+                        <div class="space-y-2 mb-3">
+                            @foreach($followUpAppointments as $appointment)
+                                <div class="border-l-2 border-blue-400 pl-2 py-1">
+                                    <p class="font-semibold text-gray-800 leading-tight">
+                                        {{ $appointment->type }} 
+                                        @if($appointment->description)
+                                            - {{ Str::limit($appointment->description, 30) }}
+                                        @endif
+                                    </p>
+                                    <p class="text-[10px] leading-tight">
+                                        <span class="font-bold color-orange-main">{{ \Carbon\Carbon::parse($appointment->date)->format('M d, Y') }}</span> - 
+                                        <span class="uppercase font-semibold text-gray-600">{{ $appointment->status }}</span>
+                                    </p>
+                                </div>
+                            @endforeach
+                        </div>
+                        <div class="border-t border-gray-300 pt-2 mt-2">
+                            <p class="text-gray-500 text-[10px] italic">Additional Notes:</p>
+                        </div>
+                    @endif
+                    
+                    {{-- Blank lines for manual notes --}}
+                    <div class="space-y-2 mt-2">
+                        @php
+                            $appointmentLines = isset($followUpAppointments) ? min($followUpAppointments->count() * 2, 10) : 0;
+                            $remainingLines = max(15 - $appointmentLines, 5);
+                        @endphp
+                        @for($i = 0; $i < $remainingLines; $i++)
+                            <div class="border-b border-gray-200 h-5"></div>
+                        @endfor
+                    </div>
                 </div>
             </div>
 
@@ -322,7 +355,7 @@
                     <th class="border border-gray-400 p-1 text-center" style="width: 15%">DATE GIVEN</th>
                     
                     {{-- Updated Headers based on requirements --}}
-                    <th class="border border-gray-400 p-1 text-center" style="width: 25%">PRODUCT DESCRIPTION</th>
+                    <th class="border border-gray-400 p-1 text-center" style="width: 25%">AGAINTS</th>
                     <th class="border border-gray-400 p-1 text-center" style="width: 30%">VACCINE NAME & BATCH #</th>
                     
                     <th class="border border-gray-400 p-1 text-center" style="width: 15%">DATE DUE</th>
@@ -358,8 +391,10 @@
                         
                         {{-- Mapped to Veterinarian Name + License --}}
                         <td class="border border-gray-400 px-1 text-xs">
-                           <p class="font-semibold leading-tight">{{ Str::limit($record->user_name, 10) }}</p>
-                            <p class="text-gray-600 leading-tight">Lic: {{ $record->user_licenseNum ?? '--' }}</p>
+                           <p class="font-semibold leading-tight">{{ Str::limit($record->user_name ?? 'N/A', 15) }}</p>
+                            @if(isset($record->user_licenseNum) && $record->user_licenseNum !== '--' && $record->user_licenseNum !== null && $record->user_licenseNum !== '')
+                                <p class="text-gray-600 leading-tight text-[10px]">Lic: {{ $record->user_licenseNum }}</p>
+                            @endif
                         </td>
                     </tr>
                 @endforeach

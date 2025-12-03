@@ -22,23 +22,23 @@
                <div class="bg-white rounded-xl shadow-sm border p-4 cursor-pointer hover:shadow-md transition" onclick="openVisitHistoryModal()">
                 <div class="font-semibold text-gray-900 mb-2">Recent Visit History</div>
                 <div class="space-y-2 max-h-40 overflow-y-auto text-xs">
-                    @forelse($petMedicalHistory as $record)
-                        @php 
-                            $status = strtolower($record->visit_status ?? 'pending');
-                            $border = $status === 'completed' ? 'border-green-400' : ($status === 'arrived' ? 'border-blue-400' : 'border-gray-300');
-                        @endphp
-                        <div class="border-l-2 pl-2 {{ $border }}">
-                            <div class="font-medium flex justify-between items-center">
-                                {{ \Carbon\Carbon::parse($record->visit_date)->format('M j, Y') }}
-                                <span class="text-xs font-semibold px-1 py-0.5 rounded 
-                                    {{ $status === 'completed' ? 'bg-green-100 text-green-700' : ($status === 'arrived' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700') }}">
-                                    {{ ucfirst($status) }}
-                                </span>
-                            </div>
-                            <div class="text-gray-700 truncate" title="{{ $record->service_summary }}">{{ $record->service_summary ?? 'General Visit' }}</div>
+                    @forelse($boardingHistory as $record)
+                      @php 
+                        $status = strtolower($record->status ?? 'pending');
+                        $border = $status === 'check out' ? 'border-green-400' : ($status === 'check in' ? 'border-blue-400' : 'border-gray-300');
+                      @endphp
+                      <div class="border-l-2 pl-2 {{ $border }}">
+                        <div class="font-medium flex justify-between items-center">
+                          {{ \Carbon\Carbon::parse($record->check_in_date)->format('M j, Y') }}
+                          <span class="text-xs font-semibold px-1 py-0.5 rounded 
+                            {{ $status === 'check out' ? 'bg-green-100 text-green-700' : ($status === 'check in' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700') }}">
+                            {{ ucfirst($status) }}
+                          </span>
                         </div>
+                        <div class="text-gray-700 truncate" title="{{ $record->room_no }}">Room: {{ $record->room_no ?? '--' }}</div>
+                      </div>
                     @empty
-                        <p class="text-gray-500 italic">No previous service records found.</p>
+                      <p class="text-gray-500 italic">No previous boarding records found.</p>
                     @endforelse
                 </div>
                 <div class="mt-3 inline-flex items-center gap-2 text-indigo-600 text-sm font-medium">View Full Service History <i class="fas fa-arrow-right"></i></div>
@@ -62,11 +62,20 @@
                     'weight' => $visit->weight,
                 ];
             }
-            // Determine the selected service ID (prioritize: pivot table entry > old input > null)
-            $boardingService = $visit->services()->where('serv_type', 'boarding')->first();
-            $selectedServiceId = $boardingService ? $boardingService->serv_id : old('service_id');
+            // Determine the selected service ID (priority: boarding record > old input > pivot)
+            $selectedServiceId = null;
+            if (isset($serviceData) && isset($serviceData->serv_id)) {
+              $selectedServiceId = $serviceData->serv_id;
+            } elseif (old('service_id')) {
+              $selectedServiceId = old('service_id');
+            } else {
+              $boardingService = $visit->services()->where('serv_type', 'boarding')->latest('pivot_updated_at')->first();
+              $selectedServiceId = $boardingService ? $boardingService->serv_id : null;
+            }
+            // Get pet species for filtering boarding services
+            $petSpecies = strtolower($visit->pet->pet_species ?? '');
             @endphp
-            <form action="{{ route('medical.visits.boarding.save', $visit->visit_id) }}" method="POST" class="space-y-6">
+            <form action="{{ route('medical.visits.boarding.save', $visit->visit_id) }}" method="POST" class="space-y-6" id="boardingForm">
                 @csrf
 
                 {{-- Boarding Details Card --}}
@@ -80,20 +89,17 @@
                             <select name="service_id" id="boarding_service_id" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" required>
                                 <option value="">-- Select Boarding Package --</option>
                                 @forelse($availableServices as $service)
-                                    @php
-                                        $isBoardingService = (isset($service->serv_type) && strtolower($service->serv_type) == 'boarding');
-                                        $isSelected = $selectedServiceId == $service->serv_id;
-                                    @endphp
-                                    @if($isBoardingService || !isset($service->serv_type)) 
-                                    <option value="{{ $service->serv_id }}" data-price="{{ $service->serv_price ?? 0 }}" {{ $isSelected ? 'selected' : '' }}>
-                                        {{ $service->serv_name ?? 'N/A' }} 
-                                        @if(isset($service->serv_price))
-                                            ({{ number_format($service->serv_price, 2) }} / day)
-                                        @endif
-                                    </option>
+                                  @php
+                                    $isSelected = $selectedServiceId == $service->serv_id;
+                                  @endphp
+                                  <option value="{{ $service->serv_id }}" data-price="{{ $service->serv_price ?? 0 }}" {{ $isSelected ? 'selected' : '' }}>
+                                    {{ $service->serv_name ?? 'N/A' }}
+                                    @if(isset($service->serv_price))
+                                      ({{ number_format($service->serv_price, 2) }} / day)
                                     @endif
+                                  </option>
                                 @empty
-                                    <option value="" disabled>No Boarding Services Available</option>
+                                  <option value="" disabled>No Boarding Services Available</option>
                                 @endforelse
                             </select>
                             @error('service_id')
@@ -112,15 +118,21 @@
                             <input type="datetime-local" name="checkout" id="checkout_date" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" value="{{ old('checkout', $__board['checkout'] ?? ($__details['checkout'] ?? '')) }}" />
                         </div>
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Cage / Room</label>
-                            <input type="text" name="room" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" placeholder="e.g. C-12" value="{{ old('room', $__board['room'] ?? ($__details['room'] ?? '')) }}" />
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Cage / Room <span class="text-red-500">*</span></label>
+                            <select name="equipment_id" id="equipment_id" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" required>
+                                <option value="">-- Select Cage/Room --</option>
+                                {{-- Equipment will be loaded dynamically based on selected service --}}
+                            </select>
+                            <input type="hidden" name="room" id="room_hidden" value="{{ old('room', $__board['room'] ?? ($__details['room'] ?? '')) }}" />
+                            <small class="text-gray-500 text-xs">Only available cages/rooms from selected service</small>
                         </div>
                         
                         {{-- Kept for Auto Calculation Basis --}}
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Total Days / Hours</label>
-                            <input type="text" id="total_time_display" readonly class="w-full border border-gray-300 p-2 rounded-lg bg-gray-100 text-gray-600" placeholder="Calculated automatically" value="{{ old('total_days', $__board['total_days'] ?? ($__details['total_days'] ?? '')) }}" />
-                            <input type="hidden" name="total_days" id="total_days_hidden" value="{{ old('total_days', $__board['total_days'] ?? ($__details['total_days'] ?? '')) }}" />
+                          <label class="block text-sm font-semibold text-gray-700 mb-1">Total Days / Hours</label>
+                          <input type="text" id="total_time_display" readonly class="w-full border border-gray-300 p-2 rounded-lg bg-gray-100 text-gray-600" placeholder="Calculated automatically" value="{{ old('total_days', $__board['total_days'] ?? ($__details['total_days'] ?? '')) }}" />
+                          <input type="hidden" name="total_days" id="total_days_hidden" value="{{ old('total_days', $__board['total_days'] ?? ($__details['total_days'] ?? '')) }}" />
+                          <input type="hidden" name="status" value="Check In" />
                         </div>
                     </div>
 
@@ -178,18 +190,25 @@
                 </div>
                 
                 {{-- Action Buttons --}}
-                <div class="flex justify-end gap-3 pt-4">
-                    {{-- REMOVED: Compute & Bill Button --}}
-                    <a href="{{ route('medical.index', ['tab' => 'boarding']) }}" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold transition">Cancel</a>
-                    <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
-                        <i class="fas fa-save mr-1"></i> Save Record & Complete
-                    </button>
+                <div class="flex justify-between items-end pt-4">
+                  
+                    
+                    <div class="flex gap-3">
+                        <a href="{{ route('medical.index', ['tab' => 'boarding']) }}" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold transition">Cancel</a>
+                        <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
+                            <i class="fas fa-save mr-1"></i> Save Record & Complete
+                        </button>
+                    </div>
                 </div>
 
                 <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
 <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
 {{-- 💥 FIX 1: ADD HIDDEN FIELD FOR DAILY RATE --}}
-<input type="hidden" name="daily_rate" id="daily_rate_hidden" value="" />
+<input type="hidden" name="daily_rate" id="daily_rate_hidden" value="{{
+  old('daily_rate',
+    (isset($boardingService) && isset($boardingService->serv_price)) ? number_format($boardingService->serv_price, 2, '.', '') : ''
+  )
+}}" />
 <input type="hidden" name="redirect_to" value="perform" />
             </form>
             </div>
@@ -361,11 +380,127 @@
 
     // JAVASCRIPT FOR AUTO-CALCULATING DURATION AND BILLING
     document.addEventListener('DOMContentLoaded', function () {
+      
+      // ========================================
+      // EQUIPMENT (CAGE/ROOM) LOADING LOGIC
+      // ========================================
+      const boardingServiceSelect = document.getElementById('boarding_service_id');
+      const equipmentSelect = document.getElementById('equipment_id');
+      const roomHidden = document.getElementById('room_hidden');
+      
+      // Store equipment data from PHP - convert to proper array format
+      @php
+          $equipmentDataForJs = [];
+          foreach ($availableServices as $service) {
+              $equipment = $service->equipment ?? collect();
+              $equipmentDataForJs[$service->serv_id] = $equipment->map(function($eq) {
+                  return [
+                      'equipment_id' => $eq->equipment_id,
+                      'equipment_name' => $eq->equipment_name,
+                      'equipment_status' => $eq->equipment_status ?? 'available',
+                      'equipment_available' => $eq->equipment_available ?? 0
+                  ];
+              })->values()->toArray();
+          }
+      @endphp
+      const serviceEquipmentData = @json($equipmentDataForJs);
+      
+      // Current equipment ID from existing boarding record (if any)
+      const currentEquipmentId = {{ $serviceData->equipment_id ?? 'null' }};
+      
+      function loadEquipmentForService(serviceId) {
+          equipmentSelect.innerHTML = '';
+          
+          if (!serviceId || !serviceEquipmentData[serviceId]) {
+              equipmentSelect.innerHTML = '<option value="">-- Select a service first --</option>';
+              return;
+          }
+          
+          const equipment = serviceEquipmentData[serviceId];
+          
+          if (equipment.length === 0) {
+              equipmentSelect.innerHTML = '<option value="">-- No cages/rooms available --</option>';
+              return;
+          }
+          
+          let firstAvailableSet = false;
+          
+          equipment.forEach(function(eq) {
+              const availableCount = parseInt(eq.equipment_available) || 0;
+              const isAvailable = availableCount > 0;
+              const isCurrentlyAssigned = eq.equipment_id == currentEquipmentId;
+              
+              // Show available equipment OR the currently assigned one (even if in use)
+              if (isAvailable || isCurrentlyAssigned) {
+                  const option = document.createElement('option');
+                  option.value = eq.equipment_id;
+                  option.textContent = eq.equipment_name + (isCurrentlyAssigned && !isAvailable ? ' (Currently Assigned)' : ' (' + availableCount + ' Available)');
+                  option.dataset.name = eq.equipment_name;
+                  
+                  // Pre-select current equipment if exists, otherwise select first available
+                  if (isCurrentlyAssigned) {
+                      option.selected = true;
+                      firstAvailableSet = true;
+                  } else if (!firstAvailableSet && isAvailable) {
+                      option.selected = true;
+                      firstAvailableSet = true;
+                  }
+                  
+                  equipmentSelect.appendChild(option);
+              }
+          });
+          
+          // Update room hidden field with selected equipment name
+          updateRoomHidden();
+      }
+      
+      function updateRoomHidden() {
+          const selected = equipmentSelect.options[equipmentSelect.selectedIndex];
+          if (selected && selected.dataset.name) {
+              roomHidden.value = selected.dataset.name;
+          } else {
+              roomHidden.value = '';
+          }
+      }
+      
+      // Load equipment when service changes
+      if (boardingServiceSelect) {
+          boardingServiceSelect.addEventListener('change', function() {
+              loadEquipmentForService(this.value);
+              calculateBilling();
+          });
+          
+          // Initial load for selected service
+          if (boardingServiceSelect.value) {
+              loadEquipmentForService(boardingServiceSelect.value);
+          }
+      }
+      
+      // Update room hidden when equipment changes
+      if (equipmentSelect) {
+          equipmentSelect.addEventListener('change', updateRoomHidden);
+      }
+      // ========================================
+      // END EQUIPMENT LOGIC
+      // ========================================
+      
+      // Ensure daily_rate is set before submit (fallback for JS-disabled or race conditions)
+      const form = document.getElementById('boardingForm');
+      if (form) {
+        form.addEventListener('submit', function(e) {
+          const dailyRateHidden = document.getElementById('daily_rate_hidden');
+          if (dailyRateHidden && boardingServiceSelect) {
+            const selected = boardingServiceSelect.options[boardingServiceSelect.selectedIndex];
+            if (selected && selected.dataset.price) {
+              dailyRateHidden.value = parseFloat(selected.dataset.price).toFixed(2);
+            }
+          }
+        });
+      }
         const checkinDate = document.getElementById('checkin_date');
         const checkoutDate = document.getElementById('checkout_date');
         const totalTimeDisplay = document.getElementById('total_time_display');
         const totalDaysHidden = document.getElementById('total_days_hidden');
-        const boardingServiceSelect = document.getElementById('boarding_service_id');
         
         // Billing display elements
         const dailyRateDisplay = document.getElementById('dailyRateDisplay');

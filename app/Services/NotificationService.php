@@ -28,14 +28,22 @@ class NotificationService
                     $this->getProductExpirationAlerts($user),
                     $this->getEquipmentStatusAlerts($user),
                     $this->getArrivedAppointments($user),
-                    $this->getRescheduledAppointments($user)
+                    $this->getRescheduledAppointments($user),
+                    $this->getVisitCreatedAlerts($user),
+                    $this->getReferralAlerts($user),
+                    $this->getBillingPaidAlerts($user),
+                    $this->getBoardingCheckoutAlerts($user),
+                    $this->getFollowUpAppointmentAlerts($user)
                 );
                 break;
 
             case 'veterinarian':
                 $notifications = array_merge(
                     $this->getRescheduledAppointments($user),
-                    $this->getArrivedAppointments($user)
+                    $this->getArrivedAppointments($user),
+                    $this->getVisitCreatedAlerts($user),
+                    $this->getReferralAlerts($user),
+                    $this->getFollowUpAppointmentAlerts($user)
                 );
                 break;
 
@@ -43,7 +51,10 @@ class NotificationService
                 $notifications = array_merge(
                     $this->getStockLevelAlerts($user),
                     $this->getProductExpirationAlerts($user),
-                    $this->getArrivedAppointments($user)
+                    $this->getArrivedAppointments($user),
+                    $this->getBillingPaidAlerts($user),
+                    $this->getBoardingCheckoutAlerts($user),
+                    $this->getFollowUpAppointmentAlerts($user)
                 );
                 break;
         }
@@ -66,11 +77,12 @@ class NotificationService
         try {
             // Get the active branch ID (for super admin in branch mode)
             $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
             
             // Get users who logged in within the last 24 hours
             $recentLogins = User::where('updated_at', '>=', Carbon::now()->subDay())
                 ->where('user_id', '!=', $user->user_id)
-                ->when($activeBranchId, function($query) use ($activeBranchId) {
+                ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
                     return $query->where('branch_id', $activeBranchId);
                 })
                 ->orderBy('updated_at', 'desc')
@@ -107,9 +119,13 @@ class NotificationService
         try {
             // Get the active branch ID
             $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
             
             // Low stock products (using prod_reorderlevel)
-            $lowStockProducts = Product::where('branch_id', $activeBranchId)
+            $lowStockProducts = Product::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->where('branch_id', $activeBranchId);
+                })
+                ->where('prod_category', '!=', 'Service')
                 ->whereColumn('prod_stocks', '<=', 'prod_reorderlevel')
                 ->where('prod_stocks', '>', 0)
                 ->get();
@@ -128,8 +144,11 @@ class NotificationService
                 ];
             }
 
-            // Out of stock products
-            $outOfStockProducts = Product::where('branch_id', $activeBranchId)
+            // Out of stock products (only from tbl_prod table, not services)
+            $outOfStockProducts = Product::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->where('branch_id', $activeBranchId);
+                })
+                ->where('prod_category', '!=', 'Service')
                 ->where('prod_stocks', '=', 0)
                 ->get();
 
@@ -167,11 +186,14 @@ class NotificationService
         try {
             // Get the active branch ID
             $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
             
             $thirtyDaysFromNow = Carbon::now()->addDays(30);
             
             // --- FIXED QUERY FOR EXPIRING PRODUCTS ---
-            $expiringProducts = Product::where('branch_id', $activeBranchId)
+            $expiringProducts = Product::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->where('branch_id', $activeBranchId);
+                })
                 ->where(function($query) use ($thirtyDaysFromNow) {
                     // Check for products with an expiration date that falls in the next 30 days
                     $query->whereNotNull('prod_expiry')
@@ -204,7 +226,9 @@ class NotificationService
             }
 
             // --- FIXED QUERY FOR EXPIRED PRODUCTS ---
-            $expiredProducts = Product::where('branch_id', $activeBranchId)
+            $expiredProducts = Product::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->where('branch_id', $activeBranchId);
+                })
                 ->whereNotNull('prod_expiry') // Only check products that *can* expire
                 ->where('prod_expiry', '<', Carbon::now())
                 ->get();
@@ -241,9 +265,12 @@ class NotificationService
         try {
             // Get the active branch ID
             $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
             
             // Equipment with low quantity (less than 5)
-            $lowEquipment = Equipment::where('branch_id', $activeBranchId)
+            $lowEquipment = Equipment::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->where('branch_id', $activeBranchId);
+                })
                 ->where('equipment_quantity', '<', 5)
                 ->where('equipment_quantity', '>', 0)
                 ->get();
@@ -263,7 +290,9 @@ class NotificationService
             }
 
             // Out of stock equipment
-            $outOfStockEquipment = Equipment::where('branch_id', $activeBranchId)
+            $outOfStockEquipment = Equipment::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->where('branch_id', $activeBranchId);
+                })
                 ->where('equipment_quantity', '=', 0)
                 ->get();
 
@@ -278,6 +307,72 @@ class NotificationService
                     'timestamp' => $equipment->updated_at,
                     'route' => route('prodservequip.index') . '?tab=equipment',
                     'is_read' => $this->isNotificationRead('equipment_out_' . $equipment->equipment_id)
+                ];
+            }
+
+            // Equipment under maintenance
+            $maintenanceEquipment = Equipment::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->where('branch_id', $activeBranchId);
+                })
+                ->where('equipment_maintenance', 1)
+                ->get();
+
+            foreach ($maintenanceEquipment as $equipment) {
+                $alerts[] = [
+                    'id' => 'equipment_maintenance_' . $equipment->equipment_id,
+                    'type' => 'equipment_alert',
+                    'icon' => 'fa-wrench',
+                    'color' => 'yellow',
+                    'title' => 'Equipment Under Maintenance',
+                    'message' => $equipment->equipment_name . ' is currently under maintenance',
+                    'timestamp' => $equipment->updated_at ?? Carbon::now(),
+                    'route' => route('prodservequip.index') . '?tab=equipment',
+                    'is_read' => $this->isNotificationRead('equipment_maintenance_' . $equipment->equipment_id)
+                ];
+            }
+
+            // Equipment out of service
+            $outOfServiceEquipment = Equipment::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->where('branch_id', $activeBranchId);
+                })
+                ->where('equipment_out_of_service', 1)
+                ->get();
+
+            foreach ($outOfServiceEquipment as $equipment) {
+                $alerts[] = [
+                    'id' => 'equipment_outofservice_' . $equipment->equipment_id,
+                    'type' => 'equipment_alert',
+                    'icon' => 'fa-times-circle',
+                    'color' => 'red',
+                    'title' => 'Equipment Out of Service',
+                    'message' => $equipment->equipment_name . ' is out of service',
+                    'timestamp' => $equipment->updated_at ?? Carbon::now(),
+                    'route' => route('prodservequip.index') . '?tab=equipment',
+                    'is_read' => $this->isNotificationRead('equipment_outofservice_' . $equipment->equipment_id)
+                ];
+            }
+
+            // Equipment available for use
+            $availableEquipment = Equipment::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->where('branch_id', $activeBranchId);
+                })
+                ->where('equipment_available', 1)
+                ->where('equipment_maintenance', 0)
+                ->where('equipment_out_of_service', 0)
+                ->where('equipment_quantity', '>', 0)
+                ->get();
+
+            foreach ($availableEquipment as $equipment) {
+                $alerts[] = [
+                    'id' => 'equipment_available_' . $equipment->equipment_id,
+                    'type' => 'equipment_alert',
+                    'icon' => 'fa-check-circle',
+                    'color' => 'green',
+                    'title' => 'Equipment Available',
+                    'message' => $equipment->equipment_name . ' is available for use (' . $equipment->equipment_quantity . ' units)',
+                    'timestamp' => $equipment->updated_at ?? Carbon::now(),
+                    'route' => route('prodservequip.index') . '?tab=equipment',
+                    'is_read' => $this->isNotificationRead('equipment_available_' . $equipment->equipment_id)
                 ];
             }
         } catch (\Exception $e) {
@@ -297,9 +392,12 @@ class NotificationService
         try {
             // Get the active branch ID
             $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
             
-            $rescheduledAppointments = Appointment::whereHas('user', function($query) use ($activeBranchId) {
-                    $query->where('branch_id', $activeBranchId);
+            $rescheduledAppointments = Appointment::when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->whereHas('user', function($q) use ($activeBranchId) {
+                        $q->where('branch_id', $activeBranchId);
+                    });
                 })
                 ->where('appoint_status', 'rescheduled')
                 ->where('updated_at', '>=', Carbon::now()->subDays(7))
@@ -338,10 +436,13 @@ class NotificationService
         try {
             // Get the active branch ID
             $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
             
             $arrivedAppointments = Appointment::with(['pet.owner'])
-                ->whereHas('user', function($query) use ($activeBranchId) {
-                    $query->where('branch_id', $activeBranchId);
+                ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->whereHas('user', function($q) use ($activeBranchId) {
+                        $q->where('branch_id', $activeBranchId);
+                    });
                 })
                 ->where('appoint_status', 'arrived')
                 ->whereDate('appoint_date', Carbon::today())
@@ -425,5 +526,237 @@ class NotificationService
         // when they refresh or check their notifications
         
         Log::info('Appointment arrived notification triggered for appointment: ' . $appointment->appoint_id);
+    }
+
+    /**
+     * Get visit created alerts (last 24 hours)
+     */
+    private function getVisitCreatedAlerts($user)
+    {
+        $alerts = [];
+        
+        try {
+            $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            
+            $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
+            
+            $recentVisits = DB::table('tbl_visit_record')
+                ->join('tbl_pet', 'tbl_visit_record.pet_id', '=', 'tbl_pet.pet_id')
+                ->leftJoin('tbl_own', 'tbl_pet.own_id', '=', 'tbl_own.own_id')
+                ->where('tbl_visit_record.created_at', '>=', Carbon::now()->subDay())
+               /* ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->where('tbl_visit_record.branch_id', $activeBranchId);
+                })*/
+                ->orderBy('tbl_visit_record.created_at', 'desc')
+                ->limit(10)
+                ->select('tbl_visit_record.*', 'tbl_pet.pet_name', 'tbl_own.own_name')
+                ->get();
+
+            foreach ($recentVisits as $visit) {
+                $alerts[] = [
+                    'id' => 'visit_' . $visit->visit_id,
+                    'type' => 'visit_alert',
+                    'icon' => 'fa-notes-medical',
+                    'color' => 'blue',
+                    'title' => 'New Visit Created',
+                    'message' => 'Visit for ' . ($visit->pet_name ?? 'Pet') . ' (Owner: ' . ($visit->own_name ?? 'Unknown') . ')',
+                    'timestamp' => $visit->created_at,
+                    'route' => route('medical.index'),
+                    'is_read' => $this->isNotificationRead('visit_' . $visit->visit_id)
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::error('Visit created alerts error: ' . $e->getMessage());
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * Get referral alerts (last 7 days)
+     */
+    private function getReferralAlerts($user)
+    {
+        $alerts = [];
+        
+        try {
+            $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            
+            $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
+            
+            $recentReferrals = DB::table('tbl_ref')
+                ->join('tbl_pet', 'tbl_ref.pet_id', '=', 'tbl_pet.pet_id')
+                ->where('tbl_ref.ref_date', '>=', Carbon::now()->subDays(7))
+                ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->where(function($q) use ($activeBranchId) {
+                        $q->where('tbl_ref.ref_from', $activeBranchId)
+                          ->orWhere('tbl_ref.ref_to', $activeBranchId);
+                    });
+                })
+                ->orderBy('tbl_ref.ref_date', 'desc')
+                ->select('tbl_ref.*', 'tbl_pet.pet_name')
+                ->get();
+
+            foreach ($recentReferrals as $referral) {
+                $alerts[] = [
+                    'id' => 'referral_' . $referral->ref_id,
+                    'type' => 'referral_alert',
+                    'icon' => 'fa-share-square',
+                    'color' => 'purple',
+                    'title' => 'New Referral',
+                    'message' => ($referral->pet_name ?? 'Pet') . ' referred to ' . ($referral->company_name ?? 'External Clinic'),
+                    'timestamp' => $referral->ref_date,
+                    'route' => route('care-continuity.index') . '?active_tab=referrals',
+                    'is_read' => $this->isNotificationRead('referral_' . $referral->ref_id)
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::error('Referral alerts error: ' . $e->getMessage());
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * Get billing paid alerts (last 7 days)
+     */
+    private function getBillingPaidAlerts($user)
+    {
+        $alerts = [];
+        
+        try {
+            $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            
+            $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
+            
+            $recentPayments = DB::table('tbl_pay')
+                ->join('tbl_bill', 'tbl_pay.bill_id', '=', 'tbl_bill.bill_id')
+                ->join('tbl_visit_record', 'tbl_bill.visit_id', '=', 'tbl_visit_record.visit_id')
+                ->join('tbl_pet', 'tbl_visit_record.pet_id', '=', 'tbl_pet.pet_id')
+                ->where('tbl_pay.created_at', '>=', Carbon::now()->subDays(7))
+                /*->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->where('tbl_visit_record.branch_id', $activeBranchId);
+                })*/
+                ->orderBy('tbl_pay.created_at', 'desc')
+                ->select('tbl_pay.*', 'tbl_pet.pet_name', 'tbl_bill.total_amount')
+                ->get();
+
+            foreach ($recentPayments as $payment) {
+                $alerts[] = [
+                    'id' => 'payment_' . $payment->pay_id,
+                    'type' => 'payment_alert',
+                    'icon' => 'fa-money-bill-wave',
+                    'color' => 'green',
+                    'title' => 'Payment Received',
+                    'message' => 'Payment of ₱' . number_format($payment->pay_total, 2) . ' received for ' . ($payment->pet_name ?? 'Pet'),
+                    'timestamp' => $payment->created_at,
+                    'route' => route('sales.index'),
+                    'is_read' => $this->isNotificationRead('payment_' . $payment->pay_id)
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::error('Payment alerts error: ' . $e->getMessage());
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * Get boarding checkout alerts (pets checking out today or overdue)
+     */
+    private function getBoardingCheckoutAlerts($user)
+    {
+        $alerts = [];
+        
+        try {
+            $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            
+            $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
+            
+            $checkouts = DB::table('tbl_boarding_record')
+                ->join('tbl_visit_record', 'tbl_boarding_record.visit_id', '=', 'tbl_visit_record.visit_id')
+                ->join('tbl_pet', 'tbl_boarding_record.pet_id', '=', 'tbl_pet.pet_id')
+                ->where(function($query) {
+                    $query->whereDate('tbl_boarding_record.check_out_date', '<=', Carbon::today())
+                          ->orWhereNull('tbl_boarding_record.check_out_date');
+                })
+                ->where('tbl_boarding_record.status', '!=', 'completed')
+               /* ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->where('tbl_visit_record.branch_id', $activeBranchId);
+                })*/
+                ->orderBy('tbl_boarding_record.check_out_date', 'asc')
+                ->select('tbl_boarding_record.*', 'tbl_pet.pet_name')
+                ->get();
+
+            foreach ($checkouts as $boarding) {
+                $isOverdue = $boarding->check_out_date && Carbon::parse($boarding->check_out_date)->isPast();
+                
+                $alerts[] = [
+                    'id' => 'boarding_' . $boarding->board_id,
+                    'type' => 'boarding_alert',
+                    'icon' => 'fa-door-open',
+                    'color' => $isOverdue ? 'red' : 'orange',
+                    'title' => $isOverdue ? 'Boarding Overdue' : 'Boarding Checkout Today',
+                    'message' => ($boarding->pet_name ?? 'Pet') . ' ' . ($isOverdue ? 'overdue for checkout' : 'checking out today'),
+                    'timestamp' => $boarding->check_out_date ?? $boarding->updated_at,
+                    'route' => route('medical.index') . '?tab=boarding',
+                    'is_read' => $this->isNotificationRead('boarding_' . $boarding->board_id)
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::error('Boarding checkout alerts error: ' . $e->getMessage());
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * Get follow-up appointment alerts (next 7 days)
+     */
+    private function getFollowUpAppointmentAlerts($user)
+    {
+        $alerts = [];
+        
+        try {
+            $activeBranchId = session('active_branch_id') ?? $user->branch_id;
+            
+            $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
+            
+            $followUps = Appointment::with(['pet.owner'])
+                ->when(!$isSuperAdmin && $activeBranchId, function($query) use ($activeBranchId) {
+                    return $query->whereHas('user', function($q) use ($activeBranchId) {
+                        $q->where('branch_id', $activeBranchId);
+                    });
+                })
+                ->where(function($query) {
+                    $query->where('appoint_type', 'LIKE', '%follow%')
+                          ->orWhere('appoint_type', 'LIKE', '%recheck%');
+                })
+                ->whereIn('appoint_status', ['scheduled', 'confirmed'])
+                ->whereBetween('appoint_date', [Carbon::today(), Carbon::today()->addDays(7)])
+                ->orderBy('appoint_date', 'asc')
+                ->get();
+
+            foreach ($followUps as $appointment) {
+                $daysUntil = Carbon::today()->diffInDays(Carbon::parse($appointment->appoint_date));
+                $isToday = $daysUntil == 0;
+                
+                $alerts[] = [
+                    'id' => 'followup_' . $appointment->appoint_id,
+                    'type' => 'followup_alert',
+                    'icon' => 'fa-calendar-check',
+                    'color' => $isToday ? 'red' : 'blue',
+                    'title' => $isToday ? 'Follow-up Today' : 'Upcoming Follow-up',
+                    'message' => ($appointment->pet->pet_name ?? 'Pet') . ' - ' . $appointment->appoint_type . ' in ' . $daysUntil . ' day' . ($daysUntil != 1 ? 's' : ''),
+                    'timestamp' => $appointment->created_at,
+                    'route' => route('care-continuity.index') . '?active_tab=appointments',
+                    'is_read' => $this->isNotificationRead('followup_' . $appointment->appoint_id)
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::error('Follow-up appointment alerts error: ' . $e->getMessage());
+        }
+
+        return $alerts;
     }
 }

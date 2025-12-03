@@ -23,17 +23,17 @@
             {{-- Tab Buttons for Actions --}}
             <div class="col-span-2 flex justify-start items-end">
                 <nav class="flex space-x-4">
-                    <button type="button" onclick="switchActivityTab('appointment')" data-tab="appointment" class="activity-tab-btn py-2 px-4 border-b-2 font-semibold text-sm active border-purple-600 text-purple-600 hover:border-purple-800">
-                        <i class="fas fa-calendar-plus mr-1"></i> Appointment
+                    <button type="button" onclick="switchActivityTab('initial')" data-tab="initial" class="activity-tab-btn py-2 px-4 font-semibold text-sm active bg-blue-600 text-white rounded-t-lg hover:bg-blue-700">
+                        <i class="fas fa-notes-medical mr-1"></i> Initial Assessment
                     </button>
-                    <button type="button" onclick="switchActivityTab('prescription')" data-tab="prescription" class="activity-tab-btn py-2 px-4 border-b-2 font-semibold text-sm border-transparent text-gray-600 hover:text-green-600">
+                    <button type="button" onclick="switchActivityTab('prescription')" data-tab="prescription" class="activity-tab-btn py-2 px-4 font-semibold text-sm bg-gray-200 text-gray-600 rounded-t-lg hover:bg-blue-600 hover:text-white">
                         <i class="fas fa-prescription mr-1"></i> Prescription
                     </button>
-                    <button type="button" onclick="switchActivityTab('referral')" data-tab="referral" class="activity-tab-btn py-2 px-4 border-b-2 font-semibold text-sm border-transparent text-gray-600 hover:text-red-600">
-                        <i class="fas fa-share mr-1"></i> Referral
+                    <button type="button" onclick="switchActivityTab('appointment')" data-tab="appointment" class="activity-tab-btn py-2 px-4 font-semibold text-sm bg-gray-200 text-gray-600 rounded-t-lg hover:bg-blue-600 hover:text-white">
+                        <i class="fas fa-calendar-plus mr-1"></i> Appointment
                     </button>
-                    <button type="button" onclick="switchActivityTab('initial')" data-tab="initial" class="activity-tab-btn py-2 px-4 border-b-2 font-semibold text-sm border-transparent text-gray-600 hover:text-indigo-600">
-                        <i class="fas fa-notes-medical mr-1"></i> Initial Assessment
+                    <button type="button" onclick="switchActivityTab('referral')" data-tab="referral" class="activity-tab-btn py-2 px-4 font-semibold text-sm bg-gray-200 text-gray-600 rounded-t-lg hover:bg-blue-600 hover:text-white">
+                        <i class="fas fa-share mr-1"></i> Referral
                     </button>
                 </nav>
             </div>
@@ -323,6 +323,7 @@
                     @csrf
                     <input type="hidden" name="pet_id" id="activity_prescription_pet_id">
                     <input type="hidden" name="medications_json" id="activity_medications_json">
+                     <input type="hidden" name="pvisit_id" id="activity_prescription_visit_id">
                     <input type="hidden" name="active_tab" value="visits">
 
                     <div>
@@ -354,14 +355,15 @@
                 </form>
             </div>
 
-            {{-- Referral Tab Content (Form content remains the same) --}}
+            {{-- Referral Tab Content --}}
             <div id="activity_referral_content" class="activity-tab-content hidden space-y-4">
                 <h4 class="text-lg font-semibold text-red-600">Create New Referral</h4>
-                <form id="activityReferralForm" action="{{ route('medical.referrals.store') }}" method="POST" class="space-y-4 border border-red-200 p-4 rounded-lg bg-red-50">
+                <form id="activityReferralForm" action="{{ route('medical.referrals.store') }}" method="POST" class="space-y-4 border border-red-200 p-4 rounded-lg bg-red-50" onsubmit="return validateActivityReferralForm()">
                     @csrf
                     <input type="hidden" name="visit_id" id="activity_referral_visit_id" value="{{ $visit->visit_id ?? '' }}">
                     <input type="hidden" name="pet_id" id="activity_referral_pet_id" value="{{ $visit->pet_id ?? '' }}">
                     <input type="hidden" name="active_tab" value="visits">
+                    <input type="hidden" name="ref_type" id="activity_ref_type" value="">
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
@@ -369,15 +371,22 @@
                             <input type="date" name="ref_date" value="{{ \Carbon\Carbon::now()->format('Y-m-d') }}" class="w-full border border-gray-300 p-2 rounded-lg" required>
                         </div>
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Refer To Branch</label>
-                            <select name="ref_to" class="w-full border border-gray-300 p-2 rounded-lg" required>
-                                <option value="">Select Branch</option>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Refer To <span class="text-red-500">*</span></label>
+                            <select name="ref_to_select" id="activity_ref_to_select" class="w-full border border-gray-300 p-2 rounded-lg" required onchange="toggleActivityReferralFields()">
+                                <option value="">Select Branch or External</option>
                                 @foreach($allBranches as $branch)
-                                    <option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>
+                                    <option value="branch_{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>
                                 @endforeach
-                                <option value="9999999">External Clinic</option>
+                                <option value="external">External Clinic</option>
                             </select>
                         </div>
+                    </div>
+
+                    <input type="hidden" name="ref_to" id="activity_ref_to_branch">
+
+                    <div id="activityExternalField" style="display: none;">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">External Clinic Name <span class="text-red-500">*</span></label>
+                        <input type="text" name="external_clinic_name" id="activity_external_clinic_name" class="w-full border border-gray-300 p-2 rounded-lg" placeholder="Enter clinic name">
                     </div>
 
                     <div>
@@ -405,11 +414,14 @@
             content.classList.add('hidden');
         });
         document.querySelectorAll('.activity-tab-btn').forEach(button => {
-            button.classList.remove('active');
+            button.classList.remove('active', 'bg-blue-600', 'text-white');
+            button.classList.add('bg-gray-200', 'text-gray-600');
         });
         
         document.getElementById(`activity_${tabName}_content`).classList.remove('hidden');
-        document.querySelector(`.activity-tab-btn[data-tab="${tabName}"]`).classList.add('active');
+        const activeButton = document.querySelector(`.activity-tab-btn[data-tab="${tabName}"]`);
+        activeButton.classList.add('active', 'bg-blue-600', 'text-white');
+        activeButton.classList.remove('bg-gray-200', 'text-gray-600');
     }
 
     function openActivityModal(petId, ownerId, currentService) {
@@ -424,6 +436,9 @@
         document.getElementById('activity_owner_id').textContent = pet?.owner.own_name;
         document.getElementById('activity_appoint_pet_id').value = petId;
         document.getElementById('activity_prescription_pet_id').value = petId;
+        document.getElementById('activity_referral_pet_id').value = petId;
+        document.getElementById('activity_referral_visit_id').value = String({{ $visit->visit_id ?? '""' }});
+        document.getElementById('activity_prescription_visit_id').value = String({{ $visit->visit_id ?? '""' }});
         const initPetInput = document.getElementById('activity_initial_pet_id');
         const initVisitInput = document.getElementById('activity_initial_visit_id');
         if (initPetInput) initPetInput.value = petId;
@@ -657,5 +672,51 @@ function handleInitialAssessmentSubmit(e) {
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalBtnText;
     });
+}
+
+function toggleActivityReferralFields() {
+    const refToSelect = document.getElementById('activity_ref_to_select').value;
+    const externalField = document.getElementById('activityExternalField');
+    const refToBranch = document.getElementById('activity_ref_to_branch');
+    const refType = document.getElementById('activity_ref_type');
+    const externalClinicName = document.getElementById('activity_external_clinic_name');
+
+    if (refToSelect.startsWith('branch_')) {
+        // Interbranch referral
+        const branchId = refToSelect.replace('branch_', '');
+        externalField.style.display = 'none';
+        externalClinicName.removeAttribute('required');
+        externalClinicName.value = '';
+        refToBranch.value = branchId;
+        refType.value = 'interbranch';
+    } else if (refToSelect === 'external') {
+        // External clinic referral
+        externalField.style.display = 'block';
+        externalClinicName.setAttribute('required', 'required');
+        refToBranch.value = '';
+        refType.value = 'external';
+    } else {
+        // Nothing selected
+        externalField.style.display = 'none';
+        externalClinicName.removeAttribute('required');
+        refToBranch.value = '';
+        refType.value = '';
+    }
+}
+
+function validateActivityReferralForm() {
+    const refType = document.getElementById('activity_ref_type').value;
+    if (!refType) {
+        alert('Please select a referral destination');
+        return false;
+    }
+    if (refType === 'external') {
+        const clinicName = document.getElementById('activity_external_clinic_name').value;
+        if (!clinicName || clinicName.trim() === '') {
+            alert('Please enter the external clinic name');
+            return false;
+        }
+    }
+    return true;
 }
 </script>

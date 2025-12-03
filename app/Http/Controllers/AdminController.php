@@ -9,6 +9,7 @@ use App\Models\Service;
 use App\Models\Pet;
 use App\Models\Order;
 use App\Models\Appointment;
+use App\Models\Visit;
 use Carbon\Carbon;
 
 class AdminController extends Controller
@@ -46,10 +47,10 @@ class AdminController extends Controller
     $totalProducts = Product::count();
     $totalSales = Order::sum('ord_total');
     $totalBranches = Branch::count();
-    $totalAppointments = Appointment::count();
+    $totalVisits = Visit::count();
 
-    // Today's appointments
-    $todaysAppointments = Appointment::whereDate('appoint_date', today())->count();
+    // Today's visits
+    $todaysVisits = Visit::whereDate('visit_date', today())->count();
 
     // Daily sales
     $dailySales = Order::whereDate('ord_date', today())->sum('ord_total');
@@ -78,7 +79,7 @@ class AdminController extends Controller
     $recentAppointments = Appointment::orderByDesc('appoint_date')->take(5)->get();
 
     // Final return with all data, include $lowStockItems
-    return view('AdminBoard', compact(
+    return view('admin-dashboard', compact(
         'branches',
         'inventory',
         'branchName',
@@ -87,8 +88,8 @@ class AdminController extends Controller
         'totalProducts',
         'totalSales',
         'totalBranches',
-        'totalAppointments',
-        'todaysAppointments',
+        'totalVisits',
+        'todaysVisits',
         'dailySales',
         'salesDates',
         'salesTotals',

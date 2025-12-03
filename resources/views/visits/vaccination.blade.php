@@ -38,30 +38,6 @@
             </div>
         </div>
 
-        <div class="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap gap-4 justify-between sm:justify-start">
-            <button type="button" 
-                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_id ?? 'N/A' }}', 'Initial')"
-                    class="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-notes-medical"></i> **Initial Assessment**
-            </button>
-            <button type="button" 
-                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_id ?? 'N/A' }}', 'Prescription')"
-                    class="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-prescription"></i> **Prescription**
-            </button>
-            <button type="button" 
-                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_id ?? 'N/A' }}', 'Appointment')"
-                    class="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-calendar-plus"></i> **Set Appointment**
-            </button>
-            <button type="button" 
-                    onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_id ?? 'N/A' }}', 'Referral')"
-                    class="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-semibold shadow-md transition text-sm">
-                <i class="fas fa-share"></i> **Referral**
-            </button>
-        </div>
-        {{--- END ADDED ROW 3 ---}}
-
         {{-- Row 4+: Main Content (full width) --}}
         <div class="space-y-6">
             
@@ -70,6 +46,7 @@
                 if (isset($serviceData) && $serviceData) {
                     $__vacc = [
                         'vaccine_name' => $serviceData->vaccine_name ?? null,
+                        'service_id' => $serviceData->service_id ?? null,
                         'dose' => $serviceData->dose ?? null,
                         'manufacturer' => $serviceData->manufacturer ?? null,
                         'batch_no' => $serviceData->batch_no ?? null,
@@ -79,11 +56,16 @@
                         'remarks' => $serviceData->remarks ?? null,
                     ];
                 }
+                
+                // Get pet species for filtering vaccination services
+                $petSpecies = strtolower($visit->pet->pet_species ?? '');
             @endphp
-            <form action="{{ route('medical.visits.vaccination.save', $visit->visit_id) }}" method="POST" class="space-y-6">
+            <form action="{{ route('medical.visits.vaccination.save', $visit->visit_id) }}" method="POST" class="space-y-6" id="vaccination_form">
                 @csrf
                 <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
                 <input type="hidden" name="pet_id" value="{{ $visit->pet_id }}">
+                <input type="hidden" name="service_type" id="service_type_hidden" value="">
+                <input type="hidden" name="service_id" id="service_id_hidden" value="{{ old('service_id', $__vacc['service_id'] ?? '') }}">
 
                 {{-- Vaccination Details Card --}}
                 <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
@@ -96,11 +78,39 @@
                             <select name="service_type" id="service_type_selector" class="w-full border border-gray-300 p-3 rounded-lg" required>
                                 <option value="">Select Vaccination Service</option>
                                 @forelse($availableServices as $service)
+                                    @php
+                                        $productsData = $service->products->map(function($p) {
+                                            return [
+                                                'prod_id' => $p->prod_id,
+                                                'prod_name' => $p->prod_name,
+                                                'prod_stocks' => $p->prod_stocks,
+                                                'prod_expiry' => $p->prod_expiry,
+                                                'quantity_used' => $p->pivot->quantity_used ?? 1
+                                            ];
+                                        })->toArray();
+                                        
+                                        // Check if service matches pet species
+                                        $serviceName = strtolower($service->serv_name ?? '');
+                                        $matchesSpecies = false;
+                                        
+                                        if ($petSpecies === 'dog' && (str_contains($serviceName, 'dog') || str_contains($serviceName, 'canine'))) {
+                                            $matchesSpecies = true;
+                                        } elseif ($petSpecies === 'cat' && (str_contains($serviceName, 'cat') || str_contains($serviceName, 'feline'))) {
+                                            $matchesSpecies = true;
+                                        } elseif (!str_contains($serviceName, 'dog') && !str_contains($serviceName, 'cat') && !str_contains($serviceName, 'canine') && !str_contains($serviceName, 'feline')) {
+                                            // Show services that don't specify species (generic services)
+                                            $matchesSpecies = true;
+                                        }
+                                    @endphp
+                                    @if($matchesSpecies)
                                     <option value="{{ $service->serv_name }}" 
+                                            data-service-id="{{ $service->serv_id }}"
                                             data-price="{{ $service->serv_price }}"
-                                            {{ ($__vacc['service_type'] ?? '') === $service->serv_name ? 'selected' : '' }}>
+                                            data-products='@json($productsData)'
+                                            {{ (isset($__vacc['service_id']) && $__vacc['service_id'] == $service->serv_id) ? 'selected' : '' }}>
                                         {{ $service->serv_name }} - ₱{{ number_format($service->serv_price, 2) }}
                                     </option>
+                                    @endif
                                 @empty
                                     <option value="" disabled>No vaccination services available</option>
                                 @endforelse
@@ -110,39 +120,28 @@
                         {{-- Product Vaccine Selection --}}
                         <div class="sm:col-span-3">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Vaccine Product <span class="text-red-500">*</span></label>
-                            <select name="vaccine_name" id="vaccine_name_select" class="w-full border border-gray-300 p-3 rounded-lg" required>
-                                <option value="">Select Vaccine Product</option>
-                                @forelse($vaccines as $vaccine)
-                                    <option value="{{ $vaccine->prod_name }}" 
-                                            data-stock="{{ $vaccine->prod_stocks }}"
-                                            data-price="{{ $vaccine->prod_price }}"
-                                            {{ ($__vacc['vaccine_name'] ?? '') === $vaccine->prod_name ? 'selected' : '' }}>
-                                        {{ $vaccine->prod_name }} 
-                                        (Stock: {{ $vaccine->prod_stocks }}) - ₱{{ number_format($vaccine->prod_price, 2) }}
-                                        @if($vaccine->prod_expiry && \Carbon\Carbon::parse($vaccine->prod_expiry)->diffInDays(now()) <= 30)
-                                            ⚠️ Expiring Soon
-                                        @endif
-                                    </option>
-                                @empty
-                                    <option value="" disabled>No vaccine products in stock</option>
-                                @endforelse
+                            <select name="vaccine_name" id="vaccine_name_select" class="w-full border border-gray-300 p-3 rounded-lg" required disabled>
+                                <option value="">First select a vaccination service</option>
                             </select>
-                            <small class="text-xs text-gray-500 mt-1">
-                                Select from available vaccine products in inventory.
+                            <small class="text-xs text-gray-500 mt-1" id="vaccine_helper_text">
+                                Select a vaccination service first to see available vaccines.
                             </small>
                         </div>
                         
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Dose / Volume</label>
-                            <input type="text" name="dose" class="w-full border border-gray-300 p-3 rounded-lg" placeholder="e.g., 1 mL" value="{{ old('dose', $__vacc['dose'] ?? '') }}" />
+                            <input type="text" name="dose" id="dose_input" class="w-full border border-gray-300 p-3 rounded-lg" placeholder="e.g., 1 ml" value="{{ old('dose', $__vacc['dose'] ?? '') }}" />
+                            <small class="text-xs text-gray-500" id="dose_info">Auto-filled from product dosage (can be changed)</small>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Manufacturer</label>
-                            <input type="text" name="manufacturer" class="w-full border border-gray-300 p-3 rounded-lg" value="{{ old('manufacturer', $__vacc['manufacturer'] ?? '') }}" placeholder="e.g. Pfizer, Zoetis"/>
+                            <input type="text" name="manufacturer" id="manufacturer_input" class="w-full border border-gray-300 p-3 rounded-lg bg-gray-50" value="{{ old('manufacturer', $__vacc['manufacturer'] ?? '') }}" placeholder="Auto-filled from product" readonly/>
+                            <small class="text-xs text-gray-500">Auto-filled from selected vaccine product</small>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Batch No.</label>
-                            <input type="text" name="batch_no" class="w-full border border-gray-300 p-3 rounded-lg" value="{{ old('batch_no', $__vacc['batch_no'] ?? '') }}" placeholder="Lot/Batch Number"/>
+                            <input type="text" name="batch_no" id="batch_no_input" class="w-full border border-gray-300 p-3 rounded-lg bg-gray-50" value="{{ old('batch_no', $__vacc['batch_no'] ?? '') }}" placeholder="Auto-filled (FEFO)" readonly/>
+                            <small class="text-xs text-gray-500" id="batch_info">Auto-filled from earliest expiring batch</small>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Date Administered</label>
@@ -188,8 +187,13 @@
                 </div>
 
                 {{-- Action Buttons --}}
-                <div class="flex justify-end items-center pt-4">
-                    {{-- REMOVED original "Service Actions" button --}}
+                <div class="flex justify-between items-center pt-4">
+                    {{-- Service Actions Button --}}
+                   <!-- <button type="button" 
+                            onclick="openActivityModal('{{ $visit->pet_id }}', '{{ $visit->pet->owner->own_id ?? 'N/A' }}', 'Vaccination')"
+                            class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold shadow-md transition flex items-center gap-2">
+                        <i class="fas fa-tasks"></i> Service Actions
+                    </button>-->
                     
                     <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition">
                         <i class="fas fa-save mr-1"></i> Save Vaccination Record
@@ -343,47 +347,173 @@
     document.addEventListener('DOMContentLoaded', function() {
         const typeSelector = document.getElementById('service_type_selector');
         const vaccineSelect = document.getElementById('vaccine_name_select');
-        const productOptGroup = document.getElementById('product_vaccines_optgroup');
-        const serviceOptGroup = document.getElementById('service_vaccines_optgroup');
         const vaccineHelperText = document.getElementById('vaccine_helper_text');
         
-        const allProductOptions = Array.from(vaccineSelect.querySelectorAll('.product-option'));
-        const allServiceOptions = Array.from(vaccineSelect.querySelectorAll('.service-option'));
-        
-        function updateVaccineSelect(type) {
-            // Hide all options initially
-            allProductOptions.forEach(opt => opt.style.display = 'none');
-            allServiceOptions.forEach(opt => opt.style.display = 'none');
-            productOptGroup.style.display = 'none';
-            serviceOptGroup.style.display = 'none';
-
-            // Unselect previous selection and set default text
-            vaccineSelect.selectedIndex = 0;
-            
-            if (type === 'product') {
-                productOptGroup.style.display = 'block';
-                allProductOptions.forEach(opt => opt.style.display = 'block');
-                vaccineHelperText.innerHTML = 'Select from available **vaccines in inventory**. Stock levels are shown.';
-            } else if (type === 'service') {
-                serviceOptGroup.style.display = 'block';
-                allServiceOptions.forEach(opt => opt.style.display = 'block');
-                vaccineHelperText.innerHTML = 'Select a **general vaccination service** (no stock deduction).';
-            }
-        }
-
-        // Initial setup
-        updateVaccineSelect(typeSelector.value); 
-
-        // Listener for Service Type change
+        // Listen for service selection changes
         typeSelector.addEventListener('change', function() {
-            updateVaccineSelect(this.value);
-            // Re-run low stock warning logic in case a product was selected again
-            checkStockWarning(); 
+            updateVaccineOptions();
         });
 
-        // Existing low stock warning logic updated to call a function
-        if (vaccineSelect) {
-            vaccineSelect.addEventListener('change', checkStockWarning);
+        // Listen for vaccine selection changes to show warnings and fetch product details
+        vaccineSelect.addEventListener('change', function() {
+            checkStockWarning();
+            fetchProductDetails();
+        });
+
+        function updateVaccineOptions() {
+            const selectedOption = typeSelector.options[typeSelector.selectedIndex];
+            
+            // Update hidden field with selected service type
+            const serviceTypeHidden = document.getElementById('service_type_hidden');
+            if (serviceTypeHidden) {
+                serviceTypeHidden.value = selectedOption.value || '';
+            }
+            
+            // Update hidden field with selected service_id
+            const serviceIdHidden = document.getElementById('service_id_hidden');
+            if (serviceIdHidden) {
+                serviceIdHidden.value = selectedOption.getAttribute('data-service-id') || '';
+            }
+            
+            // Clear existing options
+            vaccineSelect.innerHTML = '<option value="">Select Vaccine Product</option>';
+            
+            // Clear dose, manufacturer and batch fields when service changes
+            document.getElementById('dose_input').value = '';
+            document.getElementById('dose_info').textContent = 'Auto-filled from product dosage (can be changed)';
+            document.getElementById('manufacturer_input').value = '';
+            document.getElementById('batch_no_input').value = '';
+            document.getElementById('batch_info').textContent = 'Auto-filled from earliest expiring batch';
+            
+            if (!selectedOption.value) {
+                vaccineSelect.disabled = true;
+                vaccineHelperText.textContent = 'Select a vaccination service first to see available vaccines.';
+                return;
+            }
+
+            // Get products from the selected service
+            const products = JSON.parse(selectedOption.dataset.products || '[]');
+            
+            if (products.length === 0) {
+                vaccineSelect.innerHTML = '<option value="">No consumable products for this service</option>';
+                vaccineSelect.disabled = true;
+                vaccineHelperText.innerHTML = '<span class="text-red-600">⚠️ This service has no consumable products configured.</span>';
+                return;
+            }
+
+            // Enable the select and populate with products
+            vaccineSelect.disabled = false;
+            vaccineHelperText.innerHTML = 'Available vaccines for the selected service. <strong>Only stock is displayed.</strong>';
+            
+            products.forEach(function(product) {
+                const option = document.createElement('option');
+                option.value = product.prod_id;
+                option.dataset.stock = product.prod_stocks;
+                option.dataset.prodId = product.prod_id;
+                option.dataset.quantityUsed = product.quantity_used;
+                
+                // Build option text - ONLY SHOW STOCK, NO PRICE
+                let optionText = `${product.prod_name} (Stock: ${product.prod_stocks})`;
+                
+                // Check for low stock or expiring
+                if (product.prod_stocks <= 5) {
+                    optionText += ' ⚠️ Low Stock';
+                }
+                
+                if (product.prod_expiry) {
+                    const expiryDate = new Date(product.prod_expiry);
+                    const daysUntilExpiry = Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24));
+                    if (daysUntilExpiry <= 30 && daysUntilExpiry > 0) {
+                        optionText += ' ⚠️ Expiring Soon';
+                    }
+                }
+                
+                option.textContent = optionText;
+                
+                // Disable if out of stock
+                if (product.prod_stocks <= 0) {
+                    option.disabled = true;
+                    option.textContent += ' - OUT OF STOCK';
+                }
+                
+                vaccineSelect.appendChild(option);
+            });
+            
+            // Clear any existing warnings
+            const existingWarning = vaccineSelect.parentElement.querySelector('.stock-warning');
+            if (existingWarning) existingWarning.remove();
+        }
+
+        function fetchProductDetails() {
+            const selectedOption = vaccineSelect.options[vaccineSelect.selectedIndex];
+            const prodId = selectedOption ? selectedOption.dataset.prodId : null;
+            const quantityUsed = selectedOption ? selectedOption.dataset.quantityUsed : null;
+            
+            const doseInput = document.getElementById('dose_input');
+            const doseInfo = document.getElementById('dose_info');
+            const manufacturerInput = document.getElementById('manufacturer_input');
+            const batchNoInput = document.getElementById('batch_no_input');
+            const batchInfo = document.getElementById('batch_info');
+            
+            // Clear fields if no product selected
+            if (!prodId || !selectedOption.value) {
+                doseInput.value = '';
+                doseInfo.textContent = 'Auto-filled from product dosage (can be changed)';
+                manufacturerInput.value = '';
+                batchNoInput.value = '';
+                batchInfo.textContent = 'Auto-filled from earliest expiring batch';
+                return;
+            }
+            
+            // Set dose from quantity_used (the configured dosage for this product)
+            if (quantityUsed) {
+                doseInput.value = quantityUsed + ' ml';
+                doseInfo.innerHTML = `<span class="text-green-600">Dosage: ${quantityUsed} ml (from product configuration)</span>`;
+            } else {
+                doseInput.value = '1 ml';
+                doseInfo.textContent = 'Default: 1 ml (can be changed)';
+            }
+            
+            // Show loading state
+            manufacturerInput.value = 'Loading...';
+            batchNoInput.value = 'Loading...';
+            
+            // Fetch product details from API
+            fetch(`/products/${prodId}/details-for-service`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.product) {
+                        // Set manufacturer
+                        manufacturerInput.value = data.product.manufacturer_name || 'N/A';
+                        
+                        // Set batch number (FEFO - First Expire First Out)
+                        if (data.product.batch_no) {
+                            batchNoInput.value = data.product.batch_no;
+                            
+                            // Show expiry info
+                            if (data.product.batch_expire_date) {
+                                const expiryDate = new Date(data.product.batch_expire_date);
+                                const formattedDate = expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                                batchInfo.innerHTML = `<span class="text-green-600">Batch expires: ${formattedDate} (Qty: ${data.product.batch_quantity})</span>`;
+                            } else {
+                                batchInfo.innerHTML = `<span class="text-gray-600">Batch quantity: ${data.product.batch_quantity}</span>`;
+                            }
+                        } else {
+                            batchNoInput.value = 'No batch available';
+                            batchInfo.innerHTML = '<span class="text-red-600">⚠️ No stock batch found for this product</span>';
+                        }
+                    } else {
+                        manufacturerInput.value = 'N/A';
+                        batchNoInput.value = 'N/A';
+                        batchInfo.textContent = 'Could not fetch batch information';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching product details:', error);
+                    manufacturerInput.value = 'Error';
+                    batchNoInput.value = 'Error';
+                    batchInfo.textContent = 'Error fetching batch information';
+                });
         }
 
         function checkStockWarning() {
@@ -394,13 +524,33 @@
             const existingWarning = vaccineSelect.parentElement.querySelector('.stock-warning');
             if (existingWarning) existingWarning.remove();
             
-            // Only show warning for product-based items with low stock
-            if (selectedOption.dataset.type === 'product' && stock && parseInt(stock) <= 5) {
+            // Show warning for low stock
+            if (stock && parseInt(stock) > 0 && parseInt(stock) <= 5) {
                 const warning = document.createElement('div');
                 warning.className = 'stock-warning mt-2 p-2 bg-yellow-50 border border-yellow-300 rounded text-sm text-yellow-800';
                 warning.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i> Low stock warning: Only ${stock} units remaining`;
                 vaccineSelect.parentElement.appendChild(warning);
+            } else if (stock && parseInt(stock) <= 0) {
+                const warning = document.createElement('div');
+                warning.className = 'stock-warning mt-2 p-2 bg-red-50 border border-red-300 rounded text-sm text-red-800';
+                warning.innerHTML = `<i class="fas fa-times-circle mr-1"></i> Out of stock - cannot proceed`;
+                vaccineSelect.parentElement.appendChild(warning);
             }
+        }
+        
+        // Initialize on page load - trigger if there's a pre-selected service
+        if (typeSelector.value) {
+            updateVaccineOptions();
+            
+            // After populating vaccine dropdown, restore saved vaccine selection
+            setTimeout(function() {
+                const savedVaccine = "{{ $__vacc['vaccine_name'] ?? '' }}";
+                if (savedVaccine && vaccineSelect) {
+                    vaccineSelect.value = savedVaccine;
+                    checkStockWarning();
+                    fetchProductDetails(); // Also fetch product details for pre-selected vaccine
+                }
+            }, 100);
         }
     });
 
@@ -425,714 +575,5 @@
         if(m){ m.classList.add('hidden'); } 
     }
 </script>
-
-{{-- The rest of the modals and scripts are kept unchanged for brevity/completeness --}}
-<div id="serviceActivityModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto p-6">
-        <div class="flex justify-between items-center mb-6 border-b pb-3 sticky top-0 bg-white z-10">
-            <h3 >
-            </h3>
-            <button onclick="closeActivityModal()" class="text-gray-500 hover:text-gray-700 text-xl"><i class="fas fa-times"></i></button>
-        </div>
-
-        {{-- Context Bar - Adjusted for a simpler layout in the modal --}}
-        <div class="grid grid-cols-3 gap-6 mb-6">
-            <div class="col-span-3 bg-gray-100 p-3 rounded-lg text-sm border-l-4 border-purple-500">
-                <div class="flex flex-wrap gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500">Pet:</label>
-                        <div id="activity_pet_name" class="font-medium text-gray-800">-</div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500">Owner:</label>
-                        <div id="activity_owner_id" class="font-medium text-gray-800">-</div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500">Current Action:</label>
-                        <div id="current_activity_tab_label" class="font-bold text-purple-600">-</div>
-                    </div>
-                </div>
-            </div>
-            
-            {{-- Tab Buttons REMOVED: Now managed by the switchActivityTab function called from the outside buttons --}}
-        </div>
-
-        {{-- Scrollable Content Area --}}
-        <div class="h-auto"> 
-            
-            {{-- Appointment Tab Content --}}
-            <div id="activity_appointment_content" class="activity-tab-content space-y-4">
-                <h4 class="text-lg font-semibold text-blue-600">Set Follow-up Appointment</h4>
-                <form id="activityAppointmentForm" action="{{ route('medical.appointments.store') }}" method="POST" class="space-y-4 border border-blue-200 p-4 rounded-lg bg-blue-50">
-                    @csrf
-                    <input type="hidden" name="pet_id" id="activity_appoint_pet_id">
-                    <input type="hidden" name="appoint_status" value="Scheduled">
-                    <input type="hidden" name="active_tab" value="visits">
-                    
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Follow-up Type</label>
-                            <select name="appoint_type" id="activity_appoint_type" class="w-full border border-gray-300 p-2 rounded-lg" required>
-                                <option value="Follow-up">General Follow-up</option>
-                                <option value="Vaccination Follow-up">Vaccination Follow-up</option>
-                                <option value="Deworming Follow-up">Deworming Follow-up</option>
-                                <option value="Post-Surgical Recheck">Post-Surgical Recheck</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Date</label>
-                            <input type="date" name="appoint_date" value="{{ \Carbon\Carbon::now()->format('Y-m-d') }}" class="w-full border border-gray-300 p-2 rounded-lg" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Time</label>
-                            <select name="appoint_time" class="w-full border border-gray-300 p-2 rounded-lg" required>
-                                @foreach (['09:00:00','10:00:00','11:00:00','13:00:00','14:00:00','15:00:00','16:00:00'] as $time)
-                                    <option value="{{ $time }}">{{ \Carbon\Carbon::parse($time)->format('h:i A') }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-span-2">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Description</label>
-                            <textarea name="appoint_description" rows="2" class="w-full border border-gray-300 p-2 rounded-lg" placeholder="Reason for follow-up"></textarea>
-                        </div>
-                    </div>
-                    <div class="flex justify-end">
-                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
-                            <i class="fas fa-calendar-alt mr-1"></i> Create Appointment
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            {{-- Initial Assessment Tab Content --}}
-            <div id="activity_initial_content" class="activity-tab-content hidden space-y-4">
-                <h4 class="text-lg font-semibold text-indigo-600">Initial Assessment</h4>
-                <form id="activityInitialAssessmentForm" action="{{ route('medical.initial_assessments.store') }}" method="POST" onsubmit="return handleInitialAssessmentSubmit(event)" class="space-y-4 border border-indigo-200 p-4 rounded-lg bg-indigo-50">
-                    @csrf
-                    <input type="hidden" name="pet_id" id="activity_initial_pet_id" value="{{ $visit->pet_id ?? '' }}">
-                    <input type="hidden" name="visit_id" id="activity_initial_visit_id" value="{{ $visit->visit_id ?? '' }}">
-                    <input type="hidden" name="active_tab" value="visits">
-
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm border border-gray-300 bg-white">
-                            <tbody>
-                                <tr class="border-b">
-                                    <td class="p-3 align-top w-1/3">
-                                        <label class="font-medium">Is your pet sick?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="is_sick" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="is_sick" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top w-1/3">
-                                        <label class="font-medium">Has your pet been treated recently?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="been_treated" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="been_treated" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top w-1/3">
-                                        <label class="font-medium">Does your pet get table food/human food?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="table_food" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="table_food" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">How many times per day do you feed?</label>
-                                        <div class="flex flex-wrap gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="feeding_frequency" value="Once"> <span>Once</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="feeding_frequency" value="Twice"> <span>Twice</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="feeding_frequency" value="Thrice"> <span>Thrice</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Is your pet on heartworm preventative?</label>
-                                        <div class="flex gap-4 mt-2 flex-wrap">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="heartworm_preventative" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="heartworm_preventative" value="No"> <span>No</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="heartworm_preventative" value="No Idea"> <span>No Idea</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Any injury or accident in the past 30 days?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="injury_accident" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="injury_accident" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Allergic To Any Medications/Vaccines?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="allergies" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="allergies" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Had any surgery for the past 30 days?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="surgery_past_30" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="surgery_past_30" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Currently on any medications/vitamins/OTC?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="current_meds" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="current_meds" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Appetite Normal?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="appetite_normal" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="appetite_normal" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Diarrhoea</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="diarrhoea" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="diarrhoea" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Vomiting</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="vomiting" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="vomiting" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Drinking more or less water than usual?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="drinking_unusual" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="drinking_unusual" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Weakness?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="weakness" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="weakness" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Gagging?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="gagging" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="gagging" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Coughing?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="coughing" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="coughing" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Sneezing?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="sneezing" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="sneezing" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Scratching?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="scratching" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="scratching" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Shaking Head?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="shaking_head" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="shaking_head" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Urinating more or less than usual?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="urinating_unusual" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="urinating_unusual" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Limping? Which Leg?</label>
-                                        <div class="flex flex-wrap gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="limping" value="None"> <span>None</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="limping" value="Front Left"> <span>Front Left</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="limping" value="Front Right"> <span>Front Right</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="limping" value="Back Left"> <span>Back Left</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="limping" value="Back Right"> <span>Back Right</span></label>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Scooting?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="scooting" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="scooting" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">History of seizures?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="seizures" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="seizures" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Unusually Bad Breath?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="bad_breath" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="bad_breath" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Unusual Discharge?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="discharge" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="discharge" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top">
-                                        <label class="font-medium">Did the pet eat this morning?</label>
-                                        <div class="flex gap-4 mt-2">
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="ate_this_morning" value="Yes"> <span>Yes</span></label>
-                                            <label class="inline-flex items-center gap-2"><input type="radio" name="ate_this_morning" value="No"> <span>No</span></label>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 align-top"></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="flex justify-end">
-                        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">
-                            <i class="fas fa-save mr-1"></i> Save Assessment
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            {{-- Prescription Tab Content --}}
-            <div id="activity_prescription_content" class="activity-tab-content hidden space-y-4">
-                <h4 class="text-lg font-semibold text-green-600">Add New Prescription</h4>
-                <form id="activityPrescriptionForm" onsubmit="return handleActivityPrescriptionSubmit(event)" class="space-y-4 border border-green-200 p-4 rounded-lg bg-green-50">
-                    @csrf
-                    <input type="hidden" name="pet_id" id="activity_prescription_pet_id">
-                    <input type="hidden" name="medications_json" id="activity_medications_json">
-                    <input type="hidden" name="active_tab" value="visits">
-
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Prescription Date</label>
-                        <input type="date" name="prescription_date" value="{{ \Carbon\Carbon::now()->format('Y-m-d') }}" class="w-full border border-gray-300 p-2 rounded-lg" required>
-                    </div>
-
-                    <div id="activityMedicationContainer" class="space-y-3">
-                        {{-- Medication fields added by JS --}}
-                    </div>
-                    <button type="button" onclick="addActivityMedicationField()" class="bg-indigo-500 text-white px-3 py-1 rounded text-sm hover:bg-indigo-600">
-                        <i class="fas fa-plus"></i> Add Medication
-                    </button>
-
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Diagnosis / Reason</label>
-                        <textarea name="differential_diagnosis" rows="2" class="w-full border border-gray-300 p-2 rounded-lg" placeholder="Diagnosis for this prescription"></textarea>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">General Notes</label>
-                        <textarea name="notes" rows="2" class="w-full border border-gray-300 p-2 rounded-lg" placeholder="Dietary instructions, follow-up recommendations"></textarea>
-                    </div>
-
-                    <div class="flex justify-end">
-                        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold">
-                            <i class="fas fa-save mr-1"></i> Save Prescription
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            {{-- Referral Tab Content --}}
-            <div id="activity_referral_content" class="activity-tab-content hidden space-y-4">
-                <h4 class="text-lg font-semibold text-red-600">Create New Referral</h4>
-                <form id="activityReferralForm" action="{{ route('medical.referrals.store') }}" method="POST" class="space-y-4 border border-red-200 p-4 rounded-lg bg-red-50">
-                    @csrf
-                    <input type="hidden" name="appointment_id" id="activity_referral_appoint_id" value="{{ $visit->visit_id ?? '' }}">
-                    <input type="hidden" name="active_tab" value="visits">
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Referral Date</label>
-                            <input type="date" name="ref_date" value="{{ \Carbon\Carbon::now()->format('Y-m-d') }}" class="w-full border border-gray-300 p-2 rounded-lg" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Refer To Branch</label>
-                            <select name="ref_to" class="w-full border border-gray-300 p-2 rounded-lg" required>
-                                <option value="">Select Branch</option>
-                                @foreach($allBranches as $branch)
-                                    <option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Reason for Referral</label>
-                        <textarea name="ref_description" rows="3" class="w-full border border-gray-300 p-2 rounded-lg" placeholder="Detailed reason for referring the pet" required></textarea>
-                    </div>
-                    <div class="flex justify-end">
-                        <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold">
-                            <i class="fas fa-share mr-1"></i> Submit Referral
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-{{-- Toast Container --}}
-<div id="toastContainer" class="toast-container"></div>
-
-<script>
-    // Global state
-    let availablePrescriptionProducts = @json($allProducts);
-    let activityMedicationCounter = 0;
-    let currentActivityTab = 'appointment'; // Keep track of the currently active tab
-
-    function switchActivityTab(tabName) {
-        // Remove 'active' class from all tab contents
-        document.querySelectorAll('.activity-tab-content').forEach(content => {
-            content.classList.add('hidden');
-        });
-        
-        // Add 'active' class to the target tab content and update the label
-        document.getElementById(`activity_${tabName}_content`).classList.remove('hidden');
-        
-        const labelMap = {
-            'appointment': 'Set Appointment',
-            'prescription': 'Add New Prescription',
-            'referral': 'Create New Referral',
-            'initial': 'Initial Assessment'
-        };
-        document.getElementById('current_activity_tab_label').textContent = labelMap[tabName] || tabName;
-        
-        currentActivityTab = tabName; // Update global state
-    }
-
-    function openActivityModal(petId, ownerName, targetTab) {
-        const modal = document.getElementById('serviceActivityModal');
-        const petName = document.getElementById('activity_pet_name');
-        
-        // Find pet name from allPets global var or default
-        const pet = @json($allPets).find(p => String(p.pet_id) === String(petId));
-
-        // 1. Set Pet/Owner context
-        petName.textContent = pet?.pet_name || 'N/A';
-        document.getElementById('activity_owner_id').textContent = ownerName || pet?.owner.own_name || 'N/A'; // Use ownerName passed from button or lookup
-        document.getElementById('activity_appoint_pet_id').value = petId;
-        document.getElementById('activity_prescription_pet_id').value = petId;
-        document.getElementById('activity_referral_appoint_id').value = String({{ $visit->visit_id ?? '""' }}); // Assuming appointment_id/visit_id is the current visit ID
-        
-        const initPetInput = document.getElementById('activity_initial_pet_id');
-        const initVisitInput = document.getElementById('activity_initial_visit_id');
-        if (initPetInput) initPetInput.value = petId;
-        if (initVisitInput) initVisitInput.value = String({{ $visit->visit_id ?? '""' }});
-        
-        // 2. Pre-fill default values for Appointment Type
-        document.getElementById('activity_appoint_type').value = 
-            targetTab.includes('Vaccination') ? 'Vaccination Follow-up' : 
-            targetTab.includes('Deworming') ? 'Deworming Follow-up' : 'Follow-up';
-
-        // 3. Reset Prescription fields
-        document.getElementById('activityPrescriptionForm').reset();
-        document.getElementById('activityMedicationContainer').innerHTML = '';
-        activityMedicationCounter = 0;
-        addActivityMedicationField();
-        
-        // 4. Show the requested tab and modal
-        const tabKey = targetTab.toLowerCase().includes('appointment') ? 'appointment' :
-                        targetTab.toLowerCase().includes('prescription') ? 'prescription' :
-                        targetTab.toLowerCase().includes('referral') ? 'referral' :
-                        targetTab.toLowerCase().includes('initial') ? 'initial' : 'appointment';
-                        
-        switchActivityTab(tabKey);
-        modal.classList.remove('hidden');
-    }
-
-    function closeActivityModal() {
-        document.getElementById('serviceActivityModal').classList.add('hidden');
-    }
-    
-    // --- Prescription Sub-Functions (Rest of the original functions unchanged) ---
-    // (addActivityMedicationField, removeActivityMedicationField, setupActivityProductSearch, handleActivityPrescriptionSubmit, showToast, handleInitialAssessmentSubmit are all left as is)
-
-    function addActivityMedicationField() {
-        const container = document.getElementById('activityMedicationContainer');
-        const fieldId = ++activityMedicationCounter;
-        
-        const fieldHtml = `
-            <div class="medication-field border border-gray-300 p-3 rounded-lg bg-white" data-field-id="${fieldId}">
-                <div class="flex justify-between items-center mb-3">
-                    <h4 class="text-sm font-medium text-gray-700">Medication ${fieldId}</h4>
-                    ${fieldId > 1 ? `<button type="button" onclick="removeActivityMedicationField(${fieldId})" class="text-red-500 hover:text-red-700 text-xs"><i class="fas fa-trash"></i> Remove</button>` : ''}
-                </div>
-                <div class="relative mb-3">
-                    <label class="block text-xs text-gray-600 mb-1">Product Name / Manual Entry</label>
-                    <input type="text" class="product-search w-full border px-2 py-2 rounded-lg text-sm" placeholder="Search product or enter manually" data-field-id="${fieldId}">
-                    <div class="product-suggestions absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-32 overflow-y-auto hidden" data-field-id="${fieldId}"></div>
-                    <input type="hidden" class="selected-product-id" data-field-id="${fieldId}">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-600 mb-1">Instructions (Sig.)</label>
-                    <textarea class="medication-instructions w-full border px-2 py-2 rounded-lg text-sm" rows="2" data-field-id="${fieldId}" placeholder="e.g., Take 1 capsule twice daily for 7 days" required></textarea>
-                </div>
-            </div>
-        `;
-        container.insertAdjacentHTML('beforeend', fieldHtml);
-        setupActivityProductSearch(fieldId);
-    }
-
-    function removeActivityMedicationField(fieldId) {
-        const field = document.querySelector(`#activityMedicationContainer .medication-field[data-field-id="${fieldId}"]`);
-        if (field) {
-            field.remove();
-        }
-    }
-
-    function setupActivityProductSearch(fieldId) {
-        const searchInput = document.querySelector(`.product-search[data-field-id="${fieldId}"]`);
-        const suggestionsDiv = document.querySelector(`.product-suggestions[data-field-id="${fieldId}"]`);
-        const productIdInput = document.querySelector(`.selected-product-id[data-field-id="${fieldId}"]`);
-
-        let searchTimeout;
-
-        searchInput.addEventListener('input', function() {
-            const query = this.value.toLowerCase().trim();
-            clearTimeout(searchTimeout);
-
-            // Clear selected product ID on manual typing
-            productIdInput.value = '';
-
-            if (query.length < 2) {
-                suggestionsDiv.classList.add('hidden');
-                return;
-            }
-
-            searchTimeout = setTimeout(() => {
-                const filtered = availablePrescriptionProducts.filter(p => p.prod_name.toLowerCase().includes(query));
-                suggestionsDiv.innerHTML = '';
-                
-                if (filtered.length > 0) {
-                    filtered.forEach(product => {
-                        const item = document.createElement('div');
-                        item.className = 'product-suggestion-item px-3 py-2 cursor-pointer hover:bg-blue-50 text-sm';
-                        item.innerHTML = `<div>${product.prod_name}</div><div class="text-xs text-gray-500">Stock: ${product.prod_stocks} - ₱${parseFloat(product.prod_price || 0).toFixed(2)}</div>`;
-                        
-                        item.onclick = function() {
-                            productIdInput.value = product.prod_id;
-                            searchInput.value = product.prod_name;
-                            suggestionsDiv.classList.add('hidden');
-                            searchInput.focus();
-                        };
-                        suggestionsDiv.appendChild(item);
-                    });
-                    suggestionsDiv.classList.remove('hidden');
-                } else {
-                    suggestionsDiv.innerHTML = '<div class="px-3 py-2 text-gray-500 text-xs">No matching products found.</div>';
-                    suggestionsDiv.classList.remove('hidden');
-                }
-            }, 300);
-        });
-
-        document.addEventListener('click', function(e) {
-            if (!searchInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
-                suggestionsDiv.classList.add('hidden');
-            }
-        });
-    }
-
-    function handleActivityPrescriptionSubmit(e) {
-        e.preventDefault();
-        
-        const form = e.target;
-        const medications = [];
-        let isValid = true;
-        
-        document.querySelectorAll('#activityMedicationContainer .medication-field').forEach(field => {
-            const fieldId = field.dataset.fieldId;
-            const searchInput = document.querySelector(`input.product-search[data-field-id="${fieldId}"]`);
-            const productIdInput = document.querySelector(`input.selected-product-id[data-field-id="${fieldId}"]`);
-            const instructionsTextarea = document.querySelector(`textarea.medication-instructions[data-field-id="${fieldId}"]`);
-            
-            const productName = searchInput.value.trim();
-            const instructions = instructionsTextarea.value.trim();
-            
-            if (productName && instructions) {
-                medications.push({
-                    product_id: productIdInput.value || null,
-                    product_name: productName,
-                    instructions: instructions
-                });
-            } else if (productName || instructions) {
-                isValid = false;
-            }
-        });
-        
-        if (!isValid) {
-            alert('Please ensure all medication fields are complete or empty.');
-            return;
-        }
-
-        if (medications.length === 0) {
-            alert('Please add at least one medication.');
-            return;
-        }
-        
-        // Finalize data
-        document.getElementById('activity_medications_json').value = JSON.stringify(medications);
-        form.action = "{{ route('medical.prescriptions.store') }}"; // Set the correct submission route
-        form.method = 'POST';
-        
-        // Submit the form
-        const submitBtn = form.querySelector('button[type="submit"]');
-
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Saving...';
-        
-        form.submit();
-    }
-
-    // Toast notification function
-    function showToast(type, message) {
-        const container = document.getElementById('toastContainer');
-        const toast = document.createElement('div');
-        toast.className = `toast-notification ${type === 'success' ? 'toast-success' : 'toast-error'}`;
-        
-        // Create toast content with icon
-        const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
-        toast.innerHTML = `
-            <div class="flex items-center">
-                <i class="fas ${icon} mr-2"></i>
-                <span>${message}</span>
-            </div>
-        `;
-
-        container.appendChild(toast);
-
-        // Remove toast after 3 seconds with fade out animation
-        setTimeout(() => {
-            toast.style.animation = 'fadeOut 0.5s ease-out forwards';
-            setTimeout(() => {
-                if (toast.parentElement) {
-                    toast.remove();
-                }
-            }, 500);
-        }, 3000);
-    }
-
-    function handleInitialAssessmentSubmit(e) {
-        e.preventDefault();
-        const form = e.target;
-        const formData = new FormData(form);
-        
-        // Show loading state
-        const submitBtn = form.querySelector('button[type="submit"]');
-        const originalBtnText = submitBtn.innerHTML;
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-
-        fetch(form.action, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Show success message
-                showToast('success', data.message || 'Initial assessment saved successfully!');
-                
-                // Close the modal after a delay
-                setTimeout(() => {
-                    closeActivityModal();
-                }, 2000);
-            } else {
-                throw new Error(data.message || 'Failed to save initial assessment');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast('error', error.message || 'Failed to save initial assessment. Please try again.');
-        })
-        .finally(() => {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = originalBtnText;
-        });
-    }
-</script>
-
-<style>
-/* Add necessary styles for the toast container if not already in your CSS */
-.toast-container {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 55; /* Higher than modals */
-}
-
-.toast-notification {
-    padding: 12px 20px;
-    margin-top: 10px;
-    border-radius: 8px;
-    color: white;
-    font-size: 0.9rem;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    opacity: 1;
-    animation: fadeIn 0.5s ease-out forwards;
-}
-
-.toast-success {
-    background-color: #10B981; /* Tailwind green-500 */
-}
-
-.toast-error {
-    background-color: #EF4444; /* Tailwind red-500 */
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes fadeOut {
-    from { opacity: 1; transform: translateY(0); }
-    to { opacity: 0; transform: translateY(20px); }
-}
-</style>
 
 @endsection

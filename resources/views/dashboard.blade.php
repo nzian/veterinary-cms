@@ -95,20 +95,20 @@
         @php
             $keyMetrics = [
                 [
-                    'label' => 'Total Appointments', 
-                    'value' => $totalAppointments,
+                    'label' => 'Total Visits', 
+                    'value' => $totalVisits,
                     'icon' => '📅',
                     'color' => 'from-blue-500 to-blue-600',
                     'change' => '+12%',
-                    'route' => route('medical.index') . '?tab=appointments'
+                    'route' => route('medical.index') . '?tab=visits'
                 ],
                 [
-                    'label' => "Today's Appointments", 
-                    'value' => $todaysAppointments,
+                    'label' => "Today's Visits", 
+                    'value' => $todaysVisits,
                     'icon' => '🕒',
                     'color' => 'from-emerald-500 to-emerald-600',
                     'change' => '+8%',
-                    'route' => route('medical.index') . '?tab=appointments'
+                    'route' => route('medical.index') . '?tab=visits'
                 ],
                 [
                     'label' => 'Total Pet Owners', 
@@ -164,9 +164,11 @@
                     <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Pet Vaccination Overview</h2>
                     <p class="text-xs sm:text-sm text-gray-500 mt-1">Track vaccination status across all registered pets</p>
                 </div>
+                @if(strtolower(auth()->user()->user_role) === 'veterinarian')
                 <a href="{{ route('medical.index') }}?tab=vaccinations" class="px-3 sm:px-4 py-2 bg-blue-500 text-white text-xs sm:text-sm rounded-lg hover:bg-blue-600 transition-colors">
                     Manage Vaccinations
                 </a>
+                @endif
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -350,23 +352,23 @@
             
             {{-- Legend - Mobile Responsive --}}
             <div class="mt-3 sm:mt-4 flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm">
-                <div class="flex items-center gap-1.5 sm:gap-2">
-                    <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-green-100 border border-green-300 rounded"></span> 
-                    <span class="text-xs sm:text-sm">Arrived</span>
-                </div>
-                <div class="flex items-center gap-1.5 sm:gap-2">
-                    <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-yellow-100 border border-yellow-300 rounded"></span> 
-                    <span class="text-xs sm:text-sm">Pending</span>
-                </div>
-                <div class="flex items-center gap-1.5 sm:gap-2">
-                    <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-orange-100 border border-orange-300 rounded"></span> 
-                    <span class="text-xs sm:text-sm">Reschedule</span>
-                </div>
-                <div class="flex items-center gap-1.5 sm:gap-2">
-                    <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-red-100 border border-red-300 rounded"></span> 
-                    <span class="text-xs sm:text-sm">Missed</span>
-                </div>
-            </div>
+    <div class="flex items-center gap-1.5 sm:gap-2">
+        <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-red-100 border border-red-300 rounded"></span>
+        <span class="text-xs sm:text-sm">Missed</span>
+    </div>
+    <div class="flex items-center gap-1.5 sm:gap-2">
+        <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-blue-100 border border-blue-300 rounded"></span>
+        <span class="text-xs sm:text-sm">Scheduled</span>
+    </div>
+    <div class="flex items-center gap-1.5 sm:gap-2">
+        <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-orange-100 border border-orange-300 rounded"></span>
+        <span class="text-xs sm:text-sm">Reschedule</span>
+    </div>
+    <div class="flex items-center gap-1.5 sm:gap-2">
+        <span class="inline-block w-3 h-3 sm:w-4 sm:h-4 bg-green-100 border border-green-300 rounded"></span>
+        <span class="text-xs sm:text-sm">Arrived</span>
+    </div>
+</div>
         </div>
     </div>
 
@@ -419,9 +421,14 @@
                                 <td class="px-4 sm:px-6 py-3 sm:py-4">
                                     @php
                                         $statusColors = [
+                                            'scheduled' => 'bg-blue-100 text-blue-800',
+                                            'confirmed' => 'bg-indigo-100 text-indigo-800',
                                             'arrived' => 'bg-green-100 text-green-800',
-                                            'pending' => 'bg-yellow-100 text-yellow-800',
-                                            'rescheduled' => 'bg-blue-100 text-blue-800'
+                                            'completed' => 'bg-green-100 text-green-800',
+                                            'missed' => 'bg-red-100 text-red-800',
+                                            'cancelled' => 'bg-red-100 text-red-800',
+                                            'rescheduled' => 'bg-yellow-100 text-yellow-800',
+                                            'pending' => 'bg-orange-100 text-orange-800'
                                         ];
                                         $status = strtolower($appointment->appoint_status);
                                         $colorClass = $statusColors[$status] ?? 'bg-gray-100 text-gray-800';
@@ -443,21 +450,46 @@
                 <h3 class="text-base sm:text-lg font-semibold text-gray-900">Recent Referrals</h3>
             </div>
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[500px]">
+                <table class="w-full min-w-[600px]">
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                            <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet</th>
+                            <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Direction</th>
                             <th class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
                         @foreach ($recentReferrals->take(5) as $ref)
+                            @php
+                                $activeBranchId = session('active_branch_id');
+                                // Branch who created the referral (ref_from) should see "Referred to"
+                                $isReferringOut = ($ref->ref_from == $activeBranchId);
+                                $directionLabel = $isReferringOut ? 'Referred to' : 'Referred from';
+                                $otherBranch = $isReferringOut ? $ref->refToBranch : $ref->refFromBranch;
+                                $displayName = $otherBranch?->branch_name ?? ($ref->referralCompany?->company_name ?? 'Unknown');
+                            @endphp
                             <tr class="hover:bg-gray-50">
-                                <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">{{ $ref->ref_date }}</td>
-                                <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">{{ Str::limit($ref->ref_description, 30) }}</td>
+                                <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">{{ \Carbon\Carbon::parse($ref->ref_date)->format('M d, Y') }}</td>
+                                <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">{{ $ref->pet?->pet_name ?? 'N/A' }}</td>
+                                <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
+                                    <span class="font-medium">{{ $directionLabel }}:</span> {{ $displayName }}
+                                </td>
                                 <td class="px-4 sm:px-6 py-3 sm:py-4">
-                                    <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                    @php
+                                        $refStatusColors = [
+                                            'pending' => 'bg-yellow-100 text-yellow-800',
+                                            'referred' => 'bg-violet-100 text-violet-800',
+                                            'attended' => 'bg-green-100 text-green-800',
+                                            'accepted' => 'bg-green-100 text-green-800',
+                                            'completed' => 'bg-blue-100 text-blue-800',
+                                            'rejected' => 'bg-red-100 text-red-800',
+                                            'cancelled' => 'bg-gray-100 text-gray-800'
+                                        ];
+                                        $refStatus = strtolower($ref->ref_status ?? 'pending');
+                                        $refColorClass = $refStatusColors[$refStatus] ?? 'bg-gray-100 text-gray-800';
+                                    @endphp
+                                    <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full {{ $refColorClass }}">
                                         {{ ucfirst($ref->ref_status ?? 'Pending') }}
                                     </span>
                                 </td>
@@ -503,7 +535,7 @@
     <div class="bg-white rounded-xl sm:rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div class="p-4 sm:p-6">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-base sm:text-lg font-semibold text-gray-900">Update Pet Visit</h3>
+                <h3 class="text-base sm:text-lg font-semibold text-gray-900">Update Appointment Status</h3>
                 <button id="closeVisitModal" class="text-gray-400 hover:text-gray-600 transition-colors">
                     <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -516,22 +548,33 @@
             
             <div class="space-y-3 sm:space-y-4">
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Visit Status</label>
+                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Appointment Status</label>
                     <select id="visitStatus" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         <option value="pending">Pending</option>
+                        <option value="scheduled">Scheduled</option>
                         <option value="arrived">Arrived</option>
                         <option value="completed">Completed</option>
+                        <option value="missed">Missed</option>
+                        <option value="cancelled">Cancelled</option>
                     </select>
                 </div>
                 
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Visit Notes</label>
-                    <textarea id="visitNotes" rows="3" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Add visit notes..."></textarea>
+                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Notes</label>
+                    <textarea id="visitNotes" rows="3" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Add notes..."></textarea>
+                </div>
+                
+                {{-- Add Visit Button - Only shown when appointment is Arrived --}}
+                <div id="addVisitBtnContainer" class="hidden">
+                    <button id="addVisitBtn" class="w-full px-4 py-2 bg-blue-500 text-white text-sm sm:text-base rounded-lg hover:bg-blue-600 transition-colors">
+                        <i class="fas fa-plus mr-2"></i> Create Visit Entry
+                    </button>
+                    <p class="text-xs text-gray-500 mt-1 text-center">This will create a new visit record in the Visits tab</p>
                 </div>
                 
                 <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
                     <button id="updateVisitBtn" class="flex-1 px-4 py-2 bg-green-500 text-white text-sm sm:text-base rounded-lg hover:bg-green-600 transition-colors">
-                        Update Visit
+                        Update Status
                     </button>
                     <button id="closeVisitModalBtn" class="px-4 py-2 border border-gray-300 text-gray-700 text-sm sm:text-base rounded-lg hover:bg-gray-50 transition-colors">
                         Cancel
@@ -557,20 +600,24 @@
     const visitModal = document.getElementById('visitModal');
 
     function formatDate(date) {
-        return date.toISOString().split('T')[0];
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     }
 
-    function getStatusColor(status) {
-        const colors = {
-            'arrive': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
-            'arrived': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
-            'completed': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
-            'pending': 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-200',
-            'approved': 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-200',
-            'rescheduled': 'bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-orange-200'
-        };
-        return colors[(status || 'pending').toLowerCase()] || 'bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-200';
-    }
+   function getStatusColor(status) {
+    const colors = {
+        'missed': 'bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-red-200',
+        'scheduled': 'bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-blue-200',
+        'arrive': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
+        'arrived': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
+        'completed': 'bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-green-200',
+        'reschedule': 'bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-orange-200',
+        'rescheduled': 'bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-orange-200'
+    };
+    return colors[(status || 'scheduled').toLowerCase()] || 'bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-blue-200';
+}
 
     function updateViewButtons(activeView) {
         const buttons = ['monthlyBtn', 'weeklyBtn', 'todayBtn'];
@@ -613,9 +660,25 @@
                             const eventDate = new Date(event.date);
 
                             let colorClass = getStatusColor(event.status);
-                            if (eventDate < today && !['arrived','completed'].includes((event.status || '').toLowerCase())) {
+                            if (eventDate < today && !['arrived','completed','missed'].includes((event.status || '').toLowerCase())) {
                                 colorClass = 'bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-red-200';
                                 event.status = 'missed';
+                                // AJAX call to update backend status
+                                fetch(`/appointments/${event.id}/mark-missed`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                                    },
+                                    body: JSON.stringify({})
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (!data.success) {
+                                        console.error('Failed to mark appointment as missed:', data.message);
+                                    }
+                                })
+                                .catch(err => console.error('AJAX error:', err));
                             }
 
                             const petName = event.pet_name || 'Unknown Pet';
@@ -778,6 +841,7 @@
         const profile = document.getElementById('petProfile');
         const statusSelect = document.getElementById('visitStatus');
         const notesTextarea = document.getElementById('visitNotes');
+        const addVisitBtnContainer = document.getElementById('addVisitBtnContainer');
         
         profile.innerHTML = `
             <div class="bg-gray-50 rounded-lg p-3 sm:p-4">
@@ -815,10 +879,65 @@
             </div>
         `;
         
-        statusSelect.value = currentAppointment.status || 'pending';
+        statusSelect.value = (currentAppointment.status || 'pending').toLowerCase();
         notesTextarea.value = currentAppointment.notes || '';
         
+        // Show/hide "Add Visit" button based on current status
+        toggleAddVisitButton(statusSelect.value);
+        
+        // Listen for status change to show/hide Add Visit button
+        statusSelect.onchange = function() {
+            toggleAddVisitButton(this.value);
+        };
+        
         modal.classList.remove('hidden');
+    }
+    
+    function toggleAddVisitButton(status) {
+        const addVisitBtnContainer = document.getElementById('addVisitBtnContainer');
+        if (status === 'arrived') {
+            addVisitBtnContainer.classList.remove('hidden');
+        } else {
+            addVisitBtnContainer.classList.add('hidden');
+        }
+    }
+    
+    function createVisitFromAppointment() {
+        if (!currentAppointment) return;
+        
+        const addVisitBtn = document.getElementById('addVisitBtn');
+        addVisitBtn.disabled = true;
+        addVisitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Creating Visit...';
+        
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        
+        fetch(`/care-continuity/appointments/${currentAppointment.id}/create-visit`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Visit created successfully! Redirecting...', 'success');
+                setTimeout(() => {
+                    window.location.href = data.redirect || '/medical-management?tab=visits';
+                }, 1000);
+            } else {
+                showNotification(data.message || 'Failed to create visit', 'error');
+                addVisitBtn.disabled = false;
+                addVisitBtn.innerHTML = '<i class="fas fa-plus mr-2"></i> Create Visit Entry';
+            }
+        })
+        .catch(error => {
+            showNotification(`Error: ${error.message}`, 'error');
+            addVisitBtn.disabled = false;
+            addVisitBtn.innerHTML = '<i class="fas fa-plus mr-2"></i> Create Visit Entry';
+        });
     }
 
     function updateVisit() {
@@ -877,17 +996,20 @@
             
             showNotification('Appointment updated successfully!', 'success');
             
+            // Show Add Visit button if status changed to arrived
+            toggleAddVisitButton(newStatus);
+            
             document.getElementById('visitModal').classList.add('hidden');
             renderCalendar(currentView);
             
             updateBtn.disabled = false;
-            updateBtn.textContent = 'Update Visit';
+            updateBtn.textContent = 'Update Status';
         })
         .catch(error => {
             showNotification(`Error: ${error.message}`, 'error');
             
             updateBtn.disabled = false;
-            updateBtn.textContent = 'Update Visit';
+            updateBtn.textContent = 'Update Status';
         });
     }
 
@@ -922,6 +1044,7 @@
     document.getElementById('closeVisitModal').onclick = () => visitModal.classList.add('hidden');
     document.getElementById('closeVisitModalBtn').onclick = () => visitModal.classList.add('hidden');
     document.getElementById('updateVisitBtn').onclick = updateVisit;
+    document.getElementById('addVisitBtn').onclick = createVisitFromAppointment;
 
     appointmentModal.onclick = (e) => {
         if (e.target === appointmentModal) {

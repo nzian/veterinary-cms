@@ -11,6 +11,7 @@ use App\Models\Appointment;
 use App\Models\InventoryTransaction;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Models\ProductStock;
 
 class InventoryService
 {
@@ -23,7 +24,7 @@ class InventoryService
      * @param string $type The type of transaction (e.g., 'Prescription', 'Service')
      * @return bool True if successful, false otherwise
      */
-    public function deductFromInventory($productId, $quantity, $reference, $type = 'Manual'): bool
+    public function deductFromInventory($productId, $quantity, $reference, $type = 'adjustment'): bool
     {
         try {
             DB::beginTransaction();
@@ -35,29 +36,13 @@ class InventoryService
                 throw new \Exception("Product with ID {$productId} not found");
             }
 
-            // Check if we have enough stock
-            if ($product->prod_stocks < $quantity) {
-                throw new \Exception("Insufficient stock for product {$product->prod_name}");
-            }
-
-            // Deduct the quantity
-            $product->prod_stocks -= $quantity;
-            $product->save();
-
-            // Record the transaction
-            $transaction = new InventoryTransaction();
-            $transaction->prod_id = $productId;
-            $transaction->transaction_type = $type;
-            $transaction->quantity_change = -1 * $quantity;
-            $transaction->reference = $reference;
-           // $transaction->transaction_date = now();
-            $transaction->performed_by = Auth::id();
-            $transaction->save();
-
+            // Use the new batch-based deduction logic
+            $this->deductFromStockBatches($product, $quantity, $reference, $type);
+            
             DB::commit();
             
             // Check if stock is below reorder level and log a warning
-            if ($product->prod_stocks <= $product->prod_reorderlevel) {
+            if ($product->available_stock - $product->usage_from_inventory_transactions <= $product->prod_reorderlevel) {
                 Log::warning("Product {$product->prod_name} is at or below reorder level. Current stock: {$product->prod_stocks}");
             }
 
@@ -69,6 +54,8 @@ class InventoryService
             throw $e;
         }
     }
+
+   
 
     /**
      * Deduct products used in appointment services
@@ -163,10 +150,20 @@ class InventoryService
                         $deductionSuccessful = false; // Mark as failed but proceed with deduction of available stock
                     }
                     
-                    // Deduct from stock and save
-                    $oldStock = $product->prod_stocks;
-                    $product->prod_stocks = max(0, $product->prod_stocks - $actualDeduction);
-                    $product->save();
+                    // Deduct from stock batches
+                    try {
+                        $this->deductFromStockBatches($product, $actualDeduction, "Appointment #{$appointment->appoint_id}", $serviceName == ($vaccinationService->serv_name ?? 'Vaccination') ? 'vaccination_usage' : 'service_usage');
+                    } catch (\Exception $e) {
+                        Log::warning("⚠️ Failed to deduct from batches for {$product->prod_name}: " . $e->getMessage());
+                        $deductionSuccessful = false;
+                        // Fallback: still update the main stock if batch deduction fails (though deductFromStockBatches handles main stock too)
+                        // If deductFromStockBatches failed, it likely means insufficient stock in batches.
+                        // We might want to force decrement the main stock anyway if we want to allow negative stock or just log it.
+                        // For now, let's assume if it fails, we don't decrement main stock here because deductFromStockBatches should have done it or thrown.
+                        // But since we are in a loop, we might want to continue?
+                        // Let's re-throw or handle gracefully.
+                        // If we want to enforce "must have stock", then $deductionSuccessful = false is correct.
+                    }
                     
                     Log::info("✅ Deducted {$actualDeduction} units of '{$product->prod_name}' for Service '{$serviceName}' (Stock: {$oldStock} → {$product->prod_stocks})");
                     
@@ -257,25 +254,11 @@ class InventoryService
             return false;
         }
 
-        $oldStock = $product->prod_stocks;
-        $product->prod_stocks -= $quantity;
-        $product->save();
-
-       \App\Models\InventoryTransaction::create([
-    'prod_id' => $productId,
-    // ⭐ CRITICAL FIX: Change to a very short code, e.g., 'V_REC' (5 chars) ⭐
-    'transaction_type' => 'service_usage',
-    'quantity_change' => -$quantity,
-    'reference' => "Appoint #{$appointmentId} Vaccine Record",
-    'serv_id' => $serviceId,
-            'appoint_id' => $appointmentId,
-            'user_id' => Auth::id(),
-            'notes' => "Used in specific vaccine recording.",
-            'created_at' => now(),
-        ]);
+        // Use batch deduction
+        $this->deductFromStockBatches($product, $quantity, "Appoint #{$appointmentId} Vaccine Record", 'service_usage', $serviceId);
         
         DB::commit();
-        Log::info("✅ Vaccine Deduction Success: Prod {$productId} Stock: {$oldStock} -> {$product->prod_stocks}");
+        Log::info("✅ Vaccine Deduction Success: Prod {$productId} Stock: {($product->current_stock + $quantity)} -> {$product->current_stock}");
         return true;
 
     } catch (\Exception $e) {
@@ -283,5 +266,73 @@ class InventoryService
         Log::error("❌ Specific Product Deduction Error (Vaccine): " . $e->getMessage());
         return false;
     }
-}
+    }
+
+    /**
+     * Helper method to deduct quantity from product stock batches (FIFO by expiration)
+     * Also updates the main Product model's prod_stocks
+     * 
+     * @param Product $product
+     * @param float $quantity
+     * @throws \Exception If insufficient stock
+     */
+    private function deductFromStockBatches(Product $product, float $quantity, string $reference = '', string $type = 'adjustment', $serv_id = null)
+    {
+        $remainingToDeduct = $quantity;
+        
+        // Get non-expired batches ordered by expiration date (FIFO)
+        // We assume 'expire_date' is the field.
+        $batches = ProductStock::where('stock_prod_id', $product->prod_id)
+            ->where('expire_date', '>=', now()->toDateString())
+            ->where('quantity', '>', 0)
+            ->orderBy('expire_date', 'asc')
+            ->get();
+
+        $totalAvailableInBatches = $batches->sum('quantity');
+
+        if ($totalAvailableInBatches < $quantity) {
+             // Option: Throw exception OR allow partial deduction and let the main stock go negative?
+             // Requirement says "make sure saving those service Consumable product quantity is deducted from the product stock table not expire"
+             // Implies strict check.
+             throw new \Exception("Insufficient non-expired stock in batches. Required: {$quantity}, Available: {$totalAvailableInBatches}");
+        }
+
+        foreach ($batches as $batch) {
+            if ($remainingToDeduct <= 0) break;
+
+            if ($batch->quantity >= $remainingToDeduct) {
+                // This batch has enough
+                $batch->quantity -= $remainingToDeduct;
+                $batch->save();
+                $remainingToDeduct = 0;
+                $deducted = $remainingToDeduct;
+            } else {
+                // Take everything from this batch
+                $deducted = $batch->quantity;
+                $batch->quantity = 0;
+                $batch->save();
+                $remainingToDeduct -= $deducted;
+            }
+            // Record the transaction
+            $transaction = new InventoryTransaction();
+            $transaction->prod_id = $product->prod_id;
+            $transaction->transaction_type = $type;
+            $transaction->quantity_change = -1 * $deducted;
+            $transaction->reference = $reference;
+            $transaction->batch_id = $batch->id;
+            $transaction->serv_id = $serv_id;
+           // $transaction->transaction_date = now();
+            $transaction->performed_by = Auth::id();
+            $transaction->save();
+        }
+
+        // Update the aggregate stock on the Product model
+        // We can either decrement by $quantity or recalculate from batches.
+        // Recalculating is safer but slower. Decrementing is faster.
+        // Let's decrement to match the logic of "deducting".
+        // However, if we want to be 100% sure, we might want to sync.
+        // For now, let's decrement the main stock column as well.
+        $product->prod_stocks = max(0, $product->prod_stocks - $quantity);
+        $product->save();
+    }
 }

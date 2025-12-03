@@ -28,7 +28,7 @@ class Service extends Model
     // Only allow these service types
     public static $allowedTypes = [
         'boarding',
-        'check up',
+        'check-up',
         'deworming',
         'diagnostics',
         'emergency',
@@ -63,6 +63,22 @@ class Service extends Model
     public function serviceProducts()
     {
         return $this->hasMany(ServiceProduct::class, 'serv_id', 'serv_id');
+    }
+
+    public function equipment()
+    {
+        return $this->belongsToMany(
+            Equipment::class,
+            'tbl_service_equipment',
+            'serv_id',
+            'equipment_id'
+        )->withPivot('quantity_used', 'notes')
+         ->withTimestamps();
+    }
+
+    public function serviceEquipment()
+    {
+        return $this->hasMany(ServiceEquipment::class, 'serv_id', 'serv_id');
     }
 
     public function servicesWithProduct()

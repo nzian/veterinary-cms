@@ -109,11 +109,26 @@
                     <i class="fas fa-user mr-2 text-[#ff8c42]"></i>Select Customer
                 </label>
                 <select id="petOwner" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#ff8c42] focus:border-transparent transition-all duration-300 bg-white shadow-sm">
-                   @foreach ($owners as $owner)
-                        <option value="{{ $owner->own_id }}">{{ $owner->own_name }}</option>
+                    <option value="0" selected disabled>Select owner</option>
+                    @foreach ($owners as $owner)
+                        <option value="{{ $owner->own_id }}">{{ $owner->own_name }}{{ $owner->own_id > 0 ? ' (' . ($owner->pets_count ?? 0) . ' ' . (($owner->pets_count ?? 0) == 1 ? 'pet' : 'pets') . ')' : '' }}</option>
                     @endforeach
-
                 </select>
+                <!-- Select2 JS and CSS -->
+                <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+                <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+                <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+                <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    // Initialize Select2 for owner dropdown
+                    $('#petOwner').select2({
+                        width: '100%',
+                        placeholder: 'Select owner',
+                        allowClear: true,
+                        minimumResultsForSearch: 0
+                    });
+                });
+                </script>
             </div>
         </div>
 
@@ -254,7 +269,7 @@
                 <div class="text-2xl font-bold text-green-600" id="successChange">₱0.00</div>
             </div>
             <button id="closeSuccess" class="w-full modern-btn ripple px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-blue-700 transition-all duration-300">
-                <i class="fas fa-print mr-2"></i>Print Receipt
+                <i class="fas fa-check mr-2"></i>OK
             </button>
         </div>
     </div>
@@ -421,6 +436,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // *** NEW/FIXED printReceipt function ***
     function printReceipt(transactionData) {
+        // Get logo URL from current page location
+        const logoUrl = '{{ asset("images/pets2go.png") }}';
+        
         // Helper function to format date/time
         function formatDateTime(date) {
             const d = new Date(date);
@@ -479,7 +497,7 @@ document.addEventListener("DOMContentLoaded", function () {
             <body onload="setTimeout(function(){ window.print(); window.onafterprint = function(){ window.close(); }; }, 100);">
                 <div class="receipt-container">
                     <div style="text-align: center; margin-bottom: 20px;">
-                        <img src="images/pets2go.png" alt="Pets2GO Logo" class="logo">
+                        <img src="${logoUrl}" alt="Pets2GO Logo" class="logo">
                         
                         <div style="font-size: 18px; font-weight: bold; color: #a86520; margin-bottom: 5px;">PETS 2GO VETERINARY CLINIC</div>
                     </div>
@@ -734,6 +752,8 @@ document.addEventListener("DOMContentLoaded", function () {
         posItems.innerHTML = "";
         updateTotals();
         document.getElementById("petOwner").selectedIndex = 0;
+        // Fully reload the page to reset all state for next transaction
+        setTimeout(() => { window.location.reload(); }, 200);
     });
 
     // Close modals when clicking outside

@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\BranchDataScope;
-
+use Illuminate\Support\Facades\DB;
 class Product extends Model
 {
     use HasFactory, BranchDataScope;
@@ -18,6 +18,7 @@ class Product extends Model
         'prod_description',
         'prod_price',
         'prod_category',
+        'prod_type',
         'prod_stocks',
         'prod_reorderlevel',
         'prod_image',
@@ -25,6 +26,7 @@ class Product extends Model
         'prod_pullout',
         'prod_expiry',
         'branch_id',
+        'manufacturer_id'
     ];
 
     public function services()
@@ -52,9 +54,90 @@ class Product extends Model
 {
     return $this->belongsTo(Branch::class, 'branch_id');
 }
+
+public function manufacturer()
+{
+    return $this->belongsTo(Manufacturer::class, 'manufacturer_id', 'manufacturer_id');
+}
+
 public function getBranchIdColumn()
     {
         return 'user_id'; // We filter Pet records based on the user_id that created them
+    }
+
+    /**
+     * Get all stock batches for this product
+     */
+    public function stockBatches()
+    {
+        return $this->hasMany(ProductStock::class, 'stock_prod_id', 'prod_id');
+    }
+
+    /**
+     * Get all damage/pullout records
+     */
+    public function damagePullouts()
+    {
+        return $this->hasMany(ProductDamagePullout::class, 'pd_prod_id', 'prod_id');
+    }
+
+    /**
+     * Get available stock (non-expired stock minus damage and pullout)
+     */
+    public function getAvailableStockAttribute()
+    {
+        $totalAvailable = $this->stockBatches()
+            ->notExpired()
+            ->get()
+            ->sum('available_quantity');
+        
+        return max(0, $totalAvailable);
+    }
+    public function getCurrentStockAttribute()
+    {
+        $availableStock = $this->available_stock - $this->usage_from_inventory_transactions;
+        
+        return max(0, $availableStock);
+    }
+   /**
+     * Get total stock from all batches (including expired)
+     */
+    public function getUsageFromInventoryTransactionsAttribute()
+    {
+        // Assumes tbl_inventory_transactions has columns: prod_id, transaction_type, quantity_changed
+        // and that usage is indicated by a specific transaction_type, e.g., 'used' or similar
+        // Adjust 'used' to your actual usage type if different
+        if($this->prod_type === 'Consumable'){
+            return -1 * DB::table('tbl_inventory_transactions')
+            ->where('prod_id', $this->prod_id)
+            ->where('transaction_type', 'service_usage') // Adjust this as needed        
+            ->sum('quantity_change') ?? 0;
+        }
+        else {
+            return -1 * DB::table('tbl_inventory_transactions')
+            ->where('prod_id', $this->prod_id)
+            ->where('transaction_type', 'order_usage') // Adjust this as needed        
+            ->sum('quantity_change') ?? 0;
+        }
+        
+    } 
+
+    public function getExpiredDateAttribute()
+    {
+        return DB::table('product_stock')
+            ->where('stock_prod_id', $this->prod_id)
+            ->where('quantity', '>', 0)
+            ->where('expire_date', '>', now())
+            ->orderBy('expire_date', 'asc')
+            ->first()?->expire_date;
+    }
+
+    /**
+     * Get total stock from all batches (including expired)
+     */
+    public function getTotalStockFromBatchesAttribute()
+    {
+        return $this->stockBatches()->sum('quantity');
     }
 
 }
