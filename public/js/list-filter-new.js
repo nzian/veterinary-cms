@@ -114,7 +114,7 @@ class ListFilter {
         if (Array.isArray(this.config.filterSelects)) {
             this.config.filterSelects.forEach(filter => {
                 const select = document.getElementById(filter.selectId);
-                if (select) {
+                if (select && select.addEventListener) {
                     select.addEventListener('change', () => {
                         this.currentPage = 1;
                         this.applyFilters();
@@ -150,7 +150,7 @@ class ListFilter {
                             const cell = row.cells[filter.columnIndex];
                             if (!cell) return false;
                             const cellText = cell.textContent.trim().toLowerCase();
-                            const matches = cellText.includes(select.value.toLowerCase());
+                            const matches = cellText === select.value.toLowerCase();
                             return matches;
                         });
                         console.log('Filter', filter.selectId, 'reduced from', beforeCount, 'to', this.filteredRows.length);
@@ -270,7 +270,7 @@ class ListFilter {
         console.log('Rendering pagination: page', this.currentPage, 'of', totalPages, 'showing', start, 'to', end);
         
         let html = `
-            <div class="flex justify-between items-center">
+            <div class="flex justify-between items-center w-full">
                 <div class="text-sm text-black">Showing ${start} to ${end} of ${total} entries</div>
                 <div class="flex border border-gray-300 rounded">
         `;
@@ -286,7 +286,7 @@ class ListFilter {
         
         // Pages (simple version)
         for (let i = 1; i <= Math.min(totalPages, 5); i++) {
-            const active = i === this.currentPage ? 'bg-blue-500 text-white' : 'bg-white hover:bg-gray-100';
+            const active = i === this.currentPage ? 'bg-[#0f7ea0] text-white' : 'bg-white hover:bg-gray-100';
             html += `
                 <button onclick="window.listFilters['${this.getFilterKey()}'].goToPage(${i})" 
                     class="px-3 py-1 ${active} border-r">${i}</button>

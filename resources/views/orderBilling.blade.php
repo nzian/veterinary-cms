@@ -99,12 +99,6 @@
                         <input type="search" id="billingSearch" placeholder="Search billing..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                         <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                     </div>
-                    <select id="billingStatus" class="border border-gray-400 rounded px-2 py-1 text-sm">
-                        <option value="All">All Status</option>
-                        <option value="Paid">Paid</option>
-                        <option value="Unpaid">Unpaid</option>
-                        <option value="Paid 50%">Paid 50%</option>
-                    </select>
                 </div>
                 <div class="flex gap-2">
                     <form action="{{ route('sales.auto-generate') }}" method="POST" class="inline">
@@ -217,10 +211,16 @@
                                                 <i class="fas fa-money-bill-wave mr-2"></i>Pay All
                                             </button>
                                         @else
-                                            <a href="{{ route('sales.grouped.billing.receipt', ['owner_id' => $ownerId, 'bill_date' => $billDate]) }}" target="_blank"
-                                                class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm font-bold shadow-md transition-colors inline-flex items-center">
-                                                <i class="fas fa-receipt mr-2"></i>Receipt
-                                            </a>
+                                            @if($ownerId)
+                                                <a href="{{ route('sales.grouped.billing.receipt', ['owner_id' => $ownerId, 'bill_date' => $billDate]) }}" target="_blank"
+                                                    class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm font-bold shadow-md transition-colors inline-flex items-center">
+                                                    <i class="fas fa-receipt mr-2"></i>Receipt
+                                                </a>
+                                            @else
+                                                <span class="bg-gray-400 text-white px-4 py-2 rounded text-sm font-bold shadow-md inline-flex items-center cursor-not-allowed">
+                                                    <i class="fas fa-receipt mr-2"></i>Receipt Unavailable
+                                                </span>
+                                            @endif
                                         @endif
                                     @endif
                                 </td>
@@ -230,7 +230,7 @@
                             <tr id="pets-{{ $index }}" class="hidden bg-gray-50">
                                 <td colspan="7" class="px-4 py-3">
                                     <div class="bg-white rounded-lg shadow-sm p-4">
-                                        <h4 class="font-semibold text-gray-700 mb-3">Pet Details for {{ $owner->own_name }}</h4>
+                                        <h4 class="font-semibold text-gray-700 mb-3">Pet Details for {{ $owner?->own_name ?? 'N/A' }}</h4>
                                         <table class="w-full">
                                             <thead class="bg-gray-100">
                                                 <tr>
@@ -493,38 +493,11 @@
                     </tbody>
                 </table>
             </div>
-            @if(isset($paginator) && method_exists($paginator, 'links'))
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>
-                    Showing {{ $paginator->firstItem() ?? 0 }} to {{ $paginator->lastItem() ?? 0 }} of
-                    {{ $paginator->total() }} entries
-                </div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    @if ($paginator->onFirstPage())
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                    @else
-                        <a href="{{ $paginator->appends(request()->query())->previousPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                    @endif
 
-                    @for ($i = 1; $i <= $paginator->lastPage(); $i++)
-                        @if ($i == $paginator->currentPage())
-                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                        @else
-                            <a href="{{ $paginator->appends(request()->query())->url($i) }}"
-                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                        @endif
-                    @endfor
-
-                    @if ($paginator->hasMorePages())
-                        <a href="{{ $paginator->appends(request()->query())->nextPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                    @else
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                    @endif
-                </div>
+            {{-- Orders Pagination --}}
+            <div id="ordersPagination" class="mt-6 flex justify-end">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
-            @endif
         </div>
     </div>
 </div>

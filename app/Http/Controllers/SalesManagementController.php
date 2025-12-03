@@ -280,13 +280,22 @@ class SalesManagementController extends Controller
 
         // Group billings by owner and date
         $groupedBillings = $allBillings->groupBy(function($billing) {
-            $ownerId = $billing->owner_id ?? $billing->visit->pet->owner->own_id;
+            // Use owner_id if available (direct owner), otherwise get from visit->pet->owner
+            $ownerId = $billing->owner_id;
+            if (!$ownerId && $billing->visit && $billing->visit->pet && $billing->visit->pet->owner) {
+                $ownerId = $billing->visit->pet->owner->own_id;
+            }
             $date = $billing->bill_date;
             return $ownerId . '_' . $date;
         })->map(function($group) {
-           // dd($group);
             $firstBilling = $group->first();
-            $owner = $firstBilling->owner ?? $firstBilling->visit->pet->owner;
+            // Owner is eager loaded via with('owner'), so this should NOT trigger additional queries
+            $owner = $firstBilling->owner;
+            
+            // If direct owner is not set, try to get from visit->pet->owner (also eager loaded)
+            if (!$owner && $firstBilling->visit && $firstBilling->visit->pet) {
+                $owner = $firstBilling->visit->pet->owner;
+            }
 
             // Only include boarding services for boarding bills
             $boardingBillings = $group->filter(function($billing) {
@@ -353,7 +362,7 @@ class SalesManagementController extends Controller
 
             return [
                 'owner' => $owner,
-                'owner_id' => $owner->own_id,
+                'owner_id' => $owner?->own_id ?? $firstBilling->owner_id,
                 'bill_date' => $firstBilling->bill_date,
                 'billings' => $group,
                 'total_amount' => $totalAmount,
@@ -523,7 +532,7 @@ class SalesManagementController extends Controller
         });
         $totalItemsSold = $allOrders->sum('ord_quantity');
         $averageSale = $totalTransactions > 0 ? $totalSales / $totalTransactions : 0;
-
+        //dd($totalSales);
         return view('orderBilling', compact(
             'billings',
             'paginatedTransactions', 

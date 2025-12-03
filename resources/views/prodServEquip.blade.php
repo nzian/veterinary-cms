@@ -258,10 +258,6 @@
                         </select>
                         <span class="whitespace-nowrap">entries</span>
                     </div>
-                    <div class="relative flex-1 min-w-[200px] max-w-xs">
-                        <input type="search" id="servicesSearch" placeholder="Search services..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
-                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                    </div>
                     <select id="servicesCategoryFilter" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         <option value="">All Categories</option>
                         <option value="boarding">Boarding</option>
@@ -273,6 +269,11 @@
                         <option value="surgical">Surgical</option>
                         <option value="vaccination">Vaccination</option>
                     </select>
+                    <div class="relative flex-1 min-w-[200px] max-w-xs">
+                        <input type="search" id="servicesSearch" placeholder="Search services..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                    
                     <div class="flex gap-2">
                         <button onclick="openServiceInventoryOverview()" class="bg-purple-600 text-white text-sm px-3 py-1.5 rounded hover:bg-purple-700 whitespace-nowrap">
                             <i class="fas fa-pills mr-1"></i> Inventory
