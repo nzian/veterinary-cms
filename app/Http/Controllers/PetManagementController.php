@@ -45,17 +45,27 @@ class PetManagementController extends Controller
             $branchUserIds = \App\Models\User::where('branch_id', $activeBranchId)
                 ->pluck('user_id')
                 ->toArray();
-            
+            //dd($branchUserIds);
             // --- Get all data for client-side filtering ---
             // Model scope will automatically include referred pets
             $pets = Pet::with('owner')
+            ->whereIn('tbl_pet.user_id', $branchUserIds)
+            ->orWhereExists(function($subQuery) use ($activeBranchId) {
+                              $subQuery->select(DB::raw(1))
+                                       ->from('tbl_ref')
+                                       ->whereColumn('tbl_ref.pet_id', 'tbl_pet.pet_id')
+                                       ->where('tbl_ref.ref_to', $activeBranchId)
+                                       ->where('tbl_ref.ref_type', 'interbranch')
+                                       ->whereIn('tbl_ref.ref_status', ['pending', 'attended', 'completed']);
+                          })
                 ->orderBy('pet_id', 'desc')
                 ->get(); 
-            
+            //dd($pets);
             // Filter owners - model scope will automatically include referred pet owners
-            $owners = Owner::orderBy('own_id', 'desc')
+            $owners = Owner::whereIn('tbl_own.user_id', $branchUserIds)
+                ->orderBy('own_id', 'desc')
                 ->get(); 
-            
+            //dd($owners);
             // Filter medical histories - model scope will automatically include referred pets' histories
             $medicalHistories = MedicalHistory::with('pet')
                 ->orderBy('id', 'desc')
@@ -81,6 +91,8 @@ class PetManagementController extends Controller
                 // Use vr.user_id when available, otherwise fall back to p.user_id
                 $visitQuery->whereIn(\DB::raw('COALESCE(vr.user_id, p.user_id)'), $branchUserIds);
             }
+
+            
 
             if ($visitPerPage === 'all') {
                 $visitAll = $visitQuery->get();
