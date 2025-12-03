@@ -86,8 +86,8 @@
                                             return [
                                                 'prod_id' => $p->prod_id,
                                                 'prod_name' => $p->prod_name,
-                                                'prod_stocks' => $p->prod_stocks,
-                                                'prod_expiry' => $p->prod_expiry,
+                                                'prod_stocks' => $p->current_stock,
+                                                'prod_expiry' => $p->expired_date ? \Carbon\Carbon::parse($p->expired_date)->format('d-m-Y') : null,
                                                 'quantity_used' => $p->pivot->quantity_used ?? 1
                                             ];
                                         })->toArray();
@@ -810,20 +810,20 @@
             products.forEach(function(product) {
                 const option = document.createElement('option');
                 option.value = product.prod_name;
-                option.dataset.stock = product.prod_stocks;
+                option.dataset.stock = product.current_stock;
                 option.dataset.prodId = product.prod_id;
                 option.dataset.quantityUsed = product.quantity_used;
                 
                 // Build option text - ONLY SHOW STOCK, NO PRICE
-                let optionText = `${product.prod_name} (Stock: ${product.prod_stocks})`;
+                let optionText = `${product.prod_name} (Stock: ${product.current_stock})`;
                 
                 // Check for low stock or expiring
-                if (product.prod_stocks <= 5) {
+                if (product.current_stock <= 5) {
                     optionText += ' ⚠️ Low Stock';
                 }
                 
-                if (product.prod_expiry) {
-                    const expiryDate = new Date(product.prod_expiry);
+                if (product.expired_date) {
+                    const expiryDate = new Date(product.expired_date);
                     const daysUntilExpiry = Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24));
                     if (daysUntilExpiry <= 30 && daysUntilExpiry > 0) {
                         optionText += ' ⚠️ Expiring Soon';
@@ -833,7 +833,7 @@
                 option.textContent = optionText;
                 
                 // Disable if out of stock
-                if (product.prod_stocks <= 0) {
+                if (product.current_stock <= 0) {
                     option.disabled = true;
                     option.textContent += ' - OUT OF STOCK';
                 }

@@ -41,7 +41,7 @@ class ProdServEquipController extends Controller
     /**
      * Record inventory transaction for audit trail
      */
-    private function recordInventoryTransaction($productId, $type, $quantityChange, $reference = null, $notes = null, $appointmentId = null, $serviceId = null)
+    private function recordInventoryTransaction($productId, $type, $quantityChange, $reference = null, $notes = null, $batch_id = null, $serviceId = null)
     {
         try {
             InventoryTransaction::create([
@@ -50,7 +50,7 @@ class ProdServEquipController extends Controller
                 'quantity_change' => $quantityChange,
                 'reference' => $reference,
                 'notes' => $notes,
-                'appoint_id' => $appointmentId,
+                'batch_id' => $batch_id,
                 'serv_id' => $serviceId,
                 'performed_by' => auth()->id(),
                 'created_at' => now(),
@@ -405,7 +405,7 @@ class ProdServEquipController extends Controller
                 
                 // Get recent service usage from inventory transactions
                 $recentServiceUsage = DB::table('tbl_inventory_transactions as it')
-                    ->leftJoin('tbl_visit_record as vr', 'it.appoint_id', '=', 'vr.visit_id')
+                    ->leftJoin('tbl_visit_record as vr', 'it.visit_id', '=', 'vr.visit_id')
                     ->leftJoin('tbl_pet as pet', 'vr.pet_id', '=', 'pet.pet_id')
                     ->leftJoin('tbl_serv as serv', 'it.serv_id', '=', 'serv.serv_id')
                     ->leftJoin('tbl_user as performer', 'it.performed_by', '=', 'performer.user_id')
@@ -468,52 +468,38 @@ class ProdServEquipController extends Controller
         try {
             $service = Service::with('branch')->findOrFail($id);
             
-            $appointments = DB::table('tbl_appoint')
-                ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
-                ->where('tbl_appoint_serv.serv_id', $id)
-                ->pluck('tbl_appoint.appoint_id');
+            $visits = DB::table('tbl_visit_record')
+                ->join('tbl_visit_service', 'tbl_visit_record.visit_id', '=', 'tbl_visit_service.visit_id')
+                ->where('tbl_visit_service.serv_id', $id)
+                ->pluck('tbl_visit_record.visit_id');
 
             $revenueData = (object)[
-                'total_bookings' => $appointments->count(),
-                'total_revenue' => $appointments->count() * $service->serv_price,
+                'total_bookings' => $visits->count(),
+                'total_revenue' => $visits ->sum('total_price'),
                 'average_booking_value' => $service->serv_price
             ];
 
-            $monthlyRevenue = DB::table('tbl_appoint')
-                ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
-                ->where('tbl_appoint_serv.serv_id', $id)
-                ->where('tbl_appoint.appoint_date', '>=', Carbon::now()->subMonths(6))
+            $monthlyRevenue = DB::table('tbl_visit_record')
+                ->join('tbl_visit_service', 'tbl_visit_record.visit_id', '=', 'tbl_visit_service.visit_id')
+                ->where('tbl_visit_service.serv_id', $id)
+                ->where('tbl_visit_record.visit_date', '>=', Carbon::now()->subMonths(6))
                 ->selectRaw('
-                    YEAR(tbl_appoint.appoint_date) as year,
-                    MONTH(tbl_appoint.appoint_date) as month,
-                    COUNT(DISTINCT tbl_appoint.appoint_id) as bookings,
-                    COUNT(DISTINCT tbl_appoint.appoint_id) * ? as revenue
+                    YEAR(tbl_visit_record.visit_date) as year,
+                    MONTH(tbl_visit_record.visit_date) as month,
+                    COUNT(DISTINCT tbl_visit_record.visit_id) as bookings,
+                    COUNT(DISTINCT tbl_visit_record.visit_id) * ? as revenue
                 ', [$service->serv_price])
-                ->groupBy(DB::raw('YEAR(tbl_appoint.appoint_date)'), DB::raw('MONTH(tbl_appoint.appoint_date)'))
+                ->groupBy(DB::raw('YEAR(tbl_visit_record.visit_date)'), DB::raw('MONTH(tbl_visit_record.visit_date)'))
                 ->orderBy('year', 'desc')
                 ->orderBy('month', 'desc')
                 ->get();
 
             // Primary source: visits table (various possible names)
-            $visitTables = ['tbl_visit', 'tbl_visits', 'tbl_visit_record', 'tbl_visit_records', 'visits', 'visit'];
-            $visitsTable = null;
-            foreach ($visitTables as $vt) {
-                if (!Schema::hasTable($vt)) { continue; }
-                try {
-                    // Probe columns to ensure compatibility
-                    $probe = DB::table($vt)->limit(1)->first();
-                    $columns = Schema::getColumnListing($vt);
-                    $need = ['visit_date','visit_status','pet_id','user_id','service_type'];
-                    $hasAll = !array_diff($need, $columns);
-                    if ($hasAll) { $visitsTable = $vt; break; }
-                } catch (\Throwable $t) {
-                    // skip invalid table
-                }
-            }
+            $visitTable =  'tbl_visit_record';
 
-            if ($visitsTable) {
+            if ($visitTable) {
                 // Build recent visits for this service using visits table
-                $recentAppointments = DB::table($visitsTable . ' as v')
+                $recentAppointments = DB::table($visitTable . ' as v')
                     ->leftJoin('tbl_pet as p', 'v.pet_id', '=', 'p.pet_id')
                     ->leftJoin('tbl_own as o', 'p.own_id', '=', 'o.own_id')
                     ->leftJoin('tbl_user as u', 'v.user_id', '=', 'u.user_id')
@@ -596,24 +582,24 @@ class ProdServEquipController extends Controller
                 }
             }
 
-            $utilizationData = DB::table('tbl_appoint')
-                ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
-                ->where('tbl_appoint_serv.serv_id', $id)
+            $utilizationData = DB::table('tbl_visit_record')
+                ->join('tbl_visit_service', 'tbl_visit_record.visit_id', '=', 'tbl_visit_service.visit_id')
+                ->where('tbl_visit_service.serv_id', $id)
                 ->selectRaw('
-                    tbl_appoint.appoint_status,
+                    tbl_visit_record.visit_status,
                     COUNT(*) as count
                 ')
-                ->groupBy('tbl_appoint.appoint_status')
+                ->groupBy('tbl_visit_record.visit_status')
                 ->get();
 
-            $peakTimes = DB::table('tbl_appoint')
-                ->join('tbl_appoint_serv', 'tbl_appoint.appoint_id', '=', 'tbl_appoint_serv.appoint_id')
-                ->where('tbl_appoint_serv.serv_id', $id)
+            $peakTimes = DB::table('tbl_visit_record')
+                ->join('tbl_visit_service', 'tbl_visit_record.visit_id', '=', 'tbl_visit_service.visit_id')
+                ->where('tbl_visit_service.serv_id', $id)
                 ->selectRaw('
-                    HOUR(tbl_appoint.appoint_time) as hour,
+                    HOUR(tbl_visit_record.created_at) as hour,
                     COUNT(*) as bookings
                 ')
-                ->groupBy(DB::raw('HOUR(tbl_appoint.appoint_time)'))
+                ->groupBy(DB::raw('HOUR(tbl_visit_record.created_at)'))
                 ->orderBy('bookings', 'desc')
                 ->limit(5)
                 ->get();
@@ -654,7 +640,7 @@ class ProdServEquipController extends Controller
                     ->join('tbl_service_products as sp', 'it.prod_id', '=', 'sp.prod_id')
                     ->join('tbl_prod as p', 'it.prod_id', '=', 'p.prod_id')
                     ->leftJoin('tbl_user as u', 'it.performed_by', '=', 'u.user_id')
-                    ->leftJoin('tbl_appoint as a', 'it.appoint_id', '=', 'a.appoint_id')
+                   // ->leftJoin('tbl_appoint as a', 'it.appoint_id', '=', 'a.appoint_id')
                     ->where('sp.serv_id', $id)
                     ->where('it.transaction_type', 'service_usage')
                     ->select(
@@ -664,7 +650,7 @@ class ProdServEquipController extends Controller
                         'it.reference',
                         'it.notes',
                         'u.user_name',
-                        'a.appoint_id',
+                        //'a.appoint_id',
                         'it.transaction_type'
                     )
                     ->orderBy('it.created_at', 'desc')
@@ -763,47 +749,33 @@ class ProdServEquipController extends Controller
     {
         $activeBranchId = session('active_branch_id');
         $user = auth()->user();
-        $productType = $request->get('productsType', 'All');
 
         if ($user->user_role !== 'superadmin') {
             $activeBranchId = $user->branch_id;
         }
 
-        $productsPerPage = $request->get('productsPerPage', 10);
-        $servicesPerPage = $request->get('servicesPerPage', 10);
-        $equipmentPerPage = $request->get('equipmentPerPage', 10);
-
-        $productsPerPage = $productsPerPage === 'all' ? PHP_INT_MAX : (int)$productsPerPage;
-        $servicesPerPage = $servicesPerPage === 'all' ? PHP_INT_MAX : (int)$servicesPerPage;
-        $equipmentPerPage = $equipmentPerPage === 'all' ? PHP_INT_MAX : (int)$equipmentPerPage;
-
+        // Load all data for client-side filtering
         $products = Product::with('branch')
             ->where('prod_category', '!=', 'Service')
             ->when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
                 $query->where('branch_id', $activeBranchId);
             })
-            ->when($productType !== 'All', function ($query) use ($productType) {
-                $query->where('prod_type', $productType);
-            })
             ->orderBy('prod_id', 'desc')
-            ->paginate($productsPerPage, ['*'], 'productsPage')
-            ->appends($request->except('productsPage'));
+            ->get();
 
         $services = Service::when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
                 $query->where('branch_id', $activeBranchId);
             })
             ->with(['branch'])
             ->orderBy('serv_id', 'desc')
-            ->paginate($servicesPerPage, ['*'], 'servicesPage')
-            ->appends($request->except('servicesPage'));
+            ->get();
 
         $equipment = Equipment::when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
                 $query->where('branch_id', $activeBranchId);
             })
             ->with(['branch'])
             ->orderBy('equipment_id', 'desc')
-            ->paginate($equipmentPerPage, ['*'], 'equipmentPage')
-            ->appends($request->except('equipmentPage'));
+            ->get();
 
         $branches = Branch::all();
         
@@ -922,15 +894,18 @@ class ProdServEquipController extends Controller
         if ($product->prod_image) {
             Storage::disk('public')->delete($product->prod_image);
         }
+
+        // fetch associated stock batches and delete them
+        $stockBatches = \App\Models\ProductStock::where('stock_prod_id', $product->prod_id)->get();
+        foreach ($stockBatches as $batch) {
+            $batch->delete();
+        }
         
         // Record deletion in inventory transactions
-        $this->recordInventoryTransaction(
-            $product->prod_id,
-            'adjustment',
-            -($product->prod_stocks ?? 0),
-            'Product Deletion',
-            "Product '{$product->prod_name}' was deleted from inventory"
-        );
+        $transactions = \App\Models\InventoryTransaction::where('prod_id', $product->prod_id)->get();
+        foreach ($transactions as $transaction) {
+            $transaction->delete();
+        }
         
         $product->delete();
 
@@ -980,10 +955,12 @@ class ProdServEquipController extends Controller
             // ✅ Record the restock transaction
             $this->recordInventoryTransaction(
                 $product->prod_id,
-                'restock',
+                'purchase',
                 $addedStock,
                 'Manual Stock Update',
-                "Added batch '{$validated['batch']}' with {$addedStock} units. Expiry: {$validated['new_expiry']}" . ($validated['notes'] ? " - {$validated['notes']}" : '')
+                "Added batch '{$validated['batch']}' with {$addedStock} units. Expiry: {$validated['new_expiry']}",
+                ($validated['notes'] ? " - {$validated['notes']}" : ''),
+                $stockBatch->id
             );
             
             DB::commit();
@@ -1064,7 +1041,9 @@ class ProdServEquipController extends Controller
                     'damage',
                     -$damagedQty,
                     'Damaged Items',
-                    "Batch '{$stockBatch->batch}': {$damagedQty} units damaged. Reason: {$validated['reason']}"
+                    "Batch '{$stockBatch->batch}': {$damagedQty} units damaged. Reason: {$validated['reason']}",
+                    null,
+                    $stockBatch->id
                 );
             }
             
@@ -1074,7 +1053,9 @@ class ProdServEquipController extends Controller
                     'pullout',
                     -$pulloutQty,
                     'Pullout Items',
-                    "Batch '{$stockBatch->batch}': {$pulloutQty} units pulled out. Reason: {$validated['reason']}"
+                    "Batch '{$stockBatch->batch}': {$pulloutQty} units pulled out. Reason: {$validated['reason']}",
+                    null,
+                    $stockBatch->id
                 );
             }
             

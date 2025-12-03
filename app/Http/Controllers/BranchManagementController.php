@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Models\Branch;
 use App\Models\User;
-use App\Models\ReferralCompany;
+
 
 class BranchManagementController extends Controller
 {
@@ -23,10 +23,7 @@ class BranchManagementController extends Controller
             
             $users = User::with('branch')->orderBy('user_id', 'desc')->get();
 
-            $referralCompanies = ReferralCompany::with('branch')->orderBy('id', 'desc')->get();
-            //dd($referralCompanies);
-            //dd($branches);
-            return view('branchManagement', compact('branches', 'users', 'referralCompanies'));
+            return view('branchManagement', compact('branches', 'users'));
         } catch (\Exception $e) {
             dd('Error in controller: ' . $e->getMessage());
         }

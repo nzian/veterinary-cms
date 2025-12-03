@@ -20,6 +20,7 @@ class InventoryTransaction extends Model
         'transaction_type',
         'reference',
         'notes',
+        'batch_id',
         'performed_by'
     ];
 

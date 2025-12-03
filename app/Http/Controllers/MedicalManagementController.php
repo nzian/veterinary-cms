@@ -186,29 +186,29 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                 ->orderBy('visit_date', 'desc')->orderBy('visit_id', 'desc');
         };
 
-        // Helper for paginating service queues
-        $paginateQueue = function ($types, $perPageParam, $pageName) use ($request, $baseVisitQuery) {
-            $limit = $request->get($perPageParam, 10);
-            $query = $baseVisitQuery()->whereHas('services', fn($sq) => $sq->whereIn(DB::raw('LOWER(serv_type)'), $types));
-            return $limit === 'all' ? $query->get() : $query->paginate((int) $limit, ['*'], $pageName);
+        // Helper for getting all records for client-side filtering
+        $getAllRecords = function ($types) use ($baseVisitQuery) {
+            return $baseVisitQuery()->whereHas('services', fn($sq) => $sq->whereIn(DB::raw('LOWER(serv_type)'), $types))->get();
         };
         
-        $visitPerPage = $request->get('visitPerPage', 10);
-        $visits = $baseVisitQuery()->paginate((int) $visitPerPage, ['*'], 'visitsPage');
+        $visits = $baseVisitQuery()->get();
 
         // FIX: Comprehensive service type lists for tabs
         $checkupTypes = ['check-up', 'consultation', 'checkup'];
         $diagnosticTypes = ['diagnostics', 'diagnostic', 'laboratory'];
         $surgicalTypes = ['surgical', 'surgery'];
         
-        $consultationVisits = $paginateQueue($checkupTypes, 'consultationVisitsPerPage', 'consultationVisitsPage');
-        $groomingVisits = $paginateQueue(['grooming'], 'groomingVisitsPerPage', 'groomingVisitsPage');
-        $dewormingVisits = $paginateQueue(['deworming'], 'dewormingVisitsPerPage', 'dewormingVisitsPage');
-        $diagnosticsVisits = $paginateQueue($diagnosticTypes, 'diagnosticsVisitsPerPage', 'diagnosticsVisitsPage');
-        $surgicalVisits = $paginateQueue($surgicalTypes, 'surgicalVisitsPerPage', 'surgicalVisitsPage');
-        $emergencyVisits = $paginateQueue(['emergency'], 'emergencyVisitsPerPage', 'emergencyVisitsPage');
-        $vaccinationVisits = $paginateQueue(['vaccination'], 'vaccinationVisitsPerPage', 'vaccinationVisitsPage');
-        $boardingVisits = $paginateQueue(['boarding'], 'boardingVisitsPerPage', 'boardingVisitsPage');
+
+        $consultationVisits = $getAllRecords($checkupTypes);
+        $groomingVisits = $getAllRecords(['grooming']);
+        $dewormingVisits = $getAllRecords(['deworming']);
+        $diagnosticsVisits = $getAllRecords($diagnosticTypes);
+        $surgicalVisits = $getAllRecords($surgicalTypes);
+        $emergencyVisits = $getAllRecords(['emergency']);
+        $vaccinationVisits = $getAllRecords(['vaccination']);
+        $boardingVisits = $getAllRecords(['boarding']);
+        
+       
 
         // Calculate pending counts for each service type
         $pendingCounts = [
@@ -248,6 +248,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
 
         $appointments = Appointment::whereHas('user', fn($q) => $q->where('branch_id', $activeBranchId))->with('pet.owner', 'services')->paginate(10);
         $prescriptions = Prescription::whereIn('user_id', $branchUserIds)->with('pet.owner')->paginate(10);
+
         
         // Load referrals for current branch (both created by this branch and referred to this branch)
         $referrals = Referral::where(function($query) use ($branchUserIds, $activeBranchId) {
@@ -263,7 +264,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                 'referredVisit'
             ])
             ->orderBy('ref_date', 'desc')
-            ->paginate(10);
+            ->get();
 
 
         return view('medicalManagement', array_merge(compact(
