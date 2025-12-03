@@ -107,7 +107,7 @@
         <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
             <input type="hidden" name="tab" value="owners">
             <label for="ownersPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
-            <select name="ownersPerPage" id="ownersPerPage" onchange="this.form.submit()" 
+            <select name="ownersPerPage" id="ownersPerPage" 
                 class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                 @foreach ([10, 20, 50, 100, 'all'] as $limit)
                     <option value="{{ $limit }}" {{ request('ownersPerPage') == $limit ? 'selected' : '' }}>
@@ -204,7 +204,7 @@
                 <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="tab" value="pets">
                     <label for="perPage" class="whitespace-nowrap text-sm text-black">Show</label>
-                    <select name="perPage" id="perPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                    <select name="perPage" id="perPage" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('perPage') == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
@@ -361,7 +361,7 @@
                 <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
                     <input type="hidden" name="tab" value="medical">
                     <label for="medicalPerPage" class="text-sm text-black">Show</label>
-                    <select name="medicalPerPage" id="medicalPerPage" onchange="this.form.submit()"
+                    <select name="medicalPerPage" id="medicalPerPage"
                         class="border border-gray-400 rounded px-2 py-1 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('medicalPerPage') == $limit ? 'selected' : '' }}>
@@ -461,7 +461,7 @@
                 <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
                     <input type="hidden" name="tab" value="health-card">
                     <label for="healthCardPerPage" class="text-sm text-black">Show</label>
-                    <select name="healthCardPerPage" id="healthCardPerPage" onchange="this.form.submit()"
+                    <select name="healthCardPerPage" id="healthCardPerPage"
                         class="border border-gray-400 rounded px-2 py-1 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('healthCardPerPage', 10) == $limit ? 'selected' : '' }}>
