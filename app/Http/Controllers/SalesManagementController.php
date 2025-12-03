@@ -365,21 +365,9 @@ class SalesManagementController extends Controller
             ];
         })->values();
         //dd($groupedBillings);
-        // Paginate the grouped results
-        $page = $request->get('page', 1);
-        $perPage = 10;
-        $offset = ($page - 1) * $perPage;
         
-        $totalGroups = $groupedBillings->count();
-        $paginatedGroups = $groupedBillings->slice($offset, $perPage);
-        
-        $billings = new \Illuminate\Pagination\LengthAwarePaginator(
-            $paginatedGroups,
-            $totalGroups,
-            $perPage,
-            $page,
-            ['path' => $request->url(), 'pageName' => 'page']
-        );
+        // Return all grouped billings for client-side filtering
+        $billings = $groupedBillings;
 
         // Get date filters
         $startDate = $request->input('start_date');
@@ -521,24 +509,10 @@ class SalesManagementController extends Controller
             return $transaction['orders']->first()->ord_date;
         });
         
-        // Paginate transactions
-        $page = $request->get('page', 1);
-        $perPage = 15;
-        $offset = ($page - 1) * $perPage;
-        
+        // Return all transactions for client-side filtering
+        $paginatedTransactions = $transactions;
+        $paginator = null;
         $totalTransactions = $transactions->count();
-        $paginatedTransactions = $transactions->slice($offset, $perPage);
-        
-        $paginator = new \Illuminate\Pagination\LengthAwarePaginator(
-            $paginatedTransactions,
-            $totalTransactions,
-            $perPage,
-            $page,
-            [
-                'path' => $request->url(),
-                'pageName' => 'page',
-            ]
-        );
         
         // Calculate order totals
         $totalSales = $allOrders->sum(function($order) {

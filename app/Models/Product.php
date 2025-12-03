@@ -86,10 +86,15 @@ public function getBranchIdColumn()
         
         return max(0, $totalAvailable);
     }
+    public function getCurrentStockAttribute()
+    {
+        $availableStock = $this->available_stock - $this->usage_from_inventory_transactions;
+        
+        return max(0, $availableStock);
+    }
    /**
      * Get total stock from all batches (including expired)
      */
-
     public function getUsageFromInventoryTransactionsAttribute()
     {
         // Assumes tbl_inventory_transactions has columns: prod_id, transaction_type, quantity_changed
@@ -109,6 +114,16 @@ public function getBranchIdColumn()
         }
         
     } 
+
+    public function getExpiredDateAttribute()
+    {
+        return DB::table('product_stock')
+            ->where('stock_prod_id', $this->prod_id)
+            ->where('quantity', '>', 0)
+            ->where('expire_date', '>', now())
+            ->orderBy('expire_date', 'asc')
+            ->first()?->expire_date;
+    }
 
     /**
      * Get total stock from all batches (including expired)

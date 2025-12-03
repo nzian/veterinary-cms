@@ -44,9 +44,8 @@ class CareContinuityController extends Controller
 
         $branchUserIds = User::where('branch_id', $activeBranchId)->pluck('user_id')->toArray();
 
-        // Follow-up Appointments Query
-        $appointmentPerPage = $request->get('appointmentPerPage', 10);
-        $appointmentsQuery = Appointment::with(['pet.owner', 'services', 'user'])
+        // Follow-up Appointments Query - Load all for client-side filtering
+        $appointments = Appointment::with(['pet.owner', 'services', 'user'])
             ->whereHas('user', function($q) use ($activeBranchId) {
                 $q->where('branch_id', $activeBranchId);
             })
@@ -59,36 +58,25 @@ class CareContinuityController extends Controller
                   ->orWhere('appoint_type', 'like', 'Post-Surgical Recheck%');
             })
             ->orderBy('appoint_date', 'asc')
-            ->orderBy('appoint_time', 'asc');
+            ->orderBy('appoint_time', 'asc')
+            ->get();
 
-        $appointments = $appointmentPerPage === 'all' 
-            ? $appointmentsQuery->get() 
-            : $appointmentsQuery->paginate((int) $appointmentPerPage, ['*'], 'appointmentsPage');
-
-        // Prescriptions Query
-        $prescriptionPerPage = $request->get('prescriptionPerPage', 10);
-        $prescriptionsQuery = Prescription::with(['pet.owner', 'branch', 'user'])
+        // Prescriptions Query - Load all for client-side filtering
+        $prescriptions = Prescription::with(['pet.owner', 'branch', 'user'])
             ->where('branch_id', $activeBranchId)
             ->orderBy('prescription_date', 'desc')
-            ->orderBy('prescription_id', 'desc');
+            ->orderBy('prescription_id', 'desc')
+            ->get();
 
-        $prescriptions = $prescriptionPerPage === 'all' 
-            ? $prescriptionsQuery->get() 
-            : $prescriptionsQuery->paginate((int) $prescriptionPerPage, ['*'], 'prescriptionsPage');
-
-        // Referrals Query
-        $referralPerPage = $request->get('referralPerPage', 10);
-        $referralsQuery = Referral::with(['pet.owner', 'refToBranch', 'refFromBranch', 'refByBranch'])
+        // Referrals Query - Load all for client-side filtering
+        $referrals = Referral::with(['pet.owner', 'refToBranch', 'refFromBranch', 'refByBranch'])
             ->where(function($q) use ($activeBranchId) {
                 $q->where('ref_to', $activeBranchId)
                   ->orWhere('ref_from', $activeBranchId);
             })
             ->orderBy('ref_date', 'desc')
-            ->orderBy('ref_id', 'desc');
-
-        $referrals = $referralPerPage === 'all' 
-            ? $referralsQuery->get() 
-            : $referralsQuery->paginate((int) $referralPerPage, ['*'], 'referralsPage');
+            ->orderBy('ref_id', 'desc')
+            ->get();
 
         // Attach medical history data to each referral
         foreach ($referrals as $referral) {

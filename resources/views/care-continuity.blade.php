@@ -123,18 +123,17 @@
         <div id="appointmentsContent" class="tab-content {{ request('tab', 'appointments') == 'appointments' ? '' : 'hidden' }}">
             <!-- Show Entries and Search for Appointments -->
             <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
-                    <input type="hidden" name="active_tab" value="appointments">
+                <div class="flex-shrink-0 flex items-center space-x-2">
                     <label for="appointmentsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
-                    <select name="appointmentsPerPage" id="appointmentsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                    <select name="appointmentsPerPage" id="appointmentsPerPage" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                            <option value="{{ $limit }}" {{ request('appointmentsPerPage') == $limit ? 'selected' : '' }}>
+                            <option value="{{ $limit }}" {{ request('appointmentsPerPage', 10) == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
                     <span class="whitespace-nowrap">entries</span>
-                </form>
+                </div>
                 <div class="relative flex-shrink-0 w-64">
                     <input type="search" id="appointmentsSearch" placeholder="Search appointments..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -144,7 +143,7 @@
 
             <!-- Appointments Table -->
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="appointmentsTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -160,7 +159,7 @@
                     <tbody>
                         @forelse($appointments as $index => $appointment)
                             <tr>
-                                <td class="border px-2 py-2">{{ $appointments->firstItem() + $index }}</td>
+                                <td class="border px-2 py-2">{{ $index + 1 }}</td>
                                 <td class="border px-4 py-2">
                                     {{ \Carbon\Carbon::parse($appointment->appoint_date)->format('F j, Y') }}
                                 </td>
@@ -239,17 +238,7 @@
             </div>
 
             <!-- Pagination -->
-            @if(method_exists($appointments, 'links'))
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>
-                    Showing {{ $appointments->firstItem() }} to {{ $appointments->lastItem() }} of
-                    {{ $appointments->total() }} entries
-                </div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $appointments->appends(['active_tab' => 'appointments'])->links() }}
-                </div>
-            </div>
-            @endif
+            <div id="appointmentsPagination" class="mt-4"></div>
         </div>
 
         <!-- ==================== PRESCRIPTIONS TAB ==================== -->
@@ -397,18 +386,17 @@
         <div id="referralsContent" class="tab-content hidden">
             <!-- Show Entries and Search for Referrals -->
             <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
-                    <input type="hidden" name="active_tab" value="referrals">
+                <div class="flex-shrink-0 flex items-center space-x-2">
                     <label for="referralsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
-                    <select name="referralsPerPage" id="referralsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                    <select name="referralsPerPage" id="referralsPerPage" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                            <option value="{{ $limit }}" {{ request('referralsPerPage') == $limit ? 'selected' : '' }}>
+                            <option value="{{ $limit }}" {{ request('referralsPerPage', 10) == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
                     <span class="whitespace-nowrap">entries</span>
-                </form>
+                </div>
                 <div class="relative flex-shrink-0 w-64">
                     <input type="search" id="referralsSearch" placeholder="Search referrals..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -421,7 +409,7 @@
 
             <!-- Referrals Table -->
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="referralsTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -437,13 +425,7 @@
                     <tbody>
                         @forelse($referrals ?? [] as $index => $referral)
                             <tr>
-                                <td class="border px-2 py-2">
-                                    @if(method_exists($referrals, 'firstItem'))
-                                        {{ $referrals->firstItem() + $index }}
-                                    @else
-                                        {{ $index + 1 }}
-                                    @endif
-                                </td>
+                                <td class="border px-2 py-2">{{ $index + 1 }}</td>
                                 <td class="border px-2 py-2">{{ \Carbon\Carbon::parse($referral->ref_date)->format('F j, Y') }}</td>
                                 <td class="border px-2 py-2">{{ $referral->pet?->pet_name ?? 'N/A' }}</td>
                                 <td class="border px-2 py-2">{{ $referral->pet?->owner?->own_name ?? 'N/A' }}</td>
@@ -557,17 +539,7 @@
             </div>
 
             <!-- Pagination for Referrals -->
-            @if(method_exists($referrals, 'links'))
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>
-                    Showing {{ $referrals->firstItem() }} to {{ $referrals->lastItem() }} of
-                    {{ $referrals->total() }} entries
-                </div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $referrals->appends(['active_tab' => 'referrals'])->links() }}
-                </div>
-            </div>
-            @endif
+            <div id="referralsPagination" class="mt-4"></div>
         </div>
     </div>
 </div>
@@ -3568,69 +3540,46 @@ function closeViewAppointmentModal() {
     document.getElementById('viewAppointmentModal').classList.add('hidden');
 }
 
-// Simple search functionality for appointments and referrals
+// Initialize ListFilter for client-side filtering and pagination
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Initializing search functionality...');
+    console.log('Initializing list filters...');
     
-    // Function to initialize search for a specific input and table
-    function initSearch(inputId, tableId) {
-        const searchInput = document.getElementById(inputId);
-        const table = document.querySelector(tableId);
-        
-        if (!searchInput || !table) {
-            console.error(`Search elements not found for ${inputId} and ${tableId}`);
-            return;
-        }
-        
-        // Add input event listener
-        searchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const rows = table.querySelectorAll('tbody tr');
-            
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
-            });
-        });
-        
-        // Add clear button
-        const clearButton = document.createElement('button');
-        clearButton.innerHTML = '&times;';
-        clearButton.className = 'absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600';
-        clearButton.style.display = 'none';
-        clearButton.onclick = function(e) {
-            e.preventDefault();
-            searchInput.value = '';
-            searchInput.dispatchEvent(new Event('input'));
-            this.style.display = 'none';
-        };
-        
-        searchInput.parentNode.style.position = 'relative';
-        searchInput.parentNode.appendChild(clearButton);
-        
-        // Show/hide clear button based on input
-        searchInput.addEventListener('input', function() {
-            clearButton.style.display = this.value ? 'block' : 'none';
-        });
-    }
-    
-    // Initialize search for appointments
-    initSearch('appointmentsSearch', '#appointmentsContent table');
-    
-    // Initialize search for referrals
-    initSearch('referralsSearch', '#referralsContent table');
-    
-    // Reinitialize search when switching tabs
-    document.body.addEventListener('click', function(e) {
-        const tabButton = e.target.closest('button[onclick^="showTab"]');
-        if (tabButton) {
-            // Small delay to ensure tab content is loaded
-            setTimeout(() => {
-                initSearch('appointmentsSearch', '#appointmentsContent table');
-                initSearch('referralsSearch', '#referralsContent table');
-            }, 200);
-        }
+    // Initialize Appointments Filter
+    window.listFilters['appointments'] = new ListFilter({
+        tableSelector: '#appointmentsTable tbody',
+        searchInputId: 'appointmentsSearch',
+        perPageSelectId: 'appointmentsPerPage',
+        paginationContainerId: 'appointmentsPagination',
+        searchColumns: [1, 2, 3, 4, 5, 6], // Date, Type, Pet, Owner, Contact, Status
+        storageKey: 'appointmentsFilter',
+        noResultsMessage: 'No appointments found.'
     });
+    
+    // Initialize Referrals Filter
+    window.listFilters['referrals'] = new ListFilter({
+        tableSelector: '#referralsTable tbody',
+        searchInputId: 'referralsSearch',
+        perPageSelectId: 'referralsPerPage',
+        paginationContainerId: 'referralsPagination',
+        searchColumns: [1, 2, 3, 4, 5, 6], // Date, Pet, Owner, Referred To, Description, Status
+        storageKey: 'referralsFilter',
+        noResultsMessage: 'No referrals found.'
+    });
+    
+    // Refresh filters when switching tabs
+    const originalShowTab = window.showTab;
+    window.showTab = function(tab) {
+        if (originalShowTab) originalShowTab(tab);
+        
+        // Refresh the filter for the active tab
+        setTimeout(() => {
+            if (tab === 'appointments' && window.listFilters['appointments']) {
+                window.listFilters['appointments'].refresh();
+            } else if (tab === 'referrals' && window.listFilters['referrals']) {
+                window.listFilters['referrals'].refresh();
+            }
+        }, 100);
+    };
 });
 </script>
 
