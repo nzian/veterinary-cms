@@ -11,8 +11,8 @@ class ListFilter {
             perPageSelectId: config.perPageSelectId,
             paginationContainerId: config.paginationContainerId,
             noResultsMessage: config.noResultsMessage || 'No results found',
-            searchColumns: config.searchColumns || [],
-            filterSelects: config.filterSelects || [],
+            searchColumns: Array.isArray(config.searchColumns) ? config.searchColumns : [],
+            filterSelects: Array.isArray(config.filterSelects) ? config.filterSelects : [],
             storageKey: config.storageKey || 'listFilter'
         };
 
@@ -40,11 +40,21 @@ class ListFilter {
         this.setupEventListeners();
         this.applyFilters();
         
+        // Register this instance globally for pagination callbacks
+        const key = this.getFilterKey();
+        window.listFilters[key] = this;
+        console.log(`ListFilter registered as: ${key} for table: ${this.config.tableSelector}`);
         console.log(`ListFilter initialized: ${this.allRows.length} rows cached, perPage: ${this.perPage}`);
+        console.log(`All registered ListFilters:`, Object.keys(window.listFilters));
     }
 
     cacheRows() {
-        const tbody = document.querySelector(this.config.tableSelector);
+        // Try to find tbody first, then fall back to the selector directly
+        let tbody = document.querySelector(this.config.tableSelector + ' tbody');
+        if (!tbody) {
+            tbody = document.querySelector(this.config.tableSelector);
+        }
+        
         console.log('Looking for tbody:', this.config.tableSelector, 'Found:', !!tbody);
         
         if (!tbody) return;
@@ -101,15 +111,17 @@ class ListFilter {
         }
         
         // Filter dropdowns
-        this.config.filterSelects.forEach(filter => {
-            const select = document.getElementById(filter.selectId);
-            if (select) {
-                select.addEventListener('change', () => {
-                    this.currentPage = 1;
-                    this.applyFilters();
-                });
-            }
-        });
+        if (Array.isArray(this.config.filterSelects)) {
+            this.config.filterSelects.forEach(filter => {
+                const select = document.getElementById(filter.selectId);
+                if (select) {
+                    select.addEventListener('change', () => {
+                        this.currentPage = 1;
+                        this.applyFilters();
+                    });
+                }
+            });
+        }
     }
 
     applyFilters() {
@@ -126,24 +138,26 @@ class ListFilter {
         }
         
         // Dropdown filters
-        this.config.filterSelects.forEach(filter => {
-            const select = document.getElementById(filter.selectId);
-            console.log('Checking filter:', filter.selectId, 'element found:', !!select);
-            if (select) {
-                console.log('Filter value:', select.value);
-                if (select.value && select.value !== 'all' && select.value !== 'All' && select.value !== '') {
-                    const beforeCount = this.filteredRows.length;
-                    this.filteredRows = this.filteredRows.filter(row => {
-                        const cell = row.cells[filter.columnIndex];
-                        if (!cell) return false;
-                        const cellText = cell.textContent.trim().toLowerCase();
-                        const matches = cellText.includes(select.value.toLowerCase());
-                        return matches;
-                    });
-                    console.log('Filter', filter.selectId, 'reduced from', beforeCount, 'to', this.filteredRows.length);
+        if (Array.isArray(this.config.filterSelects)) {
+            this.config.filterSelects.forEach(filter => {
+                const select = document.getElementById(filter.selectId);
+                console.log('Checking filter:', filter.selectId, 'element found:', !!select);
+                if (select) {
+                    console.log('Filter value:', select.value);
+                    if (select.value && select.value !== 'all' && select.value !== 'All' && select.value !== '') {
+                        const beforeCount = this.filteredRows.length;
+                        this.filteredRows = this.filteredRows.filter(row => {
+                            const cell = row.cells[filter.columnIndex];
+                            if (!cell) return false;
+                            const cellText = cell.textContent.trim().toLowerCase();
+                            const matches = cellText.includes(select.value.toLowerCase());
+                            return matches;
+                        });
+                        console.log('Filter', filter.selectId, 'reduced from', beforeCount, 'to', this.filteredRows.length);
+                    }
                 }
-            }
-        });
+            });
+        }
         
         console.log('Final filteredRows before render:', this.filteredRows.length);
         this.render();
@@ -170,7 +184,9 @@ class ListFilter {
         console.log('Render called - filtered rows:', this.filteredRows.length, 'perPage:', this.perPage, 'currentPage:', this.currentPage);
         
         // Hide all rows
-        this.allRows.forEach(row => row.style.display = 'none');
+        this.allRows.forEach((row, idx) => {
+            row.style.display = 'none';
+        });
         console.log('Hidden all', this.allRows.length, 'rows');
         
         // Remove existing no-results
@@ -188,20 +204,25 @@ class ListFilter {
         this.currentPage = Math.min(this.currentPage, Math.max(1, totalPages));
         
         // Show visible rows
-        const startIndex = (this.currentPage - 1) * this.perPage;
+        const startIndex = this.perPage === Infinity ? 0 : (this.currentPage - 1) * this.perPage;
         const endIndex = this.perPage === Infinity ? this.filteredRows.length : startIndex + this.perPage;
         
-        console.log('Showing rows from index', startIndex, 'to', endIndex, 'of', this.filteredRows.length);
+        console.log('Page:', this.currentPage, 'of', totalPages, 'showing rows from', startIndex, 'to', endIndex);
         
         const visibleRows = this.filteredRows.slice(startIndex, endIndex);
         console.log('Visible rows count:', visibleRows.length);
         
-        visibleRows.forEach((row, index) => {
-            row.style.display = '';
-            // Update row numbers
+        visibleRows.forEach((row, pageIndex) => {
+            const absoluteIndex = startIndex + pageIndex;
+            console.log('Showing row', absoluteIndex, 'on page position', pageIndex);
+            row.style.display = 'table-row';
+            
+            // Update row number in first cell
             const firstCell = row.cells[0];
-            if (firstCell && /^\d+$/.test(firstCell.textContent.trim())) {
-                firstCell.textContent = startIndex + index + 1;
+            if (firstCell) {
+                // Always update the first cell with the correct row number
+                firstCell.textContent = (absoluteIndex + 1);
+                console.log('Updated cell to:', absoluteIndex + 1);
             }
         });
         
@@ -225,9 +246,11 @@ class ListFilter {
 
     renderPagination() {
         const container = document.getElementById(this.config.paginationContainerId);
+        console.log('renderPagination: container found:', !!container, 'id:', this.config.paginationContainerId);
         if (!container) return;
         
         const total = this.filteredRows.length;
+        console.log('Total filtered rows:', total);
         
         if (total === 0) {
             container.innerHTML = '<div class="text-sm text-black">No entries to show</div>';
@@ -236,12 +259,15 @@ class ListFilter {
         
         if (this.perPage === Infinity) {
             container.innerHTML = `<div class="text-sm text-black">Showing all ${total} entries</div>`;
+            console.log('Rendering "Show All" pagination');
             return;
         }
         
         const totalPages = Math.ceil(total / this.perPage);
         const start = (this.currentPage - 1) * this.perPage + 1;
         const end = Math.min(this.currentPage * this.perPage, total);
+        
+        console.log('Rendering pagination: page', this.currentPage, 'of', totalPages, 'showing', start, 'to', end);
         
         let html = `
             <div class="flex justify-between items-center">
@@ -281,7 +307,9 @@ class ListFilter {
     }
 
     getFilterKey() {
-        return this.config.storageKey.replace('Filter', '');
+        // Use paginationContainerId as unique key per table
+        // Examples: 'ownersPagination', 'petsPagination', 'medicalPagination'
+        return this.config.paginationContainerId;
     }
 
     goToPage(page) {
