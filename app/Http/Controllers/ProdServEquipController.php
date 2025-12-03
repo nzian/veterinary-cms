@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\Branch;
 use App\Models\Service;
+use App\Models\Manufacturer;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Equipment;
 use App\Models\Order;
 use App\Models\Appointment;
 use App\Models\Bill;
 use App\Models\ServiceProduct; 
+use App\Models\ServiceEquipment;
 use App\Models\InventoryTransaction; 
 use App\Services\InventoryService; 
 use Illuminate\Http\Request;
@@ -131,6 +133,131 @@ class ProdServEquipController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get equipment linked to a service (for Boarding services)
+     */
+    public function getServiceEquipment($serviceId)
+    {
+        try {
+            $serviceEquipment = ServiceEquipment::where('serv_id', $serviceId)
+                ->with('equipment')
+                ->get()
+                ->map(function($se) {
+                    return [
+                        'id' => $se->id,
+                        'equipment_id' => $se->equipment_id,
+                        'equipment_name' => $se->equipment->equipment_name ?? 'Unknown',
+                        'quantity_used' => $se->quantity_used,
+                        'notes' => $se->notes,
+                        'available_quantity' => $se->equipment->equipment_available ?? 0,
+                        'total_quantity' => $se->equipment->equipment_quantity ?? 0,
+                        'equipment_status' => $se->equipment->equipment_status ?? 'available'
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'equipment' => $serviceEquipment
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update equipment linked to a service (for Boarding services)
+     */
+    public function updateServiceEquipment(Request $request, $serviceId)
+    {
+        try {
+            $validated = $request->validate([
+                'equipment' => 'required|array',
+                'equipment.*.equipment_id' => 'required|exists:tbl_equipment,equipment_id',
+                'equipment.*.quantity_used' => 'required|integer|min:1',
+                'equipment.*.notes' => 'nullable|string|max:500'
+            ]);
+
+            DB::beginTransaction();
+
+            // Delete existing service equipment links
+            ServiceEquipment::where('serv_id', $serviceId)->delete();
+
+            // Create new links
+            foreach ($validated['equipment'] as $equipmentData) {
+                ServiceEquipment::create([
+                    'serv_id' => $serviceId,
+                    'equipment_id' => $equipmentData['equipment_id'],
+                    'quantity_used' => $equipmentData['quantity_used'],
+                    'notes' => $equipmentData['notes'] ?? null,
+                    'created_by' => Auth::id()
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Service equipment updated successfully'
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get equipment filtered by branch (for Boarding services)
+     * Only returns equipment from "Furniture & General Clinic Equipment" category
+     */
+    public function getEquipmentByBranch(Request $request)
+    {
+        try {
+            $branchId = $request->input('branch_id');
+            
+            $query = Equipment::query();
+            
+            if ($branchId) {
+                $query->where('branch_id', $branchId);
+            }
+            
+            // Filter only "Furniture & General Clinic Equipment" category for boarding
+            $query->where('equipment_category', 'Furniture & General Clinic Equipment');
+            
+            // Only get available equipment
+            $query->where(function($q) {
+                $q->where('equipment_status', 'available')
+                  ->orWhereNull('equipment_status');
+            });
+            
+            $equipment = $query->get()->map(function($eq) {
+                return [
+                    'equipment_id' => $eq->equipment_id,
+                    'equipment_name' => $eq->equipment_name,
+                    'equipment_category' => $eq->equipment_category,
+                    'equipment_quantity' => $eq->equipment_quantity ?? 0,
+                    'equipment_available' => $eq->equipment_available ?? 0,
+                    'equipment_status' => $eq->equipment_status ?? 'available'
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'equipment' => $equipment
+            ]);
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'error' => $e->getMessage()
@@ -652,6 +779,8 @@ class ProdServEquipController extends Controller
 
         $branches = Branch::all();
         
+        $manufacturers = Manufacturer::where('is_active', true)->orderBy('manufacturer_name')->get();
+        
         $allProducts = Product::select('prod_id', 'prod_name', 'prod_stocks', 'prod_category')
          ->when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
                 $query->where('branch_id', $activeBranchId);
@@ -660,7 +789,7 @@ class ProdServEquipController extends Controller
                 ->orderBy('prod_id', 'desc')
                 ->get();
 
-        return view('prodServEquip', compact('products', 'branches', 'services', 'equipment','allProducts'));
+        return view('prodServEquip', compact('products', 'branches', 'services', 'equipment','allProducts', 'manufacturers'));
     }
 
     // -------------------- PRODUCT METHODS --------------------
@@ -669,19 +798,29 @@ class ProdServEquipController extends Controller
         $validated = $request->validate([
             'prod_name' => 'required|string|max:255',
             'prod_category' => 'nullable|string|max:255',
+            'service_category' => 'nullable|string|max:255',
             'prod_type' => 'required|in:Sale,Consumable',
             'prod_description' => 'required|string|max:1000',
             'prod_price' => 'nullable|numeric|min:0',
             'prod_reorderlevel' => 'required|integer|min:0',
             'branch_id' => 'nullable|exists:tbl_branch,branch_id',
+            'manufacturer_id' => 'nullable|exists:tbl_manufacturer,manufacturer_id',
             'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'tab' => 'nullable|string|in:products,services,equipment'
         ]);
         
-        // Set price to 0 for consumable products
+        // Remove non-database fields
+        unset($validated['tab']);
+        
+        // Set category based on product type
+        // For Sale products: use prod_category
+        // For Consumable products: use service_category as prod_category
         if ($validated['prod_type'] === 'Consumable') {
+            $validated['prod_category'] = $validated['service_category'] ?? null;
             $validated['prod_price'] = 0;
         }
+        // Remove service_category as it's not a database field
+        unset($validated['service_category']);
 
         // Set initial stock to 0 (stock added via "Add Stock" feature)
         $validated['prod_stocks'] = 0;
@@ -709,19 +848,29 @@ class ProdServEquipController extends Controller
         $validated = $request->validate([
             'prod_name' => 'required|string|max:255',
             'prod_category' => 'nullable|string|max:255',
+            'service_category' => 'nullable|string|max:255',
             'prod_type' => 'required|in:Sale,Consumable',
             'prod_description' => 'required|string|max:1000',
             'prod_price' => 'nullable|numeric|min:0',
             'prod_reorderlevel' => 'nullable|integer|min:0',
             'branch_id' => 'nullable|exists:tbl_branch,branch_id',
+            'manufacturer_id' => 'nullable|exists:tbl_manufacturer,manufacturer_id',
             'prod_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'tab' => 'nullable|string|in:products,services,equipment'
         ]);
         
-        // Set price to 0 for consumable products
+        // Remove non-database fields
+        unset($validated['tab']);
+        
+        // Set category based on product type
+        // For Sale products: use prod_category
+        // For Consumable products: use service_category as prod_category
         if ($validated['prod_type'] === 'Consumable') {
+            $validated['prod_category'] = $validated['service_category'] ?? null;
             $validated['prod_price'] = 0;
         }
+        // Remove service_category as it's not a database field
+        unset($validated['service_category']);
 
         $product = Product::findOrFail($id);
 
@@ -1524,12 +1673,23 @@ public function getServiceInventoryOverview()
 {
     try {
         // Get all products used in services with their service information
+        // Filter out orphaned records where product or service no longer exists
         $serviceProducts = ServiceProduct::with(['product', 'service'])
+            ->whereHas('product')
+            ->whereHas('service')
             ->get()
             ->groupBy('prod_id')
             ->map(function($items, $prodId) {
                 $product = $items->first()->product;
-                $services = $items->map(function($item) {
+                
+                // Skip if product is null (shouldn't happen with whereHas, but just in case)
+                if (!$product) {
+                    return null;
+                }
+                
+                $services = $items->filter(function($item) {
+                    return $item->service !== null;
+                })->map(function($item) {
                     return [
                         'service_id' => $item->serv_id,
                         'service_name' => $item->service->serv_name ?? 'Unknown',
@@ -1549,7 +1709,7 @@ public function getServiceInventoryOverview()
                 // Calculate how many services can be performed with current stock
                 $servicesRemaining = [];
                 foreach ($items as $item) {
-                    if ($item->quantity_used > 0) {
+                    if ($item->service && $item->quantity_used > 0) {
                         $remaining = floor(($product->available_stock - $product->usage_from_inventory_transactions) / $item->quantity_used);
                         $servicesRemaining[] = [
                             'service_name' => $item->service->serv_name ?? 'Unknown',
@@ -1585,6 +1745,7 @@ public function getServiceInventoryOverview()
                     'expiry_date' => $product->prod_expiry ? \Carbon\Carbon::parse($product->prod_expiry)->format('M d, Y') : 'N/A',
                 ];
             })
+            ->filter() // Remove any null values
             ->values();
         
         // Calculate summary statistics
@@ -1607,6 +1768,621 @@ public function getServiceInventoryOverview()
         ], 500);
     }
 }
+
+    /**
+     * Get complete service usage history - all services performed on patients
+     */
+    public function getServiceUsageHistory(Request $request)
+    {
+        try {
+            $user = auth()->user();
+            $branchId = session('active_branch_id') ?? $user->branch_id;
+            
+            // Get all visit services with related data
+            $visitServices = DB::table('tbl_visit_service as vs')
+                ->join('tbl_visit_record as v', 'vs.visit_id', '=', 'v.visit_id')
+                ->join('tbl_serv as s', 'vs.serv_id', '=', 's.serv_id')
+                ->join('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+                ->leftJoin('tbl_pet as pet', 'v.pet_id', '=', 'pet.pet_id')
+                ->leftJoin('tbl_own as owner', 'pet.own_id', '=', 'owner.own_id')
+                ->where('u.branch_id', $branchId)
+                ->select(
+                    'vs.id',
+                    'vs.visit_id',
+                    'vs.serv_id',
+                    'vs.quantity',
+                    'vs.unit_price',
+                    'vs.total_price',
+                    'vs.status as service_status',
+                    'vs.completed_at',
+                    'vs.notes as service_notes',
+                    'vs.created_at',
+                    's.serv_name',
+                    's.serv_type',
+                    's.serv_price',
+                    'v.visit_date',
+                    'v.visit_service_type',
+                    'v.patient_type',
+                    'v.workflow_status',
+                    'v.visit_status',
+                    'pet.pet_id',
+                    'pet.pet_name',
+                    'pet.pet_species',
+                    'pet.pet_breed',
+                    'owner.own_id',
+                    'owner.own_name as owner_name',
+                    'owner.own_contactnum as owner_contact',
+                    'u.user_id',
+                    'u.user_name as performed_by'
+                )
+                ->orderBy('vs.created_at', 'desc')
+                ->limit(500)
+                ->get();
+            
+            $movements = $visitServices->map(function($record) {
+                $statusColors = [
+                    'completed' => ['label' => 'Completed', 'color' => 'green'],
+                    'pending' => ['label' => 'Pending', 'color' => 'yellow'],
+                    'in_progress' => ['label' => 'In Progress', 'color' => 'blue'],
+                    'cancelled' => ['label' => 'Cancelled', 'color' => 'red'],
+                ];
+                
+                $status = strtolower($record->service_status ?? 'pending');
+                $statusInfo = $statusColors[$status] ?? ['label' => ucfirst($status), 'color' => 'gray'];
+                
+                $serviceTypeColors = [
+                    'Vaccination' => 'bg-blue-100 text-blue-800',
+                    'Deworming' => 'bg-green-100 text-green-800',
+                    'Grooming' => 'bg-pink-100 text-pink-800',
+                    'Treatment' => 'bg-purple-100 text-purple-800',
+                    'Surgery' => 'bg-red-100 text-red-800',
+                    'Checkup' => 'bg-teal-100 text-teal-800',
+                    'Boarding' => 'bg-amber-100 text-amber-800',
+                    'Diagnostics' => 'bg-indigo-100 text-indigo-800',
+                    'Consultation' => 'bg-cyan-100 text-cyan-800',
+                ];
+                
+                return [
+                    'id' => $record->id,
+                    'date' => $record->created_at,
+                    'visit_date' => $record->visit_date,
+                    'completed_at' => $record->completed_at,
+                    'service_name' => $record->serv_name,
+                    'service_type' => $record->serv_type ?? 'Service',
+                    'service_type_class' => $serviceTypeColors[$record->serv_type] ?? 'bg-gray-100 text-gray-800',
+                    'visit_id' => $record->visit_id,
+                    'visit_type' => $record->visit_service_type ?? 'Walk-in',
+                    'patient_type' => $record->patient_type ?? 'Outpatient',
+                    'pet_id' => $record->pet_id,
+                    'pet_name' => $record->pet_name ?? 'N/A',
+                    'pet_species' => $record->pet_species ?? '',
+                    'pet_breed' => $record->pet_breed ?? '',
+                    'owner_name' => $record->owner_name ?? 'N/A',
+                    'owner_contact' => $record->owner_contact ?? '',
+                    'performed_by' => $record->performed_by ?? 'System',
+                    'quantity' => $record->quantity ?? 1,
+                    'unit_price' => $record->unit_price ?? $record->serv_price ?? 0,
+                    'total_price' => $record->total_price ?? ($record->unit_price ?? $record->serv_price ?? 0),
+                    'status' => $status,
+                    'status_label' => $statusInfo['label'],
+                    'status_color' => $statusInfo['color'],
+                    'notes' => $record->service_notes ?? '',
+                    'workflow_status' => $record->workflow_status ?? '',
+                ];
+            });
+            
+            // Calculate summary statistics
+            $summary = [
+                'total_services' => $movements->count(),
+                'completed_services' => $movements->where('status', 'completed')->count(),
+                'pending_services' => $movements->whereIn('status', ['pending', null, ''])->count(),
+                'unique_patients' => $movements->pluck('pet_id')->filter()->unique()->count(),
+                'total_revenue' => $movements->where('status', 'completed')->sum('total_price'),
+                'unique_service_types' => $movements->pluck('service_type')->unique()->count(),
+            ];
+            
+            // Get service type breakdown
+            $serviceBreakdown = $movements->groupBy('service_type')->map(function($group, $type) {
+                return [
+                    'type' => $type,
+                    'count' => $group->count(),
+                    'revenue' => $group->where('status', 'completed')->sum('total_price'),
+                ];
+            })->values();
+            
+            return response()->json([
+                'success' => true,
+                'movements' => $movements->values(),
+                'summary' => $summary,
+                'service_breakdown' => $serviceBreakdown
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get equipment assignment history (for boarding, visits, etc.)
+     */
+    public function getEquipmentAssignmentHistory(Request $request)
+    {
+        try {
+            $user = auth()->user();
+            $branchId = session('active_branch_id') ?? $user->branch_id;
+            
+            // First, get equipment assignments from boarding records
+            // Note: tbl_boarding_record uses visit_id + pet_id as composite key, no boarding_id
+            $boardingAssignments = collect();
+            
+            if (Schema::hasTable('tbl_boarding_record') && Schema::hasColumn('tbl_boarding_record', 'equipment_id')) {
+                $boardingAssignments = DB::table('tbl_boarding_record as br')
+                    ->join('tbl_visit_record as v', 'br.visit_id', '=', 'v.visit_id')
+                    ->join('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+                    ->leftJoin('tbl_equipment as eq', 'br.equipment_id', '=', 'eq.equipment_id')
+                    ->leftJoin('tbl_pet as pet', 'v.pet_id', '=', 'pet.pet_id')
+                    ->leftJoin('tbl_own as owner', 'pet.own_id', '=', 'owner.own_id')
+                    ->leftJoin('tbl_serv as s', 'br.serv_id', '=', 's.serv_id')
+                    ->where('u.branch_id', $branchId)
+                    ->whereNotNull('br.equipment_id')
+                    ->select(
+                        'br.visit_id',
+                        'br.pet_id as br_pet_id',
+                        'br.equipment_id',
+                        'br.check_in_date',
+                        'br.check_out_date',
+                        'br.room_no',
+                        'br.status as boarding_status',
+                        'br.handled_by',
+                        'eq.equipment_name',
+                        'eq.equipment_category',
+                        'eq.equipment_quantity',
+                        'eq.equipment_available',
+                        'pet.pet_id',
+                        'pet.pet_name',
+                        'pet.pet_species',
+                        'pet.pet_breed',
+                        'owner.own_id',
+                        'owner.own_name as owner_name',
+                        's.serv_name as service_name',
+                        's.serv_type as service_type',
+                        'u.user_name as vet_name',
+                        'v.visit_date'
+                    )
+                    ->orderBy('br.check_in_date', 'desc')
+                    ->limit(500)
+                    ->get();
+            }
+            
+            // Also get from equipment assignment log if exists
+            $logAssignments = collect();
+            if (Schema::hasTable('tbl_equipment_assignment_log')) {
+                $logAssignments = DB::table('tbl_equipment_assignment_log as eal')
+                    ->join('tbl_equipment as eq', 'eal.equipment_id', '=', 'eq.equipment_id')
+                    ->leftJoin('tbl_visit_record as v', 'eal.visit_id', '=', 'v.visit_id')
+                    ->leftJoin('tbl_user as u', 'eal.performed_by', '=', 'u.user_id')
+                    ->leftJoin('tbl_pet as pet', 'eal.pet_id', '=', 'pet.pet_id')
+                    ->leftJoin('tbl_own as owner', 'pet.own_id', '=', 'owner.own_id')
+                    ->where('eq.branch_id', $branchId)
+                    ->select(
+                        'eal.id',
+                        'eal.equipment_id',
+                        'eal.action_type',
+                        'eal.visit_id',
+                        'eal.pet_id',
+                        'eal.quantity_changed',
+                        'eal.previous_status',
+                        'eal.new_status',
+                        'eal.previous_available',
+                        'eal.new_available',
+                        'eal.reference',
+                        'eal.notes as log_notes',
+                        'eal.created_at',
+                        'eq.equipment_name',
+                        'eq.equipment_category',
+                        'pet.pet_name',
+                        'pet.pet_species',
+                        'owner.own_name as owner_name',
+                        'u.user_name as performed_by_name'
+                    )
+                    ->orderBy('eal.created_at', 'desc')
+                    ->limit(500)
+                    ->get();
+            }
+            
+            // Map boarding assignments to a standard format
+            $movements = $boardingAssignments->map(function($record, $index) {
+                $actionType = 'assigned';
+                $actionLabel = 'Assigned';
+                $actionColor = 'green';
+                
+                if ($record->boarding_status === 'Checked Out') {
+                    $actionType = 'released';
+                    $actionLabel = 'Released';
+                    $actionColor = 'blue';
+                } elseif ($record->boarding_status === 'Checked In') {
+                    $actionType = 'assigned';
+                    $actionLabel = 'Checked In';
+                    $actionColor = 'green';
+                } elseif ($record->boarding_status === 'Reserved') {
+                    $actionType = 'reserved';
+                    $actionLabel = 'Reserved';
+                    $actionColor = 'amber';
+                }
+                
+                $categoryColors = [
+                    'Cage' => 'bg-blue-100 text-blue-800',
+                    'Room' => 'bg-purple-100 text-purple-800',
+                    'Ward' => 'bg-teal-100 text-teal-800',
+                    'Kennel' => 'bg-amber-100 text-amber-800',
+                    'Equipment' => 'bg-gray-100 text-gray-800',
+                ];
+                
+                // Use check_in_date as the date, or visit_date as fallback
+                $recordDate = $record->check_in_date ?? $record->visit_date ?? now();
+                
+                return [
+                    'id' => 'boarding_' . $record->visit_id . '_' . ($record->pet_id ?? $index),
+                    'source' => 'boarding',
+                    'date' => $recordDate,
+                    'action_type' => $actionType,
+                    'action_label' => $actionLabel,
+                    'action_color' => $actionColor,
+                    'equipment_id' => $record->equipment_id,
+                    'equipment_name' => $record->equipment_name ?? 'Unknown',
+                    'equipment_category' => $record->equipment_category ?? 'Equipment',
+                    'category_class' => $categoryColors[$record->equipment_category] ?? 'bg-gray-100 text-gray-800',
+                    'visit_id' => $record->visit_id,
+                    'pet_id' => $record->pet_id,
+                    'pet_name' => $record->pet_name ?? 'N/A',
+                    'pet_species' => $record->pet_species ?? '',
+                    'pet_breed' => $record->pet_breed ?? '',
+                    'owner_name' => $record->owner_name ?? 'N/A',
+                    'service_name' => $record->service_name ?? 'Boarding',
+                    'service_type' => $record->service_type ?? 'Boarding',
+                    'check_in_date' => $record->check_in_date,
+                    'check_out_date' => $record->check_out_date,
+                    'boarding_status' => $record->boarding_status ?? 'Unknown',
+                    'handled_by' => $record->handled_by ?? $record->vet_name ?? 'System',
+                    'reference' => 'Visit #' . $record->visit_id,
+                    'notes' => $record->room_no ? 'Room: ' . $record->room_no : '',
+                    'quantity' => 1,
+                ];
+            });
+            
+            // Add log entries to movements
+            foreach ($logAssignments as $log) {
+                $actionColors = [
+                    'assigned' => 'green',
+                    'released' => 'blue',
+                    'maintenance' => 'yellow',
+                    'status_change' => 'purple',
+                    'damaged' => 'red',
+                    'repaired' => 'teal',
+                ];
+                
+                $categoryColors = [
+                    'Cage' => 'bg-blue-100 text-blue-800',
+                    'Room' => 'bg-purple-100 text-purple-800',
+                    'Ward' => 'bg-teal-100 text-teal-800',
+                    'Kennel' => 'bg-amber-100 text-amber-800',
+                    'Equipment' => 'bg-gray-100 text-gray-800',
+                ];
+                
+                $movements->push([
+                    'id' => 'log_' . $log->id,
+                    'source' => 'log',
+                    'date' => $log->created_at,
+                    'action_type' => $log->action_type,
+                    'action_label' => ucfirst(str_replace('_', ' ', $log->action_type)),
+                    'action_color' => $actionColors[$log->action_type] ?? 'gray',
+                    'equipment_id' => $log->equipment_id,
+                    'equipment_name' => $log->equipment_name ?? 'Unknown',
+                    'equipment_category' => $log->equipment_category ?? 'Equipment',
+                    'category_class' => $categoryColors[$log->equipment_category] ?? 'bg-gray-100 text-gray-800',
+                    'visit_id' => $log->visit_id,
+                    'pet_id' => $log->pet_id,
+                    'pet_name' => $log->pet_name ?? '-',
+                    'pet_species' => $log->pet_species ?? '',
+                    'owner_name' => $log->owner_name ?? '-',
+                    'service_name' => null,
+                    'service_type' => null,
+                    'check_in_date' => null,
+                    'check_out_date' => null,
+                    'boarding_status' => null,
+                    'handled_by' => $log->performed_by_name ?? 'System',
+                    'reference' => $log->reference ?? '',
+                    'notes' => $log->log_notes ?? '',
+                    'quantity' => $log->quantity_changed ?? 1,
+                    'previous_status' => $log->previous_status,
+                    'new_status' => $log->new_status,
+                    'previous_available' => $log->previous_available,
+                    'new_available' => $log->new_available,
+                ]);
+            }
+            
+            // Sort by date descending
+            $movements = $movements->sortByDesc('date')->values();
+            
+            // Calculate summary statistics
+            $summary = [
+                'total_assignments' => $movements->count(),
+                'active_assignments' => $movements->whereIn('action_type', ['assigned', 'reserved'])->where('boarding_status', '!=', 'Checked Out')->count(),
+                'checked_in' => $movements->where('action_type', 'assigned')->count(),
+                'checked_out' => $movements->where('action_type', 'released')->count(),
+                'unique_equipment' => $movements->pluck('equipment_id')->unique()->count(),
+                'unique_pets' => $movements->pluck('pet_id')->filter()->unique()->count(),
+            ];
+            
+            // Get equipment breakdown
+            $equipmentBreakdown = $movements->groupBy('equipment_name')->map(function($group, $name) {
+                return [
+                    'equipment' => $name,
+                    'count' => $group->count(),
+                    'category' => $group->first()['equipment_category'] ?? 'Unknown',
+                ];
+            })->values();
+            
+            return response()->json([
+                'success' => true,
+                'movements' => $movements,
+                'summary' => $summary,
+                'equipment_breakdown' => $equipmentBreakdown
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get complete stock movement history for all products
+     */
+    public function getAllStockMovementHistory(Request $request)
+    {
+        try {
+            $user = auth()->user();
+            $branchId = session('active_branch_id') ?? $user->branch_id;
+            
+            // Check if InventoryTransaction table exists
+            $transactionsTableExists = Schema::hasTable('tbl_inventory_transactions');
+            
+            $movements = collect();
+            
+            if ($transactionsTableExists) {
+                // Get all inventory transactions with product and user info
+                $hasPerformedByCol = Schema::hasColumn('tbl_inventory_transactions', 'performed_by');
+                $hasServIdCol = Schema::hasColumn('tbl_inventory_transactions', 'serv_id');
+                $hasVisitIdCol = Schema::hasColumn('tbl_inventory_transactions', 'visit_id');
+                
+                $query = DB::table('tbl_inventory_transactions as it')
+                    ->join('tbl_prod as p', 'it.prod_id', '=', 'p.prod_id')
+                    ->where('p.branch_id', $branchId);
+                
+                if ($hasPerformedByCol) {
+                    $query->leftJoin('tbl_user as u', 'it.performed_by', '=', 'u.user_id');
+                }
+                if ($hasServIdCol) {
+                    $query->leftJoin('tbl_serv as s', 'it.serv_id', '=', 's.serv_id');
+                }
+                if ($hasVisitIdCol) {
+                    $query->leftJoin('tbl_visit_record as v', 'it.visit_id', '=', 'v.visit_id');
+                }
+                
+                $selects = [
+                    'it.transaction_id as id',
+                    'it.created_at',
+                    'it.transaction_type',
+                    'it.quantity_change',
+                    'it.reference',
+                    'it.notes',
+                    'p.prod_id',
+                    'p.prod_name',
+                    'p.prod_category',
+                    'p.prod_type',
+                ];
+                
+                if ($hasPerformedByCol) {
+                    $selects[] = 'u.user_name';
+                } else {
+                    $selects[] = DB::raw('NULL as user_name');
+                }
+                if ($hasServIdCol) {
+                    $selects[] = 's.serv_name';
+                    $selects[] = 'it.serv_id';
+                } else {
+                    $selects[] = DB::raw('NULL as serv_name');
+                    $selects[] = DB::raw('NULL as serv_id');
+                }
+                if ($hasVisitIdCol) {
+                    $selects[] = 'it.visit_id';
+                } else {
+                    $selects[] = DB::raw('NULL as visit_id');
+                }
+                
+                $transactions = $query->select($selects)
+                    ->orderBy('it.created_at', 'desc')
+                    ->limit(500)
+                    ->get();
+                
+                $movements = $movements->concat($transactions->map(function($trans) {
+                    $typeLabels = [
+                        'restock' => ['label' => 'Stock Added', 'color' => 'green', 'icon' => 'fa-plus-circle'],
+                        'sale' => ['label' => 'POS Sale', 'color' => 'blue', 'icon' => 'fa-shopping-cart'],
+                        'service_usage' => ['label' => 'Service Usage', 'color' => 'purple', 'icon' => 'fa-syringe'],
+                        'damage' => ['label' => 'Damaged', 'color' => 'red', 'icon' => 'fa-exclamation-triangle'],
+                        'pullout' => ['label' => 'Pull-out', 'color' => 'orange', 'icon' => 'fa-truck'],
+                        'adjustment' => ['label' => 'Adjustment', 'color' => 'gray', 'icon' => 'fa-edit'],
+                        'return' => ['label' => 'Return', 'color' => 'teal', 'icon' => 'fa-undo'],
+                    ];
+                    
+                    $typeInfo = $typeLabels[$trans->transaction_type] ?? ['label' => ucfirst($trans->transaction_type), 'color' => 'gray', 'icon' => 'fa-circle'];
+                    
+                    $details = $trans->notes ?? '';
+                    if ($trans->serv_name) {
+                        $details = "Service: {$trans->serv_name}" . ($details ? " - {$details}" : '');
+                    }
+                    if ($trans->visit_id) {
+                        $details .= " (Visit #{$trans->visit_id})";
+                    }
+                    
+                    return [
+                        'id' => $trans->id,
+                        'date' => $trans->created_at,
+                        'product_id' => $trans->prod_id,
+                        'product_name' => $trans->prod_name,
+                        'product_category' => $trans->prod_category,
+                        'product_type' => $trans->prod_type,
+                        'transaction_type' => $trans->transaction_type,
+                        'type_label' => $typeInfo['label'],
+                        'type_color' => $typeInfo['color'],
+                        'type_icon' => $typeInfo['icon'],
+                        'quantity_change' => $trans->quantity_change,
+                        'reference' => $trans->reference ?? 'N/A',
+                        'details' => $details ?: 'N/A',
+                        'user' => $trans->user_name ?? 'System',
+                        'source' => 'transaction',
+                    ];
+                }));
+            }
+            
+            // Also get stock batch additions (purchases/restocks)
+            $stockBatches = DB::table('product_stock as ps')
+                ->join('tbl_prod as p', 'ps.stock_prod_id', '=', 'p.prod_id')
+                ->leftJoin('tbl_user as u', 'ps.created_by', '=', 'u.user_id')
+                ->where('p.branch_id', $branchId)
+                ->select(
+                    'ps.id',
+                    'ps.created_at',
+                    DB::raw("'batch_added' as transaction_type"),
+                    'ps.quantity as quantity_change',
+                    'ps.batch as reference',
+                    'ps.note as notes',
+                    'ps.expire_date',
+                    'p.prod_id',
+                    'p.prod_name',
+                    'p.prod_category',
+                    'p.prod_type',
+                    'u.user_name'
+                )
+                ->orderBy('ps.created_at', 'desc')
+                ->limit(200)
+                ->get();
+            
+            $movements = $movements->concat($stockBatches->map(function($batch) {
+                $expiryInfo = $batch->expire_date ? " (Expires: " . Carbon::parse($batch->expire_date)->format('M d, Y') . ")" : '';
+                return [
+                    'id' => 'batch_' . $batch->id,
+                    'date' => $batch->created_at,
+                    'product_id' => $batch->prod_id,
+                    'product_name' => $batch->prod_name,
+                    'product_category' => $batch->prod_category,
+                    'product_type' => $batch->prod_type,
+                    'transaction_type' => 'batch_added',
+                    'type_label' => 'Batch Stock Added',
+                    'type_color' => 'green',
+                    'type_icon' => 'fa-box',
+                    'quantity_change' => $batch->quantity_change,
+                    'reference' => "Batch: {$batch->reference}" . $expiryInfo,
+                    'details' => $batch->notes ?: 'New stock batch added',
+                    'user' => $batch->user_name ?? 'System',
+                    'source' => 'batch',
+                ];
+            }));
+            
+            // Get damage/pullout records
+            $damagePullout = DB::table('product_damage_pullout as dp')
+                ->join('product_stock as ps', 'dp.stock_id', '=', 'ps.id')
+                ->join('tbl_prod as p', 'ps.stock_prod_id', '=', 'p.prod_id')
+                ->leftJoin('tbl_user as u', 'dp.created_by', '=', 'u.user_id')
+                ->where('p.branch_id', $branchId)
+                ->select(
+                    'dp.id',
+                    'dp.created_at',
+                    'dp.damage_quantity',
+                    'dp.pullout_quantity',
+                    'dp.reason',
+                    'ps.batch',
+                    'p.prod_id',
+                    'p.prod_name',
+                    'p.prod_category',
+                    'p.prod_type',
+                    'u.user_name'
+                )
+                ->orderBy('dp.created_at', 'desc')
+                ->limit(200)
+                ->get();
+            
+            foreach ($damagePullout as $record) {
+                if ($record->damage_quantity > 0) {
+                    $movements->push([
+                        'id' => 'damage_' . $record->id,
+                        'date' => $record->created_at,
+                        'product_id' => $record->prod_id,
+                        'product_name' => $record->prod_name,
+                        'product_category' => $record->prod_category,
+                        'product_type' => $record->prod_type,
+                        'transaction_type' => 'damage',
+                        'type_label' => 'Damaged',
+                        'type_color' => 'red',
+                        'type_icon' => 'fa-exclamation-triangle',
+                        'quantity_change' => -$record->damage_quantity,
+                        'reference' => "Batch: {$record->batch}",
+                        'details' => $record->reason ?: 'Product damaged',
+                        'user' => $record->user_name ?? 'System',
+                        'source' => 'damage_pullout',
+                    ]);
+                }
+                if ($record->pullout_quantity > 0) {
+                    $movements->push([
+                        'id' => 'pullout_' . $record->id,
+                        'date' => $record->created_at,
+                        'product_id' => $record->prod_id,
+                        'product_name' => $record->prod_name,
+                        'product_category' => $record->prod_category,
+                        'product_type' => $record->prod_type,
+                        'transaction_type' => 'pullout',
+                        'type_label' => 'Pull-out',
+                        'type_color' => 'orange',
+                        'type_icon' => 'fa-truck',
+                        'quantity_change' => -$record->pullout_quantity,
+                        'reference' => "Batch: {$record->batch}",
+                        'details' => $record->reason ?: 'Product pulled out',
+                        'user' => $record->user_name ?? 'System',
+                        'source' => 'damage_pullout',
+                    ]);
+                }
+            }
+            
+            // Sort all movements by date descending
+            $sortedMovements = $movements->sortByDesc('date')->values()->take(500);
+            
+            // Calculate summary statistics
+            $summary = [
+                'total_movements' => $sortedMovements->count(),
+                'stock_added' => $sortedMovements->whereIn('transaction_type', ['restock', 'batch_added'])->sum('quantity_change'),
+                'sales' => abs($sortedMovements->where('transaction_type', 'sale')->sum('quantity_change')),
+                'service_usage' => abs($sortedMovements->where('transaction_type', 'service_usage')->sum('quantity_change')),
+                'damaged' => abs($sortedMovements->where('transaction_type', 'damage')->sum('quantity_change')),
+                'pullout' => abs($sortedMovements->where('transaction_type', 'pullout')->sum('quantity_change')),
+            ];
+            
+            return response()->json([
+                'success' => true,
+                'movements' => $sortedMovements,
+                'summary' => $summary
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 
     /**
      * Get stock batches for a product (for damage/pullout modal)
@@ -1634,6 +2410,190 @@ public function getServiceInventoryOverview()
             return response()->json([
                 'success' => true,
                 'batches' => $batches
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // -------------------- CONSUMABLE PRODUCTS FILTER METHOD --------------------
+    
+    /**
+     * Get consumable products filtered by service type and branch
+     */
+    public function getConsumableProductsByFilter(Request $request)
+    {
+        try {
+            $serviceType = $request->input('service_type');
+            $branchId = $request->input('branch_id');
+
+            $query = Product::where('prod_type', 'Consumable');
+
+            // Filter by service category (stored in prod_category for consumable products)
+            if ($serviceType) {
+                $query->where('prod_category', $serviceType);
+            }
+
+            // Filter by branch
+            if ($branchId) {
+                $query->where('branch_id', $branchId);
+            }
+
+            $products = $query->orderBy('prod_name')->get();
+
+            // Calculate available stock for each product
+            $productsWithStock = $products->map(function ($product) {
+                return [
+                    'prod_id' => $product->prod_id,
+                    'prod_name' => $product->prod_name,
+                    'prod_category' => $product->prod_category,
+                    'branch_id' => $product->branch_id,
+                    'available_stock' => $product->available_stock - $product->usage_from_inventory_transactions
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'products' => $productsWithStock
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get product details for service usage (manufacturer and earliest expiring batch)
+     */
+    public function getProductDetailsForService($id)
+    {
+        try {
+            $product = Product::with('manufacturer')->findOrFail($id);
+            
+            // Get the earliest expiring batch that has available stock (FEFO - First Expire First Out)
+            $earliestBatch = \App\Models\ProductStock::where('stock_prod_id', $id)
+                ->where('quantity', '>', 0)
+                ->where(function($query) {
+                    $query->where('expire_date', '>=', now())
+                          ->orWhereNull('expire_date');
+                })
+                ->orderBy('expire_date', 'asc')
+                ->first();
+
+            return response()->json([
+                'success' => true,
+                'product' => [
+                    'prod_id' => $product->prod_id,
+                    'prod_name' => $product->prod_name,
+                    'manufacturer_name' => $product->manufacturer->manufacturer_name ?? null,
+                    'batch_no' => $earliestBatch->batch ?? null,
+                    'batch_expire_date' => $earliestBatch ? ($earliestBatch->expire_date ? $earliestBatch->expire_date->format('Y-m-d') : null) : null,
+                    'batch_quantity' => $earliestBatch->quantity ?? 0,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // -------------------- MANUFACTURER METHODS --------------------
+    
+    /**
+     * Get all manufacturers
+     */
+    public function getManufacturers()
+    {
+        try {
+            $manufacturers = Manufacturer::where('is_active', true)
+                ->orderBy('manufacturer_name')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'manufacturers' => $manufacturers
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Store a new manufacturer
+     */
+    public function storeManufacturer(Request $request)
+    {
+        $validated = $request->validate([
+            'manufacturer_name' => 'required|string|max:255|unique:tbl_manufacturer,manufacturer_name',
+        ]);
+
+        try {
+            $manufacturer = Manufacturer::create([
+                'manufacturer_name' => $validated['manufacturer_name'],
+                'is_active' => true,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Manufacturer added successfully!',
+                'manufacturer' => $manufacturer
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update a manufacturer
+     */
+    public function updateManufacturer(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'manufacturer_name' => 'required|string|max:255|unique:tbl_manufacturer,manufacturer_name,' . $id . ',manufacturer_id',
+        ]);
+
+        try {
+            $manufacturer = Manufacturer::findOrFail($id);
+            $manufacturer->update($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Manufacturer updated successfully!',
+                'manufacturer' => $manufacturer
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete (deactivate) a manufacturer
+     */
+    public function deleteManufacturer($id)
+    {
+        try {
+            $manufacturer = Manufacturer::findOrFail($id);
+            $manufacturer->update(['is_active' => false]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Manufacturer deleted successfully!'
             ]);
         } catch (\Exception $e) {
             return response()->json([

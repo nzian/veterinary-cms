@@ -26,12 +26,19 @@ class BranchReportController extends Controller
     }
     public function index(Request $request)
     {
+
         $user = auth()->user();
-        
-        // Get user's branch - non-superadmins can only see their own branch
-        $branchId = $user->branch_id;
+        $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
+        $branchMode = session('branch_mode') === 'active';
+        $activeBranchId = session('active_branch_id');
+
+        // Determine which branch to use
+        if ($isSuperAdmin && $branchMode && $activeBranchId) {
+            $branchId = $activeBranchId;
+        } else {
+            $branchId = $user->branch_id;
+        }
         $branch = Branch::find($branchId);
-        
         if (!$branch) {
             return redirect()->back()->with('error', 'Branch not found');
         }

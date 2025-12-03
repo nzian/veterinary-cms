@@ -84,7 +84,7 @@ class CareContinuityController extends Controller
         }
 
         // Lookups for modals
-        $filteredOwners = Owner::whereIn('user_id', $branchUserIds)->get();
+        $filteredOwners = Owner::whereIn('user_id', $branchUserIds)->withCount('pets')->get();
         $filteredPets = Pet::whereIn('user_id', $branchUserIds)->with('owner')->get();
         $allBranches = Branch::all();
 
@@ -153,25 +153,58 @@ class CareContinuityController extends Controller
         $appointment = Appointment::findOrFail($id);
 
         $validated = $request->validate([
-            'appoint_date' => 'required|date',
-            'appoint_time' => 'required',
+            'appoint_date' => 'sometimes|required|date',
+            'appoint_time' => 'sometimes|required',
+            'appoint_status' => 'sometimes|in:pending,scheduled,arrived,completed,rescheduled,missed,cancelled',
+            'appoint_description' => 'nullable|string',
+            'pet_id' => 'sometimes|exists:tbl_pet,pet_id',
+            'appoint_type' => 'sometimes|string',
         ]);
 
         // Store old values for SMS notification
         $oldDate = $appointment->appoint_date;
         $oldTime = $appointment->appoint_time;
+        $oldStatus = $appointment->appoint_status;
 
-        // Rescheduling-only: update date/time and force status
-        $appointment->appoint_date = $validated['appoint_date'];
-        $appointment->appoint_time = $validated['appoint_time'];
-        $appointment->appoint_status = 'rescheduled';
+        // Check if date/time is being changed (reschedule scenario)
+        $isDateTimeChanged = false;
+        if (isset($validated['appoint_date']) && $validated['appoint_date'] !== $oldDate) {
+            $appointment->appoint_date = $validated['appoint_date'];
+            $isDateTimeChanged = true;
+        }
+        if (isset($validated['appoint_time']) && $validated['appoint_time'] !== $oldTime) {
+            $appointment->appoint_time = $validated['appoint_time'];
+            $isDateTimeChanged = true;
+        }
+
+        // Handle status update
+        if (isset($validated['appoint_status'])) {
+            $appointment->appoint_status = $validated['appoint_status'];
+        } elseif ($isDateTimeChanged) {
+            // Only auto-set to rescheduled if date/time changed and no explicit status given
+            $appointment->appoint_status = 'rescheduled';
+        }
+
+        // Update other fields if provided
+        if (isset($validated['appoint_description'])) {
+            $appointment->appoint_description = $validated['appoint_description'];
+        }
+        if (isset($validated['pet_id'])) {
+            $appointment->pet_id = $validated['pet_id'];
+        }
+        if (isset($validated['appoint_type'])) {
+            $appointment->appoint_type = $validated['appoint_type'];
+        }
+
         $appointment->save();
 
-        // Send SMS notification for rescheduled appointment
-        try {
-            $this->smsService->sendRescheduleSMS($appointment);
-        } catch (\Exception $e) {
-            Log::warning("Failed to send reschedule SMS for appointment {$appointment->appoint_id}: " . $e->getMessage());
+        // Send SMS notification for rescheduled appointment only if actually rescheduled
+        if ($isDateTimeChanged && $appointment->appoint_status === 'rescheduled') {
+            try {
+                $this->smsService->sendRescheduleSMS($appointment);
+            } catch (\Exception $e) {
+                Log::warning("Failed to send reschedule SMS for appointment {$appointment->appoint_id}: " . $e->getMessage());
+            }
         }
 
         // If this is an AJAX/JSON request (e.g., from Dashboard), return JSON instead of redirect

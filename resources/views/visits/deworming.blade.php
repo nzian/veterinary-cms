@@ -50,6 +50,8 @@
                         'dewormer_name' => $serviceData->dewormer_name ?? null,
                         'service_id' => $serviceData->service_id ?? null,
                         'dosage' => $serviceData->dosage ?? null,
+                        'manufacturer' => $serviceData->manufacturer ?? null,
+                        'batch_no' => $serviceData->batch_no ?? null,
                         'next_due_date' => $serviceData->next_due_date,
                         'administered_by' => $serviceData->administered_by ?? (auth()->user()->user_name ?? null),
                         'remarks' => $serviceData->remarks ?? null,
@@ -129,12 +131,29 @@
                             </small>
                         </div>
                         
-                        {{-- Dosage field remains the same --}}
+                        {{-- Dosage field --}}
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Dosage</label>
-                            <input type="text" name="dosage" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                placeholder="Calculate dosage based on {{ $visit->weight ? $visit->weight.' kg' : 'N/A weight' }}" 
+                            <input type="text" name="dosage" id="dosage_input" class="w-full border border-gray-300 p-3 rounded-lg" 
+                                placeholder="Auto-filled from product (can be changed)" 
                                 value="{{ old('dosage', $__deworm['dosage'] ?? '') }}" />
+                            <small class="text-xs text-gray-500" id="dosage_info">Auto-filled from product dosage (can be changed)</small>
+                        </div>
+                        
+                        {{-- Manufacturer field (auto-filled) --}}
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Manufacturer</label>
+                            <input type="text" name="manufacturer" id="manufacturer_input" class="w-full border border-gray-300 p-3 rounded-lg bg-gray-50" 
+                                value="{{ old('manufacturer', $__deworm['manufacturer'] ?? '') }}" placeholder="Auto-filled from product" readonly/>
+                            <small class="text-xs text-gray-500">Auto-filled from selected dewormer product</small>
+                        </div>
+                        
+                        {{-- Batch No. field (auto-filled with FEFO) --}}
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Batch No.</label>
+                            <input type="text" name="batch_no" id="batch_no_input" class="w-full border border-gray-300 p-3 rounded-lg bg-gray-50" 
+                                value="{{ old('batch_no', $__deworm['batch_no'] ?? '') }}" placeholder="Auto-filled (FEFO)" readonly/>
+                            <small class="text-xs text-gray-500" id="batch_info">Auto-filled from earliest expiring batch</small>
                         </div>
                         
                         {{-- Administered By field remains the same --}}
@@ -727,10 +746,11 @@
             });
         }
 
-        // Listen for dewormer selection changes to show warnings
+        // Listen for dewormer selection changes to show warnings and fetch product details
         if (dewormerSelect) {
             dewormerSelect.addEventListener('change', function() {
                 checkStockWarning();
+                fetchProductDetails();
             });
         }
 
@@ -750,6 +770,13 @@
             
             // Clear existing options
             dewormerSelect.innerHTML = '<option value="">Select Dewormer Product</option>';
+            
+            // Clear dosage, manufacturer and batch fields when service changes
+            document.getElementById('dosage_input').value = '';
+            document.getElementById('dosage_info').textContent = 'Auto-filled from product dosage (can be changed)';
+            document.getElementById('manufacturer_input').value = '';
+            document.getElementById('batch_no_input').value = '';
+            document.getElementById('batch_info').textContent = 'Auto-filled from earliest expiring batch';
             
             if (!selectedOption.value) {
                 dewormerSelect.disabled = true;
@@ -839,6 +866,78 @@
                 warning.innerHTML = `<i class="fas fa-times-circle mr-1"></i> Out of stock - cannot proceed`;
                 dewormerSelect.parentElement.appendChild(warning);
             }
+        }
+        
+        function fetchProductDetails() {
+            const selectedOption = dewormerSelect.options[dewormerSelect.selectedIndex];
+            const prodId = selectedOption ? selectedOption.dataset.prodId : null;
+            const quantityUsed = selectedOption ? selectedOption.dataset.quantityUsed : null;
+            
+            const dosageInput = document.getElementById('dosage_input');
+            const dosageInfo = document.getElementById('dosage_info');
+            const manufacturerInput = document.getElementById('manufacturer_input');
+            const batchNoInput = document.getElementById('batch_no_input');
+            const batchInfo = document.getElementById('batch_info');
+            
+            // Clear fields if no product selected
+            if (!prodId || !selectedOption.value) {
+                dosageInput.value = '';
+                dosageInfo.textContent = 'Auto-filled from product dosage (can be changed)';
+                manufacturerInput.value = '';
+                batchNoInput.value = '';
+                batchInfo.textContent = 'Auto-filled from earliest expiring batch';
+                return;
+            }
+            
+            // Set dosage from quantity_used (the configured dosage for this product)
+            if (quantityUsed) {
+                dosageInput.value = quantityUsed + ' ml';
+                dosageInfo.innerHTML = `<span class="text-green-600">Dosage: ${quantityUsed} ml (from product configuration)</span>`;
+            } else {
+                dosageInput.value = '';
+                dosageInfo.textContent = 'Enter dosage (can be changed)';
+            }
+            
+            // Show loading state
+            manufacturerInput.value = 'Loading...';
+            batchNoInput.value = 'Loading...';
+            
+            // Fetch product details from API
+            fetch(`/products/${prodId}/details-for-service`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.product) {
+                        // Set manufacturer
+                        manufacturerInput.value = data.product.manufacturer_name || 'N/A';
+                        
+                        // Set batch number (FEFO - First Expire First Out)
+                        if (data.product.batch_no) {
+                            batchNoInput.value = data.product.batch_no;
+                            
+                            // Show expiry info
+                            if (data.product.batch_expire_date) {
+                                const expiryDate = new Date(data.product.batch_expire_date);
+                                const formattedDate = expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                                batchInfo.innerHTML = `<span class="text-green-600">Batch expires: ${formattedDate} (Qty: ${data.product.batch_quantity})</span>`;
+                            } else {
+                                batchInfo.innerHTML = `<span class="text-gray-600">Batch quantity: ${data.product.batch_quantity}</span>`;
+                            }
+                        } else {
+                            batchNoInput.value = 'No batch available';
+                            batchInfo.innerHTML = '<span class="text-red-600">⚠️ No stock batch found for this product</span>';
+                        }
+                    } else {
+                        manufacturerInput.value = 'N/A';
+                        batchNoInput.value = 'N/A';
+                        batchInfo.textContent = 'Could not fetch batch information';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching product details:', error);
+                    manufacturerInput.value = 'Error';
+                    batchNoInput.value = 'Error';
+                    batchInfo.textContent = 'Error fetching batch information';
+                });
         }
         
         // Initialize on page load - trigger if there's a pre-selected service

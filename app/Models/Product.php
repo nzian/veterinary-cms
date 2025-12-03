@@ -25,7 +25,8 @@ class Product extends Model
         'prod_damaged',
         'prod_pullout',
         'prod_expiry',
-        'branch_id'
+        'branch_id',
+        'manufacturer_id'
     ];
 
     public function services()
@@ -53,6 +54,12 @@ class Product extends Model
 {
     return $this->belongsTo(Branch::class, 'branch_id');
 }
+
+public function manufacturer()
+{
+    return $this->belongsTo(Manufacturer::class, 'manufacturer_id', 'manufacturer_id');
+}
+
 public function getBranchIdColumn()
     {
         return 'user_id'; // We filter Pet records based on the user_id that created them

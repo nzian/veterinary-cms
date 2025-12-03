@@ -130,15 +130,18 @@
                         
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Dose / Volume</label>
-                            <input type="text" name="dose" class="w-full border border-gray-300 p-3 rounded-lg" placeholder="e.g., 1 mL" value="{{ old('dose', $__vacc['dose'] ?? '') }}" />
+                            <input type="text" name="dose" id="dose_input" class="w-full border border-gray-300 p-3 rounded-lg" placeholder="e.g., 1 ml" value="{{ old('dose', $__vacc['dose'] ?? '') }}" />
+                            <small class="text-xs text-gray-500" id="dose_info">Auto-filled from product dosage (can be changed)</small>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Manufacturer</label>
-                            <input type="text" name="manufacturer" class="w-full border border-gray-300 p-3 rounded-lg" value="{{ old('manufacturer', $__vacc['manufacturer'] ?? '') }}" placeholder="e.g. Pfizer, Zoetis"/>
+                            <input type="text" name="manufacturer" id="manufacturer_input" class="w-full border border-gray-300 p-3 rounded-lg bg-gray-50" value="{{ old('manufacturer', $__vacc['manufacturer'] ?? '') }}" placeholder="Auto-filled from product" readonly/>
+                            <small class="text-xs text-gray-500">Auto-filled from selected vaccine product</small>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Batch No.</label>
-                            <input type="text" name="batch_no" class="w-full border border-gray-300 p-3 rounded-lg" value="{{ old('batch_no', $__vacc['batch_no'] ?? '') }}" placeholder="Lot/Batch Number"/>
+                            <input type="text" name="batch_no" id="batch_no_input" class="w-full border border-gray-300 p-3 rounded-lg bg-gray-50" value="{{ old('batch_no', $__vacc['batch_no'] ?? '') }}" placeholder="Auto-filled (FEFO)" readonly/>
+                            <small class="text-xs text-gray-500" id="batch_info">Auto-filled from earliest expiring batch</small>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Date Administered</label>
@@ -351,9 +354,10 @@
             updateVaccineOptions();
         });
 
-        // Listen for vaccine selection changes to show warnings
+        // Listen for vaccine selection changes to show warnings and fetch product details
         vaccineSelect.addEventListener('change', function() {
             checkStockWarning();
+            fetchProductDetails();
         });
 
         function updateVaccineOptions() {
@@ -373,6 +377,13 @@
             
             // Clear existing options
             vaccineSelect.innerHTML = '<option value="">Select Vaccine Product</option>';
+            
+            // Clear dose, manufacturer and batch fields when service changes
+            document.getElementById('dose_input').value = '';
+            document.getElementById('dose_info').textContent = 'Auto-filled from product dosage (can be changed)';
+            document.getElementById('manufacturer_input').value = '';
+            document.getElementById('batch_no_input').value = '';
+            document.getElementById('batch_info').textContent = 'Auto-filled from earliest expiring batch';
             
             if (!selectedOption.value) {
                 vaccineSelect.disabled = true;
@@ -433,6 +444,78 @@
             if (existingWarning) existingWarning.remove();
         }
 
+        function fetchProductDetails() {
+            const selectedOption = vaccineSelect.options[vaccineSelect.selectedIndex];
+            const prodId = selectedOption ? selectedOption.dataset.prodId : null;
+            const quantityUsed = selectedOption ? selectedOption.dataset.quantityUsed : null;
+            
+            const doseInput = document.getElementById('dose_input');
+            const doseInfo = document.getElementById('dose_info');
+            const manufacturerInput = document.getElementById('manufacturer_input');
+            const batchNoInput = document.getElementById('batch_no_input');
+            const batchInfo = document.getElementById('batch_info');
+            
+            // Clear fields if no product selected
+            if (!prodId || !selectedOption.value) {
+                doseInput.value = '';
+                doseInfo.textContent = 'Auto-filled from product dosage (can be changed)';
+                manufacturerInput.value = '';
+                batchNoInput.value = '';
+                batchInfo.textContent = 'Auto-filled from earliest expiring batch';
+                return;
+            }
+            
+            // Set dose from quantity_used (the configured dosage for this product)
+            if (quantityUsed) {
+                doseInput.value = quantityUsed + ' ml';
+                doseInfo.innerHTML = `<span class="text-green-600">Dosage: ${quantityUsed} ml (from product configuration)</span>`;
+            } else {
+                doseInput.value = '1 ml';
+                doseInfo.textContent = 'Default: 1 ml (can be changed)';
+            }
+            
+            // Show loading state
+            manufacturerInput.value = 'Loading...';
+            batchNoInput.value = 'Loading...';
+            
+            // Fetch product details from API
+            fetch(`/products/${prodId}/details-for-service`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.product) {
+                        // Set manufacturer
+                        manufacturerInput.value = data.product.manufacturer_name || 'N/A';
+                        
+                        // Set batch number (FEFO - First Expire First Out)
+                        if (data.product.batch_no) {
+                            batchNoInput.value = data.product.batch_no;
+                            
+                            // Show expiry info
+                            if (data.product.batch_expire_date) {
+                                const expiryDate = new Date(data.product.batch_expire_date);
+                                const formattedDate = expiryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                                batchInfo.innerHTML = `<span class="text-green-600">Batch expires: ${formattedDate} (Qty: ${data.product.batch_quantity})</span>`;
+                            } else {
+                                batchInfo.innerHTML = `<span class="text-gray-600">Batch quantity: ${data.product.batch_quantity}</span>`;
+                            }
+                        } else {
+                            batchNoInput.value = 'No batch available';
+                            batchInfo.innerHTML = '<span class="text-red-600">⚠️ No stock batch found for this product</span>';
+                        }
+                    } else {
+                        manufacturerInput.value = 'N/A';
+                        batchNoInput.value = 'N/A';
+                        batchInfo.textContent = 'Could not fetch batch information';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching product details:', error);
+                    manufacturerInput.value = 'Error';
+                    batchNoInput.value = 'Error';
+                    batchInfo.textContent = 'Error fetching batch information';
+                });
+        }
+
         function checkStockWarning() {
             const selectedOption = vaccineSelect.options[vaccineSelect.selectedIndex];
             const stock = selectedOption.dataset.stock;
@@ -465,6 +548,7 @@
                 if (savedVaccine && vaccineSelect) {
                     vaccineSelect.value = savedVaccine;
                     checkStockWarning();
+                    fetchProductDetails(); // Also fetch product details for pre-selected vaccine
                 }
             }, 100);
         }

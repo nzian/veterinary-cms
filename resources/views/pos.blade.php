@@ -111,12 +111,9 @@
                 <select id="petOwner" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#ff8c42] focus:border-transparent transition-all duration-300 bg-white shadow-sm">
                     <option value="0" selected disabled>Select owner</option>
                     @foreach ($owners as $owner)
-                        <option value="{{ $owner->own_id }}">{{ $owner->own_name }}</option>
+                        <option value="{{ $owner->own_id }}">{{ $owner->own_name }}{{ $owner->own_id > 0 ? ' (' . ($owner->pets_count ?? 0) . ' ' . (($owner->pets_count ?? 0) == 1 ? 'pet' : 'pets') . ')' : '' }}</option>
                     @endforeach
                 </select>
-                <button id="addVisitBtn" class="mt-3 hidden bg-blue-500 text-white px-4 py-2 rounded-xl font-semibold shadow hover:bg-blue-600 transition-all duration-200" type="button">
-                    <i class="fas fa-notes-medical mr-2"></i>Add Visit for Owner
-                </button>
                 <!-- Select2 JS and CSS -->
                 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
                 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -129,22 +126,6 @@
                         placeholder: 'Select owner',
                         allowClear: true,
                         minimumResultsForSearch: 0
-                    });
-                    // Show Add Visit button when an owner is selected
-                    $('#petOwner').on('change', function() {
-                        if ($(this).val() && $(this).val() !== '0') {
-                            $('#addVisitBtn').removeClass('hidden');
-                        } else {
-                            $('#addVisitBtn').addClass('hidden');
-                        }
-                    });
-                    // Add Visit button click handler
-                    $('#addVisitBtn').on('click', function() {
-                        var ownerId = $('#petOwner').val();
-                        if (ownerId && ownerId !== '0') {
-                            // Redirect to add visit page with owner preselected (adjust route as needed)
-                            window.location.href = '/medical-management/visits/create?owner_id=' + ownerId;
-                        }
                     });
                 });
                 </script>

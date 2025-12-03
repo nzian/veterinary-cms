@@ -25,6 +25,11 @@ class Visit extends Model
         'workflow_status',
         'service_type',
         'visit_service_type',
+        'cage_ward_number',
+        'admission_notes',
+        'is_priority',
+        'admission_date',
+        'discharge_date',
         // add other fields as needed
     ];
     protected $table = 'tbl_visit_record';

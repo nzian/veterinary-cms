@@ -118,8 +118,13 @@
                             <input type="datetime-local" name="checkout" id="checkout_date" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" value="{{ old('checkout', $__board['checkout'] ?? ($__details['checkout'] ?? '')) }}" />
                         </div>
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Cage / Room</label>
-                            <input type="text" name="room" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" placeholder="e.g. C-12" value="{{ old('room', $__board['room'] ?? ($__details['room'] ?? '')) }}" />
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Cage / Room <span class="text-red-500">*</span></label>
+                            <select name="equipment_id" id="equipment_id" class="w-full border border-gray-300 p-2 rounded-lg focus:border-teal-500 focus:ring-teal-500" required>
+                                <option value="">-- Select Cage/Room --</option>
+                                {{-- Equipment will be loaded dynamically based on selected service --}}
+                            </select>
+                            <input type="hidden" name="room" id="room_hidden" value="{{ old('room', $__board['room'] ?? ($__details['room'] ?? '')) }}" />
+                            <small class="text-gray-500 text-xs">Only available cages/rooms from selected service</small>
                         </div>
                         
                         {{-- Kept for Auto Calculation Basis --}}
@@ -375,12 +380,115 @@
 
     // JAVASCRIPT FOR AUTO-CALCULATING DURATION AND BILLING
     document.addEventListener('DOMContentLoaded', function () {
+      
+      // ========================================
+      // EQUIPMENT (CAGE/ROOM) LOADING LOGIC
+      // ========================================
+      const boardingServiceSelect = document.getElementById('boarding_service_id');
+      const equipmentSelect = document.getElementById('equipment_id');
+      const roomHidden = document.getElementById('room_hidden');
+      
+      // Store equipment data from PHP - convert to proper array format
+      @php
+          $equipmentDataForJs = [];
+          foreach ($availableServices as $service) {
+              $equipment = $service->equipment ?? collect();
+              $equipmentDataForJs[$service->serv_id] = $equipment->map(function($eq) {
+                  return [
+                      'equipment_id' => $eq->equipment_id,
+                      'equipment_name' => $eq->equipment_name,
+                      'equipment_status' => $eq->equipment_status ?? 'available',
+                      'equipment_available' => $eq->equipment_available ?? 0
+                  ];
+              })->values()->toArray();
+          }
+      @endphp
+      const serviceEquipmentData = @json($equipmentDataForJs);
+      
+      // Current equipment ID from existing boarding record (if any)
+      const currentEquipmentId = {{ $serviceData->equipment_id ?? 'null' }};
+      
+      function loadEquipmentForService(serviceId) {
+          equipmentSelect.innerHTML = '';
+          
+          if (!serviceId || !serviceEquipmentData[serviceId]) {
+              equipmentSelect.innerHTML = '<option value="">-- Select a service first --</option>';
+              return;
+          }
+          
+          const equipment = serviceEquipmentData[serviceId];
+          
+          if (equipment.length === 0) {
+              equipmentSelect.innerHTML = '<option value="">-- No cages/rooms available --</option>';
+              return;
+          }
+          
+          let firstAvailableSet = false;
+          
+          equipment.forEach(function(eq) {
+              const availableCount = parseInt(eq.equipment_available) || 0;
+              const isAvailable = availableCount > 0;
+              const isCurrentlyAssigned = eq.equipment_id == currentEquipmentId;
+              
+              // Show available equipment OR the currently assigned one (even if in use)
+              if (isAvailable || isCurrentlyAssigned) {
+                  const option = document.createElement('option');
+                  option.value = eq.equipment_id;
+                  option.textContent = eq.equipment_name + (isCurrentlyAssigned && !isAvailable ? ' (Currently Assigned)' : ' (' + availableCount + ' Available)');
+                  option.dataset.name = eq.equipment_name;
+                  
+                  // Pre-select current equipment if exists, otherwise select first available
+                  if (isCurrentlyAssigned) {
+                      option.selected = true;
+                      firstAvailableSet = true;
+                  } else if (!firstAvailableSet && isAvailable) {
+                      option.selected = true;
+                      firstAvailableSet = true;
+                  }
+                  
+                  equipmentSelect.appendChild(option);
+              }
+          });
+          
+          // Update room hidden field with selected equipment name
+          updateRoomHidden();
+      }
+      
+      function updateRoomHidden() {
+          const selected = equipmentSelect.options[equipmentSelect.selectedIndex];
+          if (selected && selected.dataset.name) {
+              roomHidden.value = selected.dataset.name;
+          } else {
+              roomHidden.value = '';
+          }
+      }
+      
+      // Load equipment when service changes
+      if (boardingServiceSelect) {
+          boardingServiceSelect.addEventListener('change', function() {
+              loadEquipmentForService(this.value);
+              calculateBilling();
+          });
+          
+          // Initial load for selected service
+          if (boardingServiceSelect.value) {
+              loadEquipmentForService(boardingServiceSelect.value);
+          }
+      }
+      
+      // Update room hidden when equipment changes
+      if (equipmentSelect) {
+          equipmentSelect.addEventListener('change', updateRoomHidden);
+      }
+      // ========================================
+      // END EQUIPMENT LOGIC
+      // ========================================
+      
       // Ensure daily_rate is set before submit (fallback for JS-disabled or race conditions)
       const form = document.getElementById('boardingForm');
       if (form) {
         form.addEventListener('submit', function(e) {
           const dailyRateHidden = document.getElementById('daily_rate_hidden');
-          const boardingServiceSelect = document.getElementById('boarding_service_id');
           if (dailyRateHidden && boardingServiceSelect) {
             const selected = boardingServiceSelect.options[boardingServiceSelect.selectedIndex];
             if (selected && selected.dataset.price) {
@@ -393,7 +501,6 @@
         const checkoutDate = document.getElementById('checkout_date');
         const totalTimeDisplay = document.getElementById('total_time_display');
         const totalDaysHidden = document.getElementById('total_days_hidden');
-        const boardingServiceSelect = document.getElementById('boarding_service_id');
         
         // Billing display elements
         const dailyRateDisplay = document.getElementById('dailyRateDisplay');

@@ -226,12 +226,14 @@
                                     Some packages are disabled because of weight or age restrictions.
                                 </p>
                             </div>
+                        </div>
 
-                            {{-- Add-ons Multi-select --}}
+                        {{-- Row 2: Add-on Services, Start Time, End Time (3 columns) --}}
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                            {{-- Add-ons Multi-select Dropdown --}}
                             <div>
                                 <label class="block text-sm font-semibold text-gray-700 mb-1">
                                     Add-on Services <span class="text-xs text-gray-500 font-normal">(optional)</span>
-                                    <span class="block text-xs text-gray-500 font-normal">Hold Ctrl/Cmd to choose multiple add-ons.</span>
                                 </label>
                                 @php
                                     $preselectedAddons = old('addon_services', $__groom['addon_services'] ?? []);
@@ -239,53 +241,70 @@
                                         $preselectedAddons = array_filter(array_map('trim', explode(',', (string) $preselectedAddons)));
                                     }
                                 @endphp
-                                <select name="addon_services[]" id="addon_services_select" class="w-full border border-gray-300 p-3 rounded-lg min-h-[180px]" multiple>
-                                    @forelse($availableAddons as $addon)
-                                        @php
-                                            $isAddonSelected = in_array($addon->serv_name, $preselectedAddons);
-                                        @endphp
-                                        <option 
-                                            value="{{ $addon->serv_name }}" 
-                                            data-min-weight="{{ $addon->min_weight ?? 0 }}"
-                                            data-max-weight="{{ $addon->max_weight ?? 9999 }}"
-                                            data-min-age="{{ $addon->min_age_months ?? '' }}"
-                                            data-max-age="{{ $addon->max_age_months ?? '' }}"
-                                            {{ $isAddonSelected ? 'selected' : '' }}
-                                            class="addon-option"
-                                        >
-                                            {{ $addon->serv_name }} (₱{{ number_format($addon->serv_price, 2) }})
-                                        </option>
-                                    @empty
-                                        <option disabled>No add-on services available.</option>
-                                    @endforelse
-                                </select>
+                                
+                                {{-- Custom Multi-Select Dropdown --}}
+                                <div class="relative" id="addon_dropdown_container">
+                                    {{-- Dropdown Toggle Button --}}
+                                    <button type="button" id="addon_dropdown_toggle" 
+                                        class="w-full border border-gray-300 p-3 rounded-lg bg-white text-left flex items-center justify-between hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition">
+                                        <span id="addon_dropdown_text" class="text-gray-500">Select add-on services...</span>
+                                        <i class="fas fa-chevron-down text-gray-400 transition-transform" id="addon_dropdown_icon"></i>
+                                    </button>
+                                    
+                                    {{-- Dropdown Menu --}}
+                                    <div id="addon_dropdown_menu" class="hidden absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                        @forelse($availableAddons as $addon)
+                                            @php
+                                                $isAddonSelected = in_array($addon->serv_name, $preselectedAddons);
+                                            @endphp
+                                            <label class="flex items-center px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 addon-checkbox-label"
+                                                data-min-weight="{{ $addon->min_weight ?? 0 }}"
+                                                data-max-weight="{{ $addon->max_weight ?? 9999 }}"
+                                                data-min-age="{{ $addon->min_age_months ?? '' }}"
+                                                data-max-age="{{ $addon->max_age_months ?? '' }}">
+                                                <input type="checkbox" name="addon_services[]" value="{{ $addon->serv_name }}" 
+                                                    class="addon-checkbox w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                                    {{ $isAddonSelected ? 'checked' : '' }}>
+                                                <span class="ml-3 text-sm text-gray-700">{{ $addon->serv_name }}</span>
+                                                <span class="ml-auto text-sm font-medium text-green-600">₱{{ number_format($addon->serv_price, 2) }}</span>
+                                            </label>
+                                        @empty
+                                            <div class="px-4 py-3 text-gray-500 text-sm">No add-on services available.</div>
+                                        @endforelse
+                                    </div>
+                                </div>
+                                
+                                {{-- Selected Items Display --}}
+                                <div id="addon_selected_tags" class="flex flex-wrap gap-2 mt-2"></div>
+                                
                                 <p class="text-xs text-gray-500 mt-1">
-                                    Select any additional services for this grooming session.
+                                    Click to select multiple add-on services.
                                 </p>
                             </div>
 
-                            {{-- Start/End Time --}}
-                            <div class="grid grid-cols-1 gap-3">
-                                <div>
-                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Start Time</label>
-                                    <input type="datetime-local" name="start_time" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                        value="{{ old('start_time', $__groom['start_time'] ?? '') }}"/>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-semibold text-gray-700 mb-1">End Time</label>
-                                    <input type="datetime-local" name="end_time" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                        value="{{ old('end_time', $__groom['end_time'] ?? '') }}"/>
-                                </div>
+                            {{-- Start Time --}}
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Start Time</label>
+                                <input type="datetime-local" name="start_time" class="w-full border border-gray-300 p-3 rounded-lg" 
+                                    value="{{ old('start_time', $__groom['start_time'] ?? '') }}"/>
                             </div>
                             
-                            {{-- Notes/Observations Textarea --}}
-                            <div class="sm:col-span-2">
-                                <label class="block text-sm font-semibold text-gray-700 mb-1">Notes / Observations</label>
-                                <textarea name="instructions" rows="3" class="w-full border border-gray-300 p-3 rounded-lg" 
-                                    placeholder="Matting status, behavior during groom, any adverse findings.">{{ old('instructions', $__groom['instructions'] ?? '') }}</textarea>
+                            {{-- End Time --}}
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">End Time</label>
+                                <input type="datetime-local" name="end_time" class="w-full border border-gray-300 p-3 rounded-lg" 
+                                    value="{{ old('end_time', $__groom['end_time'] ?? '') }}"/>
                             </div>
-                            
                         </div>
+                        
+                        {{-- Row 3: Notes/Observations (full width) --}}
+                        <div class="mt-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Notes / Observations</label>
+                            <textarea name="instructions" rows="3" class="w-full border border-gray-300 p-3 rounded-lg" 
+                                placeholder="Matting status, behavior during groom, any adverse findings.">{{ old('instructions', $__groom['instructions'] ?? '') }}</textarea>
+                        </div>
+                            
+                        
                     </div>
 
                     {{-- Action Buttons --}}
@@ -732,8 +751,90 @@
         const canvas = document.getElementById('modal-signature-pad');
         const petWeightElement = document.getElementById('pet_current_weight');
         const groomingSelect = document.getElementById('grooming_type_select');
-        const addonSelect = document.getElementById('addon_services_select');
         const weightWarning = document.getElementById('weight_warning');
+
+        // --- Custom Add-on Dropdown Logic ---
+        const addonDropdownToggle = document.getElementById('addon_dropdown_toggle');
+        const addonDropdownMenu = document.getElementById('addon_dropdown_menu');
+        const addonDropdownText = document.getElementById('addon_dropdown_text');
+        const addonDropdownIcon = document.getElementById('addon_dropdown_icon');
+        const addonSelectedTags = document.getElementById('addon_selected_tags');
+        const addonCheckboxes = document.querySelectorAll('.addon-checkbox');
+
+        if (addonDropdownToggle && addonDropdownMenu) {
+            // Toggle dropdown
+            addonDropdownToggle.addEventListener('click', function(e) {
+                e.preventDefault();
+                const isOpen = !addonDropdownMenu.classList.contains('hidden');
+                if (isOpen) {
+                    addonDropdownMenu.classList.add('hidden');
+                    addonDropdownIcon.classList.remove('rotate-180');
+                } else {
+                    addonDropdownMenu.classList.remove('hidden');
+                    addonDropdownIcon.classList.add('rotate-180');
+                }
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!addonDropdownToggle.contains(e.target) && !addonDropdownMenu.contains(e.target)) {
+                    addonDropdownMenu.classList.add('hidden');
+                    addonDropdownIcon.classList.remove('rotate-180');
+                }
+            });
+
+            // Update display when checkboxes change
+            function updateAddonDisplay() {
+                const selectedAddons = [];
+                addonCheckboxes.forEach(function(checkbox) {
+                    if (checkbox.checked) {
+                        selectedAddons.push(checkbox.value);
+                    }
+                });
+
+                // Update toggle button text
+                if (selectedAddons.length === 0) {
+                    addonDropdownText.textContent = 'Select add-on services...';
+                    addonDropdownText.classList.add('text-gray-500');
+                    addonDropdownText.classList.remove('text-gray-800');
+                } else {
+                    addonDropdownText.textContent = selectedAddons.length + ' add-on(s) selected';
+                    addonDropdownText.classList.remove('text-gray-500');
+                    addonDropdownText.classList.add('text-gray-800');
+                }
+
+                // Update tags display
+                addonSelectedTags.innerHTML = '';
+                selectedAddons.forEach(function(addon) {
+                    const tag = document.createElement('span');
+                    tag.className = 'inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full';
+                    tag.innerHTML = addon + ' <button type="button" class="hover:text-red-600 font-bold" data-addon="' + addon + '">&times;</button>';
+                    addonSelectedTags.appendChild(tag);
+                });
+
+                // Add click handlers for tag remove buttons
+                addonSelectedTags.querySelectorAll('button').forEach(function(btn) {
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const addonToRemove = this.getAttribute('data-addon');
+                        addonCheckboxes.forEach(function(checkbox) {
+                            if (checkbox.value === addonToRemove) {
+                                checkbox.checked = false;
+                            }
+                        });
+                        updateAddonDisplay();
+                    });
+                });
+            }
+
+            // Add change listeners to checkboxes
+            addonCheckboxes.forEach(function(checkbox) {
+                checkbox.addEventListener('change', updateAddonDisplay);
+            });
+
+            // Initial display update
+            updateAddonDisplay();
+        }
 
         let signaturePad = null;
 
@@ -821,7 +922,7 @@
         }
 
         // --- Weight Validation Logic ---
-        if (petWeightElement && (groomingSelect || addonSelect)) {
+        if (petWeightElement && groomingSelect) {
             const petWeight = parseFloat(petWeightElement.getAttribute('data-weight'));
             const weightDisplay = petWeightElement.innerText.trim(); 
 
@@ -864,6 +965,41 @@
                 return { disabledCount, enabledCount };
             }
 
+            function validateAddonCheckboxes() {
+                let disabledCount = 0;
+                let enabledCount = 0;
+                const weightUnavailable = isNaN(petWeight) || petWeight <= 0;
+                const addonLabels = document.querySelectorAll('.addon-checkbox-label');
+
+                addonLabels.forEach(label => {
+                    const checkbox = label.querySelector('.addon-checkbox');
+                    if (!checkbox) return;
+
+                    const minWeight = parseFloat(label.getAttribute('data-min-weight'));
+                    const maxWeight = parseFloat(label.getAttribute('data-max-weight'));
+
+                    let isOutsideRange = false;
+                    if (!weightUnavailable) {
+                        isOutsideRange = (petWeight < minWeight || petWeight > maxWeight);
+                    }
+
+                    checkbox.disabled = isOutsideRange;
+
+                    if (isOutsideRange) {
+                        label.classList.add('opacity-50', 'cursor-not-allowed');
+                        label.classList.remove('hover:bg-blue-50', 'cursor-pointer');
+                        if (checkbox.checked) checkbox.checked = false;
+                        disabledCount++;
+                    } else {
+                        label.classList.remove('opacity-50', 'cursor-not-allowed');
+                        label.classList.add('hover:bg-blue-50', 'cursor-pointer');
+                        enabledCount++;
+                    }
+                });
+
+                return { disabledCount, enabledCount };
+            }
+
             function validateAllGroomingServices() {
                 const weightUnavailable = isNaN(petWeight) || petWeight <= 0;
                 let totalDisabled = 0;
@@ -876,11 +1012,14 @@
                     totalEnabled += packagesResult.enabledCount;
                 }
 
-                // Validate add-ons
-                if (addonSelect) {
-                    const addonsResult = validateServiceOptions(addonSelect);
-                    totalDisabled += addonsResult.disabledCount;
-                    totalEnabled += addonsResult.enabledCount;
+                // Validate add-ons (checkbox version)
+                const addonsResult = validateAddonCheckboxes();
+                totalDisabled += addonsResult.disabledCount;
+                totalEnabled += addonsResult.enabledCount;
+
+                // Update addon display after validation
+                if (typeof updateAddonDisplay === 'function') {
+                    updateAddonDisplay();
                 }
 
                 if (weightUnavailable) {

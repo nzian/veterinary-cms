@@ -59,16 +59,17 @@
 @endphp
 @section('content')
     <div class="min-h-screen">
-        <div class="max-w-7xl mx-auto bg-white p-6 rounded-lg shadow">
+        <div class="max-w-full mx-auto bg-white p-6 rounded-lg shadow overflow-x-auto">
+            <div class="min-w-[1200px]">
             <div class="border-b border-gray-200 mb-6 overflow-x-auto">
                 <div class="flex flex-nowrap min-w-max" id="main-tabs-container">
+                    <button onclick="switchMainTab('servicesTab', 'services')" id="servicesBtn"
+                        class="py-2 px-4 text-sm font-semibold border-b-2 border-[#0f7ea0] text-[#0f7ea0] whitespace-nowrap">
+                        <h2 class="text-lg sm:text-xl">Services</h2>
+                    </button>
                     <button onclick="switchMainTab('productInventoryTab', 'products')" id="productInventoryBtn"
                         class="py-2 px-4 text-sm font-semibold border-b-2 border-transparent hover:border-[#0f7ea0] hover:text-[#0f7ea0] whitespace-nowrap">
                         <h2 class="text-lg sm:text-xl">Products</h2>
-                    </button>
-                    <button onclick="switchMainTab('servicesTab', 'services')" id="servicesBtn"
-                        class="py-2 px-4 text-sm font-semibold border-b-2 border-transparent hover:border-[#0f7ea0] hover:text-[#0f7ea0] whitespace-nowrap">
-                        <h2 class="text-lg sm:text-xl">Services</h2>
                     </button>
                     <button onclick="switchMainTab('equipmentTab', 'equipment')" id="equipmentBtn"
                         class="py-2 px-4 text-sm font-semibold border-b-2 border-transparent hover:border-[#0f7ea0] hover:text-[#0f7ea0] whitespace-nowrap">
@@ -85,7 +86,7 @@
                 <div class="bg-red-500 text-white p-2 rounded mb-4">{{ session('error') }}</div>
             @endif
 
-            <div id="productInventoryTab" class="main-tab-content">
+            <div id="productInventoryTab" class="main-tab-content hidden">
                 <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
                     <div class="flex-shrink-0 flex items-center space-x-2">
                         <label for="productsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
@@ -119,6 +120,9 @@
                             <i class="fas fa-chart-pie mr-1"></i> Inventory
                         </button>
                         @if(hasPermission('add_product', $can))
+                            <button onclick="openManufacturerModal()" class="bg-indigo-600 text-white text-sm px-3 py-1.5 rounded hover:bg-indigo-700 whitespace-nowrap">
+                                <i class="fas fa-industry mr-1"></i> Manufacturer
+                            </button>
                             <button onclick="openAddProductModal()" class="bg-[#0f7ea0] text-white text-sm px-3 py-1.5 rounded hover:bg-[#0c6a86] whitespace-nowrap">
                                 <i class="fas fa-plus mr-1"></i> Add Product
                             </button>
@@ -135,6 +139,7 @@
                                 <th class="p-2 border">Name</th>
                                 <th class="p-2 border">Category</th>
                                 <th class="p-2 border">Type</th>
+                                <th class="p-2 border">Manufacturer</th>
                                 <th class="p-2 border">Description</th>
                                 <th class="p-2 border">Price</th>
                                 <th class="p-2 border">Stock</th>
@@ -160,6 +165,7 @@
                                             {{ $product->prod_type }}
                                         </span>
                                     </td>
+                                    <td class="p-2 border">{{ $product->manufacturer->manufacturer_name ?? 'N/A' }}</td>
                                     <td class="p-2 border">{{ Str::limit($product->prod_description, 30) }}</td>
                                     <td class="p-2 border">
                                         @if($product->prod_type === 'Sale')
@@ -238,7 +244,7 @@
             
             </div>
 
-            <div id="servicesTab" class="main-tab-content hidden">
+            <div id="servicesTab" class="main-tab-content">
                 <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
                     <div class="flex-shrink-0 flex items-center space-x-2">
                         <label for="servicesPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
@@ -307,12 +313,25 @@
                                             @endif
                                             {{-- END NEW ADDITION --}}
 
+                                            {{-- Show Manage Consumables for non-Boarding services --}}
+                                            @if(strtolower(trim($service->serv_type)) !== 'boarding')
                                             <button
-                                                onclick="openManageProductsModal({{ $service->serv_id }}, '{{ addslashes($service->serv_name) }}')"
+                                                onclick="openManageProductsModal({{ $service->serv_id }}, '{{ addslashes($service->serv_name) }}', '{{ $service->serv_type }}', {{ $service->branch_id ?? 'null' }})"
                                                 class="bg-indigo-500 text-white px-2 py-1 rounded hover:bg-indigo-600 text-xs"
                                                 title="Manage Consumables">
                                                 <i class="fas fa-pills"></i>
                                             </button>
+                                            @endif
+
+                                            {{-- Show Manage Equipment for Boarding services --}}
+                                            @if(strtolower(trim($service->serv_type)) === 'boarding')
+                                            <button
+                                                onclick="openManageEquipmentModal({{ $service->serv_id }}, '{{ addslashes($service->serv_name) }}', {{ $service->branch_id ?? 'null' }})"
+                                                class="bg-amber-500 text-white px-2 py-1 rounded hover:bg-amber-600 text-xs"
+                                                title="Manage Equipment">
+                                                <i class="fas fa-tools"></i>
+                                            </button>
+                                            @endif
                                             
                                             @if(hasPermission('edit_service', $can))
                                                 <button onclick="openEditModal('service', {{ json_encode($service) }})"
@@ -364,11 +383,16 @@
                         <input type="search" id="equipmentSearch" placeholder="Search equipment..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                         <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                     </div>
-                    @if(hasPermission('add_equipment', $can))
-                        <button onclick="openAddModal('equipment')" class="bg-[#0f7ea0] text-white text-sm px-3 py-1.5 rounded hover:bg-[#0c6a86] whitespace-nowrap">
-                            <i class="fas fa-plus mr-1"></i> Add Equipment
+                    <div class="flex gap-2">
+                        <button onclick="openEquipmentInventoryOverview()" class="bg-purple-600 text-white text-sm px-3 py-1.5 rounded hover:bg-purple-700 whitespace-nowrap">
+                            <i class="fas fa-history mr-1"></i> Assignment History
                         </button>
-                    @endif
+                        @if(hasPermission('add_equipment', $can))
+                            <button onclick="openAddModal('equipment')" class="bg-[#0f7ea0] text-white text-sm px-3 py-1.5 rounded hover:bg-[#0c6a86] whitespace-nowrap">
+                                <i class="fas fa-plus mr-1"></i> Add Equipment
+                            </button>
+                        @endif
+                    </div>
                 </div>
                 
                 {{-- Status Legend --}}
@@ -405,8 +429,20 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($equipment as $index => $equip)
-                                <tr>
+                       
+                            @foreach($equipment as $equip)
+                                @php
+                                    $eqTotalQty = $equip->equipment_quantity;
+                                    $eqAvailable = $equip->equipment_available ?? 0;
+                                    $eqMaintenance = $equip->equipment_maintenance ?? 0;
+                                    $eqOutOfService = $equip->equipment_out_of_service ?? 0;
+                                    $eqInUse = max(0, $eqTotalQty - $eqAvailable - $eqMaintenance - $eqOutOfService);
+                                    $eqStatus = 'available';
+                                    if ($eqOutOfService > 0) $eqStatus = 'out_of_service';
+                                    elseif ($eqMaintenance > 0) $eqStatus = 'maintenance';
+                                    elseif ($eqInUse > 0) $eqStatus = 'in_use';
+                                @endphp
+                                <tr class="equipment-row" data-status="{{ $eqStatus }}" data-available="{{ $eqAvailable }}" data-inuse="{{ $eqInUse }}" data-maintenance="{{ $eqMaintenance }}" data-outofservice="{{ $eqOutOfService }}">
                                     <td class="p-2 border">
                                         @if($equip->equipment_image)
                                             <img src="{{ asset('storage/' . $equip->equipment_image) }}"
@@ -594,65 +630,67 @@
     <div id="inventoryModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
         <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-7xl max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold">Inventory Overview</h3>
+                <h3 class="text-lg font-bold">Complete Stock Movement History</h3>
                 <button onclick="closeInventoryModal()" class="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
             </div>
-            <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
-                    <thead class="bg-gray-100">
-                        <tr>
-                            <th class="p-2 border">Product Name</th>
-                            <th class="p-2 border">Current Stock</th>
-                            <th class="p-2 border">Reorder Level</th>
-                            <th class="p-2 border">Damaged</th>
-                            <th class="p-2 border">Pull-Out</th>
-                            <th class="p-2 border">Status</th>
-                            <th class="p-2 border">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($products as $product)
-                            @php
-                                $status = 'good';
-                                $statusText = 'Good Stock';
-                                $statusClass = 'bg-green-100 text-green-800';
-
-                                if ($product->available_stock - $product->usage_from_inventory_transactions <= ($product->prod_reorderlevel ?? 10)) {
-                                    $status = 'low';
-                                    $statusText = 'Low Stock';
-                                    $statusClass = 'bg-orange-100 text-orange-800';
-                                }
-                            @endphp
-                            <tr>
-                                <td class="p-2 border font-medium">{{ $product->prod_name }}</td>
-                                <td class="p-2 border">{{ $product->available_stock - $product->usage_from_inventory_transactions ?? 0 }}</td>
-                                <td class="p-2 border">{{ $product->prod_reorderlevel ?? 'N/A' }}</td>
-                                <td class="p-2 border">
-                                    <span class="{{ ($product->prod_damaged ?? 0) > 0 ? 'text-red-600' : '' }}">
-                                        {{ $product->prod_damaged ?? 0 }}
-                                    </span>
-                                </td>
-                                <td class="p-2 border">
-                                    <span class="{{ ($product->prod_pullout ?? 0) > 0 ? 'text-orange-600' : '' }}">
-                                        {{ $product->prod_pullout ?? 0 }}
-                                    </span>
-                                </td>
-                                <td class="p-2 border">
-                                    <span class="px-2 py-1 rounded-full text-xs font-medium {{ $statusClass }}">
-                                        {{ $statusText }}
-                                    </span>
-                                </td>
-                                <td class="p-2 border">
-                                    <button onclick="viewInventoryHistory({{ $product->prod_id }})"
-                                        class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
-                                        title="View History">
-                                        <i class="fas fa-history"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+            
+            <!-- Summary Cards -->
+            <div id="inventorySummary" class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
+                <div class="bg-gray-50 p-3 rounded-lg border text-center">
+                    <p class="text-xs text-gray-500">Total Movements</p>
+                    <p class="text-xl font-bold text-gray-700" id="summaryTotal">-</p>
+                </div>
+                <div class="bg-green-50 p-3 rounded-lg border border-green-200 text-center">
+                    <p class="text-xs text-green-600">Stock Added</p>
+                    <p class="text-xl font-bold text-green-700" id="summaryAdded">-</p>
+                </div>
+                <div class="bg-blue-50 p-3 rounded-lg border border-blue-200 text-center">
+                    <p class="text-xs text-blue-600">POS Sales</p>
+                    <p class="text-xl font-bold text-blue-700" id="summarySales">-</p>
+                </div>
+                <div class="bg-purple-50 p-3 rounded-lg border border-purple-200 text-center">
+                    <p class="text-xs text-purple-600">Service Usage</p>
+                    <p class="text-xl font-bold text-purple-700" id="summaryService">-</p>
+                </div>
+                <div class="bg-red-50 p-3 rounded-lg border border-red-200 text-center">
+                    <p class="text-xs text-red-600">Damaged</p>
+                    <p class="text-xl font-bold text-red-700" id="summaryDamaged">-</p>
+                </div>
+                <div class="bg-orange-50 p-3 rounded-lg border border-orange-200 text-center">
+                    <p class="text-xs text-orange-600">Pull-out</p>
+                    <p class="text-xl font-bold text-orange-700" id="summaryPullout">-</p>
+                </div>
+            </div>
+            
+            <!-- Filter Controls -->
+            <div class="flex flex-wrap gap-3 mb-4 items-center">
+                <div class="flex-1 min-w-[200px]">
+                    <input type="text" id="movementSearchInput" placeholder="Search by product name..." 
+                        class="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        onkeyup="filterMovementHistory()">
+                </div>
+                <div>
+                    <select id="movementTypeFilter" class="border border-gray-300 rounded px-3 py-2 text-sm" onchange="filterMovementHistory()">
+                        <option value="">All Types</option>
+                        <option value="batch_added">Stock Added</option>
+                        <option value="restock">Restock</option>
+                        <option value="sale">POS Sales</option>
+                        <option value="service_usage">Service Usage</option>
+                        <option value="damage">Damaged</option>
+                        <option value="pullout">Pull-out</option>
+                    </select>
+                </div>
+                <button onclick="loadStockMovementHistory()" class="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600">
+                    <i class="fas fa-sync-alt mr-1"></i> Refresh
+                </button>
+            </div>
+            
+            <!-- Movement History Table -->
+            <div id="inventoryContent" class="overflow-x-auto">
+                <div class="text-center py-8">
+                    <i class="fas fa-spinner fa-spin text-3xl text-blue-600"></i>
+                    <p class="mt-2">Loading stock movement history...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -667,22 +705,22 @@
             </div>
 
             <input type="hidden" id="currentServiceId">
+            <input type="hidden" id="currentServiceType">
+            <input type="hidden" id="currentServiceBranchId">
 
             <div class="bg-gray-50 p-4 rounded-lg mb-4">
                 <h4 class="font-semibold mb-3">Add Consumable Product to Service</h4>
+                <div class="mb-2">
+                    <small class="text-blue-600"><i class="fas fa-info-circle mr-1"></i>Showing consumable products matching service type: <strong id="serviceTypeDisplay"></strong> and branch</small>
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-gray-700 mb-1">Select Consumable Product</label>
                         <select id="productSelect" class="border p-2 w-full rounded">
                             <option value="">-- Select Consumable Product --</option>
-                            @foreach($allProducts as $product)
-                                <option value="{{ $product->prod_id }}" data-name="{{ $product->prod_name }}"
-                                    data-stock="{{ $product->available_stock - $product->usage_from_inventory_transactions }}" data-category="{{ $product->prod_category }}">
-                                    {{ $product->prod_name }} (Stock: {{ $product->available_stock - $product->usage_from_inventory_transactions }})
-                                </option>
-                            @endforeach
+                            <!-- Products will be loaded dynamically based on service type and branch -->
                         </select>
-                        <small class="text-gray-500">Only Consumable products can be linked to services</small>
+                        <small class="text-gray-500">Only consumable products matching this service type and branch are shown</small>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Quantity Used</label>
@@ -708,6 +746,68 @@
                 <button onclick="closeManageProductsModal()"
                     class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Close</button>
                 <button onclick="saveServiceProducts()"
+                    class="px-4 py-2 bg-[#0f7ea0] text-white rounded hover:bg-[#0c6a86]">
+                    <i class="fas fa-save mr-1"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Equipment Modal (for Boarding services) -->
+    <div id="manageEquipmentModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold"><i class="fas fa-tools mr-2"></i>Manage Equipment for Service</h3>
+                <p class="text-sm text-gray-600" id="equipmentServiceNameDisplay"></p>
+                <button onclick="closeManageEquipmentModal()"
+                    class="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
+            </div>
+
+            <input type="hidden" id="currentEquipmentServiceId">
+            <input type="hidden" id="currentEquipmentBranchId">
+
+            <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                <h4 class="font-semibold mb-3">Add Equipment to Service</h4>
+                <div class="mb-2">
+                    <small class="text-blue-600"><i class="fas fa-info-circle mr-1"></i>Showing <strong>Furniture & General Clinic Equipment</strong> from the same branch</small>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Select Equipment</label>
+                        <select id="equipmentSelect" class="border p-2 w-full rounded">
+                            <option value="">-- Select Equipment --</option>
+                            <!-- Equipment will be loaded dynamically based on branch -->
+                        </select>
+                        <small class="text-gray-500">Only Furniture & General Clinic Equipment from this branch is shown</small>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                        <input type="number" id="equipmentQuantityUsed" min="1" value="1"
+                            class="border p-2 w-full rounded" placeholder="1">
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="addEquipmentToService()"
+                            class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full">
+                            <i class="fas fa-plus mr-1"></i> Add
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                    <input type="text" id="equipmentNotes" class="border p-2 w-full rounded" placeholder="Enter any notes about equipment usage...">
+                </div>
+            </div>
+
+            <div>
+                <h4 class="font-semibold mb-3">Equipment Linked to This Service</h4>
+                <div id="serviceEquipmentList" class="space-y-2">
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="closeManageEquipmentModal()"
+                    class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Close</button>
+                <button onclick="saveServiceEquipment()"
                     class="px-4 py-2 bg-[#0f7ea0] text-white rounded hover:bg-[#0c6a86]">
                     <i class="fas fa-save mr-1"></i> Save Changes
                 </button>
@@ -756,6 +856,64 @@
         </div>
     </div>
 
+    <!-- Manufacturer Management Modal -->
+    <div id="manufacturerModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold"><i class="fas fa-industry mr-2"></i>Manage Manufacturers</h3>
+                <button type="button" onclick="closeManufacturerModal()" class="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
+            </div>
+
+            <!-- Add Manufacturer Form -->
+            <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                <h4 class="font-semibold mb-3">Add New Manufacturer</h4>
+                <div class="flex gap-3">
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Manufacturer Name *</label>
+                        <input type="text" id="newManufacturerName" placeholder="Enter manufacturer name" class="border p-2 w-full rounded" required>
+                    </div>
+                    <div class="flex items-end">
+                        <button type="button" onclick="addManufacturer()" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+                            <i class="fas fa-plus mr-1"></i> Add
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manufacturers List -->
+            <div>
+                <h4 class="font-semibold mb-3">Existing Manufacturers</h4>
+                <div id="manufacturersList" class="space-y-2 max-h-64 overflow-y-auto">
+                    <div class="text-center py-4 text-gray-500">
+                        <i class="fas fa-spinner fa-spin mr-1"></i> Loading manufacturers...
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end mt-4">
+                <button type="button" onclick="closeManufacturerModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Manufacturer Modal -->
+    <div id="editManufacturerModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-[60]">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h3 class="text-lg font-bold mb-4"><i class="fas fa-edit mr-2"></i>Edit Manufacturer</h3>
+            <input type="hidden" id="editManufacturerId">
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Manufacturer Name *</label>
+                    <input type="text" id="editManufacturerName" class="border p-2 w-full rounded" required>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-4">
+                <button type="button" onclick="closeEditManufacturerModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
+                <button type="button" onclick="updateManufacturer()" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Update</button>
+            </div>
+        </div>
+    </div>
+
     <div id="updateStockModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
         <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
             <h3 class="text-lg font-bold mb-4">Add Stock Batch</h3>
@@ -773,8 +931,8 @@
 
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Batch Number/Code *</label>
-                    <input type="text" name="batch" placeholder="e.g., BATCH-2025-001" class="border p-2 w-full rounded" required maxlength="100">
-                    <small class="text-gray-500">Unique identifier for this stock batch</small>
+                    <input type="text" name="batch" id="autoBatchCode" class="border p-2 w-full rounded bg-gray-100 cursor-not-allowed" required maxlength="100" readonly>
+                    <small class="text-gray-500">Auto-generated: [Product 3 letters]-[MMDD]-[HMM] (e.g., PAN-1202-451)</small>
                 </div>
 
                 <div class="mb-4">
@@ -884,13 +1042,159 @@
         class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
         <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-7xl max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold">Service Inventory Overview</h3>
+                <h3 class="text-lg font-bold"><i class="fas fa-clipboard-list text-purple-600 mr-2"></i>Complete Service Usage History</h3>
                 <button onclick="closeServiceInventoryModal()"
                     class="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
             </div>
-
-            <div id="serviceInventoryContent">
+            
+            <!-- Summary Cards -->
+            <div id="serviceInventorySummary" class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
+                <div class="bg-purple-50 p-3 rounded-lg border border-purple-200 text-center">
+                    <p class="text-xs text-purple-600">Total Services</p>
+                    <p class="text-xl font-bold text-purple-700" id="serviceSummaryTotal">-</p>
                 </div>
+                <div class="bg-green-50 p-3 rounded-lg border border-green-200 text-center">
+                    <p class="text-xs text-green-600">Completed</p>
+                    <p class="text-xl font-bold text-green-700" id="serviceSummaryCompleted">-</p>
+                </div>
+                <div class="bg-yellow-50 p-3 rounded-lg border border-yellow-200 text-center">
+                    <p class="text-xs text-yellow-600">Pending</p>
+                    <p class="text-xl font-bold text-yellow-700" id="serviceSummaryPending">-</p>
+                </div>
+                <div class="bg-blue-50 p-3 rounded-lg border border-blue-200 text-center">
+                    <p class="text-xs text-blue-600">Patients Served</p>
+                    <p class="text-xl font-bold text-blue-700" id="serviceSummaryPatients">-</p>
+                </div>
+                <div class="bg-amber-50 p-3 rounded-lg border border-amber-200 text-center">
+                    <p class="text-xs text-amber-600">Service Types</p>
+                    <p class="text-xl font-bold text-amber-700" id="serviceSummaryTypes">-</p>
+                </div>
+                <div class="bg-emerald-50 p-3 rounded-lg border border-emerald-200 text-center">
+                    <p class="text-xs text-emerald-600">Total Revenue</p>
+                    <p class="text-xl font-bold text-emerald-700" id="serviceSummaryRevenue">-</p>
+                </div>
+            </div>
+            
+            <!-- Filter Controls -->
+            <div class="flex flex-wrap gap-3 mb-4 items-center">
+                <div class="flex-1 min-w-[200px]">
+                    <input type="text" id="serviceMovementSearchInput" placeholder="Search by service, pet, or owner name..." 
+                        class="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        onkeyup="filterServiceMovementHistory()">
+                </div>
+                <div>
+                    <select id="serviceTypeFilter" class="border border-gray-300 rounded px-3 py-2 text-sm" onchange="filterServiceMovementHistory()">
+                        <option value="">All Service Types</option>
+                        <option value="Vaccination">Vaccination</option>
+                        <option value="Deworming">Deworming</option>
+                        <option value="Grooming">Grooming</option>
+                        <option value="Treatment">Treatment</option>
+                        <option value="Surgery">Surgery</option>
+                        <option value="Checkup">Checkup</option>
+                        <option value="Boarding">Boarding</option>
+                        <option value="Diagnostics">Diagnostics</option>
+                        <option value="Consultation">Consultation</option>
+                    </select>
+                </div>
+                <div>
+                    <select id="serviceStatusFilter" class="border border-gray-300 rounded px-3 py-2 text-sm" onchange="filterServiceMovementHistory()">
+                        <option value="">All Status</option>
+                        <option value="completed">Completed</option>
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In Progress</option>
+                    </select>
+                </div>
+                <button onclick="loadServiceMovementHistory()" class="bg-purple-500 text-white px-4 py-2 rounded text-sm hover:bg-purple-600">
+                    <i class="fas fa-sync-alt mr-1"></i> Refresh
+                </button>
+            </div>
+            
+            <!-- Service Usage History Table -->
+            <div id="serviceInventoryContent">
+                <div class="text-center py-8">
+                    <i class="fas fa-spinner fa-spin text-3xl text-purple-600"></i>
+                    <p class="mt-2">Loading service usage history...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Equipment Assignment History Modal -->
+    <div id="equipmentInventoryModal"
+        class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-7xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold"><i class="fas fa-history text-purple-600 mr-2"></i>Equipment Assignment History</h3>
+                <button onclick="closeEquipmentInventoryModal()"
+                    class="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
+            </div>
+            
+            <!-- Summary Cards -->
+            <div id="equipmentInventorySummary" class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
+                <div class="bg-purple-50 p-3 rounded-lg border border-purple-200 text-center">
+                    <p class="text-xs text-purple-600">Total Records</p>
+                    <p class="text-xl font-bold text-purple-700" id="equipmentSummaryTotal">-</p>
+                </div>
+                <div class="bg-green-50 p-3 rounded-lg border border-green-200 text-center">
+                    <p class="text-xs text-green-600">Checked In</p>
+                    <p class="text-xl font-bold text-green-700" id="equipmentSummaryCheckedIn">-</p>
+                </div>
+                <div class="bg-blue-50 p-3 rounded-lg border border-blue-200 text-center">
+                    <p class="text-xs text-blue-600">Checked Out</p>
+                    <p class="text-xl font-bold text-blue-700" id="equipmentSummaryCheckedOut">-</p>
+                </div>
+                <div class="bg-amber-50 p-3 rounded-lg border border-amber-200 text-center">
+                    <p class="text-xs text-amber-600">Active Now</p>
+                    <p class="text-xl font-bold text-amber-700" id="equipmentSummaryActive">-</p>
+                </div>
+                <div class="bg-teal-50 p-3 rounded-lg border border-teal-200 text-center">
+                    <p class="text-xs text-teal-600">Equipment Used</p>
+                    <p class="text-xl font-bold text-teal-700" id="equipmentSummaryUnique">-</p>
+                </div>
+                <div class="bg-pink-50 p-3 rounded-lg border border-pink-200 text-center">
+                    <p class="text-xs text-pink-600">Pets Served</p>
+                    <p class="text-xl font-bold text-pink-700" id="equipmentSummaryPets">-</p>
+                </div>
+            </div>
+            
+            <!-- Filter Controls -->
+            <div class="flex flex-wrap gap-3 mb-4 items-center">
+                <div class="flex-1 min-w-[200px]">
+                    <input type="text" id="equipmentMovementSearchInput" placeholder="Search by equipment, pet, or owner name..." 
+                        class="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        onkeyup="filterEquipmentMovementHistory()">
+                </div>
+                <div>
+                    <select id="equipmentCategoryFilter" class="border border-gray-300 rounded px-3 py-2 text-sm" onchange="filterEquipmentMovementHistory()">
+                        <option value="">All Categories</option>
+                        <option value="Cage">Cage</option>
+                        <option value="Room">Room</option>
+                        <option value="Ward">Ward</option>
+                        <option value="Kennel">Kennel</option>
+                        <option value="Equipment">Equipment</option>
+                    </select>
+                </div>
+                <div>
+                    <select id="equipmentActionFilter" class="border border-gray-300 rounded px-3 py-2 text-sm" onchange="filterEquipmentMovementHistory()">
+                        <option value="">All Actions</option>
+                        <option value="assigned">Checked In</option>
+                        <option value="released">Checked Out</option>
+                        <option value="reserved">Reserved</option>
+                        <option value="maintenance">Maintenance</option>
+                    </select>
+                </div>
+                <button onclick="loadEquipmentMovementHistory()" class="bg-purple-500 text-white px-4 py-2 rounded text-sm hover:bg-purple-600">
+                    <i class="fas fa-sync-alt mr-1"></i> Refresh
+                </button>
+            </div>
+            
+            <!-- Equipment Assignment History Table -->
+            <div id="equipmentInventoryContent">
+                <div class="text-center py-8">
+                    <i class="fas fa-spinner fa-spin text-3xl text-purple-600"></i>
+                    <p class="mt-2">Loading equipment assignment history...</p>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -922,14 +1226,14 @@
         // Ensure modals return to the correct tab on redirect
         document.addEventListener('DOMContentLoaded', function () {
             const urlParams = new URLSearchParams(window.location.search);
-            const activeTabParam = urlParams.get('tab') || 'products'; // Default to 'products'
+            const activeTabParam = urlParams.get('tab') || 'services'; // Default to 'services'
 
-            let tabId = 'productInventoryTab';
-            let tabBtnId = 'productInventoryBtn';
+            let tabId = 'servicesTab';
+            let tabBtnId = 'servicesBtn';
 
-            if (activeTabParam === 'services') {
-                tabId = 'servicesTab';
-                tabBtnId = 'servicesBtn';
+            if (activeTabParam === 'products') {
+                tabId = 'productInventoryTab';
+                tabBtnId = 'productInventoryBtn';
             } else if (activeTabParam === 'equipment') {
                 tabId = 'equipmentTab';
                 tabBtnId = 'equipmentBtn';
@@ -1014,21 +1318,64 @@
         // MANAGE SERVICE PRODUCTS
         let serviceProducts = [];
 
-        function openManageProductsModal(serviceId, serviceName) {
+        function openManageProductsModal(serviceId, serviceName, serviceType, branchId) {
             document.getElementById('manageProductsModal').classList.remove('hidden');
             document.getElementById('currentServiceId').value = serviceId;
+            document.getElementById('currentServiceType').value = serviceType || '';
+            document.getElementById('currentServiceBranchId').value = branchId || '';
             document.getElementById('serviceNameDisplay').textContent = serviceName;
+            document.getElementById('serviceTypeDisplay').textContent = serviceType || 'All';
+
+            // Load filtered consumable products for this service type and branch
+            loadFilteredProducts(serviceType, branchId);
 
             // Load existing products for this service
             loadServiceProducts(serviceId);
+        }
+
+        function loadFilteredProducts(serviceType, branchId) {
+            const productSelect = document.getElementById('productSelect');
+            productSelect.innerHTML = '<option value="">-- Loading Products --</option>';
+            
+            // Build query params
+            let url = '/products/consumable-by-filter';
+            const params = new URLSearchParams();
+            if (serviceType) params.append('service_type', serviceType);
+            if (branchId) params.append('branch_id', branchId);
+            
+            if (params.toString()) {
+                url += '?' + params.toString();
+            }
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    let options = '<option value="">-- Select Consumable Product --</option>';
+                    if (data.success && data.products && data.products.length > 0) {
+                        data.products.forEach(product => {
+                            const stock = product.available_stock || 0;
+                            options += `<option value="${product.prod_id}" data-name="${escapeHtml(product.prod_name)}" data-stock="${stock}" data-category="${product.prod_category || ''}">${escapeHtml(product.prod_name)} (Stock: ${stock})</option>`;
+                        });
+                    } else {
+                        options += '<option value="" disabled>-- No matching products found --</option>';
+                    }
+                    productSelect.innerHTML = options;
+                })
+                .catch(error => {
+                    console.error('Error loading filtered products:', error);
+                    productSelect.innerHTML = '<option value="">-- Error loading products --</option>';
+                });
         }
 
         function closeManageProductsModal() {
             document.getElementById('manageProductsModal').classList.add('hidden');
             serviceProducts = [];
             document.getElementById('serviceProductsList').innerHTML = '';
-            document.getElementById('productSelect').value = '';
+            document.getElementById('productSelect').innerHTML = '<option value="">-- Select Consumable Product --</option>';
             document.getElementById('quantityUsed').value = '1.00';
+            document.getElementById('currentServiceType').value = '';
+            document.getElementById('currentServiceBranchId').value = '';
+            document.getElementById('serviceTypeDisplay').textContent = '';
         }
 
         function loadServiceProducts(serviceId) {
@@ -1186,6 +1533,227 @@
                     saveBtn.disabled = false;
                 });
         }
+
+        // ====================================
+        // MANAGE SERVICE EQUIPMENT (for Boarding services)
+        // ====================================
+        let serviceEquipment = [];
+
+        function openManageEquipmentModal(serviceId, serviceName, branchId) {
+            document.getElementById('manageEquipmentModal').classList.remove('hidden');
+            document.getElementById('currentEquipmentServiceId').value = serviceId;
+            document.getElementById('currentEquipmentBranchId').value = branchId || '';
+            document.getElementById('equipmentServiceNameDisplay').textContent = serviceName;
+
+            // Load equipment filtered by branch
+            loadFilteredEquipment(branchId);
+
+            // Load existing equipment for this service
+            loadServiceEquipment(serviceId);
+        }
+
+        function loadFilteredEquipment(branchId) {
+            const equipmentSelect = document.getElementById('equipmentSelect');
+            equipmentSelect.innerHTML = '<option value="">-- Loading Equipment --</option>';
+            
+            // Build query params
+            let url = '/equipment/by-branch';
+            const params = new URLSearchParams();
+            if (branchId) params.append('branch_id', branchId);
+            
+            if (params.toString()) {
+                url += '?' + params.toString();
+            }
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    let options = '<option value="">-- Select Equipment --</option>';
+                    if (data.success && data.equipment && data.equipment.length > 0) {
+                        data.equipment.forEach(eq => {
+                            const available = eq.equipment_available || 0;
+                            options += `<option value="${eq.equipment_id}" data-name="${escapeHtml(eq.equipment_name)}" data-available="${available}" data-category="${eq.equipment_category || ''}">${escapeHtml(eq.equipment_name)} (Available: ${available})</option>`;
+                        });
+                    } else {
+                        options += '<option value="" disabled>-- No equipment found --</option>';
+                    }
+                    equipmentSelect.innerHTML = options;
+                })
+                .catch(error => {
+                    console.error('Error loading equipment:', error);
+                    equipmentSelect.innerHTML = '<option value="">-- Error loading equipment --</option>';
+                });
+        }
+
+        function closeManageEquipmentModal() {
+            document.getElementById('manageEquipmentModal').classList.add('hidden');
+            serviceEquipment = [];
+            document.getElementById('serviceEquipmentList').innerHTML = '';
+            document.getElementById('equipmentSelect').innerHTML = '<option value="">-- Select Equipment --</option>';
+            document.getElementById('equipmentQuantityUsed').value = '1';
+            document.getElementById('equipmentNotes').value = '';
+            document.getElementById('currentEquipmentBranchId').value = '';
+        }
+
+        function loadServiceEquipment(serviceId) {
+            document.getElementById('serviceEquipmentList').innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading equipment...</div>';
+
+            fetch(`/services/${serviceId}/equipment`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        serviceEquipment = data.equipment;
+                        renderServiceEquipment();
+                    } else {
+                        document.getElementById('serviceEquipmentList').innerHTML = '<div class="text-red-500">Error loading equipment</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('serviceEquipmentList').innerHTML = '<div class="text-red-500">Error loading equipment</div>';
+                });
+        }
+
+        function renderServiceEquipment() {
+            const container = document.getElementById('serviceEquipmentList');
+
+            if (serviceEquipment.length === 0) {
+                container.innerHTML = '<div class="text-center text-gray-500 py-4">No equipment linked to this service yet.</div>';
+                return;
+            }
+
+            let html = '<div class="space-y-2">';
+            serviceEquipment.forEach((item, index) => {
+                const availableWarning = item.available_quantity < item.quantity_used ? 'border-red-300 bg-red-50' : 'border-gray-200';
+                html += `
+                <div class="flex items-center justify-between p-3 border ${availableWarning} rounded">
+                    <div class="flex-1">
+                        <div class="font-medium">${escapeHtml(item.equipment_name)}</div>
+                        <div class="text-sm text-gray-600">
+                            Quantity: <span class="font-semibold">${item.quantity_used}</span> | 
+                            Available: <span class="${item.available_quantity < item.quantity_used ? 'text-red-600 font-bold' : 'text-green-600'}">${item.available_quantity}</span>
+                            ${item.available_quantity < item.quantity_used ? '<span class="text-red-600 ml-2"><i class="fas fa-exclamation-triangle"></i> Low Availability!</span>' : ''}
+                        </div>
+                        ${item.notes ? `<div class="text-sm text-gray-500 italic mt-1"><i class="fas fa-sticky-note mr-1"></i>${escapeHtml(item.notes)}</div>` : ''}
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="number" min="1" value="${item.quantity_used}" 
+                               onchange="updateEquipmentQuantity(${index}, this.value)"
+                               class="border p-1 w-20 rounded text-sm">
+                        <button onclick="removeEquipmentFromService(${index})" 
+                                class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-sm">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+
+            container.innerHTML = html;
+        }
+
+        function addEquipmentToService() {
+            const select = document.getElementById('equipmentSelect');
+            const equipmentId = select.value;
+            const quantityUsed = parseInt(document.getElementById('equipmentQuantityUsed').value);
+            const notes = document.getElementById('equipmentNotes').value.trim();
+
+            if (!equipmentId) {
+                alert('Please select equipment');
+                return;
+            }
+
+            if (!quantityUsed || quantityUsed <= 0) {
+                alert('Please enter a valid quantity');
+                return;
+            }
+
+            // Check if equipment already exists
+            if (serviceEquipment.find(e => e.equipment_id == equipmentId)) {
+                alert('This equipment is already linked to this service');
+                return;
+            }
+
+            const selectedOption = select.options[select.selectedIndex];
+
+            serviceEquipment.push({
+                equipment_id: equipmentId,
+                equipment_name: selectedOption.dataset.name,
+                quantity_used: quantityUsed,
+                available_quantity: selectedOption.dataset.available,
+                notes: notes
+            });
+
+            // Reset form
+            select.value = '';
+            document.getElementById('equipmentQuantityUsed').value = '1';
+            document.getElementById('equipmentNotes').value = '';
+
+            renderServiceEquipment();
+        }
+
+        function updateEquipmentQuantity(index, newQuantity) {
+            serviceEquipment[index].quantity_used = parseInt(newQuantity);
+        }
+
+        function removeEquipmentFromService(index) {
+            if (confirm('Remove this equipment from the service?')) {
+                serviceEquipment.splice(index, 1);
+                renderServiceEquipment();
+            }
+        }
+
+        function saveServiceEquipment() {
+            const serviceId = document.getElementById('currentEquipmentServiceId').value;
+
+            if (serviceEquipment.length === 0) {
+                if (!confirm('No equipment is linked to this service. Continue?')) {
+                    return;
+                }
+            }
+
+            // Prepare data
+            const equipmentData = serviceEquipment.map(e => ({
+                equipment_id: e.equipment_id,
+                quantity_used: e.quantity_used,
+                notes: e.notes || null
+            }));
+
+            // Show loading
+            const saveBtn = event.target;
+            const originalText = saveBtn.innerHTML;
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Saving...';
+            saveBtn.disabled = true;
+
+            fetch(`/services/${serviceId}/equipment`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({
+                    equipment: equipmentData
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ Equipment saved successfully!');
+                        closeManageEquipmentModal();
+                    } else {
+                        alert('❌ Error: ' + (data.error || 'Failed to save equipment'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('❌ Error saving equipment. Please try again.');
+                })
+                .finally(() => {
+                    saveBtn.innerHTML = originalText;
+                    saveBtn.disabled = false;
+                });
+        }
+
         // MAIN TAB SWITCHING
         function switchMainTab(tabId) {
             document.querySelectorAll('.main-tab-content').forEach(t => t.classList.add('hidden'));
@@ -1209,151 +1777,480 @@
             }
         }
 
+        // SERVICE INVENTORY OVERVIEW - Complete Service Usage History (Services performed on patients)
+        let allServiceMovements = [];
+        
         function openServiceInventoryOverview() {
             document.getElementById('serviceInventoryModal').classList.remove('hidden');
-            document.getElementById('serviceInventoryContent').innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-3xl text-blue-600"></i><p class="mt-2">Loading service inventory overview...</p></div>';
+            loadServiceMovementHistory();
+        }
+        
+        function loadServiceMovementHistory() {
+            document.getElementById('serviceInventoryContent').innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-3xl text-purple-600"></i><p class="mt-2">Loading service usage history...</p></div>';
 
-            fetch('/services/inventory-overview')
+            fetch('/services/usage-history')
                 .then(response => response.json())
                 .then(data => {
                     if (!data.success) {
-                        document.getElementById('serviceInventoryContent').innerHTML = '<div class="text-red-500">Error loading data</div>';
+                        document.getElementById('serviceInventoryContent').innerHTML = `<div class="text-red-500 text-center py-8"><i class="fas fa-exclamation-circle text-3xl mb-2"></i><p>Error loading data: ${data.error || 'Unknown error'}</p></div>`;
                         return;
                     }
 
-                    const products = data.products;
+                    allServiceMovements = data.movements;
                     const summary = data.summary;
 
-                    let content = `
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                        <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                            <h4 class="font-semibold text-blue-800">Products in Services</h4>
-                            <p class="text-2xl font-bold text-blue-600">${summary.total_products_in_services}</p>
-                        </div>
-                        <div class="bg-red-50 p-4 rounded-lg border-l-4 border-red-500">
-                            <h4 class="font-semibold text-red-800">Low Stock Items</h4>
-                            <p class="text-2xl font-bold text-red-600">${summary.low_stock_count}</p>
-                        </div>
-                        <div class="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-500">
-                            <h4 class="font-semibold text-yellow-800">Warning Stock</h4>
-                            <p class="text-2xl font-bold text-yellow-600">${summary.warning_stock_count}</p>
-                        </div>
-                        <div class="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
-                            <h4 class="font-semibold text-green-800">Good Stock</h4>
-                            <p class="text-2xl font-bold text-green-600">${summary.good_stock_count}</p>
-                        </div>
-                    </div>
+                    // Update summary cards
+                    document.getElementById('serviceSummaryTotal').textContent = summary.total_services;
+                    document.getElementById('serviceSummaryCompleted').textContent = summary.completed_services;
+                    document.getElementById('serviceSummaryPending').textContent = summary.pending_services;
+                    document.getElementById('serviceSummaryPatients').textContent = summary.unique_patients;
+                    document.getElementById('serviceSummaryTypes').textContent = summary.unique_service_types;
+                    document.getElementById('serviceSummaryRevenue').textContent = '₱' + parseFloat(summary.total_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm border">
-                            <thead class="bg-gray-100">
-                                <tr>
-                                    <th class="p-2 border">Product Name</th>
-                                    <th class="p-2 border">Category</th>
-                                    <th class="p-2 border">Current Stock</th>
-                                    <th class="p-2 border">Reorder Level</th>
-                                    <th class="p-2 border">Services Using</th>
-                                    <th class="p-2 border">Times Used</th>
-                                    <th class="p-2 border">Services Remaining</th>
-                                    <th class="p-2 border">Expiry Date</th>
-                                    <th class="p-2 border">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>`;
-
-                    if (products.length === 0) {
-                        content += `
-                        <tr>
-                            <td colspan="9" class="p-8 text-center text-gray-500">
-                                <i class="fas fa-info-circle text-3xl mb-2"></i>
-                                <p>No products are currently linked to any services.</p>
-                                <p class="text-sm mt-2">Use the "Manage Products" button (purple pill icon) next to each service to add products.</p>
-                            </td>
-                        </tr>`;
-                    } else {
-                        products.forEach(product => {
-                            const stockColorClass = product.current_stock <= product.reorder_level ? 'text-red-600 font-bold' : 'text-green-600';
-
-                            // Build services list
-                            let servicesList = '<div class="space-y-1">';
-                            product.services_using.forEach(service => {
-                                servicesList += `
-                                <div class="flex items-center justify-between text-xs bg-purple-50 p-1 rounded">
-                                    <span class="font-medium">${service.service_name}</span>
-                                    <span class="text-purple-700 font-bold">${service.quantity_used} units</span>
-                                </div>`;
-                            });
-                            servicesList += '</div>';
-
-                            // Build services remaining
-                            let remainingList = '<div class="space-y-1">';
-                            product.services_remaining.forEach(remaining => {
-                                const colorClass = remaining.remaining_count < 5 ? 'text-red-600' : remaining.remaining_count < 20 ? 'text-yellow-600' : 'text-green-600';
-                                remainingList += `
-                                <div class="text-xs">
-                                    <span class="text-gray-600">${remaining.service_name}:</span>
-                                    <span class="${colorClass} font-bold">${remaining.remaining_count}x</span>
-                                </div>`;
-                            });
-                            remainingList += '</div>';
-
-                            content += `
-                            <tr class="hover:bg-gray-50">
-                                <td class="p-2 border font-medium">${product.product_name}</td>
-                                <td class="p-2 border text-xs">${product.product_category}</td>
-                                <td class="p-2 border">
-                                    <span class="${stockColorClass} text-lg font-bold">${product.current_stock}</span>
-                                </td>
-                                <td class="p-2 border">${product.reorder_level}</td>
-                                <td class="p-2 border">
-                                    ${servicesList}
-                                </td>
-                                <td class="p-2 border text-center">
-                                    <span class="text-purple-700 font-bold text-lg">${product.actual_usage_count}</span>
-                                    <div class="text-xs text-gray-500">total times</div>
-                                </td>
-                                <td class="p-2 border">
-                                    ${remainingList}
-                                </td>
-                                <td class="p-2 border text-xs">${product.expiry_date}</td>
-                                <td class="p-2 border">
-                                    <span class="px-2 py-1 rounded-full text-xs font-medium ${product.status_class}">
-                                        ${product.stock_status.charAt(0).toUpperCase() + product.stock_status.slice(1)}
-                                    </span>
-                                </td>
-                            </tr>`;
-                        });
-                    }
-
-                    content += `
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="mt-6 p-4 bg-gray-50 rounded-lg">
-                        <h4 class="font-bold mb-2">Legend:</h4>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                            <div><span class="font-medium">Services Using:</span> Shows which services use this product and how much per service</div>
-                            <div><span class="font-medium">Times Used:</span> Total number of times this product was actually used in appointments</div>
-                            <div><span class="font-medium">Services Remaining:</span> How many more services can be performed with current stock</div>
-                        </div>
-                    </div>`;
-
-                    document.getElementById('serviceInventoryContent').innerHTML = content;
+                    renderServiceMovementHistory(allServiceMovements);
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    document.getElementById('serviceInventoryContent').innerHTML = '<div class="text-red-500">Error loading service inventory overview</div>';
+                    document.getElementById('serviceInventoryContent').innerHTML = `<div class="text-red-500 text-center py-8"><i class="fas fa-exclamation-circle text-3xl mb-2"></i><p>Error: ${error.message}</p></div>`;
                 });
+        }
+        
+        function renderServiceMovementHistory(movements) {
+            if (movements.length === 0) {
+                document.getElementById('serviceInventoryContent').innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-clipboard-list text-4xl mb-2"></i>
+                        <p>No service records found</p>
+                        <p class="text-sm mt-2">Services will appear here when they are performed during patient visits.</p>
+                    </div>`;
+                return;
+            }
+
+            let content = `
+                <table class="w-full table-auto text-sm border">
+                    <thead class="bg-gray-100 sticky top-0">
+                        <tr>
+                            <th class="p-2 border text-left">Date & Time</th>
+                            <th class="p-2 border text-left">Service</th>
+                            <th class="p-2 border text-left">Patient / Owner</th>
+                            <th class="p-2 border text-left">Visit Type</th>
+                            <th class="p-2 border text-center">Fee</th>
+                            <th class="p-2 border text-left">Performed By</th>
+                            <th class="p-2 border text-center">Status</th>
+                            <th class="p-2 border text-left">Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+            movements.forEach(movement => {
+                const date = new Date(movement.date);
+                const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const formattedTime = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                
+                const completedDate = movement.completed_at ? new Date(movement.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+
+                const statusColors = {
+                    'completed': 'bg-green-100 text-green-800',
+                    'pending': 'bg-yellow-100 text-yellow-800',
+                    'in_progress': 'bg-blue-100 text-blue-800',
+                    'cancelled': 'bg-red-100 text-red-800',
+                };
+                const statusClass = statusColors[movement.status] || 'bg-gray-100 text-gray-800';
+
+                const patientTypeColors = {
+                    'Outpatient': 'bg-blue-50 text-blue-700',
+                    'Inpatient': 'bg-purple-50 text-purple-700',
+                    'Emergency': 'bg-red-50 text-red-700',
+                };
+                const patientTypeClass = patientTypeColors[movement.patient_type] || 'bg-gray-50 text-gray-700';
+
+                const petInfo = movement.pet_species ? `${movement.pet_species}${movement.pet_breed ? ' - ' + movement.pet_breed : ''}` : '';
+
+                content += `
+                    <tr class="hover:bg-gray-50 service-movement-row" 
+                        data-service-type="${movement.service_type || ''}" 
+                        data-status="${movement.status || ''}"
+                        data-search="${movement.service_name.toLowerCase()} ${movement.pet_name.toLowerCase()} ${movement.owner_name.toLowerCase()}">
+                        <td class="p-2 border">
+                            <div class="text-sm font-medium">${formattedDate}</div>
+                            <div class="text-xs text-gray-500">${formattedTime}</div>
+                            ${completedDate ? `<div class="text-xs text-green-600">Done: ${completedDate}</div>` : ''}
+                        </td>
+                        <td class="p-2 border">
+                            <div class="font-medium">${movement.service_name}</div>
+                            <span class="px-2 py-0.5 rounded-full text-xs font-medium ${movement.service_type_class}">
+                                ${movement.service_type}
+                            </span>
+                        </td>
+                        <td class="p-2 border">
+                            <div class="font-medium flex items-center">
+                                <i class="fas fa-paw text-amber-500 mr-1"></i>
+                                ${movement.pet_name}
+                            </div>
+                            ${petInfo ? `<div class="text-xs text-gray-500">${petInfo}</div>` : ''}
+                            <div class="text-xs text-gray-600 flex items-center mt-1">
+                                <i class="fas fa-user text-gray-400 mr-1"></i>
+                                ${movement.owner_name}
+                            </div>
+                        </td>
+                        <td class="p-2 border text-xs">
+                            <span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded">Visit #${movement.visit_id}</span>
+                            <div class="mt-1">
+                                <span class="px-2 py-0.5 rounded text-xs ${patientTypeClass}">${movement.patient_type}</span>
+                            </div>
+                            <div class="text-gray-500 mt-1">${movement.visit_type || 'Walk-in'}</div>
+                        </td>
+                        <td class="p-2 border text-center">
+                            <span class="font-bold text-emerald-600">₱${parseFloat(movement.total_price).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                            ${movement.quantity > 1 ? `<div class="text-xs text-gray-500">${movement.quantity} × ₱${parseFloat(movement.unit_price).toLocaleString()}</div>` : ''}
+                        </td>
+                        <td class="p-2 border">
+                            <div class="flex items-center">
+                                <i class="fas fa-user-md text-blue-500 mr-1"></i>
+                                <span class="text-sm">${movement.performed_by}</span>
+                            </div>
+                        </td>
+                        <td class="p-2 border text-center">
+                            <span class="px-2 py-1 rounded-full text-xs font-medium ${statusClass}">
+                                ${movement.status_label}
+                            </span>
+                        </td>
+                        <td class="p-2 border text-xs text-gray-600 max-w-[150px] truncate" title="${movement.notes || 'No notes'}">
+                            ${movement.notes || '-'}
+                        </td>
+                    </tr>`;
+            });
+
+            content += '</tbody></table>';
+            document.getElementById('serviceInventoryContent').innerHTML = content;
+        }
+
+        function filterServiceMovementHistory() {
+            const searchTerm = document.getElementById('serviceMovementSearchInput').value.toLowerCase();
+            const typeFilter = document.getElementById('serviceTypeFilter').value;
+            const statusFilter = document.getElementById('serviceStatusFilter').value;
+
+            const filteredMovements = allServiceMovements.filter(movement => {
+                const matchesSearch = !searchTerm || 
+                    movement.service_name.toLowerCase().includes(searchTerm) || 
+                    movement.pet_name.toLowerCase().includes(searchTerm) ||
+                    movement.owner_name.toLowerCase().includes(searchTerm);
+                const matchesType = !typeFilter || movement.service_type === typeFilter;
+                const matchesStatus = !statusFilter || movement.status === statusFilter;
+                return matchesSearch && matchesType && matchesStatus;
+            });
+
+            renderServiceMovementHistory(filteredMovements);
         }
 
         function closeServiceInventoryModal() {
             document.getElementById('serviceInventoryModal').classList.add('hidden');
         }
 
-        // INVENTORY OVERVIEW MODAL
+        // EQUIPMENT INVENTORY OVERVIEW - Equipment Assignment History
+        let allEquipmentMovements = [];
+        
+        function openEquipmentInventoryOverview() {
+            document.getElementById('equipmentInventoryModal').classList.remove('hidden');
+            loadEquipmentMovementHistory();
+        }
+        
+        function loadEquipmentMovementHistory() {
+            document.getElementById('equipmentInventoryContent').innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-3xl text-purple-600"></i><p class="mt-2">Loading equipment assignment history...</p></div>';
+
+            fetch('/equipment/assignment-history')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        document.getElementById('equipmentInventoryContent').innerHTML = `<div class="text-red-500 text-center py-8"><i class="fas fa-exclamation-circle text-3xl mb-2"></i><p>Error loading data: ${data.error || 'Unknown error'}</p></div>`;
+                        return;
+                    }
+
+                    allEquipmentMovements = data.movements;
+                    const summary = data.summary;
+
+                    // Update summary cards
+                    document.getElementById('equipmentSummaryTotal').textContent = summary.total_assignments;
+                    document.getElementById('equipmentSummaryCheckedIn').textContent = summary.checked_in;
+                    document.getElementById('equipmentSummaryCheckedOut').textContent = summary.checked_out;
+                    document.getElementById('equipmentSummaryActive').textContent = summary.active_assignments;
+                    document.getElementById('equipmentSummaryUnique').textContent = summary.unique_equipment;
+                    document.getElementById('equipmentSummaryPets').textContent = summary.unique_pets;
+
+                    renderEquipmentMovementHistory(allEquipmentMovements);
+                })
+                .catch(error => {
+                    document.getElementById('equipmentInventoryContent').innerHTML = `<div class="text-red-500 text-center py-8"><i class="fas fa-exclamation-circle text-3xl mb-2"></i><p>Error: ${error.message}</p></div>`;
+                });
+        }
+        
+        function renderEquipmentMovementHistory(movements) {
+            if (movements.length === 0) {
+                document.getElementById('equipmentInventoryContent').innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-box-open text-4xl mb-2"></i>
+                        <p>No equipment assignment records found</p>
+                        <p class="text-sm mt-2">Equipment assignments will appear here when boarding check-ins occur.</p>
+                    </div>`;
+                return;
+            }
+
+            let content = `
+                <table class="w-full table-auto text-sm border">
+                    <thead class="bg-gray-100 sticky top-0">
+                        <tr>
+                            <th class="p-2 border text-left">Date & Time</th>
+                            <th class="p-2 border text-left">Equipment</th>
+                            <th class="p-2 border text-center">Action</th>
+                            <th class="p-2 border text-left">Pet / Owner</th>
+                            <th class="p-2 border text-left">Service</th>
+                            <th class="p-2 border text-left">Check-in / Check-out</th>
+                            <th class="p-2 border text-left">Handled By</th>
+                            <th class="p-2 border text-left">Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+            movements.forEach(movement => {
+                const date = new Date(movement.date);
+                const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const formattedTime = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                
+                const checkInDate = movement.check_in_date ? new Date(movement.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
+                const checkOutDate = movement.check_out_date ? new Date(movement.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
+
+                const actionColors = {
+                    'green': 'bg-green-100 text-green-800',
+                    'blue': 'bg-blue-100 text-blue-800',
+                    'amber': 'bg-amber-100 text-amber-800',
+                    'yellow': 'bg-yellow-100 text-yellow-800',
+                    'red': 'bg-red-100 text-red-800',
+                    'purple': 'bg-purple-100 text-purple-800',
+                    'teal': 'bg-teal-100 text-teal-800',
+                };
+                const actionClass = actionColors[movement.action_color] || 'bg-gray-100 text-gray-800';
+
+                const boardingStatusColors = {
+                    'Checked In': 'bg-green-100 text-green-800',
+                    'Checked Out': 'bg-blue-100 text-blue-800',
+                    'Reserved': 'bg-amber-100 text-amber-800',
+                    'Cancelled': 'bg-red-100 text-red-800',
+                };
+                const boardingStatusClass = boardingStatusColors[movement.boarding_status] || 'bg-gray-100 text-gray-800';
+
+                const petInfo = movement.pet_species ? `${movement.pet_species}${movement.pet_breed ? ' - ' + movement.pet_breed : ''}` : '';
+
+                content += `
+                    <tr class="hover:bg-gray-50 equipment-movement-row" 
+                        data-category="${movement.equipment_category || ''}" 
+                        data-action="${movement.action_type || ''}"
+                        data-search="${movement.equipment_name.toLowerCase()} ${movement.pet_name.toLowerCase()} ${movement.owner_name.toLowerCase()}">
+                        <td class="p-2 border">
+                            <div class="text-sm font-medium">${formattedDate}</div>
+                            <div class="text-xs text-gray-500">${formattedTime}</div>
+                        </td>
+                        <td class="p-2 border">
+                            <div class="font-medium flex items-center">
+                                <i class="fas fa-box text-purple-500 mr-1"></i>
+                                ${movement.equipment_name}
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full text-xs font-medium ${movement.category_class}">
+                                ${movement.equipment_category}
+                            </span>
+                        </td>
+                        <td class="p-2 border text-center">
+                            <span class="px-2 py-1 rounded-full text-xs font-medium ${actionClass}">
+                                ${movement.action_label}
+                            </span>
+                            ${movement.boarding_status ? `<div class="mt-1"><span class="px-2 py-0.5 rounded text-xs ${boardingStatusClass}">${movement.boarding_status}</span></div>` : ''}
+                        </td>
+                        <td class="p-2 border">
+                            <div class="font-medium flex items-center">
+                                <i class="fas fa-paw text-amber-500 mr-1"></i>
+                                ${movement.pet_name}
+                            </div>
+                            ${petInfo ? `<div class="text-xs text-gray-500">${petInfo}</div>` : ''}
+                            <div class="text-xs text-gray-600 flex items-center mt-1">
+                                <i class="fas fa-user text-gray-400 mr-1"></i>
+                                ${movement.owner_name}
+                            </div>
+                        </td>
+                        <td class="p-2 border">
+                            ${movement.service_name ? `
+                                <div class="font-medium">${movement.service_name}</div>
+                                <div class="text-xs text-gray-500">${movement.service_type || ''}</div>
+                            ` : `<span class="text-gray-400">-</span>`}
+                            ${movement.visit_id ? `<div class="text-xs mt-1"><span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded">Visit #${movement.visit_id}</span></div>` : ''}
+                        </td>
+                        <td class="p-2 border text-xs">
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center">
+                                    <i class="fas fa-sign-in-alt text-green-500 mr-1"></i>
+                                    <span class="text-green-700">${checkInDate}</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <i class="fas fa-sign-out-alt text-blue-500 mr-1"></i>
+                                    <span class="text-blue-700">${checkOutDate}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="p-2 border">
+                            <div class="flex items-center">
+                                <i class="fas fa-user-md text-blue-500 mr-1"></i>
+                                <span class="text-sm">${movement.handled_by}</span>
+                            </div>
+                        </td>
+                        <td class="p-2 border text-xs text-gray-600 max-w-[150px] truncate" title="${movement.notes || movement.reference || 'No notes'}">
+                            ${movement.notes || movement.reference || '-'}
+                        </td>
+                    </tr>`;
+            });
+
+            content += '</tbody></table>';
+            document.getElementById('equipmentInventoryContent').innerHTML = content;
+        }
+
+        function filterEquipmentMovementHistory() {
+            const searchTerm = document.getElementById('equipmentMovementSearchInput').value.toLowerCase();
+            const categoryFilter = document.getElementById('equipmentCategoryFilter').value;
+            const actionFilter = document.getElementById('equipmentActionFilter').value;
+
+            const filteredMovements = allEquipmentMovements.filter(movement => {
+                const matchesSearch = !searchTerm || 
+                    movement.equipment_name.toLowerCase().includes(searchTerm) || 
+                    movement.pet_name.toLowerCase().includes(searchTerm) ||
+                    movement.owner_name.toLowerCase().includes(searchTerm);
+                const matchesCategory = !categoryFilter || movement.equipment_category === categoryFilter;
+                const matchesAction = !actionFilter || movement.action_type === actionFilter;
+                return matchesSearch && matchesCategory && matchesAction;
+            });
+
+            renderEquipmentMovementHistory(filteredMovements);
+        }
+
+        function closeEquipmentInventoryModal() {
+            document.getElementById('equipmentInventoryModal').classList.add('hidden');
+        }
+
+        // INVENTORY OVERVIEW MODAL - Complete Stock Movement History
+        let allMovements = [];
+        
         function openInventoryOverview() {
             document.getElementById('inventoryModal').classList.remove('hidden');
+            loadStockMovementHistory();
+        }
+        
+        function loadStockMovementHistory() {
+            document.getElementById('inventoryContent').innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-3xl text-blue-600"></i><p class="mt-2">Loading stock movement history...</p></div>';
+            
+            fetch('/products/stock-movement-history')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        document.getElementById('inventoryContent').innerHTML = `<div class="text-red-500 text-center py-8"><i class="fas fa-exclamation-circle text-3xl mb-2"></i><p>Error loading data: ${data.error || 'Unknown error'}</p></div>`;
+                        return;
+                    }
+                    
+                    allMovements = data.movements;
+                    const summary = data.summary;
+                    
+                    // Update summary cards
+                    document.getElementById('summaryTotal').textContent = summary.total_movements;
+                    document.getElementById('summaryAdded').textContent = '+' + summary.stock_added;
+                    document.getElementById('summarySales').textContent = '-' + summary.sales;
+                    document.getElementById('summaryService').textContent = '-' + summary.service_usage;
+                    document.getElementById('summaryDamaged').textContent = '-' + summary.damaged;
+                    document.getElementById('summaryPullout').textContent = '-' + summary.pullout;
+                    
+                    renderMovementHistory(allMovements);
+                })
+                .catch(error => {
+                    document.getElementById('inventoryContent').innerHTML = `<div class="text-red-500 text-center py-8"><i class="fas fa-exclamation-circle text-3xl mb-2"></i><p>Error: ${error.message}</p></div>`;
+                });
+        }
+        
+        function renderMovementHistory(movements) {
+            if (movements.length === 0) {
+                document.getElementById('inventoryContent').innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-inbox text-4xl mb-2"></i>
+                        <p>No stock movements found</p>
+                    </div>`;
+                return;
+            }
+            
+            let content = `
+                <table class="w-full table-auto text-sm border">
+                    <thead class="bg-gray-100 sticky top-0">
+                        <tr>
+                            <th class="p-2 border text-left">Date & Time</th>
+                            <th class="p-2 border text-left">Product</th>
+                            <th class="p-2 border text-left">Type</th>
+                            <th class="p-2 border text-center">Quantity</th>
+                            <th class="p-2 border text-left">Reference</th>
+                            <th class="p-2 border text-left">Details</th>
+                            <th class="p-2 border text-left">User</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+            
+            movements.forEach(movement => {
+                const date = new Date(movement.date);
+                const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const formattedTime = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                
+                const colorClasses = {
+                    'green': 'bg-green-100 text-green-800',
+                    'blue': 'bg-blue-100 text-blue-800',
+                    'purple': 'bg-purple-100 text-purple-800',
+                    'red': 'bg-red-100 text-red-800',
+                    'orange': 'bg-orange-100 text-orange-800',
+                    'gray': 'bg-gray-100 text-gray-800',
+                    'teal': 'bg-teal-100 text-teal-800',
+                };
+                
+                const typeClass = colorClasses[movement.type_color] || colorClasses['gray'];
+                const quantityClass = movement.quantity_change >= 0 ? 'text-green-600 font-bold' : 'text-red-600 font-bold';
+                const quantityDisplay = movement.quantity_change >= 0 ? '+' + movement.quantity_change : movement.quantity_change;
+                
+                content += `
+                    <tr class="hover:bg-gray-50 movement-row" data-type="${movement.transaction_type}" data-product="${movement.product_name.toLowerCase()}">
+                        <td class="p-2 border">
+                            <div class="text-sm font-medium">${formattedDate}</div>
+                            <div class="text-xs text-gray-500">${formattedTime}</div>
+                        </td>
+                        <td class="p-2 border">
+                            <div class="font-medium">${movement.product_name}</div>
+                            <div class="text-xs text-gray-500">${movement.product_category || 'N/A'}</div>
+                        </td>
+                        <td class="p-2 border">
+                            <span class="px-2 py-1 rounded-full text-xs font-medium ${typeClass}">
+                                <i class="fas ${movement.type_icon} mr-1"></i>${movement.type_label}
+                            </span>
+                        </td>
+                        <td class="p-2 border text-center">
+                            <span class="${quantityClass}">${quantityDisplay}</span>
+                        </td>
+                        <td class="p-2 border text-xs">${movement.reference}</td>
+                        <td class="p-2 border text-xs">${movement.details}</td>
+                        <td class="p-2 border text-xs">${movement.user}</td>
+                    </tr>`;
+            });
+            
+            content += '</tbody></table>';
+            document.getElementById('inventoryContent').innerHTML = content;
+        }
+        
+        function filterMovementHistory() {
+            const searchTerm = document.getElementById('movementSearchInput').value.toLowerCase();
+            const typeFilter = document.getElementById('movementTypeFilter').value;
+            
+            const filteredMovements = allMovements.filter(movement => {
+                const matchesSearch = !searchTerm || movement.product_name.toLowerCase().includes(searchTerm);
+                const matchesType = !typeFilter || movement.transaction_type === typeFilter;
+                return matchesSearch && matchesType;
+            });
+            
+            renderMovementHistory(filteredMovements);
         }
 
         function closeInventoryModal() {
@@ -2035,161 +2932,257 @@
             const isServiceProduct = context === 'service_product_inline';
             const defaultType = isServiceProduct ? 'Consumable' : 'Sale';
 
-            let fields = `
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
-                <input type="text" name="prod_name" placeholder="Enter product name" class="border p-2 w-full rounded" required>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Product Category</label>
-                <select name="prod_category" class="border p-2 w-full rounded">
-                    <option value="">Select Product Category</option>
-                    <option value="Prescription Medicines">Prescription Medicines</option>
-                    <option value="Vaccines">Vaccines</option>
-                    <option value="Nutritional Products">Nutritional Products</option>
-                    <option value="Parasite Control">Parasite Control</option>
-                    <option value="Grooming Products">Grooming Products</option>
-                    <option value="Pet Accessories">Pet Accessories</option>
-                    <option value="Medical Supplies">Medical Supplies</option>
-                    <option value="Pet Food & Treats">Pet Food & Treats</option>
-                    <option value="Hygiene & Sanitation">Hygiene & Sanitation</option>
-                    <option value="Pet Care Equipment">Pet Care Equipment</option>
-                </select>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Product Type *</label>
-                <select name="prod_type" id="addProductType" class="border p-2 w-full rounded ${isServiceProduct ? 'bg-gray-100' : ''}" required ${isServiceProduct ? 'readonly onclick="return false;"' : ''} onchange="toggleProductPriceField('add')">
-                    <option value="Sale" ${defaultType === 'Sale' ? 'selected' : ''}>Sale (Available for POS)</option>
-                    <option value="Consumable" ${defaultType === 'Consumable' ? 'selected' : ''}>Consumable (Used in Services)</option>
-                </select>
-                <small class="text-gray-500">${isServiceProduct ? 'Service products are always Consumable type' : 'Sale products appear in POS, Consumable products are deducted when services are used'}</small>
-            </div>
-            <div class="mb-4" id="addProductPriceField">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Price <span id="addPriceRequired">*</span></label>
-                <input type="number" step="0.01" name="prod_price" id="addProductPrice" placeholder="Enter price" class="border p-2 w-full rounded">
-                <small class="text-gray-500 hidden" id="addPriceNote">Price not applicable for consumable products</small>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Reorder Level *</label>
-                <input type="number" name="prod_reorderlevel" placeholder="Enter reorder level" class="border p-2 w-full rounded" value="10" required min="0">
-                <small class="text-gray-500">Alert level for low stock (must be 0 or greater)</small>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Branch</label>
-                <select name="branch_id" class="border p-2 w-full rounded">
-                    <option value="">Select Branch</option>`;
+            // Fetch manufacturers dynamically
+            fetch('/manufacturers')
+                .then(response => response.json())
+                .then(data => {
+                    let manufacturerOptions = '<option value="">Select Manufacturer</option>';
+                    if (data.success && data.manufacturers) {
+                        data.manufacturers.forEach(m => {
+                            manufacturerOptions += `<option value="${m.manufacturer_id}">${escapeHtml(m.manufacturer_name)}</option>`;
+                        });
+                    }
 
-            @foreach($branches as $branch)
-                fields += `<option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>`;
-            @endforeach
+                    // Determine initial disabled states based on default type
+                    const productCategoryDisabled = defaultType === 'Consumable' ? 'disabled' : '';
+                    const serviceCategoryDisabled = defaultType === 'Sale' ? 'disabled' : '';
+                    const productCategoryClass = defaultType === 'Consumable' ? 'bg-gray-100 cursor-not-allowed' : '';
+                    const serviceCategoryClass = defaultType === 'Sale' ? 'bg-gray-100 cursor-not-allowed' : '';
 
-            fields += `
-                </select>
-            </div>
-            <div class="mb-4 md:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Description *</label>
-                <textarea name="prod_description" placeholder="Enter product description" class="border p-2 w-full rounded" rows="3" required></textarea>
-            </div>
-            <div class="mb-4 md:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Product Image</label>
-                <input type="file" name="prod_image" accept="image/*" class="border p-2 w-full rounded">
-            </div>`;
+                    let fields = `
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
+                        <input type="text" name="prod_name" placeholder="Enter product name" class="border p-2 w-full rounded" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Product Type *</label>
+                        <select name="prod_type" id="addProductType" class="border p-2 w-full rounded ${isServiceProduct ? 'bg-gray-100' : ''}" required ${isServiceProduct ? 'readonly onclick="return false;"' : ''} onchange="toggleProductTypeFields('add')">
+                            <option value="Sale" ${defaultType === 'Sale' ? 'selected' : ''}>Sale (Available for POS)</option>
+                            <option value="Consumable" ${defaultType === 'Consumable' ? 'selected' : ''}>Consumable (Used in Services)</option>
+                        </select>
+                        <small class="text-gray-500">${isServiceProduct ? 'Service products are always Consumable type' : 'Sale products appear in POS, Consumable products are deducted when services are used'}</small>
+                    </div>
+                    <div class="mb-4" id="addProductCategoryField">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Product Category</label>
+                        <select name="prod_category" id="addProductCategory" class="border p-2 w-full rounded ${productCategoryClass}" ${productCategoryDisabled}>
+                            <option value="">Select Product Category</option>
+                            <option value="Prescription Medicines">Prescription Medicines</option>
+                            <option value="Vaccines">Vaccines</option>
+                            <option value="Nutritional Products">Nutritional Products</option>
+                            <option value="Parasite Control">Parasite Control</option>
+                            <option value="Grooming Products">Grooming Products</option>
+                            <option value="Pet Accessories">Pet Accessories</option>
+                            <option value="Medical Supplies">Medical Supplies</option>
+                            <option value="Pet Food & Treats">Pet Food & Treats</option>
+                            <option value="Hygiene & Sanitation">Hygiene & Sanitation</option>
+                            <option value="Pet Care Equipment">Pet Care Equipment</option>
+                        </select>
+                        <small class="text-gray-500" id="addProductCategoryNote">For Sale products only</small>
+                    </div>
+                    <div class="mb-4" id="addServiceCategoryField">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Service Category</label>
+                        <select name="service_category" id="addServiceCategory" class="border p-2 w-full rounded ${serviceCategoryClass}" ${serviceCategoryDisabled}>
+                            <option value="">Select Service Category</option>
+                            <option value="Grooming">Grooming</option>
+                            <option value="Boarding">Boarding</option>
+                            <option value="Vaccination">Vaccination</option>
+                            <option value="Surgical">Surgical</option>
+                            <option value="Emergency">Emergency</option>
+                            <option value="Check-up">Check-up</option>
+                            <option value="Deworming">Deworming</option>
+                            <option value="Diagnostics">Diagnostics</option>
+                        </select>
+                        <small class="text-gray-500" id="addServiceCategoryNote">For Consumable products only</small>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Manufacturer</label>
+                        <select name="manufacturer_id" class="border p-2 w-full rounded">
+                            ${manufacturerOptions}
+                        </select>
+                    </div>
+                    <div class="mb-4" id="addProductPriceField">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Price <span id="addPriceRequired">*</span></label>
+                        <input type="number" step="0.01" name="prod_price" id="addProductPrice" placeholder="Enter price" class="border p-2 w-full rounded">
+                        <small class="text-gray-500 hidden" id="addPriceNote">Price not applicable for consumable products</small>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Reorder Level *</label>
+                        <input type="number" name="prod_reorderlevel" placeholder="Enter reorder level" class="border p-2 w-full rounded" value="10" required min="0">
+                        <small class="text-gray-500">Alert level for low stock (must be 0 or greater)</small>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Branch</label>
+                        <select name="branch_id" class="border p-2 w-full rounded">
+                            <option value="">Select Branch</option>`;
 
-            document.getElementById('productModalFields').innerHTML = fields;
-            document.getElementById('productModalForm').action = '{{ route("products.store") }}';
+                    @foreach($branches as $branch)
+                        fields += `<option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>`;
+                    @endforeach
 
-            // Remove existing method field
-            let methodField = document.querySelector('#productModalForm input[name="_method"]');
-            if (methodField) methodField.remove();
-            
-            // Set initial price field visibility
-            setTimeout(() => toggleProductPriceField('add'), 0);
+                    fields += `
+                        </select>
+                    </div>
+                    <div class="mb-4 md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Description *</label>
+                        <textarea name="prod_description" placeholder="Enter product description" class="border p-2 w-full rounded" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-4 md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Product Image</label>
+                        <input type="file" name="prod_image" accept="image/*" class="border p-2 w-full rounded">
+                    </div>`;
+
+                    document.getElementById('productModalFields').innerHTML = fields;
+                    document.getElementById('productModalForm').action = '{{ route("products.store") }}';
+
+                    // Remove existing method field
+                    let methodField = document.querySelector('#productModalForm input[name="_method"]');
+                    if (methodField) methodField.remove();
+                    
+                    // Set initial field visibility based on product type
+                    setTimeout(() => toggleProductTypeFields('add'), 0);
+                })
+                .catch(error => {
+                    console.error('Error loading manufacturers:', error);
+                });
         }
 
         function openEditProductModal(data) {
             document.getElementById('productModal').classList.remove('hidden');
             document.getElementById('productModalTitle').innerText = 'Edit Product';
 
-            let fields = `
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
-                <input type="text" name="prod_name" value="${escapeHtml(data.prod_name)}" class="border p-2 w-full rounded" required>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Product Category</label>
-                <select name="prod_category" class="border p-2 w-full rounded">
-                    <option value="">Select Product Category</option>
-                    <option value="Prescription Medicines" ${data.prod_category === 'Prescription Medicines' ? 'selected' : ''}>Prescription Medicines</option>
-                    <option value="Vaccines" ${data.prod_category === 'Vaccines' ? 'selected' : ''}>Vaccines</option>
-                    <option value="Nutritional Products" ${data.prod_category === 'Nutritional Products' ? 'selected' : ''}>Nutritional Products</option>
-                    <option value="Parasite Control" ${data.prod_category === 'Parasite Control' ? 'selected' : ''}>Parasite Control</option>
-                    <option value="Grooming Products" ${data.prod_category === 'Grooming Products' ? 'selected' : ''}>Grooming Products</option>
-                    <option value="Pet Accessories" ${data.prod_category === 'Pet Accessories' ? 'selected' : ''}>Pet Accessories</option>
-                    <option value="Medical Supplies" ${data.prod_category === 'Medical Supplies' ? 'selected' : ''}>Medical Supplies</option>
-                    <option value="Pet Food & Treats" ${data.prod_category === 'Pet Food & Treats' ? 'selected' : ''}>Pet Food & Treats</option>
-                    <option value="Hygiene & Sanitation" ${data.prod_category === 'Hygiene & Sanitation' ? 'selected' : ''}>Hygiene & Sanitation</option>
-                    <option value="Pet Care Equipment" ${data.prod_category === 'Pet Care Equipment' ? 'selected' : ''}>Pet Care Equipment</option>
-                </select>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Product Type *</label>
-                <select name="prod_type" id="editProductType" class="border p-2 w-full rounded" required onchange="toggleProductPriceField('edit')">
-                    <option value="Sale" ${data.prod_type === 'Sale' ? 'selected' : ''}>Sale (Available for POS)</option>
-                    <option value="Consumable" ${data.prod_type === 'Consumable' ? 'selected' : ''}>Consumable (Used in Services)</option>
-                </select>
-                <small class="text-gray-500">Sale products appear in POS, Consumable products are deducted when services are used</small>
-            </div>
-            <div class="mb-4" id="editProductPriceField">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Price <span id="editPriceRequired">*</span></label>
-                <input type="number" step="0.01" name="prod_price" id="editProductPrice" value="${data.prod_price}" class="border p-2 w-full rounded">
-                <small class="text-gray-500 hidden" id="editPriceNote">Price not applicable for consumable products</small>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Current Available Stock</label>
-                <input type="number" value="${data.prod_stocks || 0}" class="border p-2 w-full rounded bg-gray-100" readonly>
-                <small class="text-gray-500">Stock is managed through "Add Stock" batches. Current value shows non-expired available stock.</small>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Reorder Level *</label>
-                <input type="number" name="prod_reorderlevel" value="${data.prod_reorderlevel || ''}" class="border p-2 w-full rounded" required min="0">
-                <small class="text-gray-500">Alert level for low stock (must be 0 or greater)</small>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Branch</label>
-                <select name="branch_id" class="border p-2 w-full rounded">
-                    <option value="">Select Branch</option>`;
+            // Fetch manufacturers dynamically
+            fetch('/manufacturers')
+                .then(response => response.json())
+                .then(mfgData => {
+                    let manufacturerOptions = '<option value="">Select Manufacturer</option>';
+                    if (mfgData.success && mfgData.manufacturers) {
+                        mfgData.manufacturers.forEach(m => {
+                            const selected = data.manufacturer_id == m.manufacturer_id ? 'selected' : '';
+                            manufacturerOptions += `<option value="${m.manufacturer_id}" ${selected}>${escapeHtml(m.manufacturer_name)}</option>`;
+                        });
+                    }
 
-            @foreach($branches as $branch)
-                fields += `<option value="{{ $branch->branch_id }}" ${data.branch_id == '{{ $branch->branch_id }}' ? 'selected' : ''}>{{ $branch->branch_name }}</option>`;
-            @endforeach
+                    // Determine disabled states based on current product type
+                    const isSale = data.prod_type === 'Sale';
+                    const productCategoryDisabled = !isSale ? 'disabled' : '';
+                    const serviceCategoryDisabled = isSale ? 'disabled' : '';
+                    const productCategoryClass = !isSale ? 'bg-gray-100 cursor-not-allowed' : '';
+                    const serviceCategoryClass = isSale ? 'bg-gray-100 cursor-not-allowed' : '';
 
-            fields += `
-                </select>
-            </div>
-            <div class="mb-4 md:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Description *</label>
-                <textarea name="prod_description" class="border p-2 w-full rounded" rows="3" required>${escapeHtml(data.prod_description || '')}</textarea>
-            </div>
-            <div class="mb-4 md:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Product Image</label>
-                <input type="file" name="prod_image" accept="image/*" class="border p-2 w-full rounded">`;
+                    // Service categories list
+                    const serviceCategories = ['Grooming', 'Boarding', 'Vaccination', 'Surgical', 'Emergency', 'Check-up', 'Deworming', 'Diagnostics'];
+                    
+                    // Check if prod_category is a service category (for consumable products)
+                    const isServiceCategory = serviceCategories.includes(data.prod_category);
+                    const displayProductCategory = isSale ? data.prod_category : '';
+                    const displayServiceCategory = !isSale ? data.prod_category : '';
 
-            if (data.prod_image) {
-                fields += `<div class="mt-2 text-sm text-gray-600">Current image: <img src="{{ asset('storage/') }}/${data.prod_image}" class="h-16 w-16 object-cover inline-block ml-2 rounded"></div>`;
-            }
+                    let fields = `
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
+                        <input type="text" name="prod_name" value="${escapeHtml(data.prod_name)}" class="border p-2 w-full rounded" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Product Type *</label>
+                        <select name="prod_type" id="editProductType" class="border p-2 w-full rounded" required onchange="toggleProductTypeFields('edit')">
+                            <option value="Sale" ${data.prod_type === 'Sale' ? 'selected' : ''}>Sale (Available for POS)</option>
+                            <option value="Consumable" ${data.prod_type === 'Consumable' ? 'selected' : ''}>Consumable (Used in Services)</option>
+                        </select>
+                        <small class="text-gray-500">Sale products appear in POS, Consumable products are deducted when services are used</small>
+                    </div>
+                    <div class="mb-4" id="editProductCategoryField">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Product Category</label>
+                        <select name="prod_category" id="editProductCategory" class="border p-2 w-full rounded ${productCategoryClass}" ${productCategoryDisabled}>
+                            <option value="">Select Product Category</option>
+                            <option value="Prescription Medicines" ${displayProductCategory === 'Prescription Medicines' ? 'selected' : ''}>Prescription Medicines</option>
+                            <option value="Vaccines" ${displayProductCategory === 'Vaccines' ? 'selected' : ''}>Vaccines</option>
+                            <option value="Nutritional Products" ${displayProductCategory === 'Nutritional Products' ? 'selected' : ''}>Nutritional Products</option>
+                            <option value="Parasite Control" ${displayProductCategory === 'Parasite Control' ? 'selected' : ''}>Parasite Control</option>
+                            <option value="Grooming Products" ${displayProductCategory === 'Grooming Products' ? 'selected' : ''}>Grooming Products</option>
+                            <option value="Pet Accessories" ${displayProductCategory === 'Pet Accessories' ? 'selected' : ''}>Pet Accessories</option>
+                            <option value="Medical Supplies" ${displayProductCategory === 'Medical Supplies' ? 'selected' : ''}>Medical Supplies</option>
+                            <option value="Pet Food & Treats" ${displayProductCategory === 'Pet Food & Treats' ? 'selected' : ''}>Pet Food & Treats</option>
+                            <option value="Hygiene & Sanitation" ${displayProductCategory === 'Hygiene & Sanitation' ? 'selected' : ''}>Hygiene & Sanitation</option>
+                            <option value="Pet Care Equipment" ${displayProductCategory === 'Pet Care Equipment' ? 'selected' : ''}>Pet Care Equipment</option>
+                        </select>
+                        <small class="text-gray-500" id="editProductCategoryNote">For Sale products only</small>
+                    </div>
+                    <div class="mb-4" id="editServiceCategoryField">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Service Category</label>
+                        <select name="service_category" id="editServiceCategory" class="border p-2 w-full rounded ${serviceCategoryClass}" ${serviceCategoryDisabled}>
+                            <option value="">Select Service Category</option>
+                            <option value="Grooming" ${displayServiceCategory === 'Grooming' ? 'selected' : ''}>Grooming</option>
+                            <option value="Boarding" ${displayServiceCategory === 'Boarding' ? 'selected' : ''}>Boarding</option>
+                            <option value="Vaccination" ${displayServiceCategory === 'Vaccination' ? 'selected' : ''}>Vaccination</option>
+                            <option value="Surgical" ${displayServiceCategory === 'Surgical' ? 'selected' : ''}>Surgical</option>
+                            <option value="Emergency" ${displayServiceCategory === 'Emergency' ? 'selected' : ''}>Emergency</option>
+                            <option value="Check-up" ${displayServiceCategory === 'Check-up' ? 'selected' : ''}>Check-up</option>
+                            <option value="Deworming" ${displayServiceCategory === 'Deworming' ? 'selected' : ''}>Deworming</option>
+                            <option value="Diagnostics" ${displayServiceCategory === 'Diagnostics' ? 'selected' : ''}>Diagnostics</option>
+                        </select>
+                        <small class="text-gray-500" id="editServiceCategoryNote">For Consumable products only</small>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Manufacturer</label>
+                        <select name="manufacturer_id" class="border p-2 w-full rounded">
+                            ${manufacturerOptions}
+                        </select>
+                    </div>
+                    <div class="mb-4" id="editProductPriceField">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Price <span id="editPriceRequired">*</span></label>
+                        <input type="number" step="0.01" name="prod_price" id="editProductPrice" value="${data.prod_price}" class="border p-2 w-full rounded">
+                        <small class="text-gray-500 hidden" id="editPriceNote">Price not applicable for consumable products</small>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Current Available Stock</label>
+                        <input type="number" value="${data.prod_stocks || 0}" class="border p-2 w-full rounded bg-gray-100" readonly>
+                        <small class="text-gray-500">Stock is managed through "Add Stock" batches. Current value shows non-expired available stock.</small>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Reorder Level *</label>
+                        <input type="number" name="prod_reorderlevel" value="${data.prod_reorderlevel || ''}" class="border p-2 w-full rounded" required min="0">
+                        <small class="text-gray-500">Alert level for low stock (must be 0 or greater)</small>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Branch</label>
+                        <select name="branch_id" class="border p-2 w-full rounded">
+                            <option value="">Select Branch</option>`;
 
-            fields += `</div>`;
+                    @foreach($branches as $branch)
+                        fields += `<option value="{{ $branch->branch_id }}" ${data.branch_id == '{{ $branch->branch_id }}' ? 'selected' : ''}>{{ $branch->branch_name }}</option>`;
+                    @endforeach
 
-            document.getElementById('productModalFields').innerHTML = fields;
-            document.getElementById('productModalForm').action = `/products/${data.prod_id}`;
+                    fields += `
+                        </select>
+                    </div>
+                    <div class="mb-4 md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Description *</label>
+                        <textarea name="prod_description" class="border p-2 w-full rounded" rows="3" required>${escapeHtml(data.prod_description || '')}</textarea>
+                    </div>
+                    <div class="mb-4 md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Product Image</label>
+                        <input type="file" name="prod_image" accept="image/*" class="border p-2 w-full rounded">`;
 
-            // Add PUT method
-            if (!document.querySelector('#productModalForm input[name="_method"]')) {
-                document.getElementById('productModalForm').insertAdjacentHTML('afterbegin', '<input type="hidden" name="_method" value="PUT">');
-            }
-            
-            // Set initial price field visibility
-            setTimeout(() => toggleProductPriceField('edit'), 0);
+                    if (data.prod_image) {
+                        fields += `<div class="mt-2 text-sm text-gray-600">Current image: <img src="{{ asset('storage/') }}/${data.prod_image}" class="h-16 w-16 object-cover inline-block ml-2 rounded"></div>`;
+                    }
+
+                    fields += `</div>`;
+
+                    document.getElementById('productModalFields').innerHTML = fields;
+                    document.getElementById('productModalForm').action = `/products/${data.prod_id}`;
+
+                    // Add PUT method
+                    if (!document.querySelector('#productModalForm input[name="_method"]')) {
+                        document.getElementById('productModalForm').insertAdjacentHTML('afterbegin', '<input type="hidden" name="_method" value="PUT">');
+                    }
+                    
+                    // Set initial field visibility based on product type
+                    setTimeout(() => toggleProductTypeFields('edit'), 0);
+                })
+                .catch(error => {
+                    console.error('Error loading manufacturers:', error);
+                });
         }
 
         function closeProductModal() {
@@ -2210,7 +3203,35 @@
             let form = document.getElementById('updateStockForm');
             form.action = `/inventory/update-stock/${data.prod_id}`;
             form.querySelector('input[name=product_id]').value = data.prod_id;
-            form.querySelector('input[name=reorder_level]').value = data.prod_reorderlevel || '';
+            if (form.querySelector('input[name=reorder_level]')) {
+                form.querySelector('input[name=reorder_level]').value = data.prod_reorderlevel || '';
+            }
+
+            // Auto-generate batch code: [First 3 letters of product]-[MMDD]-[HMM]
+            generateBatchCode(data.prod_name);
+        }
+
+        function generateBatchCode(productName) {
+            const now = new Date();
+            
+            // Get first 3 letters of product name (uppercase, remove special chars)
+            const cleanName = productName.replace(/[^a-zA-Z]/g, '').toUpperCase();
+            const prefix = cleanName.substring(0, 3) || 'PRD';
+            
+            // Get month and day (MMDD format)
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const dateCode = month + day;
+            
+            // Get hour and minutes (HMM format - single digit hour, 2 digit minutes)
+            const hour = now.getHours();
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const timeCode = hour + minutes;
+            
+            // Combine: PREFIX-MMDD-HMM
+            const batchCode = `${prefix}-${dateCode}-${timeCode}`;
+            
+            document.getElementById('autoBatchCode').value = batchCode;
         }
 
         function closeUpdateStockModal() {
@@ -3035,35 +4056,84 @@
             return div.innerHTML;
         }
 
-        // TOGGLE PRICE FIELD FOR PRODUCT TYPE
-        function toggleProductPriceField(mode) {
+        // TOGGLE FIELDS BASED ON PRODUCT TYPE (Sale/Consumable)
+        function toggleProductTypeFields(mode) {
             const typeSelect = document.getElementById(mode + 'ProductType');
             const priceField = document.getElementById(mode + 'ProductPriceField');
             const priceInput = document.getElementById(mode + 'ProductPrice');
             const priceRequired = document.getElementById(mode + 'PriceRequired');
             const priceNote = document.getElementById(mode + 'PriceNote');
             
-            if (!typeSelect || !priceField) return;
+            const productCategoryField = document.getElementById(mode + 'ProductCategoryField');
+            const serviceCategoryField = document.getElementById(mode + 'ServiceCategoryField');
+            const productCategorySelect = document.getElementById(mode + 'ProductCategory');
+            const serviceCategorySelect = document.getElementById(mode + 'ServiceCategory');
+            
+            if (!typeSelect) return;
             
             const selectedType = typeSelect.value;
+            const isConsumable = selectedType === 'Consumable';
             
-            if (selectedType === 'Consumable') {
-                priceField.style.display = 'none';
-                if (priceInput) {
-                    priceInput.removeAttribute('required');
-                    priceInput.value = '0';
+            // Toggle Price Field
+            if (priceField) {
+                if (isConsumable) {
+                    priceField.style.display = 'none';
+                    if (priceInput) {
+                        priceInput.removeAttribute('required');
+                        priceInput.value = '0';
+                    }
+                    if (priceRequired) priceRequired.style.display = 'none';
+                    if (priceNote) priceNote.classList.remove('hidden');
+                } else {
+                    priceField.style.display = 'block';
+                    if (priceInput) {
+                        priceInput.setAttribute('required', 'required');
+                        if (priceInput.value === '0') priceInput.value = '';
+                    }
+                    if (priceRequired) priceRequired.style.display = 'inline';
+                    if (priceNote) priceNote.classList.add('hidden');
                 }
-                if (priceRequired) priceRequired.style.display = 'none';
-                if (priceNote) priceNote.classList.remove('hidden');
-            } else {
-                priceField.style.display = 'block';
-                if (priceInput) {
-                    priceInput.setAttribute('required', 'required');
-                    if (priceInput.value === '0') priceInput.value = '';
-                }
-                if (priceRequired) priceRequired.style.display = 'inline';
-                if (priceNote) priceNote.classList.add('hidden');
             }
+            
+            // Toggle Category Fields based on Product Type - HIDE/SHOW instead of disable
+            if (isConsumable) {
+                // Consumable: Hide Product Category, Show Service Category
+                if (productCategoryField) {
+                    productCategoryField.style.display = 'none';
+                }
+                if (productCategorySelect) {
+                    productCategorySelect.disabled = true;
+                    productCategorySelect.value = ''; // Clear value
+                }
+                if (serviceCategoryField) {
+                    serviceCategoryField.style.display = 'block';
+                }
+                if (serviceCategorySelect) {
+                    serviceCategorySelect.disabled = false;
+                    serviceCategorySelect.classList.remove('bg-gray-100', 'cursor-not-allowed');
+                }
+            } else {
+                // Sale: Show Product Category, Hide Service Category
+                if (productCategoryField) {
+                    productCategoryField.style.display = 'block';
+                }
+                if (productCategorySelect) {
+                    productCategorySelect.disabled = false;
+                    productCategorySelect.classList.remove('bg-gray-100', 'cursor-not-allowed');
+                }
+                if (serviceCategoryField) {
+                    serviceCategoryField.style.display = 'none';
+                }
+                if (serviceCategorySelect) {
+                    serviceCategorySelect.disabled = true;
+                    serviceCategorySelect.value = ''; // Clear value
+                }
+            }
+        }
+
+        // Legacy function for backward compatibility
+        function toggleProductPriceField(mode) {
+            toggleProductTypeFields(mode);
         }
 
         // EQUIPMENT STATUS: UPDATE FROM DROPDOWN
@@ -3152,17 +4222,39 @@
             function filterBody(tbody, q){
                 const needle = String(q || '').toLowerCase();
                 tbody.querySelectorAll('tr').forEach(tr => {
+                    // Skip service rows - they use the custom category filter
+                    if (tr.classList.contains('service-row')) return;
+                    
                     const text = tr.textContent.toLowerCase();
                     tr.style.display = !needle || text.includes(needle) ? '' : 'none';
                 });
             }
+            
+            // Custom filter for services that combines search and category - make it global
+            window.filterServicesTable = function() {
+                const searchTerm = (document.getElementById('servicesSearch')?.value || '').toLowerCase().trim();
+                const category = (document.getElementById('serviceCategoryFilter')?.value || '').toLowerCase();
+                const rows = document.querySelectorAll('#servicesTab table tbody tr.service-row');
+                
+                console.log('Filtering services - Category:', category, 'Search:', searchTerm, 'Rows found:', rows.length);
+                
+                rows.forEach(row => {
+                    const rowCategory = (row.dataset.category || '').toLowerCase();
+                    const rowText = row.textContent.toLowerCase();
+                    
+                    const matchesCategory = !category || rowCategory === category;
+                    const matchesSearch = !searchTerm || rowText.includes(searchTerm);
+                    
+                    row.style.display = (matchesCategory && matchesSearch) ? '' : 'none';
+                });
+            };
 
             function setupTableFilter({inputId, tableSelector, tab, perPageSelectId, formSelector}){
                 const input = document.getElementById(inputId);
                 const table = document.querySelector(tableSelector);
                 const tbody = table ? table.querySelector('tbody') : null;
                 const sel = document.getElementById(perPageSelectId);
-                const form = formSeelctor ? document.querySelector(formSelector) : (sel ? sel.form : null);
+                const form = formSelector ? document.querySelector(formSelector) : (sel ? sel.form : null);
                 if(!input || !tbody) return;
 
                 const last = getPersist(tab);
@@ -3173,7 +4265,12 @@
                         if (form) form.submit();
                         return;
                     }
-                    filterBody(tbody, last);
+                    // Use custom filter for services tab
+                    if (tab === 'services') {
+                        filterServicesTable();
+                    } else {
+                        filterBody(tbody, last);
+                    }
                 }
 
                 input.addEventListener('input', function(){
@@ -3185,7 +4282,12 @@
                         return;
                     }
                     if (!tbody) return;
-                    filterBody(tbody, q);
+                    // Use custom filter for services tab
+                    if (tab === 'services') {
+                        filterServicesTable();
+                    } else {
+                        filterBody(tbody, q);
+                    }
                 });
             }
 
@@ -3247,5 +4349,220 @@
                 }, 100);
             };
         })();
+
+        // Service Category Filter - calls the combined filter function
+        function filterServicesByCategory() {
+            const searchTerm = (document.getElementById('servicesSearch')?.value || '').toLowerCase().trim();
+            const category = (document.getElementById('serviceCategoryFilter')?.value || '').toLowerCase();
+            const rows = document.querySelectorAll('#servicesTab table tbody tr.service-row');
+            
+            rows.forEach(row => {
+                const rowCategory = (row.dataset.category || '').toLowerCase().trim();
+                const rowText = row.textContent.toLowerCase();
+                
+                // Handle category matching with variations (e.g., "diagnostic" matches "diagnostics")
+                let matchesCategory = !category;
+                if (category) {
+                    // Check exact match or if one contains the other (for diagnostic/diagnostics)
+                    matchesCategory = rowCategory === category || 
+                                     rowCategory.startsWith(category) || 
+                                     category.startsWith(rowCategory);
+                }
+                
+                const matchesSearch = !searchTerm || rowText.includes(searchTerm);
+                
+                row.style.display = (matchesCategory && matchesSearch) ? '' : 'none';
+            });
+        }
+
+        // Equipment Status Filter
+        function filterEquipmentByStatus() {
+            const searchTerm = (document.getElementById('equipmentSearch')?.value || '').toLowerCase().trim();
+            const status = (document.getElementById('equipmentStatusFilter')?.value || '').toLowerCase();
+            const rows = document.querySelectorAll('#equipmentTab table tbody tr.equipment-row');
+            
+            rows.forEach(row => {
+                const rowText = row.textContent.toLowerCase();
+                const available = parseInt(row.dataset.available || 0);
+                const inUse = parseInt(row.dataset.inuse || 0);
+                const maintenance = parseInt(row.dataset.maintenance || 0);
+                const outOfService = parseInt(row.dataset.outofservice || 0);
+                
+                let matchesStatus = !status;
+                if (status === 'available') matchesStatus = available > 0;
+                else if (status === 'in_use') matchesStatus = inUse > 0;
+                else if (status === 'maintenance') matchesStatus = maintenance > 0;
+                else if (status === 'out_of_service') matchesStatus = outOfService > 0;
+                
+                const matchesSearch = !searchTerm || rowText.includes(searchTerm);
+                
+                row.style.display = (matchesStatus && matchesSearch) ? '' : 'none';
+            });
+        }
+        
+        // Update equipment search to also respect status filter
+        document.addEventListener('DOMContentLoaded', function() {
+            const equipmentSearchInput = document.getElementById('equipmentSearch');
+            if (equipmentSearchInput) {
+                equipmentSearchInput.addEventListener('input', filterEquipmentByStatus);
+            }
+        });
+
+        // ==========================================
+        // MANUFACTURER MODAL FUNCTIONS
+        // ==========================================
+        function openManufacturerModal() {
+            document.getElementById('manufacturerModal').classList.remove('hidden');
+            loadManufacturers();
+        }
+
+        function closeManufacturerModal() {
+            document.getElementById('manufacturerModal').classList.add('hidden');
+            document.getElementById('newManufacturerName').value = '';
+        }
+
+        function loadManufacturers() {
+            const listContainer = document.getElementById('manufacturersList');
+            listContainer.innerHTML = '<div class="text-center py-4 text-gray-500"><i class="fas fa-spinner fa-spin mr-1"></i> Loading manufacturers...</div>';
+
+            fetch('/manufacturers')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.manufacturers.length > 0) {
+                        let html = '';
+                        data.manufacturers.forEach(manufacturer => {
+                            html += `
+                            <div class="flex items-center justify-between p-3 bg-white border rounded-lg hover:bg-gray-50">
+                                <div class="flex-1">
+                                    <div class="font-semibold text-gray-800">${escapeHtml(manufacturer.manufacturer_name)}</div>
+                                </div>
+                                <div class="flex gap-2 ml-3">
+                                    <button onclick="openEditManufacturer(${manufacturer.manufacturer_id}, '${escapeHtml(manufacturer.manufacturer_name)}')" 
+                                        class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button onclick="deleteManufacturer(${manufacturer.manufacturer_id}, '${escapeHtml(manufacturer.manufacturer_name)}')" 
+                                        class="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>`;
+                        });
+                        listContainer.innerHTML = html;
+                    } else {
+                        listContainer.innerHTML = '<div class="text-center py-4 text-gray-500"><i class="fas fa-industry mr-1"></i> No manufacturers found. Add one above!</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    listContainer.innerHTML = '<div class="text-center py-4 text-red-500"><i class="fas fa-exclamation-circle mr-1"></i> Error loading manufacturers</div>';
+                });
+        }
+
+        function addManufacturer() {
+            const name = document.getElementById('newManufacturerName').value.trim();
+
+            if (!name) {
+                alert('Please enter a manufacturer name');
+                return;
+            }
+
+            fetch('/manufacturers', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({
+                    manufacturer_name: name
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ ' + data.message);
+                    document.getElementById('newManufacturerName').value = '';
+                    loadManufacturers();
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ Error adding manufacturer');
+            });
+        }
+
+        function openEditManufacturer(id, name) {
+            document.getElementById('editManufacturerId').value = id;
+            document.getElementById('editManufacturerName').value = name;
+            document.getElementById('editManufacturerModal').classList.remove('hidden');
+        }
+
+        function closeEditManufacturerModal() {
+            document.getElementById('editManufacturerModal').classList.add('hidden');
+        }
+
+        function updateManufacturer() {
+            const id = document.getElementById('editManufacturerId').value;
+            const name = document.getElementById('editManufacturerName').value.trim();
+
+            if (!name) {
+                alert('Please enter a manufacturer name');
+                return;
+            }
+
+            fetch(`/manufacturers/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({
+                    manufacturer_name: name
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ ' + data.message);
+                    closeEditManufacturerModal();
+                    loadManufacturers();
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ Error updating manufacturer');
+            });
+        }
+
+        function deleteManufacturer(id, name) {
+            if (!confirm(`Are you sure you want to delete manufacturer "${name}"?`)) {
+                return;
+            }
+
+            fetch(`/manufacturers/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ ' + data.message);
+                    loadManufacturers();
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ Error deleting manufacturer');
+            });
+        }
     </script>
 @endsection

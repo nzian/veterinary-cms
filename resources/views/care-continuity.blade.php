@@ -372,11 +372,32 @@
             @if(method_exists($prescriptions, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $prescriptions->firstItem() }} to {{ $prescriptions->lastItem() }} of
+                    Showing {{ $prescriptions->firstItem() ?? 0 }} to {{ $prescriptions->lastItem() ?? 0 }} of
                     {{ $prescriptions->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $prescriptions->appends(['active_tab' => 'prescriptions'])->links() }}
+                    @if ($prescriptions->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $prescriptions->appends(['active_tab' => 'prescriptions'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $prescriptions->lastPage(); $i++)
+                        @if ($i == $prescriptions->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $prescriptions->appends(['active_tab' => 'prescriptions'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($prescriptions->hasMorePages())
+                        <a href="{{ $prescriptions->appends(['active_tab' => 'prescriptions'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif

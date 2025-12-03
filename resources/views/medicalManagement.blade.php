@@ -55,40 +55,80 @@
                 
                 @if($userRole === 'receptionist')
                 <button onclick="showTab('grooming')" id="grooming-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Grooming</h2>
+                    @if(isset($pendingCounts['grooming']) && $pendingCounts['grooming'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['grooming'] }}
+                        </span>
+                    @endif
                 </button>
                 @endif
                 
                 <button onclick="showTab('boarding')" id="boarding-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Boarding</h2>
+                    @if(isset($pendingCounts['boarding']) && $pendingCounts['boarding'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['boarding'] }}
+                        </span>
+                    @endif
                 </button>
                 
                 @if($userRole === 'veterinarian')
                 <button onclick="showTab('checkup')" id="checkup-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Check-up</h2>
+                    @if(isset($pendingCounts['checkup']) && $pendingCounts['checkup'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['checkup'] }}
+                        </span>
+                    @endif
                 </button>
                 <button onclick="showTab('vaccination')" id="vaccination-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Vaccination</h2>
+                    @if(isset($pendingCounts['vaccination']) && $pendingCounts['vaccination'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['vaccination'] }}
+                        </span>
+                    @endif
                 </button>
                 <button onclick="showTab('deworming')" id="deworming-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Deworming</h2>
+                    @if(isset($pendingCounts['deworming']) && $pendingCounts['deworming'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['deworming'] }}
+                        </span>
+                    @endif
                 </button>
                 <button onclick="showTab('surgical')" id="surgical-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Surgical</h2>
+                    @if(isset($pendingCounts['surgical']) && $pendingCounts['surgical'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['surgical'] }}
+                        </span>
+                    @endif
                 </button>
                 <button onclick="showTab('diagnostics')" id="diagnostics-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Diagnostics</h2>
+                    @if(isset($pendingCounts['diagnostics']) && $pendingCounts['diagnostics'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['diagnostics'] }}
+                        </span>
+                    @endif
                 </button>
                 <button onclick="showTab('emergency')" id="emergency-tab" 
-                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300">
+                    class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Emergency</h2>
+                    @if(isset($pendingCounts['emergency']) && $pendingCounts['emergency'] > 0)
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingCounts['emergency'] }}
+                        </span>
+                    @endif
                 </button>
                 @endif
             </nav>
@@ -172,11 +212,32 @@
             @if(isset($appointments) && method_exists($appointments, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $appointments->firstItem() }} to {{ $appointments->lastItem() }} of
+                    Showing {{ $appointments->firstItem() ?? 0 }} to {{ $appointments->lastItem() ?? 0 }} of
                     {{ $appointments->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $appointments->appends(['active_tab' => 'appointments'])->links() }}
+                    @if ($appointments->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $appointments->appends(['active_tab' => 'appointments'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $appointments->lastPage(); $i++)
+                        @if ($i == $appointments->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $appointments->appends(['active_tab' => 'appointments'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($appointments->hasMorePages())
+                        <a href="{{ $appointments->appends(['active_tab' => 'appointments'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -313,15 +374,15 @@
                                             <i class="fas fa-user-check"></i>
                                         </a>
                                         @endif
-                                        <button type="button" onclick="openInitialAssessment({{ $visit->visit_id }}, {{ $visit->pet_id }}, '{{ $visit->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                        <button type="button" onclick="openInitialAssessment({{ $visit->visit_id }}, {{ $visit->pet_id ?? 0 }}, '{{ $visit->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
                                             // Check if prescription exists for this visit's pet on the same date
-                                            $visitPrescription = \App\Models\Prescription::where('pet_id', $visit->pet_id)
+                                            $visitPrescription = $visit->pet_id ? \App\Models\Prescription::where('pet_id', $visit->pet_id)
                                             ->where('pres_visit_id', $visit->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($visit->visit_date))
-                                                ->first();
+                                                ->first() : null;
                                         @endphp
                                         @if($visitPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -438,14 +499,14 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $c->visit_id]) }}?type=check-up" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="openInitialAssessment({{ $c->visit_id }}, {{ $c->pet_id }}, '{{ $c->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                        <button type="button" onclick="openInitialAssessment({{ $c->visit_id }}, {{ $c->pet_id ?? 0 }}, '{{ $c->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $checkupPrescription = \App\Models\Prescription::where('pet_id', $c->pet_id)
+                                            $checkupPrescription = $c->pet_id ? \App\Models\Prescription::where('pet_id', $c->pet_id)
                                             ->where('pres_visit_id', $c->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($c->visit_date))
-                                                ->first();
+                                                ->first() : null;
                                         @endphp
                                         @if($checkupPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -486,11 +547,32 @@
             @if(isset($consultationVisits) && method_exists($consultationVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $consultationVisits->firstItem() }} to {{ $consultationVisits->lastItem() }} of
+                    Showing {{ $consultationVisits->firstItem() ?? 0 }} to {{ $consultationVisits->lastItem() ?? 0 }} of
                     {{ $consultationVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $consultationVisits->appends(['tab' => 'checkup'])->links() }}
+                    @if ($consultationVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $consultationVisits->appends(['active_tab' => 'checkup'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $consultationVisits->lastPage(); $i++)
+                        @if ($i == $consultationVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $consultationVisits->appends(['active_tab' => 'checkup'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($consultationVisits->hasMorePages())
+                        <a href="{{ $consultationVisits->appends(['active_tab' => 'checkup'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -548,14 +630,14 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $d->visit_id]) }}?type=deworming" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                        <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id ?? 0 }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $dewormPrescription = \App\Models\Prescription::where('pet_id', $d->pet_id)
+                                            $dewormPrescription = $d->pet_id ? \App\Models\Prescription::where('pet_id', $d->pet_id)
                                             ->where('pres_visit_id', $d->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($d->visit_date))
-                                                ->first();
+                                                ->first() : null;
                                         @endphp
                                         @if($dewormPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -592,11 +674,32 @@
             @if(isset($dewormingVisits) && method_exists($dewormingVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $dewormingVisits->firstItem() }} to {{ $dewormingVisits->lastItem() }} of
+                    Showing {{ $dewormingVisits->firstItem() ?? 0 }} to {{ $dewormingVisits->lastItem() ?? 0 }} of
                     {{ $dewormingVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $dewormingVisits->appends(['tab' => 'deworming'])->links() }}
+                    @if ($dewormingVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $dewormingVisits->appends(['active_tab' => 'deworming'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $dewormingVisits->lastPage(); $i++)
+                        @if ($i == $dewormingVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $dewormingVisits->appends(['active_tab' => 'deworming'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($dewormingVisits->hasMorePages())
+                        <a href="{{ $dewormingVisits->appends(['active_tab' => 'deworming'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -654,14 +757,14 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $d->visit_id]) }}?type=diagnostic" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                        <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id ?? 0 }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $diagPrescription = \App\Models\Prescription::where('pet_id', $d->pet_id)
+                                            $diagPrescription = $d->pet_id ? \App\Models\Prescription::where('pet_id', $d->pet_id)
                                             ->where('pres_visit_id', $d->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($d->visit_date))
-                                                ->first();
+                                                ->first() : null;
                                         @endphp
                                         @if($diagPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -698,11 +801,32 @@
             @if(isset($diagnosticsVisits) && method_exists($diagnosticsVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $diagnosticsVisits->firstItem() }} to {{ $diagnosticsVisits->lastItem() }} of
+                    Showing {{ $diagnosticsVisits->firstItem() ?? 0 }} to {{ $diagnosticsVisits->lastItem() ?? 0 }} of
                     {{ $diagnosticsVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $diagnosticsVisits->appends(['tab' => 'diagnostics'])->links() }}
+                    @if ($diagnosticsVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $diagnosticsVisits->appends(['active_tab' => 'diagnostics'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $diagnosticsVisits->lastPage(); $i++)
+                        @if ($i == $diagnosticsVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $diagnosticsVisits->appends(['active_tab' => 'diagnostics'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($diagnosticsVisits->hasMorePages())
+                        <a href="{{ $diagnosticsVisits->appends(['active_tab' => 'diagnostics'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -760,14 +884,14 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $s->visit_id]) }}?type=surgical" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="openInitialAssessment({{ $s->visit_id }}, {{ $s->pet_id }}, '{{ $s->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                        <button type="button" onclick="openInitialAssessment({{ $s->visit_id }}, {{ $s->pet_id ?? 0 }}, '{{ $s->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $surgPrescription = \App\Models\Prescription::where('pet_id', $s->pet_id)
+                                            $surgPrescription = $s->pet_id ? \App\Models\Prescription::where('pet_id', $s->pet_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($s->visit_date))
                                                 ->where('pres_visit_id', $s->visit_id)
-                                                ->first();
+                                                ->first() : null;
                                         @endphp
                                         @if($surgPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -804,11 +928,32 @@
             @if(isset($surgicalVisits) && method_exists($surgicalVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $surgicalVisits->firstItem() }} to {{ $surgicalVisits->lastItem() }} of
+                    Showing {{ $surgicalVisits->firstItem() ?? 0 }} to {{ $surgicalVisits->lastItem() ?? 0 }} of
                     {{ $surgicalVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $surgicalVisits->appends(['tab' => 'surgical'])->links() }}
+                    @if ($surgicalVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $surgicalVisits->appends(['active_tab' => 'surgical'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $surgicalVisits->lastPage(); $i++)
+                        @if ($i == $surgicalVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $surgicalVisits->appends(['active_tab' => 'surgical'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($surgicalVisits->hasMorePages())
+                        <a href="{{ $surgicalVisits->appends(['active_tab' => 'surgical'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -866,14 +1011,14 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $e->visit_id]) }}?type=emergency" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="openInitialAssessment({{ $e->visit_id }}, {{ $e->pet->pet_id }}, '{{ $e->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                        <button type="button" onclick="openInitialAssessment({{ $e->visit_id }}, {{ $e->pet_id ?? 0 }}, '{{ $e->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $emergPrescription = \App\Models\Prescription::where('pet_id', $e->pet_id)
+                                            $emergPrescription = $e->pet_id ? \App\Models\Prescription::where('pet_id', $e->pet_id)
                                                 ->where('pres_visit_id', $e->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($e->visit_date))
-                                                ->first();
+                                                ->first() : null;
                                         @endphp
                                         @if($emergPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -910,11 +1055,32 @@
             @if(isset($emergencyVisits) && method_exists($emergencyVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $emergencyVisits->firstItem() }} to {{ $emergencyVisits->lastItem() }} of
+                    Showing {{ $emergencyVisits->firstItem() ?? 0 }} to {{ $emergencyVisits->lastItem() ?? 0 }} of
                     {{ $emergencyVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $emergencyVisits->appends(['tab' => 'emergency'])->links() }}
+                    @if ($emergencyVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $emergencyVisits->appends(['active_tab' => 'emergency'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $emergencyVisits->lastPage(); $i++)
+                        @if ($i == $emergencyVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $emergencyVisits->appends(['active_tab' => 'emergency'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($emergencyVisits->hasMorePages())
+                        <a href="{{ $emergencyVisits->appends(['active_tab' => 'emergency'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -972,14 +1138,14 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $v->visit_id]) }}?type=vaccination" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="openInitialAssessment({{ $v->visit_id }}, {{ $v->pet->pet_id }}, '{{ $v->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                        <button type="button" onclick="openInitialAssessment({{ $v->visit_id }}, {{ $v->pet_id ?? 0 }}, '{{ $v->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $vaccPrescription = \App\Models\Prescription::where('pet_id', $v->pet_id)
+                                            $vaccPrescription = $v->pet_id ? \App\Models\Prescription::where('pet_id', $v->pet_id)
                                                 ->where('pres_visit_id', $v->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($v->visit_date))
-                                                ->first();
+                                                ->first() : null;
                                         @endphp
                                         @if($vaccPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -1016,11 +1182,32 @@
             @if(isset($vaccinationVisits) && method_exists($vaccinationVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $vaccinationVisits->firstItem() }} to {{ $vaccinationVisits->lastItem() }} of
+                    Showing {{ $vaccinationVisits->firstItem() ?? 0 }} to {{ $vaccinationVisits->lastItem() ?? 0 }} of
                     {{ $vaccinationVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $vaccinationVisits->appends(['tab' => 'vaccination'])->links() }}
+                    @if ($vaccinationVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $vaccinationVisits->appends(['active_tab' => 'vaccination'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $vaccinationVisits->lastPage(); $i++)
+                        @if ($i == $vaccinationVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $vaccinationVisits->appends(['active_tab' => 'vaccination'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($vaccinationVisits->hasMorePages())
+                        <a href="{{ $vaccinationVisits->appends(['active_tab' => 'vaccination'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -1078,14 +1265,14 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $g->visit_id]) }}?type=grooming" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="openInitialAssessment({{ $g->visit_id }}, {{ $g->pet->pet_id }}, '{{ $g->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                        <button type="button" onclick="openInitialAssessment({{ $g->visit_id }}, {{ $g->pet_id ?? 0 }}, '{{ $g->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $groomPrescription = \App\Models\Prescription::where('pet_id', $g->pet_id)
+                                            $groomPrescription = $g->pet_id ? \App\Models\Prescription::where('pet_id', $g->pet_id)
                                                 ->where('pres_visit_id', $g->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($g->visit_date))
-                                                ->first();
+                                                ->first() : null;
                                         @endphp
                                         @if($groomPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -1122,11 +1309,32 @@
             @if(isset($groomingVisits) && method_exists($groomingVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $groomingVisits->firstItem() }} to {{ $groomingVisits->lastItem() }} of
+                    Showing {{ $groomingVisits->firstItem() ?? 0 }} to {{ $groomingVisits->lastItem() ?? 0 }} of
                     {{ $groomingVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $groomingVisits->appends(['tab' => 'grooming'])->links() }}
+                    @if ($groomingVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $groomingVisits->appends(['active_tab' => 'grooming'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $groomingVisits->lastPage(); $i++)
+                        @if ($i == $groomingVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $groomingVisits->appends(['active_tab' => 'grooming'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($groomingVisits->hasMorePages())
+                        <a href="{{ $groomingVisits->appends(['active_tab' => 'grooming'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
@@ -1200,14 +1408,14 @@
                                         <a href="{{ route('medical.visits.perform', ['id' => $b->visit_id]) }}?type=boarding" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
-                                        <button type="button" onclick="openInitialAssessment({{ $b->visit_id }}, {{ $b->pet->pet_id }}, '{{ $b->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
+                                        <button type="button" onclick="openInitialAssessment({{ $b->visit_id }}, {{ $b->pet_id ?? 0 }}, '{{ $b->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $boardPrescription = \App\Models\Prescription::where('pet_id', $b->pet_id)
+                                            $boardPrescription = $b->pet_id ? \App\Models\Prescription::where('pet_id', $b->pet_id)
                                                 ->where('pres_visit_id', $b->visit_id)
                                                 ->whereDate('prescription_date', \Carbon\Carbon::parse($b->visit_date))
-                                                ->first();
+                                                ->first() : null;
                                         @endphp
                                         @if($boardPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -1244,23 +1452,44 @@
             @if(isset($boardingVisits) && method_exists($boardingVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
                 <div>
-                    Showing {{ $boardingVisits->firstItem() }} to {{ $boardingVisits->lastItem() }} of
+                    Showing {{ $boardingVisits->firstItem() ?? 0 }} to {{ $boardingVisits->lastItem() ?? 0 }} of
                     {{ $boardingVisits->total() }} entries
                 </div>
                 <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{ $boardingVisits->appends(['tab' => 'boarding'])->links() }}
+                    @if ($boardingVisits->onFirstPage())
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
+                    @else
+                        <a href="{{ $boardingVisits->appends(['active_tab' => 'boarding'])->previousPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
+                    @endif
+
+                    @for ($i = 1; $i <= $boardingVisits->lastPage(); $i++)
+                        @if ($i == $boardingVisits->currentPage())
+                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
+                        @else
+                            <a href="{{ $boardingVisits->appends(['active_tab' => 'boarding'])->url($i) }}"
+                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
+                        @endif
+                    @endfor
+
+                    @if ($boardingVisits->hasMorePages())
+                        <a href="{{ $boardingVisits->appends(['active_tab' => 'boarding'])->nextPageUrl() }}"
+                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
+                    @else
+                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
+                    @endif
                 </div>
             </div>
             @endif
         </div>
 
-        <div id="addVisitModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50">
-            <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-5">
-                <div class="flex justify-between items-center mb-4">
+        <div id="addVisitModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50 overflow-y-auto">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-5 my-8 mx-auto max-h-[90vh] flex flex-col">
+                <div class="flex justify-between items-center mb-4 flex-shrink-0">
                     <h3 class="text-lg font-bold">Add Visit</h3>
                     <button onclick="closeAddVisitModal()" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button>
                 </div>
-                <form id="addVisitForm" method="POST" action="{{ route('medical.visits.store') }}" class="space-y-4">
+                <form id="addVisitForm" method="POST" action="{{ route('medical.visits.store') }}" class="space-y-4 overflow-y-auto flex-grow pr-2">
                     @csrf
                     <input type="hidden" name="active_tab" value="visits">
                     <div class="grid grid-cols-2 gap-4">
@@ -1273,7 +1502,7 @@
                             <select id="add_owner_id" class="border border-gray-300 rounded px-3 py-2 w-full">
                                 <option value="" selected disabled>Select owner</option>
                                 @foreach(($filteredOwners ?? []) as $owner)
-                                    <option value="{{ $owner->own_id }}">{{ $owner->own_name }}</option>
+                                    <option value="{{ $owner->own_id }}">{{ $owner->own_name }} ({{ $owner->pets_count ?? 0 }} {{ ($owner->pets_count ?? 0) == 1 ? 'pet' : 'pets' }})</option>
                                 @endforeach
                                     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
                                     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -1349,11 +1578,66 @@
                         </div>
                         <div class="col-span-2">
                             <label class="block text-sm font-medium">Patient Type</label>
-                            <select name="patient_type" id="add_patient_type" class="border border-gray-300 rounded px-3 py-2 w-full" required>
+                            <select name="patient_type" id="add_patient_type" class="border border-gray-300 rounded px-3 py-2 w-full" required onchange="togglePatientTypeFields()">
                                 @foreach(['Outpatient','Inpatient','Emergency'] as $pt)
                                     <option value="{{ $pt }}">{{ $pt }}</option>
                                 @endforeach
                             </select>
+                            <p class="text-xs text-gray-500 mt-1" id="patient_type_hint">Standard outpatient visit.</p>
+                        </div>
+                        
+                        {{-- Inpatient Fields (shown when Inpatient is selected) --}}
+                        <div id="inpatient_fields" class="col-span-2 hidden">
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                                <div class="flex items-center gap-2 text-blue-700 font-medium">
+                                    <i class="fas fa-procedures"></i>
+                                    <span>Inpatient Admission Details</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Cage/Ward Number</label>
+                                        <input type="text" name="cage_ward_number" id="add_cage_ward_number" 
+                                            class="border border-gray-300 rounded px-3 py-2 w-full" 
+                                            placeholder="e.g., Cage 1, Ward A">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Admission Date</label>
+                                        <input type="datetime-local" name="admission_date" id="add_admission_date" 
+                                            class="border border-gray-300 rounded px-3 py-2 w-full">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Admission Notes</label>
+                                    <textarea name="admission_notes" id="add_admission_notes" rows="2" 
+                                        class="border border-gray-300 rounded px-3 py-2 w-full" 
+                                        placeholder="Reason for admission, initial observations, special care instructions..."></textarea>
+                                </div>
+                                <p class="text-xs text-blue-600">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Inpatient visits stay open and can have multiple services added during the stay (Surgical, Diagnostics, Check-up, Boarding, etc.)
+                                </p>
+                            </div>
+                        </div>
+                        
+                        {{-- Emergency Fields (shown when Emergency is selected) --}}
+                        <div id="emergency_fields" class="col-span-2 hidden">
+                            <div class="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
+                                <div class="flex items-center gap-2 text-red-700 font-medium">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <span>Emergency Visit - High Priority</span>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Emergency Notes</label>
+                                    <textarea name="admission_notes" id="add_emergency_notes" rows="2" 
+                                        class="border border-gray-300 rounded px-3 py-2 w-full" 
+                                        placeholder="Emergency situation description, symptoms, initial assessment..."></textarea>
+                                </div>
+                                <input type="hidden" name="is_priority" id="add_is_priority" value="0">
+                                <p class="text-xs text-red-600">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Emergency visits are marked as high priority. You can add Emergency service, Diagnostics, Surgical, and other services as needed.
+                                </p>
+                            </div>
                         </div>
                     </div>
                     <div class="flex justify-end gap-2 pt-2">
@@ -1364,13 +1648,13 @@
             </div>
         </div>
 
-        <div id="editVisitModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50">
-            <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-5">
-                <div class="flex justify-between items-center mb-4">
+        <div id="editVisitModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50 overflow-y-auto">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-5 my-8 mx-auto max-h-[90vh] flex flex-col">
+                <div class="flex justify-between items-center mb-4 flex-shrink-0">
                     <h3 class="text-lg font-bold" id="editVisitTitle">Edit Visit</h3>
                     <button onclick="closeEditVisitModal()" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button>
                 </div>
-                <form id="editVisitForm" method="POST" action="#" class="space-y-4">
+                <form id="editVisitForm" method="POST" action="#" class="space-y-4 overflow-y-auto flex-grow pr-2">
                     @csrf
                     @method('PUT')
                     <input type="hidden" name="active_tab" value="visits">
@@ -1521,6 +1805,40 @@ function showTab(tabName) {
 }
 
 // ===== Visits Modals =====
+function togglePatientTypeFields() {
+    const patientType = document.getElementById('add_patient_type').value;
+    const inpatientFields = document.getElementById('inpatient_fields');
+    const emergencyFields = document.getElementById('emergency_fields');
+    const patientTypeHint = document.getElementById('patient_type_hint');
+    const isPriorityInput = document.getElementById('add_is_priority');
+    
+    // Hide all conditional fields first
+    if (inpatientFields) inpatientFields.classList.add('hidden');
+    if (emergencyFields) emergencyFields.classList.add('hidden');
+    if (isPriorityInput) isPriorityInput.value = '0';
+    
+    if (patientType === 'Inpatient') {
+        // Show inpatient fields
+        if (inpatientFields) inpatientFields.classList.remove('hidden');
+        if (patientTypeHint) patientTypeHint.textContent = 'Patient will be admitted. Status: Admitted (not arrived until checked in).';
+        
+        // Set default admission date to now
+        const admissionDateInput = document.getElementById('add_admission_date');
+        if (admissionDateInput && !admissionDateInput.value) {
+            const now = new Date();
+            admissionDateInput.value = now.toISOString().slice(0, 16);
+        }
+    } else if (patientType === 'Emergency') {
+        // Show emergency fields
+        if (emergencyFields) emergencyFields.classList.remove('hidden');
+        if (patientTypeHint) patientTypeHint.textContent = 'High priority emergency case.';
+        if (isPriorityInput) isPriorityInput.value = '1';
+    } else {
+        // Outpatient - default
+        if (patientTypeHint) patientTypeHint.textContent = 'Standard outpatient visit.';
+    }
+}
+
 function openAddVisitModal() {
     showTab('visits');
     const modal = document.getElementById('addVisitModal');
@@ -1533,27 +1851,8 @@ function openAddVisitModal() {
     const dateInput = document.getElementById('add_visit_date');
     if (dateInput) dateInput.value = today;
     
-    // Clear pets container and reset validation
-    const petsContainer = document.getElementById('add_owner_pets_container');
-    if (petsContainer) {
-        petsContainer.innerHTML = '<div class="text-gray-500 text-sm">Select an owner to load their pets.</div>';
-    }
-    
-    // Reset and disable submit button initially
-    const submitButton = form.querySelector('button[type="submit"]');
-    if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.classList.add('opacity-50', 'cursor-not-allowed');
-        submitButton.classList.remove('hover:bg-[#0d6d8a]');
-    }
-    
-    // Clear any existing error messages
-    document.querySelectorAll('.validation-error').forEach(el => el.remove());
-    
-    // Reset Select2 if initialized
-    if (window.jQuery && $('#add_owner_id').data('select2')) {
-        $('#add_owner_id').val(null).trigger('change');
-    }
+    // Reset patient type fields visibility
+    togglePatientTypeFields();
     
     modal.classList.remove('hidden');
     modal.classList.add('flex');
