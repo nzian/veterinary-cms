@@ -262,6 +262,17 @@
                         <input type="search" id="servicesSearch" placeholder="Search services..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                         <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                     </div>
+                    <select id="servicesCategoryFilter" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                        <option value="">All Categories</option>
+                        <option value="boarding">Boarding</option>
+                        <option value="check-up">Check-up</option>
+                        <option value="deworming">Deworming</option>
+                        <option value="diagnostics">Diagnostics</option>
+                        <option value="emergency">Emergency</option>
+                        <option value="grooming">Grooming</option>
+                        <option value="surgical">Surgical</option>
+                        <option value="vaccination">Vaccination</option>
+                    </select>
                     <div class="flex gap-2">
                         <button onclick="openServiceInventoryOverview()" class="bg-purple-600 text-white text-sm px-3 py-1.5 rounded hover:bg-purple-700 whitespace-nowrap">
                             <i class="fas fa-pills mr-1"></i> Inventory
@@ -1279,6 +1290,7 @@
                     } else if (activeTabParam === 'services') {
                         const tbody = document.querySelector('#servicesTable tbody');
                         const rowCount = tbody ? tbody.querySelectorAll('tr').length : 0;
+                        console.log('Services tbody found:', !!tbody, 'Row count:', rowCount);
                         
                         if (tbody && rowCount > 0) {
                             window.listFilters['services'] = new ListFilter({
@@ -1287,9 +1299,15 @@
                                 perPageSelectId: 'servicesPerPage',
                                 paginationContainerId: 'servicesPagination',
                                 searchColumns: [0, 1, 2, 3, 4],
+                                filterSelects: [
+                                    { selectId: 'servicesCategoryFilter', columnIndex: 1 } // Type column
+                                ],
                                 storageKey: 'servicesFilter',
                                 noResultsMessage: 'No services found.'
                             });
+                            console.log('Services filter initialized with', window.listFilters['services'].allRows.length, 'rows');
+                        } else {
+                            console.error('Services table not ready or empty');
                         }
                     } else if (activeTabParam === 'equipment') {
                         const tbody = document.querySelector('#equipmentTable tbody');
@@ -1310,7 +1328,7 @@
                 } else {
                     console.error('ListFilter class not found');
                 }
-            }, 100000);
+            }, 500);
         });
 
         // ... [MANAGE SERVICE PRODUCTS FUNCTIONS REMAIN UNCHANGED] ...
@@ -4325,6 +4343,9 @@
                                 perPageSelectId: 'servicesPerPage',
                                 paginationContainerId: 'servicesPagination',
                                 searchColumns: [0, 1, 2, 3, 4],
+                                filterSelects: [
+                                    { selectId: 'servicesCategoryFilter', columnIndex: 1 } // Type column
+                                ],
                                 storageKey: 'servicesFilter',
                                 noResultsMessage: 'No services found.'
                             });
