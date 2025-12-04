@@ -50,8 +50,8 @@ class ProdServEquipController extends Controller
                 'quantity_change' => $quantityChange,
                 'reference' => $reference,
                 'notes' => $notes,
-                'batch_id' => $batch_id,
-                'serv_id' => $serviceId,
+                'batch_id' => $batch_id ?: null, // Convert empty string to null
+                'serv_id' => $serviceId ?: null, // Convert empty string to null
                 'performed_by' => auth()->id(),
                 'created_at' => now(),
             ]);
@@ -67,13 +67,17 @@ class ProdServEquipController extends Controller
                 ->with('product')
                 ->get()
                 ->map(function($sp) {
+                    $product = $sp->product;
+                    if ($product) {
+                        $product->append('current_stock');
+                    }
                     return [
                         'id' => $sp->id,
                         'prod_id' => $sp->prod_id,
-                        'product_name' => $sp->product->prod_name ?? 'Unknown',
+                        'product_name' => $product->prod_name ?? 'Unknown',
                         'quantity_used' => $sp->quantity_used,
                         'is_billable' => $sp->is_billable,
-                        'current_stock' => ($sp->product->available_stock - $sp->product->usage_from_inventory_transactions) ?? 0
+                        'current_stock' => $product->current_stock ?? 0
                     ];
                 });
 
@@ -269,6 +273,7 @@ class ProdServEquipController extends Controller
     {
         try {
             $product = Product::with('branch')->findOrFail($id);
+            $product->append('current_stock');
             
             $salesData = DB::table('tbl_ord')
                 ->where('prod_id', $id)
@@ -355,9 +360,15 @@ class ProdServEquipController extends Controller
                         ')
                         ->first();
                     
+                    // Calculate total used from inventory transactions (sales, services, etc.)
+                    $totalUsed = DB::table('tbl_inventory_transactions')
+                        ->where('batch_id', $batch->id)
+                        ->sum(DB::raw('ABS(quantity_change)'));
+                    
                     $batch->total_damage = $damagePullout->total_damage ?? 0;
                     $batch->total_pullout = $damagePullout->total_pullout ?? 0;
-                    $batch->available_quantity = $batch->quantity - $batch->total_damage - $batch->total_pullout;
+                    $batch->total_used = $totalUsed ?? 0;
+                    $batch->available_quantity = $batch->quantity - $batch->total_damage - $batch->total_pullout - $batch->total_used;
                     $batch->is_expired = $batch->expire_date && Carbon::parse($batch->expire_date)->isPast();
                     
                     return $batch;
@@ -494,10 +505,34 @@ class ProdServEquipController extends Controller
                 ->orderBy('month', 'desc')
                 ->get();
 
-            // Primary source: visits table (various possible names)
-            $visitTable =  'tbl_visit_record';
-
-            if ($visitTable) {
+            // Primary source: tbl_visit_service - direct link between visits and services
+            $recentAppointments = DB::table('tbl_visit_service as vs')
+                ->join('tbl_visit_record as v', 'vs.visit_id', '=', 'v.visit_id')
+                ->leftJoin('tbl_pet as p', 'v.pet_id', '=', 'p.pet_id')
+                ->leftJoin('tbl_own as o', 'p.own_id', '=', 'o.own_id')
+                ->leftJoin('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+                ->where('vs.serv_id', $id)
+                ->select(
+                    'vs.id as visit_service_id',
+                    'v.visit_id',
+                    'v.visit_date as appoint_date',
+                    DB::raw('NULL as appoint_time'),
+                    'vs.status as appoint_status',
+                    DB::raw("CONCAT('Visit #', v.visit_id, ' - ', COALESCE(v.visit_service_type, 'Service')) as appoint_type"),
+                    'p.pet_name',
+                    'p.pet_species',
+                    'o.own_name',
+                    'o.own_contactnum',
+                    'u.user_name',
+                    'vs.created_at as service_date'
+                )
+                ->orderBy('vs.created_at', 'desc')
+                ->limit(10)
+                ->get();
+            
+            // If no visits found through visit_service, fallback to old logic
+            if ($recentAppointments->isEmpty()) {
+                $visitTable = 'tbl_visit_record';
                 // Build recent visits for this service using visits table
                 $recentAppointments = DB::table($visitTable . ' as v')
                     ->leftJoin('tbl_pet as p', 'v.pet_id', '=', 'p.pet_id')
@@ -510,7 +545,8 @@ class ProdServEquipController extends Controller
                           ->orWhere('v.service_type', 'like', "%".$service->serv_name."%");
                     })
                     ->select(
-                        DB::raw('NULL as appoint_id'),
+                        DB::raw('NULL as visit_service_id'),
+                        'v.visit_id',
                         'v.visit_date as appoint_date',
                         DB::raw('NULL as appoint_time'),
                         'v.visit_status as appoint_status',
@@ -519,67 +555,13 @@ class ProdServEquipController extends Controller
                         'p.pet_species',
                         'o.own_name',
                         'o.own_contactnum',
-                        'u.user_name'
+                        'u.user_name',
+                        'v.created_at as service_date'
                     )
                     ->orderBy('v.visit_date', 'desc')
                     ->orderBy('v.updated_at', 'desc')
                     ->limit(10)
                     ->get();
-            } else {
-                // Fallback 1: pivot appoint-service linkage
-                $recentAppointments = DB::table('tbl_appoint_serv as aps')
-                    ->join('tbl_appoint as a', 'aps.appoint_id', '=', 'a.appoint_id')
-                    ->leftJoin('tbl_pet as p', 'a.pet_id', '=', 'p.pet_id')
-                    ->leftJoin('tbl_own as o', 'p.own_id', '=', 'o.own_id')
-                    // Prefer veterinarian assigned on the service record; fallback to scheduler/handler on appointment
-                    ->leftJoin('tbl_user as v', 'aps.vet_user_id', '=', 'v.user_id')
-                    ->leftJoin('tbl_user as u', 'a.user_id', '=', 'u.user_id')
-                    ->where('aps.serv_id', $id)
-                    ->select(
-                        'a.appoint_id',
-                        'a.appoint_date',
-                        'a.appoint_time',
-                        'a.appoint_status',
-                        'a.appoint_type',
-                        'p.pet_name',
-                        'p.pet_species',
-                        'o.own_name',
-                        'o.own_contactnum',
-                        DB::raw('COALESCE(v.user_name, u.user_name) as user_name')
-                    )
-                    ->orderBy('a.appoint_date', 'desc')
-                    ->orderBy('a.appoint_time', 'desc')
-                    ->limit(10)
-                    ->get();
-
-                // Fallback 2: heuristic by appointment_type
-                if ($recentAppointments->isEmpty()) {
-                    $recentAppointments = DB::table('tbl_appoint as a')
-                        ->leftJoin('tbl_pet as p', 'a.pet_id', '=', 'p.pet_id')
-                        ->leftJoin('tbl_own as o', 'p.own_id', '=', 'o.own_id')
-                        ->leftJoin('tbl_user as u', 'a.user_id', '=', 'u.user_id')
-                        ->where(function($q) use ($service) {
-                            $q->where('a.appoint_type', $service->serv_name)
-                              ->orWhere('a.appoint_type', 'like', "%".$service->serv_name."%")
-                              ->orWhere('a.appoint_type', 'like', "%".$service->serv_type."%");
-                        })
-                        ->select(
-                            'a.appoint_id',
-                            'a.appoint_date',
-                            'a.appoint_time',
-                            'a.appoint_status',
-                            'a.appoint_type',
-                            'p.pet_name',
-                            'p.pet_species',
-                            'o.own_name',
-                            'o.own_contactnum',
-                            'u.user_name'
-                        )
-                        ->orderBy('a.appoint_date', 'desc')
-                        ->orderBy('a.appoint_time', 'desc')
-                        ->limit(10)
-                        ->get();
-                }
             }
 
             $utilizationData = DB::table('tbl_visit_record')
@@ -615,22 +597,47 @@ class ProdServEquipController extends Controller
                 ->get();
 
             // Get consumable products attached to this service
-            $consumableProducts = DB::table('tbl_service_products as sp')
-                ->join('tbl_prod as p', 'sp.prod_id', '=', 'p.prod_id')
-                ->leftJoin('tbl_user as creator', 'sp.created_by', '=', 'creator.user_id')
-                ->where('sp.serv_id', $id)
-                ->select(
-                    'p.prod_id',
-                    'p.prod_name',
-                    'p.prod_stocks',
-                    'p.prod_type',
-                    'p.prod_category',
-                    'sp.quantity_used',
-                    'sp.is_billable',
-                    'sp.created_at',
-                    'creator.user_name as added_by'
-                )
-                ->get();
+            $productIds = DB::table('tbl_service_products')
+                ->where('serv_id', $id)
+                ->pluck('prod_id')
+                ->toArray();
+            
+            $consumableProducts = [];
+            if (!empty($productIds)) {
+                $products = Product::withoutGlobalScopes()
+                    ->whereIn('prod_id', $productIds)
+                    ->get()
+                    ->each(function($product) {
+                        $product->append('current_stock');
+                    });
+                
+                // Attach pivot data
+                $consumableProducts = $products->map(function($product) use ($id) {
+                    $pivotData = DB::table('tbl_service_products')
+                        ->leftJoin('tbl_user as creator', 'tbl_service_products.created_by', '=', 'creator.user_id')
+                        ->where('serv_id', $id)
+                        ->where('prod_id', $product->prod_id)
+                        ->select(
+                            'quantity_used',
+                            'is_billable',
+                            'tbl_service_products.created_at',
+                            'creator.user_name as added_by'
+                        )
+                        ->first();
+                    
+                    return [
+                        'prod_id' => $product->prod_id,
+                        'prod_name' => $product->prod_name,
+                        'current_stock' => $product->current_stock,
+                        'prod_type' => $product->prod_type,
+                        'prod_category' => $product->prod_category,
+                        'quantity_used' => $pivotData->quantity_used ?? 1,
+                        'is_billable' => $pivotData->is_billable ?? false,
+                        'created_at' => $pivotData->created_at ?? null,
+                        'added_by' => $pivotData->added_by ?? 'System'
+                    ];
+                });
+            }
 
             // Get stock transaction history for consumable products used in this service
             $stockHistory = [];
@@ -761,7 +768,10 @@ class ProdServEquipController extends Controller
                 $query->where('branch_id', $activeBranchId);
             })
             ->orderBy('prod_id', 'desc')
-            ->get();
+            ->get()
+            ->each(function($product) {
+                $product->append('current_stock');
+            });
 
         $services = Service::when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
                 $query->where('branch_id', $activeBranchId);
@@ -787,7 +797,11 @@ class ProdServEquipController extends Controller
             })
             ->where('prod_type', 'Consumable')
                 ->orderBy('prod_id', 'desc')
-                ->get();
+                ->get()
+                ->each(function($product) {
+                    $product->append('current_stock');
+                });
+            
 
         return view('prodServEquip', compact('products', 'branches', 'services', 'equipment','allProducts', 'manufacturers'));
     }
@@ -958,9 +972,9 @@ class ProdServEquipController extends Controller
                 'purchase',
                 $addedStock,
                 'Manual Stock Update',
-                "Added batch '{$validated['batch']}' with {$addedStock} units. Expiry: {$validated['new_expiry']}",
-                ($validated['notes'] ? " - {$validated['notes']}" : ''),
-                $stockBatch->id
+                "Added batch '{$validated['batch']}' with {$addedStock} units. Expiry: {$validated['new_expiry']}" . ($validated['notes'] ? " - {$validated['notes']}" : ''),
+                $stockBatch->id,
+                null
             );
             
             DB::commit();

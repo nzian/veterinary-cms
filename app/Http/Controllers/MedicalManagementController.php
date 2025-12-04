@@ -137,7 +137,10 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         
         $allProducts = Product::select('prod_id', 'prod_name', 'prod_stocks', 'prod_price')
             ->orderBy('prod_name')
-            ->get();
+            ->get()
+            ->each(function($product) {
+                $product->append('current_stock');
+            });
             
         $serviceTypes = Service::orderBy('serv_name')->get(['serv_id','serv_name','serv_type']); 
             
@@ -148,7 +151,10 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
     {
         return Product::select('prod_id', 'prod_name', 'prod_stocks', 'prod_price')
             ->orderBy('prod_name')
-            ->get();
+            ->get()
+            ->each(function($product) {
+                $product->append('current_stock');
+            });
     }
     
     private function generateBillingForAppointment($appointment)
@@ -2164,7 +2170,10 @@ public function completeService(Request $request, $visitId, $serviceId)
                 if (!empty($productIds)) {
                     $products = Product::withoutGlobalScopes()
                         ->whereIn('prod_id', $productIds)
-                        ->get();
+                        ->get()
+                        ->each(function($product) {
+                            $product->append('current_stock');
+                        });
                     
                     // Attach pivot data
                     $products = $products->map(function($product) use ($service) {
@@ -2185,7 +2194,7 @@ public function completeService(Request $request, $visitId, $serviceId)
                     // Filter by branch and expiry
                     $products = $products->filter(function($product) use ($branchId) {
                         $matchesBranch = !$branchId || $product->branch_id == $branchId;
-                        $notExpired = $product->available_stock > 0 ;
+                        $notExpired = $product->current_stock > 0 ;
                         return $matchesBranch && $notExpired;
                     })->values();
                     
@@ -2230,7 +2239,10 @@ public function completeService(Request $request, $visitId, $serviceId)
                 if (!empty($productIds)) {
                     $products = Product::withoutGlobalScopes()
                         ->whereIn('prod_id', $productIds)
-                        ->get();
+                        ->get()
+                        ->each(function($product) {
+                            $product->append('current_stock');
+                        });
                     
                     // Attach pivot data
                     $products = $products->map(function($product) use ($service) {
@@ -2296,7 +2308,10 @@ public function completeService(Request $request, $visitId, $serviceId)
                 if (!empty($productIds)) {
                     $products = Product::withoutGlobalScopes()
                         ->whereIn('prod_id', $productIds)
-                        ->get();
+                        ->get()
+                        ->each(function($product) {
+                            $product->append('current_stock');
+                        });
                     
                     // Attach pivot data
                     $products = $products->map(function($product) use ($service) {
@@ -2317,7 +2332,7 @@ public function completeService(Request $request, $visitId, $serviceId)
                     // Filter by branch and expiry (anesthesia products)
                     $products = $products->filter(function($product) use ($activeBranchId) {
                         $matchesBranch = !$activeBranchId || $product->branch_id == $activeBranchId;
-                        $notExpired = $product->available_stock > 0 ;
+                        $notExpired = $product->current_stock > 0 ;
                         return $matchesBranch && $notExpired;
                     })->values();
                     
@@ -2575,7 +2590,13 @@ public function completeService(Request $request, $visitId, $serviceId)
     {
         // Placeholder implementation of product search
         $query = $request->get('q');
-        return response()->json(Product::select('prod_id as id', 'prod_name as name', 'prod_price as price')->where('prod_name', 'like', "%$query%")->limit(15)->get());
+        return response()->json(Product::select('prod_id as id', 'prod_name as name', 'prod_price as price')
+            ->where('prod_name', 'like', "%$query%")
+            ->limit(15)
+            ->get()
+            ->each(function($product) {
+                $product->append('current_stock');
+            }));
     }
 
     // ==================== REFERRAL METHODS (Full Implementations) ====================

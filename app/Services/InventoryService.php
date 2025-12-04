@@ -42,8 +42,8 @@ class InventoryService
             DB::commit();
             
             // Check if stock is below reorder level and log a warning
-            if ($product->available_stock - $product->usage_from_inventory_transactions <= $product->prod_reorderlevel) {
-                Log::warning("Product {$product->prod_name} is at or below reorder level. Current stock: {$product->prod_stocks}");
+            if ($product->current_stock <= $product->prod_reorderlevel) {
+                Log::warning("Product {$product->prod_name} is at or below reorder level. Current stock: {$product->current_stock}");
             }
 
             return true;
@@ -282,13 +282,8 @@ class InventoryService
         
         // Get non-expired batches ordered by expiration date (FIFO)
         // We assume 'expire_date' is the field.
-        $batches = ProductStock::where('stock_prod_id', $product->prod_id)
-            ->where('expire_date', '>=', now()->toDateString())
-            ->where('quantity', '>', 0)
-            ->orderBy('expire_date', 'asc')
-            ->get();
 
-        $totalAvailableInBatches = $batches->sum('quantity');
+        $totalAvailableInBatches = $product->current_stock;
 
         if ($totalAvailableInBatches < $quantity) {
              // Option: Throw exception OR allow partial deduction and let the main stock go negative?
@@ -297,33 +292,44 @@ class InventoryService
              throw new \Exception("Insufficient non-expired stock in batches. Required: {$quantity}, Available: {$totalAvailableInBatches}");
         }
 
+        $batches = $product->stockBatches()->notExpired()->orderBy('expire_date', 'asc')->lockForUpdate()->get();
+
+
         foreach ($batches as $batch) {
             if ($remainingToDeduct <= 0) break;
 
-            if ($batch->quantity >= $remainingToDeduct) {
+            if (($batch->available_quantity - $batch->total_used_quantity) >= $remainingToDeduct) {
                 // This batch has enough
-                $batch->quantity -= $remainingToDeduct;
-                $batch->save();
-                $remainingToDeduct = 0;
+                // Record the transaction
                 $deducted = $remainingToDeduct;
+                $transaction = new InventoryTransaction();
+                $transaction->prod_id = $product->prod_id;
+                $transaction->transaction_type = $type;
+                $transaction->quantity_change = -1 * $deducted;
+                $transaction->reference = $reference;
+                $transaction->batch_id = $batch->id;
+                $transaction->serv_id = $serv_id;
+            // $transaction->transaction_date = now();
+                $transaction->performed_by = Auth::id();
+                $transaction->save();
+                $remainingToDeduct -= $deducted;
+                //$deducted = $remainingToDeduct;
             } else {
                 // Take everything from this batch
-                $deducted = $batch->quantity;
-                $batch->quantity = 0;
-                $batch->save();
+                $deducted = ($batch->available_quantity - $batch->total_used_quantity);
+                 $transaction = new InventoryTransaction();
+                $transaction->prod_id = $product->prod_id;
+                $transaction->transaction_type = $type;
+                $transaction->quantity_change = -1 * $deducted;
+                $transaction->reference = $reference;
+                $transaction->batch_id = $batch->id;
+                $transaction->serv_id = $serv_id;
+            // $transaction->transaction_date = now();
+                $transaction->performed_by = Auth::id();
+                $transaction->save();
                 $remainingToDeduct -= $deducted;
             }
-            // Record the transaction
-            $transaction = new InventoryTransaction();
-            $transaction->prod_id = $product->prod_id;
-            $transaction->transaction_type = $type;
-            $transaction->quantity_change = -1 * $deducted;
-            $transaction->reference = $reference;
-            $transaction->batch_id = $batch->id;
-            $transaction->serv_id = $serv_id;
-           // $transaction->transaction_date = now();
-            $transaction->performed_by = Auth::id();
-            $transaction->save();
+           
         }
 
         // Update the aggregate stock on the Product model
@@ -332,7 +338,7 @@ class InventoryService
         // Let's decrement to match the logic of "deducting".
         // However, if we want to be 100% sure, we might want to sync.
         // For now, let's decrement the main stock column as well.
-        $product->prod_stocks = max(0, $product->prod_stocks - $quantity);
-        $product->save();
+        //$product->prod_stocks = max(0, $product->prod_stocks - $quantity);
+        //$product->save();
     }
 }

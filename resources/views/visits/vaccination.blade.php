@@ -408,15 +408,15 @@
             products.forEach(function(product) {
                 const option = document.createElement('option');
                 option.value = product.prod_id;
-                option.dataset.stock = product.prod_stocks;
+                option.dataset.stock = product.current_stock;
                 option.dataset.prodId = product.prod_id;
                 option.dataset.quantityUsed = product.quantity_used;
                 
                 // Build option text - ONLY SHOW STOCK, NO PRICE
-                let optionText = `${product.prod_name} (Stock: ${product.prod_stocks})`;
+                let optionText = `${product.prod_name} (Stock: ${product.current_stock})`;
                 
                 // Check for low stock or expiring
-                if (product.prod_stocks <= 5) {
+                if (product.current_stock <= 5) {
                     optionText += ' ⚠️ Low Stock';
                 }
                 
@@ -431,7 +431,7 @@
                 option.textContent = optionText;
                 
                 // Disable if out of stock
-                if (product.prod_stocks <= 0) {
+                if (product.current_stock <= 0) {
                     option.disabled = true;
                     option.textContent += ' - OUT OF STOCK';
                 }

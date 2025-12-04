@@ -209,7 +209,9 @@ class BranchUserManagementController extends Controller
             $branch = \App\Models\Branch::findOrFail($id);
             
             // Filter by branch (requires branch_id columns in your tables)
-            $products = \App\Models\Product::where('branch_id', $id)->get();
+            $products = \App\Models\Product::where('branch_id', $id)->get()->each(function($product) {
+                $product->append('current_stock');
+            });
             $services = \App\Models\Service::where('branch_id', $id)->get();
             $equipment = \App\Models\Equipment::where('branch_id', $id)->get();
             

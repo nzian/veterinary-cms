@@ -8,6 +8,7 @@ use App\Models\Prescription;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Visit;
+use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,7 @@ use Carbon\Carbon;
 
 class SalesManagementController extends Controller
 {
+    protected $inventoryService;
 
     /**
      * Show grouped receipt for all pets of an owner for a billing date
@@ -242,9 +244,10 @@ class SalesManagementController extends Controller
 
     protected $groupedBillingService;
 
-    public function __construct()
+    public function __construct(InventoryService $inventoryService)
     {
         $this->middleware('auth');
+        $this->inventoryService = $inventoryService;
         $this->groupedBillingService = new \App\Services\GroupedBillingService();
     }   
     public function index(Request $request)
@@ -375,8 +378,31 @@ class SalesManagementController extends Controller
         })->values();
         //dd($groupedBillings);
         
-        // Return all grouped billings for client-side filtering
-        $billings = $groupedBillings;
+        // Check if user wants pet-wise view (default is grouped)
+        $viewType = $request->input('view_type', 'grouped');
+        
+        if ($viewType === 'pet-wise') {
+            // Return individual pet billings
+            $billings = $allBillings->map(function($billing) {
+                return [
+                    'owner' => $billing->owner ?? $billing->visit?->pet?->owner,
+                    'owner_id' => $billing->owner_id ?? $billing->visit?->pet?->owner?->own_id,
+                    'pet_name' => $billing->visit?->pet?->pet_name ?? 'N/A',
+                    'pet_id' => $billing->visit?->pet_id,
+                    'bill_id' => $billing->bill_id,
+                    'bill_date' => $billing->bill_date,
+                    'billing' => $billing,
+                    'total_amount' => $billing->total_amount,
+                    'paid_amount' => $billing->paid_amount,
+                    'balance' => round($billing->total_amount - $billing->paid_amount, 2),
+                    'status' => $billing->bill_status,
+                    'services' => $billing->visit?->services ?? collect([]),
+                ];
+            });
+        } else {
+            // Return grouped billings by owner and date (default)
+            $billings = $groupedBillings;
+        }
 
         // Get date filters
         $startDate = $request->input('start_date');
@@ -1200,11 +1226,22 @@ class SalesManagementController extends Controller
                     ->where('payment_status', '!=', 'paid')
                     ->get();
                 
-                // Update inventory for each product in the order
+                // Update inventory for each product in the order using batch-based system
                 foreach ($unpaidOrders as $order) {
-                    if ($order->product) {
-                        // Decrease the product stock
-                        $order->product->decrement('prod_stocks', $order->ord_quantity);
+                    if ($order->product && $order->prod_id) {
+                        try {
+                            // Deduct from stock batches with proper transaction recording
+                            $this->inventoryService->deductFromInventory(
+                                $order->prod_id,
+                                $order->ord_quantity,
+                                "Billing Payment #{$billing->bill_id} - Order #{$order->ord_id}",
+                                'pos_sale'
+                            );
+                            Log::info("Stock deducted for Order #{$order->ord_id}: Product ID {$order->prod_id}, Qty: {$order->ord_quantity}");
+                        } catch (\Exception $e) {
+                            Log::error("Stock deduction failed for Order #{$order->ord_id}: " . $e->getMessage());
+                            // Continue with other orders even if one fails
+                        }
                     }
                 }
                 

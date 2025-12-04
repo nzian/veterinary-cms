@@ -10,9 +10,17 @@ use App\Models\Product;
 use App\Models\Owner;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
+use App\Services\InventoryService;
 
 class POSController extends Controller
 {
+    protected $inventoryService;
+
+    public function __construct(InventoryService $inventoryService)
+    {
+        $this->middleware('auth');
+        $this->inventoryService = $inventoryService;
+    }
     /**
      * Display the POS view with products and owners.
      */
@@ -20,7 +28,7 @@ class POSController extends Controller
     {
         // 1. DETERMINE ACTIVE BRANCH CONTEXT
         $user = Auth::user();
-        $activeBranchId = optional($user)->branch_id; 
+        $activeBranchId = optional($user)->branch_id ?? session('active_branch_id', null); 
 
         // Get all user IDs associated with the current user's branch
         $branchUserIds = [];
@@ -51,18 +59,32 @@ class POSController extends Controller
 
         // 3. FETCH AND FILTER PRODUCTS (Items)
         // Only show products marked as 'Sale' type for POS
-        $itemsQuery = Product::select('prod_id', 'prod_name', 'prod_price', 'prod_stocks', 'prod_category')
-            ->where('prod_stocks', '>', 0)
+        $itemsQuery = Product::withoutGlobalScopes()->select('prod_id', 'prod_name', 'prod_price', 'prod_stocks', 'prod_category', 'prod_type','branch_id')
             ->where('prod_type', 'Sale')
             ->orderBy('prod_name', 'asc');
-
+        //dd($activeBranchId );
         if ($activeBranchId) {
             // Assuming Product model has a branch_id
             $itemsQuery->where('branch_id', $activeBranchId);
         }
         
-        $items = $itemsQuery->get();
-
+        $items = $itemsQuery->get()->each(function($item) {
+            $item->append('current_stock');
+        });
+        
+        $items = $items->map(function($item) {
+            return (object)[
+                'prod_id' => $item->prod_id,
+                'prod_name' => $item->prod_name,
+                'prod_price' => $item->prod_price,
+                'prod_type' => $item->prod_type,
+                'branch_id' => $item->branch_id,
+                'prod_stocks' => $item->current_stock,
+                'current_stock' => $item->current_stock,
+                'prod_category' => $item->prod_category,
+            ];
+        });
+        //dd($items);
         Log::info("POS loaded: " . $items->count() . " products");
 
         return view('pos', compact('owners', 'items'));
@@ -82,7 +104,7 @@ class POSController extends Controller
                 'items.*.price' => 'required|numeric|min:0',
                 'total' => 'required|numeric|min:0',
                 'cash' => 'required|numeric|min:0',
-                'owner_id' => 'required|integer|min:0', // Customer selection is required
+                'owner_id' => 'nullable|integer|min:0', // Owner is optional - can be walk-in (0) or null
             ]);
 
             $cash = $validated['cash'];
@@ -109,6 +131,7 @@ class POSController extends Controller
                     'message' => 'Please wait, your previous transaction is still processing.'
                 ], 429);
             }
+            
 
             // Check 2: Transaction-specific lock (prevent THIS EXACT transaction)
             if (Cache::has($transactionLockKey)) {
@@ -137,7 +160,7 @@ class POSController extends Controller
                         throw new \Exception("Product with ID {$item['product_id']} not found.");
                     }
 
-                    if ($product->prod_stocks < $item['quantity']) {
+                    if ($product->current_stock < $item['quantity']) {
                         throw new \Exception("Insufficient stock for {$product->prod_name}. Available: {$product->prod_stocks}");
                     }
                 }
@@ -185,9 +208,17 @@ class POSController extends Controller
                     $orderId = DB::table('tbl_ord')->insertGetId($orderData);
                     $orderIds[] = $orderId;
 
-                    // Deduct stock
-                    $product->prod_stocks -= $item['quantity'];
-                    $product->save();
+                    // Deduct stock using batch-based inventory system with transaction recording
+                    try {
+                        $this->inventoryService->deductFromInventory(
+                            $product->prod_id,
+                            $item['quantity'],
+                            "POS Order #{$orderId}",
+                            'order_usage'
+                        );
+                    } catch (\Exception $e) {
+                        throw new \Exception("Stock deduction failed for {$product->prod_name}: " . $e->getMessage());
+                    }
                 }
 
                 DB::commit();

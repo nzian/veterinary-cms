@@ -75,8 +75,9 @@
             </div>
             
             <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
+                <form method="GET" action="{{ request()->url() }}" id="billingFiltersForm" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="tab" value="billing">
+                    <input type="hidden" name="view_type" id="viewTypeInput" value="{{ request('view_type', 'grouped') }}">
                     <label for="billingPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
                     <select name="perPage" id="billingPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
@@ -86,6 +87,11 @@
                         @endforeach
                     </select>
                     <span class="whitespace-nowrap">entries</span>
+                    <label class="whitespace-nowrap text-sm text-black ml-2">View</label>
+                    <select name="view_type" id="viewTypeSelect" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                        <option value="grouped" {{ request('view_type', 'grouped') == 'grouped' ? 'selected' : '' }}>By Owner</option>
+                        <option value="pet-wise" {{ request('view_type') == 'pet-wise' ? 'selected' : '' }}>By Pet</option>
+                    </select>
                     <label class="whitespace-nowrap text-sm text-black ml-2">Filter</label>
                     <select id="billingStatusFilter" onchange="filterBillingByStatus()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         <option value="">All Status</option>
@@ -115,17 +121,75 @@
                 <table id="billingTable" class="min-w-full table-auto text-sm border text-center">
                     <thead>
                         <tr class="bg-gray-100 text-centered">
-                            <th class="px-2 py-2 border whitespace-nowrap w-8"></th>
-                            <th class="px-2 py-2 border whitespace-nowrap">Owner</th>
-                            <th class="px-2 py-2 border whitespace-nowrap">Pets</th>
-                            <th class="px-4 py-2 border">Total Amount</th>
-                            <th class="px-4 py-2 border">Status</th>
-                            <th class="px-4 py-2 border">Date</th>
-                            <th class="px-4 py-2 border text-center">Actions</th>
+                            @if(request('view_type') == 'pet-wise')
+                                <th class="px-2 py-2 border whitespace-nowrap">Owner</th>
+                                <th class="px-2 py-2 border whitespace-nowrap">Pet Name</th>
+                                <th class="px-2 py-2 border whitespace-nowrap">Services</th>
+                                <th class="px-4 py-2 border">Total Amount</th>
+                                <th class="px-4 py-2 border">Status</th>
+                                <th class="px-4 py-2 border">Date</th>
+                                <th class="px-4 py-2 border text-center">Actions</th>
+                            @else
+                                <th class="px-2 py-2 border whitespace-nowrap w-8"></th>
+                                <th class="px-2 py-2 border whitespace-nowrap">Owner</th>
+                                <th class="px-2 py-2 border whitespace-nowrap">Pets</th>
+                                <th class="px-4 py-2 border">Total Amount</th>
+                                <th class="px-4 py-2 border">Status</th>
+                                <th class="px-4 py-2 border">Date</th>
+                                <th class="px-4 py-2 border text-center">Actions</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($billings as $index => $groupedBilling)
+                        @if(request('view_type') == 'pet-wise')
+                            {{-- Pet-wise view: Show individual pet bills directly --}}
+                            @forelse($billings as $billing)
+                                @php
+                                    $petName = $billing->pet?->pet_name ?? 'N/A';
+                                    $ownerName = $billing->owner?->own_name ?? 'N/A';
+                                    $services = [];
+                                    if($billing->visit && $billing->visit->services) {
+                                        foreach($billing->visit->services as $service) {
+                                            $services[] = $service->serv_name ?? '';
+                                        }
+                                    }
+                                    $servicesText = !empty($services) ? implode(', ', $services) : 'N/A';
+                                    $totalAmount = (float) $billing->total_amount;
+                                    $paidAmount = (float) $billing->paid_amount;
+                                    $balance = $totalAmount - $paidAmount;
+                                    $status = $billing->bill_status ?? 'unpaid';
+                                @endphp
+                                <tr class="hover:bg-gray-50 bg-white border-b">
+                                    <td class="px-2 py-2 border">{{ $ownerName }}</td>
+                                    <td class="px-2 py-2 border">{{ $petName }}</td>
+                                    <td class="px-2 py-2 border text-left">{{ Str::limit($servicesText, 50) }}</td>
+                                    <td class="px-4 py-2 border">₱ {{ number_format($totalAmount, 2) }}</td>
+                                    <td class="px-4 py-2 border">
+                                        <span class="px-2 py-1 text-xs rounded-full
+                                            @if(strtolower($status) === 'paid') bg-green-100 text-green-800
+                                            @elseif(str_contains(strtolower($status), '50%')) bg-yellow-100 text-yellow-800
+                                            @else bg-red-100 text-red-800
+                                            @endif">
+                                            {{ ucfirst($status) }}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-2 border">{{ \Carbon\Carbon::parse($billing->bill_date)->format('M d, Y') }}</td>
+                                    <td class="px-4 py-2 border text-center">
+                                        <div class="flex justify-center gap-2">
+                                            <button onclick="viewBill({{ $billing->bill_id }})" class="text-blue-600 hover:underline text-xs">View</button>
+                                            @if($balance > 0)
+                                                <button onclick="payBill({{ $billing->bill_id }}, {{ max(0, $balance) }})" 
+                                                    class="text-green-600 hover:underline text-xs">Pay</button>
+                                            @endif
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No billing records found</td></tr>
+                            @endforelse
+                        @else
+                            {{-- Grouped view: Original expandable owner rows --}}
+                            @forelse($billings as $index => $groupedBilling)
                             @php
                                 
                                 // Support both array and object access
@@ -344,6 +408,7 @@
                                 </td>
                             </tr>
                         @endforelse
+                        @endif
                     </tbody>
                 </table>
             </div>
