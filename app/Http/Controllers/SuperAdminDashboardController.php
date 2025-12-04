@@ -13,6 +13,7 @@ use App\Models\Owner;
 use App\Models\User;
 use App\Models\Appointment;
 use App\Models\Visit;
+use App\Models\Billing;
 use Carbon\Carbon;
 
 class SuperAdminDashboardController extends Controller
@@ -30,8 +31,10 @@ class SuperAdminDashboardController extends Controller
         $totalBranches = Branch::count();
         $activeBranches = Branch::count(); // All branches are active
         $totalStaff = User::where('user_role', '!=', 'superadmin')->count();
-        $totalRevenue = Order::sum('ord_total');
-        $todayRevenue = Order::whereDate('ord_date', $today)->sum('ord_total');
+        
+        // Get total revenue from Billing table (all branches)
+        $totalRevenue = Billing::sum('total_amount');
+        $todayRevenue = Billing::whereDate('bill_date', $today)->sum('total_amount');
 
         // Branch Performance Data
         $branchPerformance = Branch::withCount([
@@ -39,13 +42,12 @@ class SuperAdminDashboardController extends Controller
             'services',
             'products'
         ])->get()->map(function ($branch) {
-            $branchOrders = Order::whereHas('user', function($q) use ($branch) {
-                $q->where('branch_id', $branch->branch_id);
-            })->sum('ord_total');
+            // Get revenue from Billing table directly by branch_id
+            $branchRevenue = Billing::where('branch_id', $branch->branch_id)->sum('total_amount');
 
-            $branchVisits = Visit::whereHas('user', function($q) use ($branch) {
-                $q->where('branch_id', $branch->branch_id);
-            })->count();
+            // Get visits without global scope to count all visits for users in this branch
+            $branchUserIds = User::where('branch_id', $branch->branch_id)->pluck('user_id');
+            $branchVisits = Visit::withoutGlobalScopes()->whereIn('user_id', $branchUserIds)->count();
 
             return [
                 'branch_id' => $branch->branch_id,
@@ -55,7 +57,7 @@ class SuperAdminDashboardController extends Controller
                 'staff_count' => $branch->users_count,
                 'services_count' => $branch->services_count,
                 'products_count' => $branch->products_count,
-                'total_revenue' => $branchOrders,
+                'total_revenue' => $branchRevenue,
                 'visits_count' => $branchVisits,
             ];
         });
@@ -63,19 +65,17 @@ class SuperAdminDashboardController extends Controller
         // Top Performing Branches (by revenue)
         $topBranches = $branchPerformance->sortByDesc('total_revenue')->take(5)->values();
 
-        // Monthly Revenue Comparison (All Branches)
+        // Monthly Revenue Comparison (All Branches) - Using Billing table
         $monthlyBranchRevenue = [];
         $branches = Branch::all();
         
         foreach ($branches as $branch) {
             $monthlyData = [];
             for ($i = 1; $i <= 12; $i++) {
-                $revenue = Order::whereHas('user', function($q) use ($branch) {
-                    $q->where('branch_id', $branch->branch_id);
-                })
-                ->whereYear('ord_date', now()->year)
-                ->whereMonth('ord_date', $i)
-                ->sum('ord_total');
+                $revenue = Billing::where('branch_id', $branch->branch_id)
+                    ->whereYear('bill_date', now()->year)
+                    ->whereMonth('bill_date', $i)
+                    ->sum('total_amount');
                 
                 $monthlyData[] = (float) $revenue;
             }
@@ -86,7 +86,7 @@ class SuperAdminDashboardController extends Controller
             ];
         }
 
-        // Last 7 Days Revenue by Branch
+        // Last 7 Days Revenue by Branch - Using Billing table
         $last7DaysRevenue = [];
         $dates = [];
         
@@ -95,9 +95,9 @@ class SuperAdminDashboardController extends Controller
             $dates[] = $date->format('M d');
             
             foreach ($branches as $branch) {
-                $revenue = Order::whereHas('user', function($q) use ($branch) {
-                    $q->where('branch_id', $branch->branch_id);
-                })->whereDate('ord_date', $date)->sum('ord_total');
+                $revenue = Billing::where('branch_id', $branch->branch_id)
+                    ->whereDate('bill_date', $date)
+                    ->sum('total_amount');
                 
                 if (!isset($last7DaysRevenue[$branch->branch_name])) {
                     $last7DaysRevenue[$branch->branch_name] = [];
@@ -106,25 +106,27 @@ class SuperAdminDashboardController extends Controller
             }
         }
 
-        // Branch Statistics Summary
+        // Branch Statistics Summary - Use withoutGlobalScopes for accurate counts
         $branchStats = [
-            'total_visits' => Visit::count(),
-            'today_visits' => Visit::whereDate('visit_date', $today)->count(),
+            'total_visits' => Visit::withoutGlobalScopes()->count(),
+            'today_visits' => Visit::withoutGlobalScopes()->whereDate('visit_date', $today)->count(),
             'total_services' => Service::count(),
             'total_products' => Product::count(),
             'total_pets' => Pet::count(),
             'total_owners' => Owner::count(),
         ];
 
-        // Visit Overview by Status
-        $visitsByStatus = Visit::selectRaw('visit_status, COUNT(*) as count')
+        // Visit Overview by Status - Use withoutGlobalScopes for all branches
+        $visitsByStatus = Visit::withoutGlobalScopes()
+            ->selectRaw('visit_status, COUNT(*) as count')
             ->groupBy('visit_status')
             ->get()
             ->pluck('count', 'visit_status')
             ->toArray();
 
-        // Visit Overview by Patient Type
-        $visitsByPatientType = Visit::selectRaw('patient_type, COUNT(*) as count')
+        // Visit Overview by Patient Type - Use withoutGlobalScopes for all branches
+        $visitsByPatientType = Visit::withoutGlobalScopes()
+            ->selectRaw('patient_type, COUNT(*) as count')
             ->groupBy('patient_type')
             ->get()
             ->mapWithKeys(function($item) {
@@ -198,32 +200,29 @@ class SuperAdminDashboardController extends Controller
         
         $today = Carbon::today();
 
-        // Branch specific metrics
-        $branchRevenue = Order::whereHas('user', function($q) use ($branchId) {
-            $q->where('branch_id', $branchId);
-        })->sum('ord_total');
+        // Branch specific metrics - Using Billing table
+        $branchRevenue = Billing::where('branch_id', $branchId)->sum('total_amount');
 
-        $todayRevenue = Order::whereHas('user', function($q) use ($branchId) {
-            $q->where('branch_id', $branchId);
-        })->whereDate('ord_date', $today)->sum('ord_total');
+        $todayRevenue = Billing::where('branch_id', $branchId)
+            ->whereDate('bill_date', $today)
+            ->sum('total_amount');
 
-        $totalVisits = Visit::whereHas('user', function($q) use ($branchId) {
-            $q->where('branch_id', $branchId);
-        })->count();
+        // Get visits without global scope for accurate count
+        $branchUserIds = User::where('branch_id', $branchId)->pluck('user_id');
+        $totalVisits = Visit::withoutGlobalScopes()->whereIn('user_id', $branchUserIds)->count();
 
-        $todayVisits = Visit::whereHas('user', function($q) use ($branchId) {
-            $q->where('branch_id', $branchId);
-        })->whereDate('visit_date', $today)->count();
+        $todayVisits = Visit::withoutGlobalScopes()
+            ->whereIn('user_id', $branchUserIds)
+            ->whereDate('visit_date', $today)
+            ->count();
 
-        // Monthly performance
+        // Monthly performance - Using Billing table
         $monthlyRevenue = [];
         for ($i = 1; $i <= 12; $i++) {
-            $revenue = Order::whereHas('user', function($q) use ($branchId) {
-                $q->where('branch_id', $branchId);
-            })
-            ->whereYear('ord_date', now()->year)
-            ->whereMonth('ord_date', $i)
-            ->sum('ord_total');
+            $revenue = Billing::where('branch_id', $branchId)
+                ->whereYear('bill_date', now()->year)
+                ->whereMonth('bill_date', $i)
+                ->sum('total_amount');
             
             $monthlyRevenue[] = (float) $revenue;
         }

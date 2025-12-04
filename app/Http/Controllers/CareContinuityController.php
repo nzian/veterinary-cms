@@ -426,8 +426,9 @@ class CareContinuityController extends Controller
                 'pet_id' => $appointment->pet_id,
                 'user_id' => $appointment->user_id,
                 'patient_type' => 'outpatient',
-                'visit_status' => 'pending',
-                'workflow_status' => 'Pending',
+                'visit_status' => 'arrived',
+                'visit_source' => 'appointment', // Track that this visit was created from an appointment (follow-up)
+                'workflow_status' => 'Active',
             ]);
 
             // Determine services based on the most recent prior Visit for this pet (no dependency on appointment services)
@@ -593,6 +594,7 @@ class CareContinuityController extends Controller
                 'temperature' => $originalVisit->temperature ?? null,
                 'patient_type' => 'outpatient',
                 'visit_status' => 'arrived',
+                'visit_source' => 'referral', // Track that this visit was created from a referral
                 'workflow_status' => 'Active',
             ]);
 

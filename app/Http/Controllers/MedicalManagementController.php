@@ -32,6 +32,7 @@ use App\Services\InventoryService;
 use App\Services\DynamicSMSService;
 use App\Services\GroupedBillingService;
 use App\Models\InventoryHistory as InventoryHistoryModel;
+use App\Models\InventoryTransaction;
 
 class MedicalManagementController extends Controller
 {
@@ -165,12 +166,22 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         $activeTab = $request->get('tab', 'visits'); 
         $activeBranchId = session('active_branch_id');
         $user = Auth::user();
+        $isInBranchMode = session('branch_mode') === 'active';
+        
+        // Determine if we should show ALL branches (Super Admin in global mode)
+        $showAllBranches = ($user->user_role === 'superadmin' && !$isInBranchMode);
         
         if ($user->user_role !== 'superadmin') {
             $activeBranchId = $user->branch_id;
         }
 
-        $branchUserIds = User::where('branch_id', $activeBranchId)->pluck('user_id')->toArray();
+        // Get branch user IDs (all users if showing all branches)
+        if ($showAllBranches) {
+            $branchUserIds = User::pluck('user_id')->toArray();
+        } else {
+            $branchUserIds = User::where('branch_id', $activeBranchId)->pluck('user_id')->toArray();
+        }
+        
         $lookups = $this->getBranchLookups(); 
 
         // Fix 1.2: Pulling out the necessary lookup variables for the main view's compact()
@@ -179,11 +190,16 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         $serviceTypes = $lookups['serviceTypes'];
 
 
-        $baseVisitQuery = function() use ($activeBranchId) {
-            return Visit::with(['pet.owner', 'user', 'services'])
-                ->whereHas('pet') // Only include visits that have a valid pet
-                ->whereHas('user', fn($q) => $q->where('branch_id', $activeBranchId))
-                ->orderBy('visit_date', 'desc')->orderBy('visit_id', 'desc');
+        $baseVisitQuery = function() use ($activeBranchId, $showAllBranches) {
+            $query = Visit::with(['pet.owner', 'user', 'services'])
+                ->whereHas('pet'); // Only include visits that have a valid pet
+            
+            // If NOT showing all branches, filter by branch
+            if (!$showAllBranches) {
+                $query->whereHas('user', fn($q) => $q->where('branch_id', $activeBranchId));
+            }
+            
+            return $query->orderBy('visit_date', 'desc')->orderBy('visit_id', 'desc');
         };
 
         // Helper for getting all records for client-side filtering
@@ -246,25 +262,44 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
             })->count(),
         ];
 
-        $appointments = Appointment::whereHas('user', fn($q) => $q->where('branch_id', $activeBranchId))->with('pet.owner', 'services')->paginate(10);
+        // Appointments query - show all if Super Admin in global mode
+        if ($showAllBranches) {
+            $appointments = Appointment::with('pet.owner', 'services')->paginate(10);
+        } else {
+            $appointments = Appointment::whereHas('user', fn($q) => $q->where('branch_id', $activeBranchId))->with('pet.owner', 'services')->paginate(10);
+        }
+        
         $prescriptions = Prescription::whereIn('user_id', $branchUserIds)->with('pet.owner')->paginate(10);
 
         
-        // Load referrals for current branch (both created by this branch and referred to this branch)
-        $referrals = Referral::where(function($query) use ($branchUserIds, $activeBranchId) {
-                $query->whereIn('ref_by', $branchUserIds)
-                      ->orWhere('ref_to', $activeBranchId);
-            })
-            ->with([
-                'pet.owner',
-                'visit.services',
-                'refByBranch.branch',
-                'refToBranch',
-                'referralCompany',
-                'referredVisit'
-            ])
-            ->orderBy('ref_date', 'desc')
-            ->get();
+        // Load referrals - show all if Super Admin in global mode
+        if ($showAllBranches) {
+            $referrals = Referral::with([
+                    'pet.owner',
+                    'visit.services',
+                    'refByBranch.branch',
+                    'refToBranch',
+                    'referralCompany',
+                    'referredVisit'
+                ])
+                ->orderBy('ref_date', 'desc')
+                ->paginate(10);
+        } else {
+            $referrals = Referral::where(function($query) use ($branchUserIds, $activeBranchId) {
+                    $query->whereIn('ref_by', $branchUserIds)
+                          ->orWhere('ref_to', $activeBranchId);
+                })
+                ->with([
+                    'pet.owner',
+                    'visit.services',
+                    'refByBranch.branch',
+                    'refToBranch',
+                    'referralCompany',
+                    'referredVisit'
+                ])
+                ->orderBy('ref_date', 'desc')
+                ->paginate(10);
+        }
 
 
         return view('medicalManagement', array_merge(compact(
@@ -1236,6 +1271,21 @@ public function completeService(Request $request, $visitId, $serviceId)
                         ]);
                     }
                 }
+            }
+
+            // Deduct consumable products linked to boarding service when checking in (first time only)
+            // Only deduct if this is a NEW check-in (no existing boarding record or status was not previously Checked In)
+            $previousStatus = $existingBoardingRecord->status ?? null;
+            $isFirstCheckIn = ($boardingStatus === 'Checked In' && $previousStatus !== 'Checked In' && $previousStatus !== 'Check In');
+            
+            if ($isFirstCheckIn) {
+                $this->deductBoardingConsumables($service, $actualDays, $visitModel);
+                \Log::info('[Boarding] Consumables deducted on check-in', [
+                    'visit_id' => $visitModel->visit_id,
+                    'service_id' => $service->serv_id,
+                    'total_days' => $actualDays,
+                    'previous_status' => $previousStatus
+                ]);
             }
 
             // If equipment was changed, release the previous equipment
@@ -2327,6 +2377,18 @@ public function completeService(Request $request, $visitId, $serviceId)
                 }
             }
         }
+
+        // For emergency view, only show emergency services
+        // Explicitly filter by branch_id to ensure only current branch services are shown
+        if ($blade === 'emergency') {
+            $availableServices = Service::where('serv_type', 'like', '%emergency%')
+                ->when($branchId, function($query) use ($branchId) {
+                    $query->where('branch_id', $branchId);
+                })
+                ->orderBy('serv_name')
+                ->get();
+        }
+
        // dd($availableServices);
         // ðŸŒŸ NEW LOGIC: Fetch all registered veterinarians
         $veterinarians = User::where('user_role', 'veterinarian')
@@ -2695,7 +2757,9 @@ public function completeService(Request $request, $visitId, $serviceId)
                 'user_id' => Auth::id(),
                 'visit_date' => now(),
                 'visit_reason' => 'Referral: ' . $referral->ref_description,
-                'visit_status' => 'pending',
+                'visit_status' => 'arrived',
+                'visit_source' => 'referral', // Track that this visit was created from a referral
+                'workflow_status' => 'Active',
             ]);
 
             // Update referral status and link visit
@@ -3078,6 +3142,119 @@ public function completeService(Request $request, $visitId, $serviceId)
     public function getServiceProductsForVaccination($serviceId) 
     { 
         return response()->json(['success' => true, 'products' => []]);
+    }
+
+    /**
+     * Deduct consumable products linked to a boarding service when pet checks out.
+     * Products are multiplied by the number of boarding days.
+     * 
+     * @param Service $service The boarding service
+     * @param int $totalDays Number of boarding days
+     * @param Visit $visit The visit record
+     */
+    private function deductBoardingConsumables(Service $service, int $totalDays, Visit $visit): void
+    {
+        try {
+            // Get consumable products linked to this boarding service
+            $serviceProducts = ServiceProduct::where('serv_id', $service->serv_id)
+                ->with('product')
+                ->get();
+
+            if ($serviceProducts->isEmpty()) {
+                \Log::info('[Boarding Checkout] No consumable products linked to service', [
+                    'service_id' => $service->serv_id,
+                    'service_name' => $service->serv_name
+                ]);
+                return;
+            }
+
+            \Log::info('[Boarding Checkout] Deducting consumables', [
+                'service_id' => $service->serv_id,
+                'total_days' => $totalDays,
+                'products_count' => $serviceProducts->count()
+            ]);
+
+            foreach ($serviceProducts as $serviceProduct) {
+                $product = $serviceProduct->product;
+                
+                if (!$product) {
+                    \Log::warning('[Boarding Checkout] Product not found for service product', [
+                        'service_product_id' => $serviceProduct->id
+                    ]);
+                    continue;
+                }
+
+                // Only deduct consumable products
+                if ($product->prod_type !== 'Consumable') {
+                    \Log::info('[Boarding Checkout] Skipping non-consumable product', [
+                        'product_id' => $product->prod_id,
+                        'product_name' => $product->prod_name,
+                        'product_type' => $product->prod_type
+                    ]);
+                    continue;
+                }
+
+                // Calculate total quantity: quantity_per_day × total_days
+                $quantityPerDay = (float) $serviceProduct->quantity_used;
+                $totalQuantity = $quantityPerDay * $totalDays;
+
+                // Check if enough stock is available
+                $currentStock = (float) $product->prod_stocks;
+                $actualDeduction = min($currentStock, $totalQuantity);
+
+                if ($actualDeduction <= 0) {
+                    \Log::warning('[Boarding Checkout] No stock available to deduct', [
+                        'product_id' => $product->prod_id,
+                        'product_name' => $product->prod_name,
+                        'required' => $totalQuantity,
+                        'available' => $currentStock
+                    ]);
+                    continue;
+                }
+
+                // Deduct from inventory
+                $product->decrement('prod_stocks', $actualDeduction);
+
+                // Record inventory transaction
+                InventoryTransaction::create([
+                    'prod_id' => $product->prod_id,
+                    'transaction_type' => 'service_usage',
+                    'quantity_change' => -$actualDeduction,
+                    'reference' => "Boarding Checkout - Visit #{$visit->visit_id}",
+                    'serv_id' => $service->serv_id,
+                    'notes' => "Boarding for " . ($visit->pet->pet_name ?? 'Pet') . " ({$totalDays} days × {$quantityPerDay} = {$totalQuantity})",
+                    'performed_by' => Auth::id(),
+                    'created_at' => now(),
+                ]);
+
+                \Log::info('[Boarding Checkout] Product deducted', [
+                    'product_id' => $product->prod_id,
+                    'product_name' => $product->prod_name,
+                    'quantity_per_day' => $quantityPerDay,
+                    'total_days' => $totalDays,
+                    'total_deducted' => $actualDeduction,
+                    'new_stock' => $product->prod_stocks - $actualDeduction
+                ]);
+
+                // Check if stock is below reorder level
+                if (($product->prod_stocks - $actualDeduction) <= ($product->prod_reorderlevel ?? 0)) {
+                    \Log::warning('[Boarding Checkout] Stock below reorder level', [
+                        'product_id' => $product->prod_id,
+                        'product_name' => $product->prod_name,
+                        'current_stock' => $product->prod_stocks - $actualDeduction,
+                        'reorder_level' => $product->prod_reorderlevel
+                    ]);
+                }
+            }
+
+        } catch (\Exception $e) {
+            \Log::error('[Boarding Checkout] Error deducting consumables: ' . $e->getMessage(), [
+                'service_id' => $service->serv_id,
+                'visit_id' => $visit->visit_id,
+                'trace' => $e->getTraceAsString()
+            ]);
+            // Don't throw - let the checkout complete even if deduction fails
+        }
     }
 
     /**

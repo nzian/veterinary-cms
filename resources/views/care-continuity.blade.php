@@ -297,7 +297,7 @@
                                     {{ $index + 1 }}
                                 @endif
                             </td>
-                            <td class="border px-2 py-2">{{ $prescription->pet->pet_name }}</td>
+                            <td class="border px-2 py-2">{{ $prescription->pet->pet_name ?? 'N/A' }}</td>
                             <td class="border px-2 py-2">{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}</td>
                             <td class="border px-2 py-2">
                                 @if($prescription->medication)
@@ -313,13 +313,13 @@
                                @if(hasPermission('view_prescriptions', $can))
                                 <button onclick="viewPrescription(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
                                     data-id="{{ $prescription->prescription_id }}"
-                                    data-pet="{{ $prescription->pet->pet_name }}"
-                                    data-species="{{ $prescription->pet->pet_species }}"
-                                    data-breed="{{ $prescription->pet->pet_breed }}"
-                                    data-weight="{{ $prescription->pet->pet_weight }}"
-                                    data-age="{{ $prescription->pet->pet_age }}"
-                                    data-temp="{{ $prescription->pet->pet_temperature }}"
-                                    data-gender="{{ $prescription->pet->pet_gender }}"
+                                    data-pet="{{ $prescription->pet->pet_name ?? '' }}"
+                                    data-species="{{ $prescription->pet->pet_species ?? '' }}"
+                                    data-breed="{{ $prescription->pet->pet_breed ?? '' }}"
+                                    data-weight="{{ $prescription->pet->pet_weight ?? '' }}"
+                                    data-age="{{ $prescription->pet->pet_age ?? '' }}"
+                                    data-temp="{{ $prescription->pet->pet_temperature ?? '' }}"
+                                    data-gender="{{ $prescription->pet->pet_gender ?? '' }}"
                                     data-date="{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}"
                                     data-medication="{{ $prescription->medication }}"
                                      data-differential-diagnosis="{{ $prescription->differential_diagnosis }}"
@@ -334,13 +334,13 @@
                                 <!-- Direct Print Button -->
                                 <button onclick="directPrint(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
                                     data-id="{{ $prescription->prescription_id }}"
-                                    data-pet="{{ $prescription->pet->pet_name }}"
-                                    data-species="{{ $prescription->pet->pet_species }}"
-                                    data-breed="{{ $prescription->pet->pet_breed }}"
-                                    data-weight="{{ $prescription->pet->pet_weight }}"
-                                    data-age="{{ $prescription->pet->pet_age }}"
-                                    data-temp="{{ $prescription->pet->pet_temperature }}"
-                                    data-gender="{{ $prescription->pet->pet_gender }}"
+                                    data-pet="{{ $prescription->pet->pet_name ?? '' }}"
+                                    data-species="{{ $prescription->pet->pet_species ?? '' }}"
+                                    data-breed="{{ $prescription->pet->pet_breed ?? '' }}"
+                                    data-weight="{{ $prescription->pet->pet_weight ?? '' }}"
+                                    data-age="{{ $prescription->pet->pet_age ?? '' }}"
+                                    data-temp="{{ $prescription->pet->pet_temperature ?? '' }}"
+                                    data-gender="{{ $prescription->pet->pet_gender ?? '' }}"
                                     data-date="{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}"
                                     data-medication="{{ $prescription->medication }}"
                                      data-differential-diagnosis="{{ $prescription->differential_diagnosis }}"

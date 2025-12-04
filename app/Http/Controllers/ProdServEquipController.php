@@ -14,6 +14,7 @@ use App\Models\Bill;
 use App\Models\ServiceProduct; 
 use App\Models\ServiceEquipment;
 use App\Models\InventoryTransaction; 
+use App\Models\ProductConsumable;
 use App\Services\InventoryService; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -330,6 +331,12 @@ class ProdServEquipController extends Controller
                 'profit_margin_percentage' => 0
             ];
 
+            // Get total service usage for this product
+            $totalServiceUsage = DB::table('tbl_inventory_transactions')
+                ->where('prod_id', $id)
+                ->where('transaction_type', 'service_usage')
+                ->sum(DB::raw('ABS(quantity_change)')) ?? 0;
+
             // Fetch stock batches with damage/pullout history
             $stockBatches = DB::table('product_stock as ps')
                 ->leftJoin('tbl_user as creator', 'ps.created_by', '=', 'creator.user_id')
@@ -343,25 +350,37 @@ class ProdServEquipController extends Controller
                     'ps.created_at',
                     'creator.user_name as created_by_name'
                 )
-                ->orderBy('ps.created_at', 'desc')
-                ->get()
-                ->map(function($batch) {
-                    // Calculate damage and pullout for this batch
-                    $damagePullout = DB::table('product_damage_pullout')
-                        ->where('stock_id', $batch->id)
-                        ->selectRaw('
-                            COALESCE(SUM(damage_quantity), 0) as total_damage,
-                            COALESCE(SUM(pullout_quantity), 0) as total_pullout
-                        ')
-                        ->first();
-                    
-                    $batch->total_damage = $damagePullout->total_damage ?? 0;
-                    $batch->total_pullout = $damagePullout->total_pullout ?? 0;
-                    $batch->available_quantity = $batch->quantity - $batch->total_damage - $batch->total_pullout;
-                    $batch->is_expired = $batch->expire_date && Carbon::parse($batch->expire_date)->isPast();
-                    
-                    return $batch;
-                });
+                ->orderBy('ps.created_at', 'asc') // FIFO: oldest batches first for service usage allocation
+                ->get();
+            
+            // Distribute service usage across batches (FIFO)
+            $remainingServiceUsage = $totalServiceUsage;
+            $stockBatches = $stockBatches->map(function($batch) use (&$remainingServiceUsage) {
+                // Calculate damage and pullout for this batch
+                $damagePullout = DB::table('product_damage_pullout')
+                    ->where('stock_id', $batch->id)
+                    ->selectRaw('
+                        COALESCE(SUM(damage_quantity), 0) as total_damage,
+                        COALESCE(SUM(pullout_quantity), 0) as total_pullout
+                    ')
+                    ->first();
+                
+                $batch->total_damage = $damagePullout->total_damage ?? 0;
+                $batch->total_pullout = $damagePullout->total_pullout ?? 0;
+                
+                // Calculate available before service usage
+                $availableBeforeUsage = $batch->quantity - $batch->total_damage - $batch->total_pullout;
+                
+                // Allocate service usage to this batch (FIFO)
+                $batchServiceUsage = min($remainingServiceUsage, $availableBeforeUsage);
+                $remainingServiceUsage -= $batchServiceUsage;
+                
+                $batch->service_usage = $batchServiceUsage;
+                $batch->available_quantity = $availableBeforeUsage - $batchServiceUsage;
+                $batch->is_expired = $batch->expire_date && Carbon::parse($batch->expire_date)->isPast();
+                
+                return $batch;
+            })->sortByDesc('created_at')->values(); // Sort back to newest first for display
 
             // Fetch damage/pullout history
             $damagePulloutHistory = DB::table('product_damage_pullout as pdp')
@@ -2423,6 +2442,7 @@ public function getServiceInventoryOverview()
     
     /**
      * Get consumable products filtered by service type and branch
+     * Excludes out-of-stock and expired products
      */
     public function getConsumableProductsByFilter(Request $request)
     {
@@ -2444,16 +2464,21 @@ public function getServiceInventoryOverview()
 
             $products = $query->orderBy('prod_name')->get();
 
-            // Calculate available stock for each product
-            $productsWithStock = $products->map(function ($product) {
+            // Calculate available stock for each product and filter out disabled ones
+            $productsWithStock = $products->filter(function ($product) {
+                // Exclude expired and out-of-stock products
+                return !$product->is_disabled;
+            })->map(function ($product) {
                 return [
                     'prod_id' => $product->prod_id,
                     'prod_name' => $product->prod_name,
                     'prod_category' => $product->prod_category,
                     'branch_id' => $product->branch_id,
-                    'available_stock' => $product->available_stock - $product->usage_from_inventory_transactions
+                    'available_stock' => $product->available_stock - $product->usage_from_inventory_transactions,
+                    'is_expired' => $product->all_expired,
+                    'is_out_of_stock' => $product->is_out_of_stock,
                 ];
-            });
+            })->values();
 
             return response()->json([
                 'success' => true,
@@ -2594,6 +2619,153 @@ public function getServiceInventoryOverview()
             return response()->json([
                 'success' => true,
                 'message' => 'Manufacturer deleted successfully!'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // -------------------- LINKED CONSUMABLES METHODS --------------------
+
+    /**
+     * Get available consumable products for linking (excludes the current product)
+     */
+    public function getAvailableConsumables(Request $request)
+    {
+        try {
+            $excludeId = $request->input('exclude');
+            
+            // Only show Medical Supply category products for linking
+            $products = Product::where('prod_type', 'Consumable')
+                ->where('prod_category', 'Medical Supply')
+                ->when($excludeId, function($query) use ($excludeId) {
+                    $query->where('prod_id', '!=', $excludeId);
+                })
+                ->orderBy('prod_name')
+                ->get()
+                ->map(function($product) {
+                    return [
+                        'prod_id' => $product->prod_id,
+                        'prod_name' => $product->prod_name,
+                        'prod_category' => $product->prod_category,
+                        'available_stock' => $product->available_stock - $product->usage_from_inventory_transactions
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'products' => $products
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get linked consumables for a product
+     */
+    public function getLinkedConsumables($productId)
+    {
+        try {
+            $consumables = ProductConsumable::where('product_id', $productId)
+                ->with(['consumableProduct' => function($query) {
+                    $query->withoutGlobalScopes();
+                }])
+                ->get()
+                ->map(function($item) {
+                    return [
+                        'id' => $item->id,
+                        'consumable_product_id' => $item->consumable_product_id,
+                        'quantity' => $item->quantity,
+                        'consumable_product' => [
+                            'prod_id' => $item->consumableProduct->prod_id,
+                            'prod_name' => $item->consumableProduct->prod_name,
+                            'prod_category' => $item->consumableProduct->prod_category,
+                            'available_stock' => $item->consumableProduct->available_stock - $item->consumableProduct->usage_from_inventory_transactions
+                        ]
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'consumables' => $consumables
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Add a linked consumable to a product
+     */
+    public function addLinkedConsumable(Request $request, $productId)
+    {
+        $validated = $request->validate([
+            'consumable_product_id' => 'required|exists:tbl_prod,prod_id',
+            'quantity' => 'required|integer|min:1'
+        ]);
+
+        try {
+            // Check if already linked
+            $existing = ProductConsumable::where('product_id', $productId)
+                ->where('consumable_product_id', $validated['consumable_product_id'])
+                ->first();
+
+            if ($existing) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This consumable is already linked to this product'
+                ], 400);
+            }
+
+            // Prevent linking to itself
+            if ($productId == $validated['consumable_product_id']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'A product cannot be linked to itself'
+                ], 400);
+            }
+
+            $link = ProductConsumable::create([
+                'product_id' => $productId,
+                'consumable_product_id' => $validated['consumable_product_id'],
+                'quantity' => $validated['quantity']
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Consumable linked successfully!',
+                'link' => $link
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove a linked consumable
+     */
+    public function removeLinkedConsumable($linkId)
+    {
+        try {
+            $link = ProductConsumable::findOrFail($linkId);
+            $link->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Linked consumable removed successfully!'
             ]);
         } catch (\Exception $e) {
             return response()->json([

@@ -141,17 +141,40 @@
                     </thead>
                     <tbody>
                         @forelse ($owners as $index => $owner)
-                            <tr>
-                                <td class="border px-2 py-2">{{ $index + 1 }}</td>
-                                <td class="border px-2 py-2">{{ $owner->own_name }}</td>
+                            @php
+                                $ownerReferralInfo = $owner->getReferralStatusInfo();
+                                $ownerIsReferred = $ownerReferralInfo['type'] !== 'none';
+                                $ownerCanEdit = $ownerReferralInfo['can_edit'];
+                            @endphp
+                            <tr class="{{ $ownerReferralInfo['type'] === 'outgoing' ? 'bg-orange-50' : ($ownerReferralInfo['type'] === 'incoming' ? 'bg-purple-50' : '') }}">
+                                <td class="border px-2 py-2">{{ $owners->firstItem() + $index }}</td>
+                                <td class="border px-2 py-2">
+                                    <div class="flex flex-col items-center gap-1">
+                                        <span>{{ $owner->own_name }}</span>
+                                        @if($ownerReferralInfo['label'])
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $ownerReferralInfo['badge_class'] }} border">
+                                                @if($ownerReferralInfo['type'] === 'outgoing')
+                                                    <i class="fas fa-arrow-right mr-1"></i>
+                                                @else
+                                                    <i class="fas fa-arrow-left mr-1"></i>
+                                                @endif
+                                                {{ $ownerReferralInfo['label'] }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                </td>
                                 <td class="border px-2 py-2">{{ $owner->own_contactnum }}</td>
                                 <td class="border px-2 py-2">{{ $owner->own_location }}</td>
                                 <td class="border px-2 py-1">
                                 <div class="flex justify-center items-center gap-1">
-                                    @if(hasPermission('edit_owner', $can))
+                                    @if(hasPermission('edit_owner', $can) && $ownerCanEdit)
                                         <button onclick="openEditOwnerModal({{ json_encode($owner) }})" 
                                             class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs" title="edit">
                                             <i class="fas fa-pen"></i> 
+                                        </button>
+                                    @elseif(hasPermission('edit_owner', $can) && !$ownerCanEdit)
+                                        <button class="bg-gray-300 text-gray-500 px-2 py-1 rounded cursor-not-allowed flex items-center gap-1 text-xs" title="Cannot edit - Owner has pet referred to another branch" disabled>
+                                            <i class="fas fa-pen"></i>
                                         </button>
                                     @endif
                                     
@@ -171,7 +194,7 @@
                                         </button>
                                     @endif
 
-                                    @if(hasPermission('delete_owner', $can))
+                                    @if(hasPermission('delete_owner', $can) && $ownerCanEdit)
                                         <form action="{{ route('pet-management.destroyOwner', $owner->own_id) }}" method="POST"
                                             onsubmit="return confirm('Are you sure you want to delete this owner?');" class="inline">
                                             @csrf
@@ -180,6 +203,10 @@
                                                 <i class="fas fa-trash"></i> 
                                             </button>
                                         </form>
+                                    @elseif(hasPermission('delete_owner', $can) && !$ownerCanEdit)
+                                        <button class="bg-gray-300 text-gray-500 px-2 py-1 rounded cursor-not-allowed flex items-center gap-1 text-xs" title="Cannot delete - Owner has pet referred to another branch" disabled>
+                                            <i class="fas fa-trash"></i>
+                                        </button>
                                     @endif
                                 </div>
                             </td>
@@ -256,8 +283,13 @@
                     </thead>
                     <tbody>
                         @forelse ($pets as $index => $pet)
-                            <tr class="hover:bg-gray-50">
-                                <td class="border px-2 py-2">{{ $index + 1 }}</td>
+                            @php
+                                $referralInfo = $pet->getReferralStatusInfo();
+                                $isReferred = $referralInfo['type'] !== 'none';
+                                $canEdit = $referralInfo['can_edit'];
+                            @endphp
+                            <tr class="hover:bg-gray-50 {{ $referralInfo['type'] === 'outgoing' ? 'bg-orange-50' : ($referralInfo['type'] === 'incoming' ? 'bg-purple-50' : '') }}">
+                                <td class="border px-2 py-2">{{ $pets->firstItem() + $index }}</td>
                                 <td class="border px-2 py-2">
                                     @if($pet->pet_photo)
                                         <img src="{{ asset('storage/' . $pet->pet_photo) }}" alt="{{ $pet->pet_name }}" 
@@ -270,7 +302,21 @@
                                     @endif
                                 </td>
                                 <td class="border px-2 py-2">{{ \Carbon\Carbon::parse($pet->pet_registration)->format('F d, Y') }}</td>
-                                <td class="border px-2 py-2">{{ $pet->pet_name }}</td>
+                                <td class="border px-2 py-2">
+                                    <div class="flex flex-col items-center gap-1">
+                                        <span>{{ $pet->pet_name }}</span>
+                                        @if($referralInfo['label'])
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $referralInfo['badge_class'] }} border">
+                                                @if($referralInfo['type'] === 'outgoing')
+                                                    <i class="fas fa-arrow-right mr-1"></i>
+                                                @else
+                                                    <i class="fas fa-arrow-left mr-1"></i>
+                                                @endif
+                                                {{ $referralInfo['label'] }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                </td>
                                 <td class="border px-2 py-2">{{ $pet->pet_gender }}</td>
                                 <td class="border px-2 py-2">{{ $pet->pet_species }}</td>
                                 <td class="border px-2 py-2">{{ $pet->pet_breed }}</td>
@@ -279,7 +325,7 @@
                                 <td class="border px-2 py-2">{{ $pet->owner ? $pet->owner->own_name : 'N/A' }}</td>
                                 <td class="border px-2 py-1">
     <div class="flex justify-center items-center gap-1">
-        @if(hasPermission('edit_pet', $can))
+        @if(hasPermission('edit_pet', $can) && $canEdit)
             <button class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs editPetBtn" title="edit"
                 data-id="{{ $pet->pet_id }}"
                 data-name="{{ $pet->pet_name }}"
@@ -293,6 +339,10 @@
                 data-registration="{{ $pet->pet_registration }}"
               data-owner-id="{{ $pet->owner ? $pet->owner->own_id : '' }}"** data-owner-name="{{ $pet->owner ? $pet->owner->own_name : 'N/A' }}"
                 data-photo="{{ $pet->pet_photo }}">
+                <i class="fas fa-pen"></i>
+            </button>
+        @elseif(hasPermission('edit_pet', $can) && !$canEdit)
+            <button class="bg-gray-300 text-gray-500 px-2 py-1 rounded cursor-not-allowed flex items-center gap-1 text-xs" title="Cannot edit - Pet is referred to another branch" disabled>
                 <i class="fas fa-pen"></i>
             </button>
         @endif
@@ -326,7 +376,7 @@
                <i class="fa-solid fa-notes-medical"></i>
             </button>
         @endif
-        @if(hasPermission('delete_pet', $can))
+        @if(hasPermission('delete_pet', $can) && $canEdit)
             <form action="{{ route('pet-management.destroyPet', $pet->pet_id) }}" method="POST"
                 onsubmit="return confirm('Are you sure you want to delete this pet?');" class="inline">
                 @csrf
@@ -335,6 +385,10 @@
                     <i class="fas fa-trash"></i> 
                 </button>
             </form>
+        @elseif(hasPermission('delete_pet', $can) && !$canEdit)
+            <button class="bg-gray-300 text-gray-500 px-2 py-1 rounded cursor-not-allowed flex items-center gap-1 text-xs" title="Cannot delete - Pet is referred to another branch" disabled>
+                <i class="fas fa-trash"></i>
+            </button>
         @endif
     </div>
 </td>

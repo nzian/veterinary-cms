@@ -81,7 +81,7 @@
                 'color' => 'from-purple-500 to-purple-600',
                 'subtext' => 'All branches',
                 'change' => '+' . $totalStaff,
-                'route' => route('branch-user-management.index')
+                'route' => route('branch-user-management.index') . '?tab=user'
             ],
             [
                 'label' => 'Total Visits',

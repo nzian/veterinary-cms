@@ -58,7 +58,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Grooming</h2>
                     @if(isset($pendingCounts['grooming']) && $pendingCounts['grooming'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['grooming'] }}
                         </span>
                     @endif
@@ -69,7 +69,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Boarding</h2>
                     @if(isset($pendingCounts['boarding']) && $pendingCounts['boarding'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['boarding'] }}
                         </span>
                     @endif
@@ -80,7 +80,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Check-up</h2>
                     @if(isset($pendingCounts['checkup']) && $pendingCounts['checkup'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['checkup'] }}
                         </span>
                     @endif
@@ -89,7 +89,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Vaccination</h2>
                     @if(isset($pendingCounts['vaccination']) && $pendingCounts['vaccination'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['vaccination'] }}
                         </span>
                     @endif
@@ -98,7 +98,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Deworming</h2>
                     @if(isset($pendingCounts['deworming']) && $pendingCounts['deworming'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['deworming'] }}
                         </span>
                     @endif
@@ -107,7 +107,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Surgical</h2>
                     @if(isset($pendingCounts['surgical']) && $pendingCounts['surgical'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['surgical'] }}
                         </span>
                     @endif
@@ -116,7 +116,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Diagnostics</h2>
                     @if(isset($pendingCounts['diagnostics']) && $pendingCounts['diagnostics'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['diagnostics'] }}
                         </span>
                     @endif
@@ -125,7 +125,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Emergency</h2>
                     @if(isset($pendingCounts['emergency']) && $pendingCounts['emergency'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['emergency'] }}
                         </span>
                     @endif
@@ -335,7 +335,21 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($visit->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $visit->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $visit->pet->pet_name ?? 'N/A' }}
+                                    @php
+                                        $visitSource = $visit->visit_source ?? 'walk-in';
+                                    @endphp
+                                    @if($visitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                            <i class="fas fa-exchange-alt mr-1"></i> Referral Visit
+                                        </span>
+                                    @elseif($visitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                            <i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment
+                                        </span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">
                                     @php
                                         $s = strtolower($visit->pet->pet_species ?? '');
@@ -497,7 +511,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($c->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $c->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $c->pet->pet_name ?? 'N/A' }}
+                                    @php $cVisitSource = $c->visit_source ?? 'walk-in'; @endphp
+                                    @if($cVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($cVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $c->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $c->workflow_status ?? ($c->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
@@ -628,7 +650,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($d->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $d->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $d->pet->pet_name ?? 'N/A' }}
+                                    @php $dVisitSource = $d->visit_source ?? 'walk-in'; @endphp
+                                    @if($dVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($dVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $d->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $d->workflow_status ?? ($d->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
@@ -759,7 +789,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($d->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $d->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $d->pet->pet_name ?? 'N/A' }}
+                                    @php $dxVisitSource = $d->visit_source ?? 'walk-in'; @endphp
+                                    @if($dxVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($dxVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $d->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $d->workflow_status ?? ($d->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
@@ -890,7 +928,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($s->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $s->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $s->pet->pet_name ?? 'N/A' }}
+                                    @php $sxVisitSource = $s->visit_source ?? 'walk-in'; @endphp
+                                    @if($sxVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($sxVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $s->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $s->workflow_status ?? ($s->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
@@ -1021,7 +1067,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($e->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $e->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $e->pet->pet_name ?? 'N/A' }}
+                                    @php $emVisitSource = $e->visit_source ?? 'walk-in'; @endphp
+                                    @if($emVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($emVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $e->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $e->workflow_status ?? ($e->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
@@ -1152,7 +1206,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($v->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $v->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $v->pet->pet_name ?? 'N/A' }}
+                                    @php $vaccVisitSource = $v->visit_source ?? 'walk-in'; @endphp
+                                    @if($vaccVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($vaccVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $v->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $v->workflow_status ?? ($v->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
@@ -1283,7 +1345,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($g->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $g->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $g->pet->pet_name ?? 'N/A' }}
+                                    @php $groomVisitSource = $g->visit_source ?? 'walk-in'; @endphp
+                                    @if($groomVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($groomVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $g->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $g->workflow_status ?? ($g->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
@@ -1414,7 +1484,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($b->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $b->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $b->pet->pet_name ?? 'N/A' }}
+                                    @php $boardVisitSource = $b->visit_source ?? 'walk-in'; @endphp
+                                    @if($boardVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($boardVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $b->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">
                                     @php

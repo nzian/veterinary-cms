@@ -77,10 +77,17 @@
                             <select name="emergency_type" class="w-full border border-gray-300 p-3 rounded-lg">
                                 @php($selectedType = old('emergency_type', $__emerg['emergency_type'] ?? ''))
                                 <option value="">Select type</option>
-                                <option value="Trauma" {{ $selectedType === 'Trauma' ? 'selected' : '' }}>Trauma</option>
-                                <option value="Poisoning" {{ $selectedType === 'Poisoning' ? 'selected' : '' }}>Poisoning</option>
-                                <option value="Respiratory distress" {{ $selectedType === 'Respiratory distress' ? 'selected' : '' }}>Respiratory distress</option>
-                                <option value="Seizure" {{ $selectedType === 'Seizure' ? 'selected' : '' }}>Seizure</option>
+                                @if(isset($availableServices) && $availableServices->count() > 0)
+                                    @foreach($availableServices as $service)
+                                        <option value="{{ $service->serv_name }}" {{ $selectedType === $service->serv_name ? 'selected' : '' }}>{{ $service->serv_name }}</option>
+                                    @endforeach
+                                @else
+                                    {{-- Fallback options if no services are found --}}
+                                    <option value="Trauma" {{ $selectedType === 'Trauma' ? 'selected' : '' }}>Trauma</option>
+                                    <option value="Poisoning" {{ $selectedType === 'Poisoning' ? 'selected' : '' }}>Poisoning</option>
+                                    <option value="Respiratory distress" {{ $selectedType === 'Respiratory distress' ? 'selected' : '' }}>Respiratory distress</option>
+                                    <option value="Seizure" {{ $selectedType === 'Seizure' ? 'selected' : '' }}>Seizure</option>
+                                @endif
                             </select>
                         </div>
                         <div>

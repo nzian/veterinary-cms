@@ -35,9 +35,17 @@ class MedicalHistory extends Model
     {
         static::addGlobalScope('branch_medical_history_scope', function (Builder $builder) {
             $user = auth()->user();
-            $isSuperAdmin = $user && strtolower(trim($user->user_role)) === 'superadmin';
+            if (!$user) return; // No user logged in
+            
+            $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
             $isInBranchMode = Session::get('branch_mode') === 'active';
+            
+            // Get active branch ID - use session for superadmin in branch mode, otherwise use user's branch
             $activeBranchId = Session::get('active_branch_id');
+            if (!$isSuperAdmin) {
+                // For non-superadmin, always use their assigned branch
+                $activeBranchId = $user->branch_id;
+            }
 
             // Super Admin in Global Mode: no filter
             if ($isSuperAdmin && !$isInBranchMode) {

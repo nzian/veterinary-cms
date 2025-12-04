@@ -6,6 +6,7 @@ use App\Models\Service as ServiceModel;
 
 use App\Models\Product;
 use App\Models\ServiceProduct;
+use App\Models\ProductConsumable;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Appointment;
 use App\Models\InventoryTransaction;
@@ -17,6 +18,7 @@ class InventoryService
 {
     /**
      * Deduct quantity from a product's inventory
+     * Also deducts linked consumables automatically
      * 
      * @param int $productId The ID of the product to deduct from
      * @param int $quantity The quantity to deduct
@@ -36,9 +38,28 @@ class InventoryService
                 throw new \Exception("Product with ID {$productId} not found");
             }
 
-            // Use the new batch-based deduction logic
-            $this->deductFromStockBatches($product, $quantity, $reference, $type);
+            // Check if we have enough stock
+            if ($product->prod_stocks < $quantity) {
+                throw new \Exception("Insufficient stock for product {$product->prod_name}");
+            }
+
+            // Deduct the quantity
+            $product->prod_stocks -= $quantity;
+            $product->save();
+
+            // Record the transaction
+            $transaction = new InventoryTransaction();
+            $transaction->prod_id = $productId;
+            $transaction->transaction_type = $type;
+            $transaction->quantity_change = -1 * $quantity;
+            $transaction->reference = $reference;
+           // $transaction->transaction_date = now();
+            $transaction->performed_by = Auth::id();
+            $transaction->save();
             
+            // ===== DEDUCT LINKED CONSUMABLES =====
+            $this->deductLinkedConsumables($productId, $quantity, $reference, $type);
+
             DB::commit();
             
             // Check if stock is below reorder level and log a warning
@@ -52,6 +73,75 @@ class InventoryService
             DB::rollBack();
             Log::error("Error deducting from inventory: " . $e->getMessage());
             throw $e;
+        }
+    }
+    
+    /**
+     * Deduct linked consumables for a product
+     * For example, when a vaccine is used, deduct linked syringes
+     * 
+     * @param int $productId The parent product ID
+     * @param int $parentQuantity The quantity of parent product being used
+     * @param string $reference The reference for the transaction
+     * @param string $type The transaction type
+     */
+    protected function deductLinkedConsumables($productId, $parentQuantity, $reference, $type): void
+    {
+        try {
+            // Get linked consumables for this product
+            $linkedConsumables = ProductConsumable::where('product_id', $productId)
+                ->with('consumableProduct')
+                ->get();
+            
+            if ($linkedConsumables->isEmpty()) {
+                return; // No linked consumables to deduct
+            }
+            
+            foreach ($linkedConsumables as $link) {
+                $consumable = $link->consumableProduct;
+                
+                if (!$consumable) {
+                    Log::warning("Linked consumable product not found for link ID {$link->id}");
+                    continue;
+                }
+                
+                // Calculate quantity to deduct (link quantity * parent quantity used)
+                $consumableQtyToDeduct = $link->quantity * $parentQuantity;
+                
+                // Check if we have enough stock
+                $currentStock = $consumable->prod_stocks ?? 0;
+                $actualDeduction = min($currentStock, $consumableQtyToDeduct);
+                
+                if ($actualDeduction > 0) {
+                    // Deduct from consumable stock
+                    $consumable->prod_stocks = max(0, $currentStock - $actualDeduction);
+                    $consumable->save();
+                    
+                    // Record the transaction for the consumable
+                    $parentProductName = $link->product->prod_name ?? 'Unknown';
+                    InventoryTransaction::create([
+                        'prod_id' => $consumable->prod_id,
+                        'transaction_type' => $type,
+                        'quantity_change' => -$actualDeduction,
+                        'reference' => $reference . " (Linked from: {$parentProductName})",
+                        'performed_by' => Auth::id(),
+                        'notes' => "Auto-deducted as linked consumable",
+                        'created_at' => now(),
+                    ]);
+                    
+                    Log::info("✅ Linked consumable deducted: {$consumable->prod_name} x {$actualDeduction} (linked to product ID {$productId})");
+                    
+                    // Log warning if consumable stock is low
+                    if ($consumable->prod_stocks <= ($consumable->prod_reorderlevel ?? 0)) {
+                        Log::warning("Linked consumable {$consumable->prod_name} is at or below reorder level. Current stock: {$consumable->prod_stocks}");
+                    }
+                } else {
+                    Log::warning("⚠️ Insufficient stock for linked consumable {$consumable->prod_name}. Need: {$consumableQtyToDeduct}, Available: {$currentStock}");
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error("Error deducting linked consumables: " . $e->getMessage());
+            // Don't throw - just log. We don't want to fail the main transaction
         }
     }
 
@@ -168,9 +258,10 @@ class InventoryService
                     Log::info("✅ Deducted {$actualDeduction} units of '{$product->prod_name}' for Service '{$serviceName}' (Stock: {$oldStock} → {$product->prod_stocks})");
                     
                     // Record transaction
+                    $transactionType = $serviceName == ($vaccinationService->serv_name ?? 'Vaccination') ? 'vaccination_usage' : 'service_usage';
                     InventoryTransaction::create([
                         'prod_id' => $product->prod_id,
-                        'transaction_type' => $serviceName == ($vaccinationService->serv_name ?? 'Vaccination') ? 'vaccination_usage' : 'service_usage',
+                        'transaction_type' => $transactionType,
                         'quantity_change' => -$actualDeduction,
                         'reference' => "Appointment #{$appointment->appoint_id}",
                         'serv_id' => $service->serv_id,
@@ -181,6 +272,15 @@ class InventoryService
                     ]);
                     
                     Log::info("📝 Inventory transaction recorded for product {$product->prod_id}");
+                    
+                    // ===== DEDUCT LINKED CONSUMABLES =====
+                    // When a product (e.g., vaccine) is used, also deduct its linked consumables (e.g., syringe)
+                    $this->deductLinkedConsumables(
+                        $product->prod_id, 
+                        $actualDeduction, 
+                        "Appointment #{$appointment->appoint_id} - {$serviceName}",
+                        $transactionType
+                    );
                 }
             }
             
@@ -243,96 +343,50 @@ class InventoryService
     }
 
     public function deductSpecificProduct(int $productId, float $quantity, int $appointmentId, int $serviceId): bool
-{
-    try {
-        DB::beginTransaction();
-        
-        $product = Product::find($productId);
-        if (!$product || $product->prod_stocks < $quantity) {
+    {
+        try {
+            DB::beginTransaction();
+            
+            $product = Product::find($productId);
+            if (!$product || $product->prod_stocks < $quantity) {
+                DB::rollBack();
+                Log::warning("💉 Vaccine Deduction Failed: Product {$productId} not found or insufficient stock.");
+                return false;
+            }
+
+            $oldStock = $product->prod_stocks;
+            $product->prod_stocks -= $quantity;
+            $product->save();
+
+            InventoryTransaction::create([
+                'prod_id' => $productId,
+                'transaction_type' => 'service_usage',
+                'quantity_change' => -$quantity,
+                'reference' => "Appoint #{$appointmentId} Vaccine Record",
+                'serv_id' => $serviceId,
+                'appoint_id' => $appointmentId,
+                'user_id' => Auth::id(),
+                'notes' => "Used in specific vaccine recording.",
+                'created_at' => now(),
+            ]);
+            
+            // ===== DEDUCT LINKED CONSUMABLES =====
+            // When a vaccine is used, also deduct its linked consumables (e.g., syringe)
+            $this->deductLinkedConsumables(
+                $productId, 
+                $quantity, 
+                "Appoint #{$appointmentId} Vaccine Record",
+                'service_usage'
+            );
+            
+            DB::commit();
+            Log::info("✅ Vaccine Deduction Success: Prod {$productId} Stock: {$oldStock} -> {$product->prod_stocks}");
+            return true;
+
+        } catch (\Exception $e) {
             DB::rollBack();
-            Log::warning("💉 Vaccine Deduction Failed: Product {$productId} not found or insufficient stock.");
+            Log::error("❌ Specific Product Deduction Error (Vaccine): " . $e->getMessage());
             return false;
         }
-
-        // Use batch deduction
-        $this->deductFromStockBatches($product, $quantity, "Appoint #{$appointmentId} Vaccine Record", 'service_usage', $serviceId);
-        
-        DB::commit();
-        Log::info("✅ Vaccine Deduction Success: Prod {$productId} Stock: {($product->current_stock + $quantity)} -> {$product->current_stock}");
-        return true;
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        Log::error("❌ Specific Product Deduction Error (Vaccine): " . $e->getMessage());
-        return false;
-    }
-    }
-
-    /**
-     * Helper method to deduct quantity from product stock batches (FIFO by expiration)
-     * Also updates the main Product model's prod_stocks
-     * 
-     * @param Product $product
-     * @param float $quantity
-     * @throws \Exception If insufficient stock
-     */
-    private function deductFromStockBatches(Product $product, float $quantity, string $reference = '', string $type = 'adjustment', $serv_id = null)
-    {
-        $remainingToDeduct = $quantity;
-        
-        // Get non-expired batches ordered by expiration date (FIFO)
-        // We assume 'expire_date' is the field.
-        $batches = ProductStock::where('stock_prod_id', $product->prod_id)
-            ->where('expire_date', '>=', now()->toDateString())
-            ->where('quantity', '>', 0)
-            ->orderBy('expire_date', 'asc')
-            ->get();
-
-        $totalAvailableInBatches = $batches->sum('quantity');
-
-        if ($totalAvailableInBatches < $quantity) {
-             // Option: Throw exception OR allow partial deduction and let the main stock go negative?
-             // Requirement says "make sure saving those service Consumable product quantity is deducted from the product stock table not expire"
-             // Implies strict check.
-             throw new \Exception("Insufficient non-expired stock in batches. Required: {$quantity}, Available: {$totalAvailableInBatches}");
-        }
-
-        foreach ($batches as $batch) {
-            if ($remainingToDeduct <= 0) break;
-
-            if ($batch->quantity >= $remainingToDeduct) {
-                // This batch has enough
-                $batch->quantity -= $remainingToDeduct;
-                $batch->save();
-                $remainingToDeduct = 0;
-                $deducted = $remainingToDeduct;
-            } else {
-                // Take everything from this batch
-                $deducted = $batch->quantity;
-                $batch->quantity = 0;
-                $batch->save();
-                $remainingToDeduct -= $deducted;
-            }
-            // Record the transaction
-            $transaction = new InventoryTransaction();
-            $transaction->prod_id = $product->prod_id;
-            $transaction->transaction_type = $type;
-            $transaction->quantity_change = -1 * $deducted;
-            $transaction->reference = $reference;
-            $transaction->batch_id = $batch->id;
-            $transaction->serv_id = $serv_id;
-           // $transaction->transaction_date = now();
-            $transaction->performed_by = Auth::id();
-            $transaction->save();
-        }
-
-        // Update the aggregate stock on the Product model
-        // We can either decrement by $quantity or recalculate from batches.
-        // Recalculating is safer but slower. Decrementing is faster.
-        // Let's decrement to match the logic of "deducting".
-        // However, if we want to be 100% sure, we might want to sync.
-        // For now, let's decrement the main stock column as well.
-        $product->prod_stocks = max(0, $product->prod_stocks - $quantity);
-        $product->save();
     }
 }

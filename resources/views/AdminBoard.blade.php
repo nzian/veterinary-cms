@@ -430,7 +430,6 @@
             $superAdminGlobalMenu = [
               ['route' => 'dashboard-index', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
               ['route' => 'branch-management.index', 'icon' => 'fa-building', 'label' => 'Branch Management'],
-              ['route' => 'prodservequip.index', 'icon' => 'fa-boxes', 'label' => 'Inventory Management'],
               ['route' => 'report.index', 'icon' => 'fa-chart-bar', 'label' => 'Reports'],
             ];
             

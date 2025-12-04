@@ -179,6 +179,12 @@ Route::post('manufacturers', [App\Http\Controllers\ProdServEquipController::clas
 Route::put('manufacturers/{id}', [App\Http\Controllers\ProdServEquipController::class, 'updateManufacturer'])->name('manufacturers.update');
 Route::delete('manufacturers/{id}', [App\Http\Controllers\ProdServEquipController::class, 'deleteManufacturer'])->name('manufacturers.destroy');
 
+// Linked Consumables Routes (for linking products like syringes to vaccines)
+Route::get('/products/consumables/available', [App\Http\Controllers\ProdServEquipController::class, 'getAvailableConsumables'])->name('products.consumables.available');
+Route::get('/products/{productId}/linked-consumables', [App\Http\Controllers\ProdServEquipController::class, 'getLinkedConsumables'])->name('products.linkedConsumables.get');
+Route::post('/products/{productId}/linked-consumables', [App\Http\Controllers\ProdServEquipController::class, 'addLinkedConsumable'])->name('products.linkedConsumables.add');
+Route::delete('/products/linked-consumables/{linkId}', [App\Http\Controllers\ProdServEquipController::class, 'removeLinkedConsumable'])->name('products.linkedConsumables.remove');
+
 Route::get('medical-management/services/{serviceId}/products', [ProdServEquipController::class, 'getServiceProductsForVaccination'])->name('medical.services.products');
 
 // Route to save the specific vaccine details to the pivot table

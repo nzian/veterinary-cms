@@ -140,4 +140,84 @@ public function getBranchIdColumn()
         return $this->stockBatches()->sum('quantity');
     }
 
+    /**
+     * Check if all stock batches are expired
+     */
+    public function getAllExpiredAttribute()
+    {
+        $totalBatches = $this->stockBatches()->count();
+        if ($totalBatches === 0) {
+            return false; // No batches means not expired (just no stock)
+        }
+        
+        $expiredBatches = $this->stockBatches()->expired()->count();
+        return $totalBatches > 0 && $totalBatches === $expiredBatches;
+    }
+
+    /**
+     * Check if product is out of stock (available stock is 0 or less)
+     */
+    public function getIsOutOfStockAttribute()
+    {
+        return ($this->available_stock - $this->usage_from_inventory_transactions) <= 0;
+    }
+
+    /**
+     * Check if product should be disabled (expired or out of stock)
+     */
+    public function getIsDisabledAttribute()
+    {
+        return $this->is_out_of_stock || $this->all_expired;
+    }
+
+    /**
+     * Get the status label for the product
+     */
+    public function getStockStatusLabelAttribute()
+    {
+        if ($this->all_expired) {
+            return 'Expired';
+        }
+        if ($this->is_out_of_stock) {
+            return 'Out of Stock';
+        }
+        return 'Available';
+    }
+
+    /**
+     * Get linked consumable products (e.g., syringe linked to vaccine)
+     * These consumables will be auto-deducted when this product is used
+     */
+    public function linkedConsumables()
+    {
+        return $this->belongsToMany(
+            Product::class,
+            'tbl_product_consumables',
+            'product_id',
+            'consumable_product_id'
+        )->withPivot('quantity')->withTimestamps();
+    }
+
+    /**
+     * Get products that use this product as a consumable
+     * (Inverse relationship - e.g., which vaccines use this syringe)
+     */
+    public function usedByProducts()
+    {
+        return $this->belongsToMany(
+            Product::class,
+            'tbl_product_consumables',
+            'consumable_product_id',
+            'product_id'
+        )->withPivot('quantity')->withTimestamps();
+    }
+
+    /**
+     * Get the product consumable links directly
+     */
+    public function productConsumables()
+    {
+        return $this->hasMany(ProductConsumable::class, 'product_id', 'prod_id');
+    }
+
 }
