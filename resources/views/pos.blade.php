@@ -109,9 +109,8 @@
                     <i class="fas fa-user mr-2 text-[#ff8c42]"></i>Select Customer
                 </label>
                 <select id="petOwner" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#ff8c42] focus:border-transparent transition-all duration-300 bg-white shadow-sm">
-                    <option value="0" selected disabled>Select owner</option>
                     @foreach ($owners as $owner)
-                        <option value="{{ $owner->own_id }}">{{ $owner->own_name }}{{ $owner->own_id > 0 ? ' (' . ($owner->pets_count ?? 0) . ' ' . (($owner->pets_count ?? 0) == 1 ? 'pet' : 'pets') . ')' : '' }}</option>
+                        <option value="{{ $owner->own_id }}" {{ $owner->own_id == 0 ? 'selected' : '' }}>{{ $owner->own_name }}{{ $owner->own_id > 0 ? ' (' . ($owner->pets_count ?? 0) . ' ' . (($owner->pets_count ?? 0) == 1 ? 'pet' : 'pets') . ')' : '' }}</option>
                     @endforeach
                 </select>
                 <!-- Select2 JS and CSS -->

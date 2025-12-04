@@ -1529,7 +1529,6 @@
                                             // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $boardPrescription = \App\Models\Prescription::where('pres_visit_id', $b->visit_id)->first();
                                         @endphp
-                                        @endphp
                                         @if($boardPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
                                             data-id="{{ $boardPrescription->prescription_id }}"

@@ -367,7 +367,7 @@
     $userRole = strtolower(trim(auth()->user()->user_role));
     $branchMode = session('branch_mode') === 'active';
   @endphp
-  @if($userRole === 'receptionist' || ($userRole === 'superadmin' && $branchMode))
+  @if($userRole === 'receptionist')
     <a href="{{ route('pos') }}" class="mr-4">
       <button
         class="bg-gradient-to-r from-[#8bc34a] to-[#7cb342] text-white font-semibold px-6 py-2.5 rounded-xl hover-lift modern-btn shadow-lg hover:shadow-xl smooth-transition">

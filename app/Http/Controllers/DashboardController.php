@@ -227,10 +227,21 @@ $totalOwners = Owner::whereIn('user_id', $branchUserIds)->count();
                 $q->where('branch_id', $activeBranchId);
             })->count();
 
-        $dailySales = Order::whereDate('ord_date', $today)
+        // Daily Revenue = POS Sales (paid only) + Paid Billing Payments (only actual payments, not total_amount)
+        $dailyPosSales = Order::whereDate('ord_date', $today)
+            ->where('payment_status', 'paid')
             ->whereHas('user', function($q) use ($activeBranchId) {
                 $q->where('branch_id', $activeBranchId);
             })->sum('ord_total');
+        
+        // Get actual billing payments made today (from tbl_pay)
+        $dailyBillingPayments = Payment::whereDate('created_at', $today)
+            ->where('status', 'paid')
+            ->whereHas('billing', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            })->sum('pay_total');
+        
+        $dailySales = $dailyPosSales + $dailyBillingPayments;
 
         // Metrics
         $totalOrders = Order::whereHas('user', function($q) use ($activeBranchId) {
@@ -256,8 +267,9 @@ $totalOwners = Owner::whereIn('user_id', $branchUserIds)->count();
             $date = Carbon::today()->subDays($i);
             $orderDates[] = $date->format('M d');
             
-            // POS Sales (direct orders)
+            // POS Sales (direct orders - paid only)
             $posTotal = Order::whereDate('ord_date', $date)
+                ->where('payment_status', 'paid')
                 ->whereHas('user', function($q) use ($activeBranchId) {
                     $q->where('branch_id', $activeBranchId);
                 })
@@ -274,9 +286,10 @@ $totalOwners = Owner::whereIn('user_id', $branchUserIds)->count();
         }
 
         // Monthly Revenue - filtered by branch (POS sales + Visit billing payments)
-        // Get POS sales by month
+        // Get POS sales by month (paid only)
         $posMonthly = Order::selectRaw('MONTH(ord_date) as month, SUM(ord_total) as total')
             ->whereYear('ord_date', now()->year)
+            ->where('payment_status', 'paid')
             ->whereHas('user', function($q) use ($activeBranchId) {
                 $q->where('branch_id', $activeBranchId);
             })

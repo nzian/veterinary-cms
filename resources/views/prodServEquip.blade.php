@@ -284,14 +284,14 @@
                         <label for="servicesCategoryFilter" class="whitespace-nowrap text-sm text-black ml-2">Filter</label>
                         <select id="servicesCategoryFilter" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                             <option value="">All Categories</option>
-                            <option value="boarding">Boarding</option>
-                            <option value="check-up">Check-up</option>
-                            <option value="deworming">Deworming</option>
-                            <option value="diagnostics">Diagnostics</option>
-                            <option value="emergency">Emergency</option>
-                            <option value="grooming">Grooming</option>
-                            <option value="surgical">Surgical</option>
-                            <option value="vaccination">Vaccination</option>
+                            <option value="Boarding">Boarding</option>
+                            <option value="Check">Check-up</option>
+                            <option value="Deworming">Deworming</option>
+                            <option value="Diagnostic">Diagnostics</option>
+                            <option value="Emergency">Emergency</option>
+                            <option value="Grooming">Grooming</option>
+                            <option value="Surgical">Surgical</option>
+                            <option value="Vaccination">Vaccination</option>
                         </select>
                     </div>
                     <div class="relative flex-1 min-w-[200px] max-w-xs">
@@ -1472,7 +1472,7 @@
                                 paginationContainerId: 'productsPagination',
                                 searchColumns: [1, 2, 3, 4, 5, 7],
                                 filterSelects: [
-                                    { selectId: 'productsType', columnIndex: 3 }
+                                    { selectId: 'productsType', columnIndex: 4 }
                                 ],
                                 storageKey: 'productsFilter',
                                 noResultsMessage: 'No products found.'
@@ -1494,7 +1494,7 @@
                                 paginationContainerId: 'servicesPagination',
                                 searchColumns: [0, 1, 2, 3, 4],
                                 filterSelects: [
-                                    { selectId: 'servicesCategoryFilter', columnIndex: 1 } // Type column
+                                    { selectId: 'servicesCategoryFilter', columnIndex: 2, matchMode: 'contains' }
                                 ],
                                 storageKey: 'servicesFilter',
                                 noResultsMessage: 'No services found.'
@@ -5085,7 +5085,7 @@
                                 paginationContainerId: 'productsPagination',
                                 searchColumns: [1, 2, 3, 4, 5, 7],
                                 filterSelects: [
-                                    { selectId: 'productsType', columnIndex: 3 }
+                                    { selectId: 'productsType', columnIndex: 4 }
                                 ],
                                 storageKey: 'productsFilter',
                                 noResultsMessage: 'No products found.'
@@ -5102,7 +5102,7 @@
                                 paginationContainerId: 'servicesPagination',
                                 searchColumns: [0, 1, 2, 3, 4],
                                 filterSelects: [
-                                    { selectId: 'servicesCategoryFilter', columnIndex: 1 } // Type column
+                                    { selectId: 'servicesCategoryFilter', columnIndex: 2, matchMode: 'contains' }
                                 ],
                                 storageKey: 'servicesFilter',
                                 noResultsMessage: 'No services found.'

@@ -43,6 +43,100 @@
     <div class="w-full px-2 sm:px-4 md:px-6 lg:px-8 mx-auto bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
+        {{-- Revenue Metrics Cards --}}
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-4">
+            {{-- Daily Revenue --}}
+            <div class="bg-gradient-to-br from-amber-500 to-amber-600 rounded-lg p-3 text-white shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-amber-100">Today's Revenue</p>
+                        <p class="text-lg font-bold">₱{{ number_format($dailyRevenue ?? 0, 2) }}</p>
+                    </div>
+                    <div class="bg-white/20 rounded-full p-2">
+                        <i class="fas fa-calendar-day text-sm"></i>
+                    </div>
+                </div>
+            </div>
+            
+            {{-- Total Revenue --}}
+            <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-lg p-3 text-white shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-green-100">Total Revenue</p>
+                        <p class="text-lg font-bold">₱{{ number_format($totalRevenue ?? 0, 2) }}</p>
+                    </div>
+                    <div class="bg-white/20 rounded-full p-2">
+                        <i class="fas fa-coins text-sm"></i>
+                    </div>
+                </div>
+            </div>
+            
+            {{-- Billing Revenue --}}
+            <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-3 text-white shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-blue-100">Billing Revenue</p>
+                        <p class="text-lg font-bold">₱{{ number_format($paidBillingRevenue ?? 0, 2) }}</p>
+                    </div>
+                    <div class="bg-white/20 rounded-full p-2">
+                        <i class="fas fa-file-invoice-dollar text-sm"></i>
+                    </div>
+                </div>
+            </div>
+            
+            {{-- POS Sales --}}
+            <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-3 text-white shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-purple-100">POS Sales</p>
+                        <p class="text-lg font-bold">₱{{ number_format($totalSales ?? 0, 2) }}</p>
+                    </div>
+                    <div class="bg-white/20 rounded-full p-2">
+                        <i class="fas fa-cash-register text-sm"></i>
+                    </div>
+                </div>
+            </div>
+            
+            {{-- Unpaid Balance --}}
+            <div class="bg-gradient-to-br from-red-500 to-red-600 rounded-lg p-3 text-white shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-red-100">Unpaid Balance</p>
+                        <p class="text-lg font-bold">₱{{ number_format($unpaidBillingBalance ?? 0, 2) }}</p>
+                    </div>
+                    <div class="bg-white/20 rounded-full p-2">
+                        <i class="fas fa-exclamation-circle text-sm"></i>
+                    </div>
+                </div>
+            </div>
+            
+            {{-- Paid Billings --}}
+            <div class="bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg p-3 text-white shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-teal-100">Paid Billings</p>
+                        <p class="text-lg font-bold">{{ $paidBillings ?? 0 }}</p>
+                    </div>
+                    <div class="bg-white/20 rounded-full p-2">
+                        <i class="fas fa-check-circle text-sm"></i>
+                    </div>
+                </div>
+            </div>
+            
+            {{-- Unpaid Billings --}}
+            <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg p-3 text-white shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-orange-100">Unpaid Billings</p>
+                        <p class="text-lg font-bold">{{ $unpaidBillings ?? 0 }}</p>
+                    </div>
+                    <div class="bg-white/20 rounded-full p-2">
+                        <i class="fas fa-clock text-sm"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {{-- Tab Navigation --}}
         <div class="border-b border-gray-200 mb-6">
             <nav class="-mb-px flex space-x-8">

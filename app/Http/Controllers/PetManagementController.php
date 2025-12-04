@@ -156,14 +156,14 @@ class PetManagementController extends Controller
                         'id' => $a->visit_id,
                         'date' => Carbon::parse($a->visit_date)->format('M d, Y'),
                         'status' => $a->visit_status,
-                        'type' => $a->visit_type,
+                        'type' => $a->visit_service_type ?? $a->service_type,
                         'veterinarian' => $veterinarianName,
                         'pet_name' => optional($a->pet)->pet_name,
                         'pet_species' => optional($a->pet)->pet_species,
                         'weight' => $a->weight,
                         'temperature' => $a->temperature,
                         'patient_type' => $a->patient_type,
-                        'service_type' => $a->service_type,
+                        'service_type' => $a->visit_service_type ?? $a->service_type,
                         'workflow_status' => $a->workflow_status
                     ];
                 });
@@ -446,9 +446,31 @@ class PetManagementController extends Controller
                     if ($u) return [$u->user_name, $u->user_licenseNum ?? 'N/A', $record['vet_user_id']];
                 }
 
-                // fall back to administered_by free text
-                if (!empty($record['administered_by'])) {
-                    return [$record['administered_by'], null, null];
+                // Helper to look up license by name
+                $lookupLicenseByName = function($name) use ($veterinarians) {
+                    if (!$name) return null;
+                    $vet = $veterinarians->first(function($v) use ($name) {
+                        return strcasecmp($v->user_name, $name) === 0;
+                    });
+                    return $vet ? $vet->user_licenseNum : null;
+                };
+
+                // Check various name fields used in different service records
+                $nameFields = [
+                    'administered_by',  // vaccination, deworming
+                    'vet_signature',    // checkup
+                    'groomer_name',     // grooming
+                    'handled_by',       // boarding
+                    'collected_by',     // diagnostic
+                    'surgeon',          // surgical
+                    'attended_by',      // emergency
+                ];
+
+                foreach ($nameFields as $field) {
+                    if (!empty($record[$field])) {
+                        $license = $lookupLicenseByName($record[$field]);
+                        return [$record[$field], $license ?? 'N/A', null];
+                    }
                 }
 
                 return [null, null, null];

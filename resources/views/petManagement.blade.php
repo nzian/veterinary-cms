@@ -487,7 +487,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center text-gray-500 py-4">No medical records found.</td>
+                                <td colspan="8" class="text-center text-gray-500 py-4">No visits found.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -982,8 +982,8 @@
                             <div class="text-sm text-gray-600">Visits</div>
                         </div>
                         <div class="bg-white p-3 rounded shadow">
-                            <div class="text-2xl font-bold text-purple-600" id="ownerStatsMedical">0</div>
-                            <div class="text-sm text-gray-600">Medical Records</div>
+                            <div class="text-2xl font-bold text-purple-600" id="ownerStatsPurchases">1</div>
+                            <div class="text-sm text-gray-600">Purchase</div>
                         </div>
                         <div class="bg-white p-3 rounded shadow">
                             <div class="text-sm text-gray-600">Last Visit</div>
@@ -1081,20 +1081,20 @@
                 <div>
                     <div class="grid grid-cols-2 gap-3">
                         <div class="bg-white p-3 rounded shadow">
-                            <div class="text-xl font-bold text-blue-600" id="petStatsVisits">0</div>
-                            <div class="text-xs text-gray-600">Total Visits</div>
+                            <div class="text-2xl font-bold text-blue-600" id="ownerStatsAnimals">0</div>
+                            <div class="text-sm text-gray-600">Pets</div>
                         </div>
                         <div class="bg-white p-3 rounded shadow">
-                            <div class="text-xs text-gray-600">Last Visit</div>
-                            <div class="text-sm font-semibold text-gray-800" id="petStatsLastVisit">Never</div>
+                            <div class="text-2xl font-bold text-green-600" id="ownerStatsAppointments">0</div>
+                            <div class="text-sm text-gray-600">Visits</div>
                         </div>
                         <div class="bg-white p-3 rounded shadow">
-                            <div class="text-sm font-semibold text-green-600" id="enhancedPetWeight">-- kg</div>
-                            <div class="text-xs text-gray-600">Weight</div>
+                            <div class="text-2xl font-bold text-purple-600" id="ownerStatsPurchases">1</div>
+                            <div class="text-sm text-gray-600">Purchase</div>
                         </div>
                         <div class="bg-white p-3 rounded shadow">
-                            <div class="text-sm font-semibold text-red-600" id="enhancedPetTemperature">--°C</div>
-                            <div class="text-xs text-gray-600">Temperature</div>
+                            <div class="text-sm text-gray-600">Last Visit</div>
+                            <div class="text-sm font-semibold text-gray-800" id="ownerStatsLastVisit">Never</div>
                         </div>
                     </div>
                 </div>
@@ -1121,9 +1121,6 @@
 
             {{-- REMOVED: The old medical history list/section is now replaced by the tabs above --}}
             {{-- <div class="space-y-3" id="petMedicalHistoryList"></div> --}}
-        </div>
-    </div>
-</div>
         </div>
     </div>
 </div>
@@ -1848,19 +1845,23 @@ function viewPetDetails(button) {
         return;
     }
     
+    console.log('Fetching pet details for ID:', petId);
+    
     // Try to use enhanced modal with AJAX
     fetch('/pet-management/pet/' + petId + '/details')
         .then(response => {
-            if (!response.ok) throw new Error('Failed to load');
+            console.log('Response status:', response.status);
+            if (!response.ok) throw new Error('Failed to load: ' + response.status);
             return response.json();
         })
         .then(data => {
+            console.log('Pet data received:', data);
             // Use enhanced modal
             showEnhancedPetView(data);
         })
         .catch(error => {
             // Fallback to simple modal if AJAX fails
-            console.log('Using simple view:', error);
+            console.error('Error loading pet details:', error);
             showSimplePetView(button);
         });
 }
@@ -1959,29 +1960,77 @@ function showEnhancedPetView(data) {
                 // Customize content based on service type
                 switch(key) {
                     case 'checkup':
-                        content = `<p><strong>Findings:</strong> ${rec.findings || 'N/A'}</p><p><strong>Diagnosis:</strong> ${rec.diagnosis || 'N/A'}</p><p><strong>Treatment:</strong> ${rec.treatment || 'N/A'}</p>`;
+                        content = `
+                            <p><strong>Symptoms:</strong> ${rec.symptoms || 'N/A'}</p>
+                            <p><strong>Findings:</strong> ${rec.findings || 'N/A'}</p>
+                            <p><strong>Treatment Plan:</strong> ${rec.treatment_plan || 'N/A'}</p>
+                            <p><strong>Heart Rate:</strong> ${rec.heart_rate || 'N/A'} bpm</p>
+                            <p><strong>Respiration Rate:</strong> ${rec.respiration_rate || 'N/A'}</p>
+                            ${rec.next_visit ? `<p><strong>Next Visit:</strong> ${rec.next_visit}</p>` : ''}
+                        `;
                         break;
                     case 'vaccination':
-                        content = `<p><strong>Vaccine:</strong> ${rec.vaccine_name || 'N/A'}</p><p><strong>Administered:</strong> ${rec.date_administered}</p><p><strong>Next Due:</strong> ${rec.next_due_date || 'N/A'}</p><p><strong>Batch:</strong> ${rec.batch_no || 'N/A'}</p>`;
+                        content = `<p><strong>Vaccine:</strong> ${rec.vaccine_name || 'N/A'}</p><p><strong>Dose:</strong> ${rec.dose || 'N/A'}</p><p><strong>Administered:</strong> ${rec.date_administered || 'N/A'}</p><p><strong>Next Due:</strong> ${rec.next_due_date || 'N/A'}</p><p><strong>Batch:</strong> ${rec.batch_no || 'N/A'}</p><p><strong>Manufacturer:</strong> ${rec.manufacturer || 'N/A'}</p>${rec.remarks ? `<p><strong>Remarks:</strong> ${rec.remarks}</p>` : ''}`;
                         break;
                     case 'deworming':
-                        content = `<p><strong>Dewormer:</strong> ${rec.dewormer_name || 'N/A'}</p><p><strong>Dosage:</strong> ${rec.dosage || 'N/A'}</p><p><strong>Next Due:</strong> ${rec.next_due_date || 'N/A'}</p>`;
+                        content = `<p><strong>Dewormer:</strong> ${rec.dewormer_name || 'N/A'}</p><p><strong>Dosage:</strong> ${rec.dosage || 'N/A'}</p><p><strong>Next Due:</strong> ${rec.next_due_date || 'N/A'}</p>${rec.remarks ? `<p><strong>Remarks:</strong> ${rec.remarks}</p>` : ''}`;
                         break;
                     // Add more cases for Grooming, Boarding, Diagnostic, Surgical, Emergency
                     case 'grooming':
-                        content = `<p><strong>Notes:</strong> ${rec.grooming_notes || 'N/A'}</p><p><strong>Groomer:</strong> ${rec.assigned_groomer || 'N/A'}</p>`;
+                        content = `
+                            <p><strong>Package:</strong> ${rec.service_package || 'N/A'}</p>
+                            <p><strong>Add-ons:</strong> ${rec.add_ons || 'None'}</p>
+                            <p><strong>Groomer:</strong> ${rec.groomer_name || 'N/A'}</p>
+                            <p><strong>Status:</strong> ${rec.status || 'N/A'}</p>
+                            ${rec.start_time ? `<p><strong>Start:</strong> ${rec.start_time}</p>` : ''}
+                            ${rec.end_time ? `<p><strong>End:</strong> ${rec.end_time}</p>` : ''}
+                            ${rec.remarks ? `<p><strong>Remarks:</strong> ${rec.remarks}</p>` : ''}
+                        `;
                         break;
                     case 'boarding':
-                        content = `<p><strong>Check-in:</strong> ${rec.start_date || 'N/A'}</p><p><strong>Check-out:</strong> ${rec.end_date || 'N/A'}</p><p><strong>Notes:</strong> ${rec.notes || 'N/A'}</p>`;
+                        content = `
+                            <p><strong>Check-in:</strong> ${rec.check_in_date || 'N/A'}</p>
+                            <p><strong>Check-out:</strong> ${rec.check_out_date || 'N/A'}</p>
+                            <p><strong>Room:</strong> ${rec.room_no || 'N/A'}</p>
+                            <p><strong>Total Days:</strong> ${rec.total_days || 'N/A'}</p>
+                            <p><strong>Status:</strong> ${rec.status || 'N/A'}</p>
+                            <p><strong>Handled By:</strong> ${rec.handled_by || 'N/A'}</p>
+                            ${rec.feeding_schedule ? `<p><strong>Feeding:</strong> ${rec.feeding_schedule}</p>` : ''}
+                            ${rec.daily_notes ? `<p><strong>Notes:</strong> ${rec.daily_notes}</p>` : ''}
+                        `;
                         break;
                     case 'diagnostic':
-                        content = `<p><strong>Test:</strong> ${rec.test_name || 'N/A'}</p><p><strong>Result:</strong> ${rec.result || 'N/A'}</p><p><strong>Interpretation:</strong> ${rec.interpretation || 'N/A'}</p>`;
+                        content = `
+                            <p><strong>Test Type:</strong> ${rec.test_type || 'N/A'}</p>
+                            <p><strong>Results:</strong> ${rec.results || 'N/A'}</p>
+                            <p><strong>Collected By:</strong> ${rec.collected_by || 'N/A'}</p>
+                            <p><strong>Status:</strong> ${rec.status || 'N/A'}</p>
+                            ${rec.date_completed ? `<p><strong>Date Completed:</strong> ${rec.date_completed}</p>` : ''}
+                            ${rec.remarks ? `<p><strong>Remarks:</strong> ${rec.remarks}</p>` : ''}
+                        `;
                         break;
                     case 'surgical':
-                        content = `<p><strong>Procedure:</strong> ${rec.procedure || 'N/A'}</p><p><strong>Surgeon:</strong> ${rec.surgeon_name || 'N/A'}</p><p><strong>Post-Op:</strong> ${rec.post_op_care || 'N/A'}</p>`;
+                        content = `
+                            <p><strong>Procedure:</strong> ${rec.procedure_name || 'N/A'}</p>
+                            <p><strong>Surgeon:</strong> ${rec.surgeon || 'N/A'}</p>
+                            <p><strong>Date:</strong> ${rec.date_of_surgery || 'N/A'}</p>
+                            <p><strong>Anesthesia:</strong> ${rec.anesthesia_used || 'N/A'}</p>
+                            <p><strong>Status:</strong> ${rec.status || 'N/A'}</p>
+                            ${rec.findings ? `<p><strong>Findings:</strong> ${rec.findings}</p>` : ''}
+                            ${rec.post_op_instructions ? `<p><strong>Post-Op:</strong> ${rec.post_op_instructions}</p>` : ''}
+                        `;
                         break;
                     case 'emergency':
-                        content = `<p><strong>Complaint:</strong> ${rec.presenting_complaint || 'N/A'}</p><p><strong>Outcome:</strong> ${rec.outcome || 'N/A'}</p>`;
+                        content = `
+                            <p><strong>Case Type:</strong> ${rec.case_type || 'N/A'}</p>
+                            <p><strong>Arrival Condition:</strong> ${rec.arrival_condition || 'N/A'}</p>
+                            <p><strong>Immediate Treatment:</strong> ${rec.immediate_treatment || 'N/A'}</p>
+                            <p><strong>Outcome:</strong> ${rec.outcome || 'N/A'}</p>
+                            <p><strong>Status:</strong> ${rec.status || 'N/A'}</p>
+                            <p><strong>Attended By:</strong> ${rec.attended_by || 'N/A'}</p>
+                            ${rec.vital_signs ? `<p><strong>Vital Signs:</strong> ${rec.vital_signs}</p>` : ''}
+                            ${rec.remarks ? `<p><strong>Remarks:</strong> ${rec.remarks}</p>` : ''}
+                        `;
                         break;
                     default:
                         content = 'Service-specific details available.';
@@ -2029,9 +2078,9 @@ function showEnhancedPetView(data) {
                     <span class="text-xs bg-gray-200 text-gray-800 px-2 py-1 rounded">${svc}</span>
                 </div>
                 <div class="grid grid-cols-3 gap-2 text-sm text-gray-600 border-b pb-2 mb-2">
-                    <p><i class="fas fa-user-md mr-1"></i> ${vetName}</p>
-                    <p><i class="fas fa-weight-hanging mr-1"></i> ${weight}</p>
-                    <p><i class="fas fa-thermometer-half mr-1"></i> ${temp}</p>
+                    <p><i class="fas fa-user-md mr-2 text-blue-500"></i> ${vetName}</p>
+                    <p><i class="fas fa-weight-hanging mr-2 text-green-500"></i> ${weight}</p>
+                    <p><i class="fas fa-thermometer-half mr-2 text-red-500"></i> ${temp}</p>
                     <p class="col-span-3 text-xs text-gray-500">License: ${vetLicense}</p>
                 </div>
                 ${detailsHtml}
@@ -2105,146 +2154,6 @@ function showEnhancedPetView(data) {
     // Show the modal
     modal.classList.remove('hidden');
 }
-    // --- Build visits tabs for service types (All / Checkup / Vaccination / Deworming / Grooming / Boarding / Diagnostic / Surgical / Emergency)
-    try {
-        const visits = data.visits || [];
-        const parent = document.getElementById('petMedicalHistoryList').parentNode;
-
-        // Remove existing tabs container if any
-        const existing = document.getElementById('petVisitsTabs');
-        if (existing) existing.remove();
-
-        const tabsContainer = document.createElement('div');
-        tabsContainer.id = 'petVisitsTabs';
-        tabsContainer.className = 'mt-6';
-
-        const tabNames = ['All','Checkup','Vaccination','Deworming','Grooming','Boarding','Diagnostic','Surgical','Emergency'];
-        const tabsBar = document.createElement('div');
-        tabsBar.className = 'flex gap-2 mb-3 flex-wrap';
-
-        const contentContainer = document.createElement('div');
-        contentContainer.id = 'petVisitsContent';
-
-        // helper to render visit card
-        function renderVisitCard(v) {
-            const svc = (v.services && v.services.length) ? v.services.map(s=>s.serv_name).join(', ') : (v.visit_service_type || 'General');
-            const date = v.visit_date || '';
-            const weight = v.weight ? (v.weight + ' kg') : '--';
-            const temp = v.temperature ? (v.temperature + '°C') : '--';
-            const patientType = v.patient_type || '--';
-            let initial = '';
-            if (v.checkup) {
-                initial += '<div class="text-sm text-gray-700"><strong>Initial assessment:</strong> ' + (v.checkup.findings || v.checkup.symptoms || '') + '</div>';
-            }
-            let presHtml = '';
-            if (v.prescriptions && v.prescriptions.length) {
-                presHtml = '<div class="mt-2 text-sm text-gray-700"><strong>Prescription:</strong> ' + v.prescriptions.map(p=> (p.medication || '') + (p.notes ? ' ('+p.notes+')' : '')).join('; ') + '</div>';
-            }
-            let followUp = '';
-            if (v.medical_history && v.medical_history.follow_up_date) {
-                followUp = '<div class="mt-2 text-sm text-gray-700"><strong>Follow-up:</strong> ' + v.medical_history.follow_up_date + '</div>';
-            } else if (v.vaccination && v.vaccination.next_due_date) {
-                followUp = '<div class="mt-2 text-sm text-gray-700"><strong>Follow-up:</strong> ' + v.vaccination.next_due_date + '</div>';
-            }
-
-                // service-specific details
-                let serviceDetails = '';
-                // Vaccination details
-                if (v.vaccination) {
-                    const vac = v.vaccination;
-                    serviceDetails += '<div class="mt-2 text-sm text-gray-700"><strong>Vaccination:</strong> ' + (vac.vaccine_name || vac.vaccine || vac.vaccine_name || 'Vaccine') + (vac.remarks ? ' — ' + vac.remarks : '') + '</div>';
-                    serviceDetails += '<div class="text-xs text-gray-500">Manufacturer: ' + (vac.manufacturer || '--') + ' • Batch: ' + (vac.batch_no || vac.batch_number || '--') + '</div>';
-                }
-                // Deworming details
-                if (v.deworming) {
-                    const dw = v.deworming;
-                    serviceDetails += '<div class="mt-2 text-sm text-gray-700"><strong>Deworming:</strong> ' + (dw.dewormer_name || dw.treatment || '--') + (dw.dosage ? ' ('+dw.dosage+')' : '') + '</div>';
-                }
-                // Grooming details
-                if (v.grooming) {
-                    const g = v.grooming;
-                    serviceDetails += '<div class="mt-2 text-sm text-gray-700"><strong>Grooming:</strong> ' + (g.grooming_notes || g.remarks || '--') + '</div>';
-                    if (g.assigned_groomer) serviceDetails += '<div class="text-xs text-gray-500">Groomer: ' + g.assigned_groomer + '</div>';
-                }
-                // Boarding details
-                if (v.boarding) {
-                    const b = v.boarding;
-                    serviceDetails += '<div class="mt-2 text-sm text-gray-700"><strong>Boarding:</strong> ' + (b.notes || b.boarding_notes || '--') + '</div>';
-                    serviceDetails += '<div class="text-xs text-gray-500">From: ' + (b.start_date || b.check_in || '--') + ' • To: ' + (b.end_date || b.check_out || '--') + '</div>';
-                }
-                // Diagnostic details
-                if (v.diagnostic) {
-                    const d = v.diagnostic;
-                    serviceDetails += '<div class="mt-2 text-sm text-gray-700"><strong>Diagnostic:</strong> ' + (d.test_name || d.test || '--') + '</div>';
-                    if (d.interpretation) serviceDetails += '<div class="text-xs text-gray-500">Interpretation: ' + d.interpretation + '</div>';
-                }
-                // Surgical details
-                if (v.surgical) {
-                    const s = v.surgical;
-                    serviceDetails += '<div class="mt-2 text-sm text-gray-700"><strong>Surgery:</strong> ' + (s.procedure || s.operation || '--') + '</div>';
-                    if (s.surgeon_name) serviceDetails += '<div class="text-xs text-gray-500">Surgeon: ' + s.surgeon_name + '</div>';
-                }
-                // Emergency details
-                if (v.emergency) {
-                    const e = v.emergency;
-                    serviceDetails += '<div class="mt-2 text-sm text-gray-700"><strong>Emergency:</strong> ' + (e.presenting_complaint || e.treatment || '--') + '</div>';
-                }
-
-                return `
-                    <div class="bg-white p-4 rounded-lg shadow border mb-3">
-                        <div class="flex justify-between items-center mb-2">
-                            <div class="text-sm text-gray-600">${date}</div>
-                            <div class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${svc}</div>
-                        </div>
-                        <div class="text-sm text-gray-800 font-semibold">Weight: ${weight} • Temp: ${temp} • Type: ${patientType}</div>
-                        <div class="mt-2 text-sm text-gray-700">${initial || ''}</div>
-                        ${serviceDetails}
-                        ${presHtml}
-                        ${followUp}
-                    </div>`;
-        }
-
-        // Build tabs and default content
-        tabNames.forEach(function(tn, idx) {
-            const btn = document.createElement('button');
-            btn.className = 'px-3 py-1 border rounded text-sm bg-white';
-            btn.textContent = tn;
-            btn.dataset.tab = tn.toLowerCase();
-            btn.addEventListener('click', function() {
-                // highlight active
-                tabsBar.querySelectorAll('button').forEach(b=>b.classList.remove('bg-blue-600','text-white'));
-                this.classList.add('bg-blue-600','text-white');
-
-                // render content
-                const key = this.dataset.tab;
-                let filtered = [];
-                if (key === 'all') filtered = visits;
-                else if (key === 'checkup') filtered = visits.filter(v=> v.checkup || (v.services && v.services.some(s => s.serv_type && s.serv_type.toLowerCase().includes('check'))));
-                else filtered = visits.filter(v => (v.services && v.services.some(s => s.serv_type && s.serv_type.toLowerCase().includes(key))) || (v[key]));
-
-                // populate
-                contentContainer.innerHTML = '';
-                if (filtered.length === 0) {
-                    contentContainer.innerHTML = '<div class="text-center text-gray-500 py-8">No records found for '+tn+'.</div>';
-                } else {
-                    filtered.forEach(function(fv){ contentContainer.innerHTML += renderVisitCard(fv); });
-                }
-            });
-            if (idx === 0) {
-                btn.classList.add('bg-blue-600','text-white');
-            }
-            tabsBar.appendChild(btn);
-        });
-
-        tabsContainer.appendChild(tabsBar);
-        tabsContainer.appendChild(contentContainer);
-        parent.insertBefore(tabsContainer, document.getElementById('petMedicalHistoryList'));
-
-        // Trigger All tab click to render initial content
-        tabsBar.querySelector('button').click();
-    } catch (e) {
-        console.error('Error building visits tabs:', e);
-    }
 
 function showSimplePetView(button) {
     // Format weight and temperature with 2 decimal places
@@ -2352,7 +2261,7 @@ function displayEnhancedOwnerModal(data) {
     // Set stats
     document.getElementById('ownerStatsAnimals').textContent = data.stats.pets;
     document.getElementById('ownerStatsAppointments').textContent = data.stats.visits;
-    document.getElementById('ownerStatsMedical').textContent = data.stats.medicalRecords;
+    document.getElementById('ownerStatsPurchases').textContent = data.stats.totalPurchases;
     document.getElementById('ownerStatsLastVisit').textContent = data.stats.lastVisit;
     
     // Display pets

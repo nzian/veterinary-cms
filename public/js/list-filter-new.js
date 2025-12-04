@@ -150,7 +150,11 @@ class ListFilter {
                             const cell = row.cells[filter.columnIndex];
                             if (!cell) return false;
                             const cellText = cell.textContent.trim().toLowerCase();
-                            const matches = cellText === select.value.toLowerCase();
+                            const filterValue = select.value.toLowerCase();
+                            // Use contains match if filter has matchMode: 'contains', otherwise exact match
+                            const matches = filter.matchMode === 'contains' 
+                                ? cellText.includes(filterValue)
+                                : cellText === filterValue;
                             return matches;
                         });
                         console.log('Filter', filter.selectId, 'reduced from', beforeCount, 'to', this.filteredRows.length);

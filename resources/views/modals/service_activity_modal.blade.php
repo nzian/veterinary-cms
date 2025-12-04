@@ -23,18 +23,26 @@
             {{-- Tab Buttons for Actions --}}
             <div class="col-span-2 flex justify-start items-end">
                 <nav class="flex space-x-4">
-                    <button type="button" onclick="switchActivityTab('initial')" data-tab="initial" class="activity-tab-btn py-2 px-4 font-semibold text-sm active bg-blue-600 text-white rounded-t-lg hover:bg-blue-700">
-                        <i class="fas fa-notes-medical mr-1"></i> Initial Assessment
-                    </button>
-                    <button type="button" onclick="switchActivityTab('prescription')" data-tab="prescription" class="activity-tab-btn py-2 px-4 font-semibold text-sm bg-gray-200 text-gray-600 rounded-t-lg hover:bg-blue-600 hover:text-white">
-                        <i class="fas fa-prescription mr-1"></i> Prescription
-                    </button>
-                    <button type="button" onclick="switchActivityTab('appointment')" data-tab="appointment" class="activity-tab-btn py-2 px-4 font-semibold text-sm bg-gray-200 text-gray-600 rounded-t-lg hover:bg-blue-600 hover:text-white">
-                        <i class="fas fa-calendar-plus mr-1"></i> Appointment
-                    </button>
-                    <button type="button" onclick="switchActivityTab('referral')" data-tab="referral" class="activity-tab-btn py-2 px-4 font-semibold text-sm bg-gray-200 text-gray-600 rounded-t-lg hover:bg-blue-600 hover:text-white">
-                        <i class="fas fa-share mr-1"></i> Referral
-                    </button>
+                    @if ($userRole === 'receptionist' || $userRole === 'veterinarian')
+                        <button type="button" onclick="switchActivityTab('initial')" data-tab="initial" class="activity-tab-btn py-2 px-4 font-semibold text-sm active bg-blue-600 text-white rounded-t-lg hover:bg-blue-700">
+                            <i class="fas fa-notes-medical mr-1"></i> Initial Assessment
+                        </button>
+                    @endif
+
+                    @if ($userRole === 'receptionist' || $userRole === 'veterinarian')
+                        <button type="button" onclick="switchActivityTab('appointment')" data-tab="appointment" class="activity-tab-btn py-2 px-4 font-semibold text-sm bg-gray-200 text-gray-600 rounded-t-lg hover:bg-blue-600 hover:text-white">
+                            <i class="fas fa-calendar-plus mr-1"></i> Appointment
+                        </button>
+                    @endif
+
+                    @if ($userRole === 'veterinarian')
+                        <button type="button" onclick="switchActivityTab('prescription')" data-tab="prescription" class="activity-tab-btn py-2 px-4 font-semibold text-sm bg-gray-200 text-gray-600 rounded-t-lg hover:bg-blue-600 hover:text-white">
+                            <i class="fas fa-prescription mr-1"></i> Prescription
+                        </button>
+                        <button type="button" onclick="switchActivityTab('referral')" data-tab="referral" class="activity-tab-btn py-2 px-4 font-semibold text-sm bg-gray-200 text-gray-600 rounded-t-lg hover:bg-blue-600 hover:text-white">
+                            <i class="fas fa-share mr-1"></i> Referral
+                        </button>
+                    @endif
                 </nav>
             </div>
         </div>

@@ -33,6 +33,7 @@ use App\Services\DynamicSMSService;
 use App\Services\GroupedBillingService;
 use App\Models\InventoryHistory as InventoryHistoryModel;
 use App\Models\InventoryTransaction;
+use App\Models\Billing;
 
 class MedicalManagementController extends Controller
 {
@@ -1211,7 +1212,6 @@ public function completeService(Request $request, $visitId, $serviceId)
     } catch (\Exception $e) {
         DB::rollBack();
         Log::error('Error saving grooming record and billing: ' . $e->getMessage());
-        Log::error('Stack trace: ' . $e->getTraceAsString());
         return back()->with('error', 'Failed to save grooming record: ' . $e->getMessage());
     }
         // Redirect back to the perform page to show saved data, or to grooming tab
@@ -1424,7 +1424,7 @@ public function completeService(Request $request, $visitId, $serviceId)
             DB::rollBack();
             Log::error('Error saving boarding record: ' . $e->getMessage());
             Log::error('Stack trace: ' . $e->getTraceAsString());
-            return back()->with('error', 'Failed to save boarding record: ' . $e->getMessage())->withInput();
+            return back()->with('error', 'Failed to save boarding record: ' . $e->getMessage());
         }
 
         // generate billing after commit if flagged
@@ -1457,7 +1457,7 @@ public function completeService(Request $request, $visitId, $serviceId)
 
         //dd($validated);
         $syncData = [];
-        $visitModel = Visit::find($visitId);
+        $visitModel = Visit::findOrFail($visitId);
         $branchId = Auth::user()->branch_id ?? session('active_branch_id');
         $selectedServiceIds = [$validated['service_id']];
         // Get all diagnostics services (pending, null status, or empty) and detach those not selected

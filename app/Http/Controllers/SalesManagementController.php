@@ -419,7 +419,7 @@ class SalesManagementController extends Controller
                 'pet_count' => $group->count(),
                 'billing_group_id' => $firstBilling->billing_group_id ?? 'SINGLE_' . $firstBilling->bill_id,
             ];
-        })->values();
+        })->sortByDesc('bill_date')->values();
         //dd($groupedBillings);
         
         // Return all grouped billings for client-side filtering
@@ -580,12 +580,50 @@ class SalesManagementController extends Controller
         $paginator = null;
         $totalTransactions = $transactions->count();
         
-        // Calculate order totals
-        $totalSales = $allOrders->sum(function($order) {
+        // Calculate order totals (only paid orders)
+        $paidOrders = $allOrders->filter(fn($order) => strtolower($order->payment_status ?? '') === 'paid');
+        $totalSales = $paidOrders->sum(function($order) {
             return $order->ord_quantity * ($order->product->prod_price ?? 0);
         });
-        $totalItemsSold = $allOrders->sum('ord_quantity');
+        $totalItemsSold = $paidOrders->sum('ord_quantity');
         $averageSale = $totalTransactions > 0 ? $totalSales / $totalTransactions : 0;
+        
+        // Calculate revenue metrics from billings
+        $totalBillingRevenue = $billings->sum('total_amount');
+        $paidBillingRevenue = $billings->sum('paid_amount');
+        $unpaidBillingBalance = $billings->sum('balance');
+        $paidBillings = $billings->filter(fn($b) => strtolower($b['status'] ?? '') === 'paid')->count();
+        $unpaidBillings = $billings->filter(fn($b) => strtolower($b['status'] ?? '') !== 'paid')->count();
+        
+        // Combined revenue (POS + Paid Billings)
+        $totalRevenue = $totalSales + $paidBillingRevenue;
+        
+        // Calculate Daily Revenue (Today's POS Sales + Today's Paid Billing Payments)
+        $today = \Carbon\Carbon::today();
+        
+        // Today's POS sales (paid only)
+        $dailyPosSales = Order::whereDate('ord_date', $today)
+            ->whereNull('bill_id')
+            ->where('payment_status', 'paid')
+            ->when(!$showAllBranches, function($q) use ($activeBranchId) {
+                $q->whereHas('user', function($qu) use ($activeBranchId) {
+                    $qu->where('branch_id', $activeBranchId);
+                });
+            })
+            ->sum('ord_total');
+        
+        // Today's paid billing payments (actual payments from tbl_pay)
+        $dailyBillingPayments = \App\Models\Payment::whereDate('created_at', $today)
+            ->where('status', 'paid')
+            ->when(!$showAllBranches, function($q) use ($activeBranchId) {
+                $q->whereHas('billing', function($qu) use ($activeBranchId) {
+                    $qu->where('branch_id', $activeBranchId);
+                });
+            })
+            ->sum('pay_total');
+        
+        $dailyRevenue = $dailyPosSales + $dailyBillingPayments;
+        
         //dd($totalSales);
         return view('orderBilling', compact(
             'billings',
@@ -594,7 +632,14 @@ class SalesManagementController extends Controller
             'totalSales',
             'totalTransactions', 
             'totalItemsSold',
-            'averageSale'
+            'averageSale',
+            'totalBillingRevenue',
+            'paidBillingRevenue',
+            'unpaidBillingBalance',
+            'paidBillings',
+            'unpaidBillings',
+            'totalRevenue',
+            'dailyRevenue'
         ));
     }
 
