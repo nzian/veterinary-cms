@@ -251,42 +251,64 @@ class SalesManagementController extends Controller
     {
         $activeBranchId = session('active_branch_id');
         $user = auth()->user();
+        $isInBranchMode = session('branch_mode') === 'active';
+        
+        // Determine if we should show ALL branches (Super Admin in global mode)
+        $showAllBranches = ($user->user_role === 'superadmin' && !$isInBranchMode);
         
         if ($user->user_role !== 'superadmin') {
             $activeBranchId = $user->branch_id;
         }
 
-        // Get all billings with visits for the active branch
-        $allBillings = Billing::with([
-            'visit.pet.owner', 
+        // Get all billings with visits - show all branches if Super Admin in global mode
+        $billingQuery = Billing::with([
+            'visit.pet.owner' => function($query) {
+                // Remove global scope to load owner regardless of branch
+                $query->withoutGlobalScope('branch_owner_scope');
+            }, 
             'visit.services',
             'visit.user.branch',
             'orders.product',
-            'owner'
+            'owner' => function($query) {
+                // Remove global scope to load owner regardless of branch
+                $query->withoutGlobalScope('branch_owner_scope');
+            }
         ])
-        ->whereNotNull('visit_id')
-        ->where(function($query) use ($activeBranchId) {
-            $query->whereHas('visit.user', function($q) use ($activeBranchId) {
-                $q->where('branch_id', $activeBranchId);
-            })
-            ->orWhere(function($q) use ($activeBranchId) {
-                if (\Schema::hasColumn('tbl_bill', 'branch_id')) {
+        ->whereNotNull('visit_id');
+        
+        // Only apply branch filter if NOT showing all branches
+        if (!$showAllBranches) {
+            $billingQuery->where(function($query) use ($activeBranchId) {
+                $query->whereHas('visit.user', function($q) use ($activeBranchId) {
                     $q->where('branch_id', $activeBranchId);
-                }
+                })
+                ->orWhere(function($q) use ($activeBranchId) {
+                    if (\Schema::hasColumn('tbl_bill', 'branch_id')) {
+                        $q->where('branch_id', $activeBranchId);
+                    }
+                });
             });
-        })
-        ->orderBy('bill_date', 'desc')
-        ->get();
+        }
+        
+        $allBillings = $billingQuery->orderBy('bill_date', 'desc')->get();
 
         // Group billings by owner and date
         $groupedBillings = $allBillings->groupBy(function($billing) {
-            $ownerId = $billing->owner_id ?? $billing->visit->pet->owner->own_id;
+            // Safely get owner ID with null checks
+            $ownerId = $billing->owner_id 
+                ?? ($billing->visit && $billing->visit->pet && $billing->visit->pet->owner 
+                    ? $billing->visit->pet->owner->own_id 
+                    : 'unknown');
             $date = $billing->bill_date;
             return $ownerId . '_' . $date;
         })->map(function($group) {
-           // dd($group);
             $firstBilling = $group->first();
-            $owner = $firstBilling->owner ?? $firstBilling->visit->pet->owner;
+            
+            // Safely get owner with null checks
+            $owner = $firstBilling->owner 
+                ?? ($firstBilling->visit && $firstBilling->visit->pet 
+                    ? $firstBilling->visit->pet->owner 
+                    : null);
 
             // Only include boarding services for boarding bills
             $boardingBillings = $group->filter(function($billing) {
@@ -353,7 +375,7 @@ class SalesManagementController extends Controller
 
             return [
                 'owner' => $owner,
-                'owner_id' => $owner->own_id,
+                'owner_id' => $owner ? $owner->own_id : null,
                 'bill_date' => $firstBilling->bill_date,
                 'billings' => $group,
                 'total_amount' => $totalAmount,
@@ -365,29 +387,27 @@ class SalesManagementController extends Controller
             ];
         })->values();
         //dd($groupedBillings);
-        // Paginate the grouped results
-        $page = $request->get('page', 1);
-        $perPage = 10;
-        $offset = ($page - 1) * $perPage;
         
-        $totalGroups = $groupedBillings->count();
-        $paginatedGroups = $groupedBillings->slice($offset, $perPage);
-        
-        $billings = new \Illuminate\Pagination\LengthAwarePaginator(
-            $paginatedGroups,
-            $totalGroups,
-            $perPage,
-            $page,
-            ['path' => $request->url(), 'pageName' => 'page']
-        );
+        // Return all grouped billings for client-side filtering
+        $billings = $groupedBillings;
 
         // Get date filters
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
         
-        // Build query with relationships (NO branch filter: show all POS sales)
+        // Build query with relationships - apply branch filter for non-superadmin or when not in global mode
         $query = Order::with(['product', 'user', 'owner', 'payment', 'billing'])
-            ->whereNull('bill_id'); // Only direct POS sales
+            ->whereNull('bill_id') // Only direct POS sales
+            ->whereHas('user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            });
+
+        // Apply branch filter (unless Super Admin in global mode)
+        if (!$showAllBranches) {
+            $query->whereHas('user', function($q) use ($activeBranchId) {
+                $q->where('branch_id', $activeBranchId);
+            });
+        }
 
         // Apply date filters if provided
         if ($startDate) {
@@ -397,7 +417,7 @@ class SalesManagementController extends Controller
             $query->where('ord_date', '<=', $endDate . ' 23:59:59');
         }
 
-        // Get all direct POS orders
+        // Get all direct POS orders for the active branch
         $allOrders = $query->orderBy('ord_date', 'desc')->get();
 
         // Group direct POS transactions by time, user, and customer
@@ -521,24 +541,10 @@ class SalesManagementController extends Controller
             return $transaction['orders']->first()->ord_date;
         });
         
-        // Paginate transactions
-        $page = $request->get('page', 1);
-        $perPage = 15;
-        $offset = ($page - 1) * $perPage;
-        
+        // Return all transactions for client-side filtering
+        $paginatedTransactions = $transactions;
+        $paginator = null;
         $totalTransactions = $transactions->count();
-        $paginatedTransactions = $transactions->slice($offset, $perPage);
-        
-        $paginator = new \Illuminate\Pagination\LengthAwarePaginator(
-            $paginatedTransactions,
-            $totalTransactions,
-            $perPage,
-            $page,
-            [
-                'path' => $request->url(),
-                'pageName' => 'page',
-            ]
-        );
         
         // Calculate order totals
         $totalSales = $allOrders->sum(function($order) {
@@ -546,7 +552,7 @@ class SalesManagementController extends Controller
         });
         $totalItemsSold = $allOrders->sum('ord_quantity');
         $averageSale = $totalTransactions > 0 ? $totalSales / $totalTransactions : 0;
-
+        //dd($totalSales);
         return view('orderBilling', compact(
             'billings',
             'paginatedTransactions', 
@@ -1455,6 +1461,47 @@ class SalesManagementController extends Controller
                 'address' => 'Address: ' . ($branch->branch_address ?? 'Branch Address'),
                 'contact' => 'Contact No: ' . ($branch->branch_contactNum ?? 'Contact Number')
             ]
+        ]);
+    }
+
+    /**
+     * Get available products for sale (excludes out-of-stock and expired products)
+     */
+    public function getAvailableProducts(Request $request)
+    {
+        $search = $request->input('search', '');
+        
+        $query = Product::with(['stockBatches', 'manufacturer'])
+            ->where('prod_type', 'Sale');
+        
+        if (!empty($search)) {
+            $query->where(function($q) use ($search) {
+                $q->where('prod_name', 'like', "%{$search}%")
+                  ->orWhere('prod_category', 'like', "%{$search}%");
+            });
+        }
+        
+        $products = $query->get();
+        
+        // Filter out expired and out-of-stock products
+        $availableProducts = $products->filter(function($product) {
+            // Check if product is not disabled (not expired and has stock)
+            return !$product->is_disabled;
+        })->map(function($product) {
+            return [
+                'prod_id' => $product->prod_id,
+                'prod_name' => $product->prod_name,
+                'prod_price' => (float) $product->prod_price,
+                'prod_stocks' => $product->available_stock - $product->usage_from_inventory_transactions,
+                'prod_category' => $product->prod_category,
+                'prod_image' => $product->prod_image,
+                'is_expired' => $product->all_expired,
+                'is_out_of_stock' => $product->is_out_of_stock,
+            ];
+        })->values();
+        
+        return response()->json([
+            'products' => $availableProducts
         ]);
     }
 }

@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Models\Branch;
 use App\Models\User;
-use App\Models\ReferralCompany;
+
 
 class BranchManagementController extends Controller
 {
@@ -23,10 +23,7 @@ class BranchManagementController extends Controller
             
             $users = User::with('branch')->orderBy('user_id', 'desc')->get();
 
-            $referralCompanies = ReferralCompany::with('branch')->orderBy('id', 'desc')->get();
-            //dd($referralCompanies);
-            //dd($branches);
-            return view('branchManagement', compact('branches', 'users', 'referralCompanies'));
+            return view('branchManagement', compact('branches', 'users'));
         } catch (\Exception $e) {
             dd('Error in controller: ' . $e->getMessage());
         }
@@ -55,7 +52,8 @@ class BranchManagementController extends Controller
         ]);
         
         return redirect()->route('dashboard-index')
-            ->with('success', "Switched to {$branch->branch_name}");
+            ->with('success', "Switched to {$branch->branch_name}")
+            ->with('reload_notifications', true);
     }
     
     /**
@@ -67,6 +65,38 @@ class BranchManagementController extends Controller
         
         return redirect()->route('dashboard-index')
             ->with('success', 'Returned to Super Admin view');
+    }
+
+    /**
+     * Get notifications for the current user/branch via AJAX
+     */
+    public function getNotifications()
+    {
+        try {
+            $user = auth()->user();
+            $notificationService = app(\App\Services\NotificationService::class);
+            
+            // Get notifications (respects active_branch_id for superadmin)
+            $notifications = $notificationService->getNotifications($user);
+            $unreadCount = $notificationService->getUnreadCount($user);
+            
+            return response()->json([
+                'success' => true,
+                'notifications' => $notifications,
+                'unreadCount' => $unreadCount,
+                'html' => view('components.notification-list', [
+                    'notifications' => $notifications,
+                    'unreadCount' => $unreadCount
+                ])->render()
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Failed to fetch notifications: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch notifications'
+            ], 500);
+        }
     }
 
     // ... rest of your existing methods (storeBranch, updateBranch, etc.)

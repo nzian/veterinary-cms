@@ -22,6 +22,7 @@ class Visit extends Model
         'temperature',
         'patient_type',
         'visit_status',
+        'visit_source', // Source of visit: walk-in, referral, appointment
         'workflow_status',
         'service_type',
         'visit_service_type',
@@ -45,9 +46,17 @@ class Visit extends Model
     {
         static::addGlobalScope('branch_visit_scope', function (Builder $builder) {
             $user = auth()->user();
-            $isSuperAdmin = $user && strtolower(trim($user->user_role)) === 'superadmin';
+            if (!$user) return; // No user logged in
+            
+            $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
             $isInBranchMode = Session::get('branch_mode') === 'active';
+            
+            // Get active branch ID - use session for superadmin in branch mode, otherwise use user's branch
             $activeBranchId = Session::get('active_branch_id');
+            if (!$isSuperAdmin) {
+                // For non-superadmin, always use their assigned branch
+                $activeBranchId = $user->branch_id;
+            }
 
             // Super Admin in Global Mode: no filter
             if ($isSuperAdmin && !$isInBranchMode) {
@@ -208,7 +217,15 @@ public function checkAllServicesCompleted()
     if ($allCompleted) {
         // Update workflow status to Completed
         $this->workflow_status = 'Completed';
-        $this->visit_status = 'arrived'; // Keep as arrived until payment
+        $this->service_status = 'Completed';
+        if(Billing::where('visit_id', $this->visit_id)->exists()) {
+            $this->visit_status = 'Billed';
+            $this->workflow_status = 'Billed';
+        } else {
+            $this->visit_status = 'Ready to Bill'; // Keep as arrived until payment
+            $this->workflow_status = 'Ready to Bill'; // Keep as arrived until payment
+        }
+        //$this->visit_status = 'arrived'; // Keep as arrived until payment
         $this->save();
 
         // Check if this visit was created from a referral and update referral status
@@ -235,6 +252,8 @@ public function checkAllServicesCompleted()
             try {
                 $billing = (new \App\Services\VisitBillingService())->createFromVisit($this);
                 if ($billing && $billing->bill_id) {
+                     $this->visit_status = 'Billed';
+                    $this->workflow_status = 'Billed';
                     \Illuminate\Support\Facades\Log::info("Billing created for visit {$this->visit_id}: Bill ID {$billing->bill_id}");
                     // Reload the relationship
                     $this->load('billing');

@@ -60,9 +60,14 @@ class Referral extends Model
         return $this->belongsTo(Visit::class, 'visit_id', 'visit_id');
     }
     
+    /**
+     * Get the pet for this referral.
+     * Uses withoutGlobalScopes to ensure the pet is always loaded
+     * regardless of branch scope restrictions (important for viewing referrals).
+     */
     public function pet()
     {
-        return $this->belongsTo(Pet::class, 'pet_id', 'pet_id');
+        return $this->belongsTo(Pet::class, 'pet_id', 'pet_id')->withoutGlobalScopes();
     }
 
     public function referralCompany()

@@ -88,28 +88,29 @@
 
             <div id="productInventoryTab" class="main-tab-content hidden">
                 <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                    <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
-                        <input type="hidden" name="tab" value="products">
+                    <div class="flex-shrink-0 flex items-center space-x-2">
                         <label for="productsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
-                        <select name="productsPerPage" id="productsPerPage" onchange="this.form.submit()"
+                        <select name="productsPerPage" id="productsPerPage"
                             class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                             @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                                <option value="{{ $limit }}" {{ request('productsPerPage') == $limit ? 'selected' : '' }}>
+                                <option value="{{ $limit }}" {{ request('productsPerPage', 10) == $limit ? 'selected' : '' }}>
                                     {{ $limit === 'all' ? 'All' : $limit }}
                                 </option>
                             @endforeach
                         </select>
                         <span class="whitespace-nowrap">entries</span>
-                        <label class="whitespace-nowrap text-sm text-black ml-2">Filter</label>
-                        <select name="productsType" id="productsType" onchange="this.form.submit()"
+                    </div>
+                    <div class="flex-shrink-0 flex items-center space-x-2">
+                        <label for="productsType" class="whitespace-nowrap text-sm text-black">Filter</label>
+                        <select name="productsType" id="productsType"
                             class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                             @foreach (['All', 'Sale', 'Consumable'] as $type)
-                                <option value="{{ $type }}" {{ request('productsType') == $type ? 'selected' : '' }}>
+                                <option value="{{ $type }}" {{ request('productsType', 'All') == $type ? 'selected' : '' }}>
                                     {{ $type }}
                                 </option>
                             @endforeach
                         </select>
-                    </form>
+                    </div>
                     <div class="relative flex-1 min-w-[200px] max-w-xs">
                         <input type="search" id="productsSearch" placeholder="Search products..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                         <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -131,7 +132,7 @@
 
 
                 <div class="overflow-x-auto">
-                    <table class="w-full table-auto text-sm border text-center">
+                    <table id="productsTable" class="w-full table-auto text-sm border text-center">
                         <thead class="bg-gray-100">
                             <tr>
                                 <th class="p-2 border">Image</th>
@@ -148,16 +149,34 @@
                         </thead>
                         <tbody>
                             @foreach($products as $product)
-                                <tr>
+                                @php
+                                    $isDisabled = $product->is_disabled;
+                                    $isOutOfStock = $product->is_out_of_stock;
+                                    $isExpired = $product->all_expired;
+                                    $statusLabel = $product->stock_status_label;
+                                    $rowClass = $isDisabled ? 'bg-gray-100 opacity-60' : '';
+                                @endphp
+                                <tr class="{{ $rowClass }}">
                                     <td class="p-2 border">
                                         @if($product->prod_image)
                                             <img src="{{ asset('storage/' . $product->prod_image) }}"
-                                                class="h-12 w-12 object-cover mx-auto rounded">
+                                                class="h-12 w-12 object-cover mx-auto rounded {{ $isDisabled ? 'grayscale' : '' }}">
                                         @else
                                             <span class="text-gray-400">No Image</span>
                                         @endif
                                     </td>
-                                    <td class="p-2 border font-medium">{{ $product->prod_name }}</td>
+                                    <td class="p-2 border font-medium">
+                                        {{ $product->prod_name }}
+                                        @if($isExpired)
+                                            <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                                <i class="fas fa-exclamation-circle mr-1"></i> EXPIRED
+                                            </span>
+                                        @elseif($isOutOfStock)
+                                            <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                <i class="fas fa-box-open mr-1"></i> OUT OF STOCK
+                                            </span>
+                                        @endif
+                                    </td>
                                     <td class="p-2 border">{{ $product->prod_category }}</td>
                                     <td class="p-2 border">
                                         <span class="px-2 py-1 text-xs rounded-full {{ $product->prod_type === 'Sale' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700' }}">
@@ -219,6 +238,14 @@
                                                 </button>
                                             @endif
 
+                                            @if($product->prod_type === 'Consumable' && hasPermission('edit_product', $can))
+                                                <button onclick="openLinkedConsumablesModal({{ $product->prod_id }}, '{{ addslashes($product->prod_name) }}')"
+                                                    class="bg-cyan-500 text-white px-2 py-1 rounded hover:bg-cyan-600 text-xs"
+                                                    title="Link Consumables (e.g., add syringe to vaccine)">
+                                                    <i class="fas fa-link"></i>
+                                                </button>
+                                            @endif
+
                                             @if(hasPermission('delete_product', $can))
                                                 <form action="{{ route('products.destroy', $product->prod_id) }}" method="POST"
                                                     onsubmit="return confirm('Delete this product?')" class="inline">
@@ -238,67 +265,41 @@
                         </tbody>
                     </table>
                 </div>
-                    <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>Showing {{ $products->firstItem() ?? 0 }} to {{ $products->lastItem() ?? 0 }} of
-                    {{ $products->total() }} entries</div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    @if ($products->onFirstPage())
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                    @else
-                        <a href="{{ $products->appends(request()->except(['productsPage']))->previousPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                    @endif
+                <div id="productsPagination" class="mt-4"></div>
 
-                    @for ($i = 1; $i <= $products->lastPage(); $i++)
-                        @if ($i == $products->currentPage())
-                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                        @else
-                            <a href="{{ $products->appends(array_merge(request()->except(['productsPage', 'page']), ['productsPage' => $i, 'tab' => 'products']))->url($i) }}"
-                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                        @endif
-                    @endfor
-
-                    @if ($products->hasMorePages())
-                        <a href="{{ $products->appends(request()->except(['productsPage']))->nextPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                    @else
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                    @endif
-                </div>
-            </div>
+            
             </div>
 
             <div id="servicesTab" class="main-tab-content">
                 <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                    <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
-                        <input type="hidden" name="tab" value="services">
+                    <div class="flex-shrink-0 flex items-center space-x-2">
                         <label for="servicesPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
-                        <select name="servicesPerPage" id="servicesPerPage" onchange="this.form.submit()"
+                        <select name="servicesPerPage" id="servicesPerPage"
                             class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                             @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                                <option value="{{ $limit }}" {{ request('servicesPerPage') == $limit ? 'selected' : '' }}>
+                                <option value="{{ $limit }}" {{ request('servicesPerPage', 10) == $limit ? 'selected' : '' }}>
                                     {{ $limit === 'all' ? 'All' : $limit }}
                                 </option>
                             @endforeach
                         </select>
                         <span class="whitespace-nowrap">entries</span>
-                        <label class="whitespace-nowrap text-sm text-black ml-2">Filter</label>
-                        <select id="serviceCategoryFilter" onchange="filterServicesByCategory()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                    </div>
+                    <select id="servicesCategoryFilter" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         <option value="">All Categories</option>
-                        <option value="Check up">Check up</option>
-                        <option value="Deworming">Deworming</option>
-                        <option value="Vaccination">Vaccination</option>
-                        <option value="Grooming">Grooming</option>
-                        <option value="Diagnostic">Diagnostics</option>
-                        <option value="Surgical">Surgical</option>
-                        <option value="Boarding">Boarding</option>
-                        <option value="Emergency">Emergency</option>
+                        <option value="boarding">Boarding</option>
+                        <option value="check-up">Check-up</option>
+                        <option value="deworming">Deworming</option>
+                        <option value="diagnostics">Diagnostics</option>
+                        <option value="emergency">Emergency</option>
+                        <option value="grooming">Grooming</option>
+                        <option value="surgical">Surgical</option>
+                        <option value="vaccination">Vaccination</option>
                     </select>
-                    </form>
                     <div class="relative flex-1 min-w-[200px] max-w-xs">
                         <input type="search" id="servicesSearch" placeholder="Search services..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                         <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                     </div>
+                    
                     <div class="flex gap-2">
                         <button onclick="openServiceInventoryOverview()" class="bg-purple-600 text-white text-sm px-3 py-1.5 rounded hover:bg-purple-700 whitespace-nowrap">
                             <i class="fas fa-pills mr-1"></i> Inventory
@@ -312,7 +313,7 @@
                 </div>
 
                 <div class="overflow-x-auto">
-                    <table class="w-full table-auto text-sm border text-center">
+                    <table id="servicesTable" class="w-full table-auto text-sm border text-center">
                         <thead class="bg-gray-100">
                             <tr>
                                 <th class="p-2 border">Name</th>
@@ -324,8 +325,8 @@
                             </tr>
                         </thead>
                        <tbody>
-                            @foreach($services as $service)
-                                <tr class="service-row" data-category="{{ $service->serv_type }}">
+                            @foreach($services as $index => $service)
+                                <tr>
                                     <td class="p-2 border">{{ $service->serv_name }}</td>
                                     <td class="p-2 border">{{ $service->serv_type }}</td>
                                     <td class="p-2 border">{{ Str::limit($service->serv_description, 50) }}</td>
@@ -350,25 +351,13 @@
                                             @endif
                                             {{-- END NEW ADDITION --}}
 
-                                            {{-- Show Manage Consumables for non-Boarding services --}}
-                                            @if(strtolower(trim($service->serv_type)) !== 'boarding')
+                                            {{-- Unified Manage Items Button (Consumable Products & Equipment) - Available for ALL services --}}
                                             <button
-                                                onclick="openManageProductsModal({{ $service->serv_id }}, '{{ addslashes($service->serv_name) }}', '{{ $service->serv_type }}', {{ $service->branch_id ?? 'null' }})"
+                                                onclick="openManageItemsModal({{ $service->serv_id }}, '{{ addslashes($service->serv_name) }}', '{{ $service->serv_type }}', {{ $service->branch_id ?? 'null' }})"
                                                 class="bg-indigo-500 text-white px-2 py-1 rounded hover:bg-indigo-600 text-xs"
-                                                title="Manage Consumables">
-                                                <i class="fas fa-pills"></i>
+                                                title="Manage Consumables & Equipment">
+                                                <i class="fas fa-boxes"></i>
                                             </button>
-                                            @endif
-
-                                            {{-- Show Manage Equipment for Boarding services --}}
-                                            @if(strtolower(trim($service->serv_type)) === 'boarding')
-                                            <button
-                                                onclick="openManageEquipmentModal({{ $service->serv_id }}, '{{ addslashes($service->serv_name) }}', {{ $service->branch_id ?? 'null' }})"
-                                                class="bg-amber-500 text-white px-2 py-1 rounded hover:bg-amber-600 text-xs"
-                                                title="Manage Equipment">
-                                                <i class="fas fa-tools"></i>
-                                            </button>
-                                            @endif
                                             
                                             @if(hasPermission('edit_service', $can))
                                                 <button onclick="openEditModal('service', {{ json_encode($service) }})"
@@ -397,61 +386,25 @@
                         </tbody>
                     </table>
 
-                    <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                        <div>Showing {{ $services->firstItem() ?? 0 }} to {{ $services->lastItem() ?? 0 }} of
-                            {{ $services->total() }} entries</div>
-                        <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                            @if ($services->onFirstPage())
-                                <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                            @else
-                                <a href="{{ $services->appends(request()->except(['servicesPage']))->previousPageUrl() }}"
-                                    class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                            @endif
-
-                            @for ($i = 1; $i <= $services->lastPage(); $i++)
-                                @if ($i == $services->currentPage())
-                                    <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                                @else
-                                    <a href="{{ $services->appends(array_merge(request()->except(['servicesPage', 'page']), ['servicesPage' => $i, 'tab' => 'services']))->url($i) }}"
-                                        class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                                @endif
-                            @endfor
-
-                            @if ($services->hasMorePages())
-                                <a href="{{ $services->appends(request()->except(['servicesPage']))->nextPageUrl() }}"
-                                    class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                            @else
-                                <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                            @endif
-                        </div>
-                    </div>
+                    <div id="servicesPagination" class="mt-4"></div>
 
                 </div>
             </div>
 
             <div id="equipmentTab" class="main-tab-content hidden">
                 <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                    <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
-                        <input type="hidden" name="tab" value="equipment">
+                    <div class="flex-shrink-0 flex items-center space-x-2">
                         <label for="equipmentPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
-                        <select name="equipmentPerPage" id="equipmentPerPage" onchange="this.form.submit()"
+                        <select name="equipmentPerPage" id="equipmentPerPage"
                             class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                             @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                                <option value="{{ $limit }}" {{ request('equipmentPerPage') == $limit ? 'selected' : '' }}>
+                                <option value="{{ $limit }}" {{ request('equipmentPerPage', 10) == $limit ? 'selected' : '' }}>
                                     {{ $limit === 'all' ? 'All' : $limit }}
                                 </option>
                             @endforeach
                         </select>
                         <span class="whitespace-nowrap">entries</span>
-                        <label class="whitespace-nowrap text-sm text-black ml-2">Filter</label>
-                        <select id="equipmentStatusFilter" onchange="filterEquipmentByStatus()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
-                            <option value="">All Status</option>
-                            <option value="available">Available</option>
-                            <option value="in_use">In Use</option>
-                            <option value="maintenance">Maintenance</option>
-                            <option value="out_of_service">Out of Service</option>
-                        </select>
-                    </form>
+                    </div>
                     <div class="relative flex-1 min-w-[200px] max-w-xs">
                         <input type="search" id="equipmentSearch" placeholder="Search equipment..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                         <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -488,7 +441,7 @@
                 </div>
 
                 <div class="overflow-x-auto">
-                    <table class="w-full table-auto text-sm border text-center">
+                    <table id="equipmentTable" class="w-full table-auto text-sm border text-center">
                         <thead class="bg-gray-100">
                             <tr>
                                 <th class="p-2 border">Image</th>
@@ -502,6 +455,7 @@
                             </tr>
                         </thead>
                         <tbody>
+                       
                             @foreach($equipment as $equip)
                                 @php
                                     $eqTotalQty = $equip->equipment_quantity;
@@ -598,34 +552,7 @@
                         </tbody>
                     </table>
                 </div>
-                <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-            <div>Showing {{ $equipment->firstItem() ?? 0 }} to {{ $equipment->lastItem() ?? 0 }} of
-                {{ $equipment->total() }} entries</div>
-            <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                @if ($equipment->onFirstPage())
-                    <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                @else
-                    <a href="{{ $equipment->appends(request()->except(['equipmentPage']))->previousPageUrl() }}"
-                        class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                @endif
-
-                @for ($i = 1; $i <= $equipment->lastPage(); $i++)
-                    @if ($i == $equipment->currentPage())
-                        <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                    @else
-                        <a href="{{ $equipment->appends(array_merge(request()->except(['equipmentPage', 'page']), ['equipmentPage' => $i, 'tab' => 'equipment']))->url($i) }}"
-                            class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                    @endif
-                @endfor
-
-                @if ($equipment->hasMorePages())
-                    <a href="{{ $equipment->appends(request()->except(['equipmentPage']))->nextPageUrl() }}"
-                        class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                @else
-                    <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                @endif
-            </div>
-        </div>
+                <div id="equipmentPagination" class="mt-4"></div>
             </div>
             
         </div>
@@ -794,6 +721,124 @@
         </div>
     </div>
 
+    <!-- Unified Manage Items Modal (Consumable Products & Equipment) - Available for ALL services -->
+    <div id="manageItemsModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-5xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold"><i class="fas fa-boxes mr-2"></i>Manage Items for Service</h3>
+                <div class="flex items-center gap-4">
+                    <p class="text-sm text-gray-600" id="itemsServiceNameDisplay"></p>
+                    <button onclick="closeManageItemsModal()"
+                        class="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
+                </div>
+            </div>
+
+            <input type="hidden" id="currentItemsServiceId">
+            <input type="hidden" id="currentItemsServiceType">
+            <input type="hidden" id="currentItemsBranchId">
+
+            <!-- Tab Navigation -->
+            <div class="border-b border-gray-200 mb-4">
+                <nav class="flex -mb-px">
+                    <button onclick="switchItemsTab('consumable')" id="consumableTabBtn"
+                        class="items-tab-btn px-6 py-3 border-b-2 border-indigo-500 text-indigo-600 font-medium text-sm focus:outline-none">
+                        <i class="fas fa-pills mr-2"></i>Consumable Products
+                    </button>
+                    <button onclick="switchItemsTab('equipment')" id="equipmentTabBtn"
+                        class="items-tab-btn px-6 py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm focus:outline-none">
+                        <i class="fas fa-tools mr-2"></i>Equipment Items
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Consumable Products Tab Content -->
+            <div id="consumableTabContent" class="items-tab-content">
+                <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                    <h4 class="font-semibold mb-3">Add Consumable Product to Service</h4>
+                    <div class="mb-2">
+                        <small class="text-blue-600"><i class="fas fa-info-circle mr-1"></i>Showing consumable products matching service type: <strong id="itemsServiceTypeDisplay"></strong> and branch</small>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Select Consumable Product</label>
+                            <select id="itemsProductSelect" class="border p-2 w-full rounded">
+                                <option value="">-- Select Consumable Product --</option>
+                            </select>
+                            <small class="text-gray-500">Only consumable products matching this service type and branch are shown</small>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Quantity Used</label>
+                            <input type="number" id="itemsQuantityUsed" step="0.01" min="0.01" value="1.00"
+                                class="border p-2 w-full rounded" placeholder="1.00">
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="addItemProductToService()"
+                                class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full">
+                                <i class="fas fa-plus mr-1"></i> Add
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="font-semibold mb-3">Products Linked to This Service</h4>
+                    <div id="itemsServiceProductsList" class="space-y-2">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Equipment Tab Content -->
+            <div id="equipmentTabContent" class="items-tab-content hidden">
+                <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                    <h4 class="font-semibold mb-3">Add Equipment to Service</h4>
+                    <div class="mb-2">
+                        <small class="text-blue-600"><i class="fas fa-info-circle mr-1"></i>Showing <strong>Furniture & General Clinic Equipment</strong> from the same branch</small>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Select Equipment</label>
+                            <select id="itemsEquipmentSelect" class="border p-2 w-full rounded">
+                                <option value="">-- Select Equipment --</option>
+                            </select>
+                            <small class="text-gray-500">Only Furniture & General Clinic Equipment from this branch is shown</small>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                            <input type="number" id="itemsEquipmentQuantityUsed" min="1" value="1"
+                                class="border p-2 w-full rounded" placeholder="1">
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="addItemEquipmentToService()"
+                                class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full">
+                                <i class="fas fa-plus mr-1"></i> Add
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                        <input type="text" id="itemsEquipmentNotes" class="border p-2 w-full rounded" placeholder="Enter any notes about equipment usage...">
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="font-semibold mb-3">Equipment Linked to This Service</h4>
+                    <div id="itemsServiceEquipmentList" class="space-y-2">
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-6 border-t pt-4">
+                <button onclick="closeManageItemsModal()"
+                    class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Close</button>
+                <button onclick="saveAllServiceItems()"
+                    class="px-4 py-2 bg-[#0f7ea0] text-white rounded hover:bg-[#0c6a86]">
+                    <i class="fas fa-save mr-1"></i> Save All Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Legacy Manage Products Modal (keeping for backwards compatibility) -->
     <div id="manageProductsModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
         <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-4">
@@ -852,7 +897,7 @@
         </div>
     </div>
 
-    <!-- Manage Equipment Modal (for Boarding services) -->
+    <!-- Legacy Manage Equipment Modal (keeping for backwards compatibility) -->
     <div id="manageEquipmentModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
         <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-4">
@@ -952,6 +997,60 @@
                     <button type="submit" class="px-4 py-2 bg-[#0f7ea0] text-white rounded hover:bg-[#0c6a86]">Save</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Linked Consumables Modal -->
+    <div id="linkedConsumablesModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold">
+                    <i class="fas fa-link mr-2 text-cyan-600"></i>
+                    Linked Consumables for: <span id="linkedConsumableProductName" class="text-cyan-600"></span>
+                </h3>
+                <button type="button" onclick="closeLinkedConsumablesModal()" class="text-gray-500 hover:text-gray-700 text-xl">&times;</button>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <p class="text-sm text-blue-800">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    <strong>How it works:</strong> When this product is used in a service (e.g., vaccine), all linked consumables (e.g., syringe) will be automatically deducted from inventory.
+                </p>
+            </div>
+
+            <!-- Add Consumable Form -->
+            <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                <h4 class="font-semibold mb-3">Add Linked Consumable</h4>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Select Consumable Product *</label>
+                        <select id="linkedConsumableSelect" class="border p-2 w-full rounded">
+                            <option value="">Select a consumable product...</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
+                        <div class="flex gap-2">
+                            <input type="number" id="linkedConsumableQty" value="1" min="1" class="border p-2 w-full rounded" placeholder="Qty">
+                            <button type="button" onclick="addLinkedConsumable()" class="px-4 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-700 whitespace-nowrap">
+                                <i class="fas fa-plus mr-1"></i> Add
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Linked Consumables List -->
+            <div>
+                <h4 class="font-semibold mb-3">Currently Linked Consumables</h4>
+                <div id="linkedConsumablesList" class="space-y-2">
+                    <div class="text-center py-4 text-gray-500">
+                        <i class="fas fa-spinner fa-spin mr-1"></i> Loading linked consumables...
+                    </div>
+                </div>
+            </div>
+
+            <input type="hidden" id="linkedConsumableProductId" value="">
         </div>
     </div>
 
@@ -1346,7 +1445,490 @@
             if (activeTabInput) {
                 activeTabInput.value = activeTabParam.replace('Tab', '');
             }
+
+            // Initialize ListFilters AFTER tabs are set up
+            setTimeout(() => {
+                if (typeof ListFilter !== 'undefined') {
+                    window.listFilters = window.listFilters || {};
+                    
+                    // Initialize filter for active tab only
+                    if (activeTabParam === 'products') {
+                        const tbody = document.querySelector('#productsTable tbody');
+                        const rowCount = tbody ? tbody.querySelectorAll('tr').length : 0;
+                        console.log('Products tbody found:', !!tbody, 'Row count:', rowCount);
+                        
+                        if (tbody && rowCount > 0) {
+                            window.listFilters['products'] = new ListFilter({
+                                tableSelector: '#productsTable tbody',
+                                searchInputId: 'productsSearch',
+                                perPageSelectId: 'productsPerPage',
+                                paginationContainerId: 'productsPagination',
+                                searchColumns: [1, 2, 3, 4, 5, 7],
+                                filterSelects: [
+                                    { selectId: 'productsType', columnIndex: 3 }
+                                ],
+                                storageKey: 'productsFilter',
+                                noResultsMessage: 'No products found.'
+                            });
+                            console.log('Products filter initialized with', window.listFilters['products'].allRows.length, 'rows');
+                        } else {
+                            console.error('Products table not ready or empty');
+                        }
+                    } else if (activeTabParam === 'services') {
+                        const tbody = document.querySelector('#servicesTable tbody');
+                        const rowCount = tbody ? tbody.querySelectorAll('tr').length : 0;
+                        console.log('Services tbody found:', !!tbody, 'Row count:', rowCount);
+                        
+                        if (tbody && rowCount > 0) {
+                            window.listFilters['services'] = new ListFilter({
+                                tableSelector: '#servicesTable tbody',
+                                searchInputId: 'servicesSearch',
+                                perPageSelectId: 'servicesPerPage',
+                                paginationContainerId: 'servicesPagination',
+                                searchColumns: [0, 1, 2, 3, 4],
+                                filterSelects: [
+                                    { selectId: 'servicesCategoryFilter', columnIndex: 1 } // Type column
+                                ],
+                                storageKey: 'servicesFilter',
+                                noResultsMessage: 'No services found.'
+                            });
+                            console.log('Services filter initialized with', window.listFilters['services'].allRows.length, 'rows');
+                        } else {
+                            console.error('Services table not ready or empty');
+                        }
+                    } else if (activeTabParam === 'equipment') {
+                        const tbody = document.querySelector('#equipmentTable tbody');
+                        const rowCount = tbody ? tbody.querySelectorAll('tr').length : 0;
+                        
+                        if (tbody && rowCount > 0) {
+                            window.listFilters['equipment'] = new ListFilter({
+                                tableSelector: '#equipmentTable tbody',
+                                searchInputId: 'equipmentSearch',
+                                perPageSelectId: 'equipmentPerPage',
+                                paginationContainerId: 'equipmentPagination',
+                                searchColumns: [1, 2, 3, 4, 5],
+                                storageKey: 'equipmentFilter',
+                                noResultsMessage: 'No equipment found.'
+                            });
+                        }
+                    }
+                } else {
+                    console.error('ListFilter class not found');
+                }
+            }, 500);
         });
+
+        // ====================================
+        // UNIFIED MANAGE ITEMS MODAL (Consumable Products & Equipment)
+        // ====================================
+        let itemsProducts = [];
+        let itemsEquipment = [];
+
+        function openManageItemsModal(serviceId, serviceName, serviceType, branchId) {
+            document.getElementById('manageItemsModal').classList.remove('hidden');
+            document.getElementById('currentItemsServiceId').value = serviceId;
+            document.getElementById('currentItemsServiceType').value = serviceType || '';
+            document.getElementById('currentItemsBranchId').value = branchId || '';
+            document.getElementById('itemsServiceNameDisplay').textContent = serviceName;
+            document.getElementById('itemsServiceTypeDisplay').textContent = serviceType || 'All';
+
+            // Reset to consumable tab
+            switchItemsTab('consumable');
+
+            // Load filtered consumable products for this service type and branch
+            loadItemsFilteredProducts(serviceType, branchId);
+
+            // Load filtered equipment for this branch
+            loadItemsFilteredEquipment(branchId);
+
+            // Load existing products for this service
+            loadItemsServiceProducts(serviceId);
+
+            // Load existing equipment for this service
+            loadItemsServiceEquipment(serviceId);
+        }
+
+        function switchItemsTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.items-tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+
+            // Reset all tab buttons
+            document.querySelectorAll('.items-tab-btn').forEach(btn => {
+                btn.classList.remove('border-indigo-500', 'text-indigo-600');
+                btn.classList.add('border-transparent', 'text-gray-500');
+            });
+
+            // Show selected tab content and activate button
+            if (tabName === 'consumable') {
+                document.getElementById('consumableTabContent').classList.remove('hidden');
+                document.getElementById('consumableTabBtn').classList.add('border-indigo-500', 'text-indigo-600');
+                document.getElementById('consumableTabBtn').classList.remove('border-transparent', 'text-gray-500');
+            } else if (tabName === 'equipment') {
+                document.getElementById('equipmentTabContent').classList.remove('hidden');
+                document.getElementById('equipmentTabBtn').classList.add('border-indigo-500', 'text-indigo-600');
+                document.getElementById('equipmentTabBtn').classList.remove('border-transparent', 'text-gray-500');
+            }
+        }
+
+        function loadItemsFilteredProducts(serviceType, branchId) {
+            const productSelect = document.getElementById('itemsProductSelect');
+            productSelect.innerHTML = '<option value="">-- Loading Products --</option>';
+            
+            let url = '/products/consumable-by-filter';
+            const params = new URLSearchParams();
+            if (serviceType) params.append('service_type', serviceType);
+            if (branchId) params.append('branch_id', branchId);
+            
+            if (params.toString()) {
+                url += '?' + params.toString();
+            }
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    let options = '<option value="">-- Select Consumable Product --</option>';
+                    if (data.success && data.products && data.products.length > 0) {
+                        data.products.forEach(product => {
+                            const stock = product.available_stock || 0;
+                            options += `<option value="${product.prod_id}" data-name="${escapeHtml(product.prod_name)}" data-stock="${stock}" data-category="${product.prod_category || ''}">${escapeHtml(product.prod_name)} (Stock: ${stock})</option>`;
+                        });
+                    } else {
+                        options += '<option value="" disabled>-- No matching products found --</option>';
+                    }
+                    productSelect.innerHTML = options;
+                })
+                .catch(error => {
+                    console.error('Error loading filtered products:', error);
+                    productSelect.innerHTML = '<option value="">-- Error loading products --</option>';
+                });
+        }
+
+        function loadItemsFilteredEquipment(branchId) {
+            const equipmentSelect = document.getElementById('itemsEquipmentSelect');
+            equipmentSelect.innerHTML = '<option value="">-- Loading Equipment --</option>';
+            
+            let url = '/equipment/by-branch';
+            const params = new URLSearchParams();
+            if (branchId) params.append('branch_id', branchId);
+            
+            if (params.toString()) {
+                url += '?' + params.toString();
+            }
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    let options = '<option value="">-- Select Equipment --</option>';
+                    if (data.success && data.equipment && data.equipment.length > 0) {
+                        data.equipment.forEach(eq => {
+                            const available = eq.equipment_available || 0;
+                            options += `<option value="${eq.equipment_id}" data-name="${escapeHtml(eq.equipment_name)}" data-available="${available}" data-category="${eq.equipment_category || ''}">${escapeHtml(eq.equipment_name)} (Available: ${available})</option>`;
+                        });
+                    } else {
+                        options += '<option value="" disabled>-- No equipment found --</option>';
+                    }
+                    equipmentSelect.innerHTML = options;
+                })
+                .catch(error => {
+                    console.error('Error loading equipment:', error);
+                    equipmentSelect.innerHTML = '<option value="">-- Error loading equipment --</option>';
+                });
+        }
+
+        function loadItemsServiceProducts(serviceId) {
+            document.getElementById('itemsServiceProductsList').innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading products...</div>';
+
+            fetch(`/services/${serviceId}/products`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        itemsProducts = data.products;
+                        renderItemsServiceProducts();
+                    } else {
+                        document.getElementById('itemsServiceProductsList').innerHTML = '<div class="text-red-500">Error loading products</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('itemsServiceProductsList').innerHTML = '<div class="text-red-500">Error loading products</div>';
+                });
+        }
+
+        function loadItemsServiceEquipment(serviceId) {
+            document.getElementById('itemsServiceEquipmentList').innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading equipment...</div>';
+
+            fetch(`/services/${serviceId}/equipment`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        itemsEquipment = data.equipment;
+                        renderItemsServiceEquipment();
+                    } else {
+                        document.getElementById('itemsServiceEquipmentList').innerHTML = '<div class="text-red-500">Error loading equipment</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('itemsServiceEquipmentList').innerHTML = '<div class="text-red-500">Error loading equipment</div>';
+                });
+        }
+
+        function renderItemsServiceProducts() {
+            const container = document.getElementById('itemsServiceProductsList');
+
+            if (itemsProducts.length === 0) {
+                container.innerHTML = '<div class="text-center text-gray-500 py-4">No consumable products linked to this service yet.</div>';
+                return;
+            }
+
+            let html = '<div class="space-y-2">';
+            itemsProducts.forEach((item, index) => {
+                const stockWarning = item.current_stock < item.quantity_used ? 'border-red-300 bg-red-50' : 'border-gray-200';
+                html += `
+                <div class="flex items-center justify-between p-3 border ${stockWarning} rounded">
+                    <div class="flex-1">
+                        <div class="font-medium">${escapeHtml(item.product_name)}</div>
+                        <div class="text-sm text-gray-600">
+                            Quantity Used: <span class="font-semibold">${item.quantity_used}</span> | 
+                            Current Stock: <span class="${item.current_stock < item.quantity_used ? 'text-red-600 font-bold' : 'text-green-600'}">${item.current_stock}</span>
+                            ${item.current_stock < item.quantity_used ? '<span class="text-red-600 ml-2"><i class="fas fa-exclamation-triangle"></i> Low Stock!</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="number" step="0.01" min="0.01" value="${item.quantity_used}" 
+                               onchange="updateItemsProductQuantity(${index}, this.value)"
+                               class="border p-1 w-20 rounded text-sm">
+                        <button onclick="removeItemsProductFromService(${index})" 
+                                class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-sm">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+
+            container.innerHTML = html;
+        }
+
+        function renderItemsServiceEquipment() {
+            const container = document.getElementById('itemsServiceEquipmentList');
+
+            if (itemsEquipment.length === 0) {
+                container.innerHTML = '<div class="text-center text-gray-500 py-4">No equipment linked to this service yet.</div>';
+                return;
+            }
+
+            let html = '<div class="space-y-2">';
+            itemsEquipment.forEach((item, index) => {
+                const availableWarning = item.available_quantity < item.quantity_used ? 'border-red-300 bg-red-50' : 'border-gray-200';
+                html += `
+                <div class="flex items-center justify-between p-3 border ${availableWarning} rounded">
+                    <div class="flex-1">
+                        <div class="font-medium">${escapeHtml(item.equipment_name)}</div>
+                        <div class="text-sm text-gray-600">
+                            Quantity: <span class="font-semibold">${item.quantity_used}</span> | 
+                            Available: <span class="${item.available_quantity < item.quantity_used ? 'text-red-600 font-bold' : 'text-green-600'}">${item.available_quantity}</span>
+                            ${item.available_quantity < item.quantity_used ? '<span class="text-red-600 ml-2"><i class="fas fa-exclamation-triangle"></i> Low Availability!</span>' : ''}
+                        </div>
+                        ${item.notes ? `<div class="text-sm text-gray-500 italic mt-1"><i class="fas fa-sticky-note mr-1"></i>${escapeHtml(item.notes)}</div>` : ''}
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="number" min="1" value="${item.quantity_used}" 
+                               onchange="updateItemsEquipmentQuantity(${index}, this.value)"
+                               class="border p-1 w-20 rounded text-sm">
+                        <button onclick="removeItemsEquipmentFromService(${index})" 
+                                class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-sm">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+
+            container.innerHTML = html;
+        }
+
+        function addItemProductToService() {
+            const select = document.getElementById('itemsProductSelect');
+            const prodId = select.value;
+            const quantityUsed = parseFloat(document.getElementById('itemsQuantityUsed').value);
+
+            if (!prodId) {
+                alert('Please select a product');
+                return;
+            }
+
+            if (!quantityUsed || quantityUsed <= 0) {
+                alert('Please enter a valid quantity');
+                return;
+            }
+
+            // Check if product already exists
+            if (itemsProducts.find(p => p.prod_id == prodId)) {
+                alert('This product is already linked to this service');
+                return;
+            }
+
+            const selectedOption = select.options[select.selectedIndex];
+
+            itemsProducts.push({
+                prod_id: prodId,
+                product_name: selectedOption.dataset.name,
+                quantity_used: quantityUsed,
+                current_stock: selectedOption.dataset.stock,
+                is_billable: false
+            });
+
+            // Reset form
+            select.value = '';
+            document.getElementById('itemsQuantityUsed').value = '1.00';
+
+            renderItemsServiceProducts();
+        }
+
+        function addItemEquipmentToService() {
+            const select = document.getElementById('itemsEquipmentSelect');
+            const equipmentId = select.value;
+            const quantityUsed = parseInt(document.getElementById('itemsEquipmentQuantityUsed').value);
+            const notes = document.getElementById('itemsEquipmentNotes').value.trim();
+
+            if (!equipmentId) {
+                alert('Please select equipment');
+                return;
+            }
+
+            if (!quantityUsed || quantityUsed <= 0) {
+                alert('Please enter a valid quantity');
+                return;
+            }
+
+            // Check if equipment already exists
+            if (itemsEquipment.find(e => e.equipment_id == equipmentId)) {
+                alert('This equipment is already linked to this service');
+                return;
+            }
+
+            const selectedOption = select.options[select.selectedIndex];
+
+            itemsEquipment.push({
+                equipment_id: equipmentId,
+                equipment_name: selectedOption.dataset.name,
+                quantity_used: quantityUsed,
+                available_quantity: selectedOption.dataset.available,
+                notes: notes
+            });
+
+            // Reset form
+            select.value = '';
+            document.getElementById('itemsEquipmentQuantityUsed').value = '1';
+            document.getElementById('itemsEquipmentNotes').value = '';
+
+            renderItemsServiceEquipment();
+        }
+
+        function updateItemsProductQuantity(index, newQuantity) {
+            itemsProducts[index].quantity_used = parseFloat(newQuantity);
+        }
+
+        function updateItemsEquipmentQuantity(index, newQuantity) {
+            itemsEquipment[index].quantity_used = parseInt(newQuantity);
+        }
+
+        function removeItemsProductFromService(index) {
+            if (confirm('Remove this product from the service?')) {
+                itemsProducts.splice(index, 1);
+                renderItemsServiceProducts();
+            }
+        }
+
+        function removeItemsEquipmentFromService(index) {
+            if (confirm('Remove this equipment from the service?')) {
+                itemsEquipment.splice(index, 1);
+                renderItemsServiceEquipment();
+            }
+        }
+
+        function closeManageItemsModal() {
+            document.getElementById('manageItemsModal').classList.add('hidden');
+            itemsProducts = [];
+            itemsEquipment = [];
+            document.getElementById('itemsServiceProductsList').innerHTML = '';
+            document.getElementById('itemsServiceEquipmentList').innerHTML = '';
+            document.getElementById('itemsProductSelect').innerHTML = '<option value="">-- Select Consumable Product --</option>';
+            document.getElementById('itemsEquipmentSelect').innerHTML = '<option value="">-- Select Equipment --</option>';
+            document.getElementById('itemsQuantityUsed').value = '1.00';
+            document.getElementById('itemsEquipmentQuantityUsed').value = '1';
+            document.getElementById('itemsEquipmentNotes').value = '';
+            document.getElementById('currentItemsServiceType').value = '';
+            document.getElementById('currentItemsBranchId').value = '';
+            document.getElementById('itemsServiceTypeDisplay').textContent = '';
+        }
+
+        function saveAllServiceItems() {
+            const serviceId = document.getElementById('currentItemsServiceId').value;
+
+            // Prepare products data
+            const productsData = itemsProducts.map(p => ({
+                prod_id: p.prod_id,
+                quantity_used: p.quantity_used,
+                is_billable: p.is_billable || false
+            }));
+
+            // Prepare equipment data
+            const equipmentData = itemsEquipment.map(e => ({
+                equipment_id: e.equipment_id,
+                quantity_used: e.quantity_used,
+                notes: e.notes || null
+            }));
+
+            // Show loading
+            const saveBtn = event.target;
+            const originalText = saveBtn.innerHTML;
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Saving...';
+            saveBtn.disabled = true;
+
+            // Save both products and equipment
+            Promise.all([
+                fetch(`/services/${serviceId}/products`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify({ products: productsData })
+                }).then(response => response.json()),
+                
+                fetch(`/services/${serviceId}/equipment`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify({ equipment: equipmentData })
+                }).then(response => response.json())
+            ])
+            .then(([productsResult, equipmentResult]) => {
+                if (productsResult.success && equipmentResult.success) {
+                    alert('✅ All items saved successfully!');
+                    closeManageItemsModal();
+                } else {
+                    let errorMsg = '';
+                    if (!productsResult.success) errorMsg += 'Products: ' + (productsResult.error || 'Failed to save') + '\n';
+                    if (!equipmentResult.success) errorMsg += 'Equipment: ' + (equipmentResult.error || 'Failed to save');
+                    alert('❌ Error saving items:\n' + errorMsg);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ Error saving items. Please try again.');
+            })
+            .finally(() => {
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+            });
+        }
 
         // ... [MANAGE SERVICE PRODUCTS FUNCTIONS REMAIN UNCHANGED] ...
 
@@ -2188,13 +2770,13 @@
                     allMovements = data.movements;
                     const summary = data.summary;
                     
-                    // Update summary cards
+                    // Update summary cards - whole numbers without +/- signs
                     document.getElementById('summaryTotal').textContent = summary.total_movements;
-                    document.getElementById('summaryAdded').textContent = '+' + summary.stock_added;
-                    document.getElementById('summarySales').textContent = '-' + summary.sales;
-                    document.getElementById('summaryService').textContent = '-' + summary.service_usage;
-                    document.getElementById('summaryDamaged').textContent = '-' + summary.damaged;
-                    document.getElementById('summaryPullout').textContent = '-' + summary.pullout;
+                    document.getElementById('summaryAdded').textContent = Math.round(summary.stock_added);
+                    document.getElementById('summarySales').textContent = Math.round(summary.sales);
+                    document.getElementById('summaryService').textContent = Math.round(summary.service_usage);
+                    document.getElementById('summaryDamaged').textContent = Math.round(summary.damaged);
+                    document.getElementById('summaryPullout').textContent = Math.round(summary.pullout);
                     
                     renderMovementHistory(allMovements);
                 })
@@ -2244,8 +2826,11 @@
                 };
                 
                 const typeClass = colorClasses[movement.type_color] || colorClasses['gray'];
-                const quantityClass = movement.quantity_change >= 0 ? 'text-green-600 font-bold' : 'text-red-600 font-bold';
-                const quantityDisplay = movement.quantity_change >= 0 ? '+' + movement.quantity_change : movement.quantity_change;
+                
+                // Display whole number without +/- signs, use color to indicate addition (green) or deduction (red)
+                const isAddition = movement.quantity_change >= 0;
+                const quantityClass = isAddition ? 'text-green-600 font-bold' : 'text-red-600 font-bold';
+                const quantityDisplay = Math.round(Math.abs(movement.quantity_change)); // Whole number, no decimal, no sign
                 
                 content += `
                     <tr class="hover:bg-gray-50 movement-row" data-type="${movement.transaction_type}" data-product="${movement.product_name.toLowerCase()}">
@@ -2351,6 +2936,7 @@
                                     <tr>
                                         <th class="p-2 border">Batch</th>
                                         <th class="p-2 border">Initial Qty</th>
+                                        <th class="p-2 border">Service Usage</th>
                                         <th class="p-2 border">Available</th>
                                         <th class="p-2 border">Damaged</th>
                                         <th class="p-2 border">Pullout</th>
@@ -2366,11 +2952,15 @@
                             const expiryDate = batch.expire_date ? new Date(batch.expire_date) : null;
                             const isExpired = batch.is_expired;
                             const addedDate = batch.created_at ? new Date(batch.created_at) : null;
+                            const serviceUsage = batch.service_usage || 0;
                             
                             content += `
                             <tr class="${isExpired ? 'bg-red-50' : ''}">
                                 <td class="p-2 border font-medium">${batch.batch}</td>
                                 <td class="p-2 border text-center">${batch.quantity}</td>
+                                <td class="p-2 border text-center">
+                                    <span class="font-bold ${serviceUsage > 0 ? 'text-purple-600' : 'text-gray-400'}">${serviceUsage}</span>
+                                </td>
                                 <td class="p-2 border text-center">
                                     <span class="font-bold ${batch.available_quantity > 0 ? 'text-green-600' : 'text-gray-400'}">${batch.available_quantity}</span>
                                 </td>
@@ -2385,7 +2975,7 @@
                             </tr>`;
                         });
                     } else {
-                        content += '<tr><td colspan="8" class="p-4 text-center text-gray-500">No stock batches found</td></tr>';
+                        content += '<tr><td colspan="9" class="p-4 text-center text-gray-500">No stock batches found</td></tr>';
                     }
 
                     content += `
@@ -2783,6 +3373,7 @@
                                 <tr>
                                     <th class="p-2 border">Batch</th>
                                     <th class="p-2 border">Initial Qty</th>
+                                    <th class="p-2 border">Service Usage</th>
                                     <th class="p-2 border">Available</th>
                                     <th class="p-2 border">Damaged</th>
                                     <th class="p-2 border">Pullout</th>
@@ -2800,6 +3391,7 @@
                             const isExpired = batch.is_expired;
                             const addedDate = batch.created_at ? new Date(batch.created_at) : null;
                             const daysUntilExpiry = expiryDate ? Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24)) : null;
+                            const serviceUsage = batch.service_usage || 0;
                             
                             let statusText = 'Good';
                             let statusClass = 'text-green-600';
@@ -2816,6 +3408,9 @@
                                 <td class="p-2 border font-medium">${batch.batch}</td>
                                 <td class="p-2 border text-center">${batch.quantity}</td>
                                 <td class="p-2 border text-center">
+                                    <span class="font-bold ${serviceUsage > 0 ? 'text-purple-600' : 'text-gray-400'}">${serviceUsage}</span>
+                                </td>
+                                <td class="p-2 border text-center">
                                     <span class="font-bold ${batch.available_quantity > 0 ? 'text-green-600' : 'text-gray-400'}">${batch.available_quantity}</span>
                                 </td>
                                 <td class="p-2 border text-center text-red-600">${batch.total_damage}</td>
@@ -2829,7 +3424,7 @@
                             </tr>`;
                         });
                     } else {
-                        content += '<tr><td colspan="9" class="p-4 text-center text-gray-500">No stock batches found</td></tr>';
+                        content += '<tr><td colspan="10" class="p-4 text-center text-gray-500">No stock batches found</td></tr>';
                     }
 
                     content += `
@@ -2863,32 +3458,33 @@
 
                         const movementDate = movement.date ? new Date(movement.date) : new Date();
                         
-                        // Parse quantity, damage, and pullout values
-                        const displayQuantity = typeof movement.quantity === 'number' ? movement.quantity : 
+                        // Parse quantity, damage, and pullout values - convert to whole numbers
+                        const rawQuantity = typeof movement.quantity === 'number' ? movement.quantity : 
                                              (movement.quantity ? parseFloat(movement.quantity) : 0);
+                        const displayQuantity = Math.round(Math.abs(rawQuantity)); // Whole number, no decimal, no sign
                         
                         // Separate display for damage and pullout
                         let damageQty = 0;
                         let pulloutQty = 0;
                         let regularQty = displayQuantity;
+                        let isAddition = rawQuantity > 0; // Track if it's an addition or deduction
                         
                         if (movement.type === 'Damage') {
-                            damageQty = Math.abs(displayQuantity);
+                            damageQty = displayQuantity;
                             regularQty = 0;
                         } else if (movement.type === 'Pullout') {
-                            pulloutQty = Math.abs(displayQuantity);
+                            pulloutQty = displayQuantity;
                             regularQty = 0;
                         }
 
-                        // Format the quantity with proper sign for display
-                        const quantitySign = regularQty > 0 ? '+' : (regularQty < 0 ? '' : '');
-                        const quantityClass = regularQty > 0 ? 'text-green-600' : (regularQty < 0 ? 'text-red-600' : 'text-gray-400');
+                        // Color based on addition (green) or deduction (red) - no +/- signs
+                        const quantityClass = isAddition ? 'text-green-600' : 'text-red-600';
 
                         content += `
                     <tr>
                         <td class="p-2 border">${movementDate.toLocaleDateString()}</td>
                         <td class="p-2 border"><span class="${typeClass} capitalize font-semibold">${movement.type.replace(/_/g, ' ')}</span></td>
-                        <td class="p-2 border ${quantityClass} font-bold text-center">${regularQty !== 0 ? quantitySign + regularQty : '-'}</td>
+                        <td class="p-2 border ${quantityClass} font-bold text-center">${regularQty !== 0 ? regularQty : '-'}</td>
                         <td class="p-2 border text-red-600 font-semibold text-center">${damageQty > 0 ? damageQty : '-'}</td>
                         <td class="p-2 border text-orange-600 font-semibold text-center">${pulloutQty > 0 ? pulloutQty : '-'}</td>
                         <td class="p-2 border">${movement.reference || 'N/A'}</td>
@@ -3026,6 +3622,7 @@
                             <option value="Check-up">Check-up</option>
                             <option value="Deworming">Deworming</option>
                             <option value="Diagnostics">Diagnostics</option>
+                            <option value="Medical Supply">Medical Supply</option>
                         </select>
                         <small class="text-gray-500" id="addServiceCategoryNote">For Consumable products only</small>
                     </div>
@@ -3105,7 +3702,7 @@
                     const serviceCategoryClass = isSale ? 'bg-gray-100 cursor-not-allowed' : '';
 
                     // Service categories list
-                    const serviceCategories = ['Grooming', 'Boarding', 'Vaccination', 'Surgical', 'Emergency', 'Check-up', 'Deworming', 'Diagnostics'];
+                    const serviceCategories = ['Grooming', 'Boarding', 'Vaccination', 'Surgical', 'Emergency', 'Check-up', 'Deworming', 'Diagnostics', 'Medical Supply'];
                     
                     // Check if prod_category is a service category (for consumable products)
                     const isServiceCategory = serviceCategories.includes(data.prod_category);
@@ -3154,6 +3751,7 @@
                             <option value="Check-up" ${displayServiceCategory === 'Check-up' ? 'selected' : ''}>Check-up</option>
                             <option value="Deworming" ${displayServiceCategory === 'Deworming' ? 'selected' : ''}>Deworming</option>
                             <option value="Diagnostics" ${displayServiceCategory === 'Diagnostics' ? 'selected' : ''}>Diagnostics</option>
+                            <option value="Medical Supply" ${displayServiceCategory === 'Medical Supply' ? 'selected' : ''}>Medical Supply</option>
                         </select>
                         <small class="text-gray-500" id="editServiceCategoryNote">For Consumable products only</small>
                     </div>
@@ -3227,6 +3825,168 @@
             // Remove method field
             let methodField = document.querySelector('#productModalForm input[name="_method"]');
             if (methodField) methodField.remove();
+        }
+
+        // LINKED CONSUMABLES MODAL FUNCTIONS
+        function openLinkedConsumablesModal(productId, productName) {
+            document.getElementById('linkedConsumablesModal').classList.remove('hidden');
+            document.getElementById('linkedConsumableProductName').textContent = productName;
+            document.getElementById('linkedConsumableProductId').value = productId;
+            
+            // Load available consumable products for the dropdown
+            loadAvailableConsumables(productId);
+            
+            // Load currently linked consumables
+            loadLinkedConsumables(productId);
+        }
+
+        function closeLinkedConsumablesModal() {
+            document.getElementById('linkedConsumablesModal').classList.add('hidden');
+            document.getElementById('linkedConsumableProductId').value = '';
+            document.getElementById('linkedConsumableSelect').innerHTML = '<option value="">Select a consumable product...</option>';
+            document.getElementById('linkedConsumablesList').innerHTML = '';
+            document.getElementById('linkedConsumableQty').value = 1;
+        }
+
+        function loadAvailableConsumables(excludeProductId) {
+            fetch(`/products/consumables/available?exclude=${excludeProductId}`)
+                .then(response => response.json())
+                .then(data => {
+                    let select = document.getElementById('linkedConsumableSelect');
+                    select.innerHTML = '<option value="">Select a consumable product...</option>';
+                    
+                    if (data.success && data.products) {
+                        data.products.forEach(product => {
+                            const stockStatus = product.available_stock <= 0 ? ' (Out of Stock)' : ` (Stock: ${product.available_stock})`;
+                            select.innerHTML += `<option value="${product.prod_id}" ${product.available_stock <= 0 ? 'disabled' : ''}>${escapeHtml(product.prod_name)} - ${product.prod_category || 'No Category'}${stockStatus}</option>`;
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading consumables:', error);
+                });
+        }
+
+        function loadLinkedConsumables(productId) {
+            document.getElementById('linkedConsumablesList').innerHTML = `
+                <div class="text-center py-4 text-gray-500">
+                    <i class="fas fa-spinner fa-spin mr-1"></i> Loading linked consumables...
+                </div>`;
+
+            fetch(`/products/${productId}/linked-consumables`)
+                .then(response => response.json())
+                .then(data => {
+                    let listDiv = document.getElementById('linkedConsumablesList');
+                    
+                    if (data.success && data.consumables && data.consumables.length > 0) {
+                        let html = '<div class="overflow-x-auto"><table class="w-full text-sm border"><thead class="bg-gray-100"><tr>';
+                        html += '<th class="border px-3 py-2 text-left">Consumable Product</th>';
+                        html += '<th class="border px-3 py-2 text-center">Category</th>';
+                        html += '<th class="border px-3 py-2 text-center">Qty per Use</th>';
+                        html += '<th class="border px-3 py-2 text-center">Current Stock</th>';
+                        html += '<th class="border px-3 py-2 text-center">Actions</th>';
+                        html += '</tr></thead><tbody>';
+
+                        data.consumables.forEach(item => {
+                            const stockClass = item.consumable_product.available_stock <= 0 ? 'text-red-600 font-bold' : '';
+                            html += `<tr class="hover:bg-gray-50">`;
+                            html += `<td class="border px-3 py-2">${escapeHtml(item.consumable_product.prod_name)}</td>`;
+                            html += `<td class="border px-3 py-2 text-center">${item.consumable_product.prod_category || 'N/A'}</td>`;
+                            html += `<td class="border px-3 py-2 text-center">${item.quantity}</td>`;
+                            html += `<td class="border px-3 py-2 text-center ${stockClass}">${item.consumable_product.available_stock ?? 0}</td>`;
+                            html += `<td class="border px-3 py-2 text-center">
+                                <button onclick="removeLinkedConsumable(${item.id})" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs" title="Remove">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>`;
+                            html += `</tr>`;
+                        });
+
+                        html += '</tbody></table></div>';
+                        listDiv.innerHTML = html;
+                    } else {
+                        listDiv.innerHTML = `
+                            <div class="text-center py-6 text-gray-500 bg-gray-50 rounded-lg">
+                                <i class="fas fa-unlink text-3xl mb-2"></i>
+                                <p>No linked consumables yet.</p>
+                                <p class="text-xs mt-1">Add consumables above to auto-deduct them when this product is used.</p>
+                            </div>`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading linked consumables:', error);
+                    document.getElementById('linkedConsumablesList').innerHTML = `
+                        <div class="text-center py-4 text-red-500">
+                            <i class="fas fa-exclamation-circle mr-1"></i> Error loading linked consumables
+                        </div>`;
+                });
+        }
+
+        function addLinkedConsumable() {
+            const productId = document.getElementById('linkedConsumableProductId').value;
+            const consumableId = document.getElementById('linkedConsumableSelect').value;
+            const quantity = document.getElementById('linkedConsumableQty').value;
+
+            if (!consumableId) {
+                alert('Please select a consumable product');
+                return;
+            }
+
+            if (!quantity || quantity < 1) {
+                alert('Please enter a valid quantity (minimum 1)');
+                return;
+            }
+
+            fetch(`/products/${productId}/linked-consumables`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({
+                    consumable_product_id: consumableId,
+                    quantity: quantity
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadLinkedConsumables(productId);
+                    document.getElementById('linkedConsumableSelect').value = '';
+                    document.getElementById('linkedConsumableQty').value = 1;
+                } else {
+                    alert(data.message || 'Failed to add linked consumable');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding linked consumable:', error);
+                alert('Error adding linked consumable');
+            });
+        }
+
+        function removeLinkedConsumable(linkId) {
+            if (!confirm('Remove this linked consumable?')) return;
+
+            const productId = document.getElementById('linkedConsumableProductId').value;
+
+            fetch(`/products/linked-consumables/${linkId}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadLinkedConsumables(productId);
+                } else {
+                    alert(data.message || 'Failed to remove linked consumable');
+                }
+            })
+            .catch(error => {
+                console.error('Error removing linked consumable:', error);
+                alert('Error removing linked consumable');
+            });
         }
 
         // UPDATE STOCK MODAL
@@ -4326,30 +5086,66 @@
                 });
             }
 
-            // Products
-            setupTableFilter({
-                inputId: 'productsSearch',
-                tableSelector: '#productInventoryTab table',
-                tab: 'products',
-                perPageSelectId: 'productsPerPage',
-                formSelector: '#productInventoryTab form[action]'
-            });
-            // Services
-            setupTableFilter({
-                inputId: 'servicesSearch',
-                tableSelector: '#servicesTab table',
-                tab: 'services',
-                perPageSelectId: 'servicesPerPage',
-                formSelector: '#servicesTab form[action]'
-            });
-            // Equipment
-            setupTableFilter({
-                inputId: 'equipmentSearch',
-                tableSelector: '#equipmentTab table',
-                tab: 'equipment',
-                perPageSelectId: 'equipmentPerPage',
-                formSelector: '#equipmentTab form[action]'
-            });
+            // Refresh filters when switching tabs (and initialize if needed)
+            const originalSwitchMainTab = window.switchMainTab;
+            window.switchMainTab = function(tabId, tabName) {
+                if (originalSwitchMainTab) originalSwitchMainTab(tabId, tabName);
+                
+                // Initialize or refresh the filter for the active tab
+                setTimeout(() => {
+                    if (typeof ListFilter === 'undefined') return;
+                    
+                    if (tabName === 'products') {
+                        if (!window.listFilters['products']) {
+                            window.listFilters['products'] = new ListFilter({
+                                tableSelector: '#productsTable tbody',
+                                searchInputId: 'productsSearch',
+                                perPageSelectId: 'productsPerPage',
+                                paginationContainerId: 'productsPagination',
+                                searchColumns: [1, 2, 3, 4, 5, 7],
+                                filterSelects: [
+                                    { selectId: 'productsType', columnIndex: 3 }
+                                ],
+                                storageKey: 'productsFilter',
+                                noResultsMessage: 'No products found.'
+                            });
+                        } else {
+                            window.listFilters['products'].refresh();
+                        }
+                    } else if (tabName === 'services') {
+                        if (!window.listFilters['services']) {
+                            window.listFilters['services'] = new ListFilter({
+                                tableSelector: '#servicesTable tbody',
+                                searchInputId: 'servicesSearch',
+                                perPageSelectId: 'servicesPerPage',
+                                paginationContainerId: 'servicesPagination',
+                                searchColumns: [0, 1, 2, 3, 4],
+                                filterSelects: [
+                                    { selectId: 'servicesCategoryFilter', columnIndex: 1 } // Type column
+                                ],
+                                storageKey: 'servicesFilter',
+                                noResultsMessage: 'No services found.'
+                            });
+                        } else {
+                            window.listFilters['services'].refresh();
+                        }
+                    } else if (tabName === 'equipment') {
+                        if (!window.listFilters['equipment']) {
+                            window.listFilters['equipment'] = new ListFilter({
+                                tableSelector: '#equipmentTable tbody',
+                                searchInputId: 'equipmentSearch',
+                                perPageSelectId: 'equipmentPerPage',
+                                paginationContainerId: 'equipmentPagination',
+                                searchColumns: [1, 2, 3, 4, 5],
+                                storageKey: 'equipmentFilter',
+                                noResultsMessage: 'No equipment found.'
+                            });
+                        } else {
+                            window.listFilters['equipment'].refresh();
+                        }
+                    }
+                }, 100);
+            };
         })();
 
         // Service Category Filter - calls the combined filter function

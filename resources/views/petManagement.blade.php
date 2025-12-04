@@ -107,7 +107,7 @@
         <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
             <input type="hidden" name="tab" value="owners">
             <label for="ownersPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
-            <select name="ownersPerPage" id="ownersPerPage" onchange="this.form.submit()" 
+            <select name="ownersPerPage" id="ownersPerPage" 
                 class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                 @foreach ([10, 20, 50, 100, 'all'] as $limit)
                     <option value="{{ $limit }}" {{ request('ownersPerPage') == $limit ? 'selected' : '' }}>
@@ -129,7 +129,7 @@
 </div>
 
             <div class="overflow-x-auto mt-4">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="ownersTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -141,17 +141,40 @@
                     </thead>
                     <tbody>
                         @forelse ($owners as $index => $owner)
-                            <tr>
+                            @php
+                                $ownerReferralInfo = $owner->getReferralStatusInfo();
+                                $ownerIsReferred = $ownerReferralInfo['type'] !== 'none';
+                                $ownerCanEdit = $ownerReferralInfo['can_edit'];
+                            @endphp
+                            <tr class="{{ $ownerReferralInfo['type'] === 'outgoing' ? 'bg-orange-50' : ($ownerReferralInfo['type'] === 'incoming' ? 'bg-purple-50' : '') }}">
                                 <td class="border px-2 py-2">{{ $owners->firstItem() + $index }}</td>
-                                <td class="border px-2 py-2">{{ $owner->own_name }}</td>
+                                <td class="border px-2 py-2">
+                                    <div class="flex flex-col items-center gap-1">
+                                        <span>{{ $owner->own_name }}</span>
+                                        @if($ownerReferralInfo['label'])
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $ownerReferralInfo['badge_class'] }} border">
+                                                @if($ownerReferralInfo['type'] === 'outgoing')
+                                                    <i class="fas fa-arrow-right mr-1"></i>
+                                                @else
+                                                    <i class="fas fa-arrow-left mr-1"></i>
+                                                @endif
+                                                {{ $ownerReferralInfo['label'] }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                </td>
                                 <td class="border px-2 py-2">{{ $owner->own_contactnum }}</td>
                                 <td class="border px-2 py-2">{{ $owner->own_location }}</td>
                                 <td class="border px-2 py-1">
                                 <div class="flex justify-center items-center gap-1">
-                                    @if(hasPermission('edit_owner', $can))
+                                    @if(hasPermission('edit_owner', $can) && $ownerCanEdit)
                                         <button onclick="openEditOwnerModal({{ json_encode($owner) }})" 
                                             class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs" title="edit">
                                             <i class="fas fa-pen"></i> 
+                                        </button>
+                                    @elseif(hasPermission('edit_owner', $can) && !$ownerCanEdit)
+                                        <button class="bg-gray-300 text-gray-500 px-2 py-1 rounded cursor-not-allowed flex items-center gap-1 text-xs" title="Cannot edit - Owner has pet referred to another branch" disabled>
+                                            <i class="fas fa-pen"></i>
                                         </button>
                                     @endif
                                     
@@ -171,7 +194,7 @@
                                         </button>
                                     @endif
 
-                                    @if(hasPermission('delete_owner', $can))
+                                    @if(hasPermission('delete_owner', $can) && $ownerCanEdit)
                                         <form action="{{ route('pet-management.destroyOwner', $owner->own_id) }}" method="POST"
                                             onsubmit="return confirm('Are you sure you want to delete this owner?');" class="inline">
                                             @csrf
@@ -180,6 +203,10 @@
                                                 <i class="fas fa-trash"></i> 
                                             </button>
                                         </form>
+                                    @elseif(hasPermission('delete_owner', $can) && !$ownerCanEdit)
+                                        <button class="bg-gray-300 text-gray-500 px-2 py-1 rounded cursor-not-allowed flex items-center gap-1 text-xs" title="Cannot delete - Owner has pet referred to another branch" disabled>
+                                            <i class="fas fa-trash"></i>
+                                        </button>
                                     @endif
                                 </div>
                             </td>
@@ -192,31 +219,8 @@
                     </tbody>
                 </table>
             </div>
-
-            {{-- Owners Pagination --}}
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>Showing {{ $owners->firstItem() }} to {{ $owners->lastItem() }} of {{ $owners->total() }} entries</div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    @if ($owners->onFirstPage())
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                    @else
-                        <a href="{{ $owners->appends(array_merge(request()->query(), ['tab' => 'owners']))->previousPageUrl() }}" class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                    @endif
-
-                    @for ($i = 1; $i <= $owners->lastPage(); $i++)
-                        @if ($i == $owners->currentPage())
-                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                        @else
-                            <a href="{{ $owners->appends(array_merge(request()->query(), ['tab' => 'owners']))->url($i) }}" class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                        @endif
-                    @endfor
-
-                    @if ($owners->hasMorePages())
-                        <a href="{{ $owners->appends(array_merge(request()->query(), ['tab' => 'owners']))->nextPageUrl() }}" class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                    @else
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                    @endif
-                </div>
+            <div id="ownersPagination" class="flex justify-between items-center mt-4">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
         </div>
         
@@ -227,7 +231,7 @@
                 <form method="GET" action="{{ request()->url() }}" class="flex-shrink-0 flex items-center space-x-2">
                     <input type="hidden" name="tab" value="pets">
                     <label for="perPage" class="whitespace-nowrap text-sm text-black">Show</label>
-                    <select name="perPage" id="perPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                    <select name="perPage" id="perPage" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('perPage') == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
@@ -236,10 +240,23 @@
                     </select>
                     <span class="whitespace-nowrap">entries</span>
                 </form>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <select id="petsGender" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                        <option value="All">All Genders</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                    </select>
+                    <select id="petsType" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                        <option value="All">All Types</option>
+                        <option value="Dog">Dog</option>
+                        <option value="Cat">Cat</option>
+                    </select>
+                </div>
                 <div class="relative flex-1 min-w-[200px] max-w-xs">
                     <input type="search" id="petsSearch" placeholder="Search pets..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
+                
                 @if(hasPermission('add_pet', $can))
                     <button onclick="openAddPetModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86] whitespace-nowrap">
                         + Add Pet
@@ -248,7 +265,7 @@
             </div>
 
             <div class="overflow-x-auto mt-4">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="petsTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -266,7 +283,12 @@
                     </thead>
                     <tbody>
                         @forelse ($pets as $index => $pet)
-                            <tr class="hover:bg-gray-50">
+                            @php
+                                $referralInfo = $pet->getReferralStatusInfo();
+                                $isReferred = $referralInfo['type'] !== 'none';
+                                $canEdit = $referralInfo['can_edit'];
+                            @endphp
+                            <tr class="hover:bg-gray-50 {{ $referralInfo['type'] === 'outgoing' ? 'bg-orange-50' : ($referralInfo['type'] === 'incoming' ? 'bg-purple-50' : '') }}">
                                 <td class="border px-2 py-2">{{ $pets->firstItem() + $index }}</td>
                                 <td class="border px-2 py-2">
                                     @if($pet->pet_photo)
@@ -280,7 +302,21 @@
                                     @endif
                                 </td>
                                 <td class="border px-2 py-2">{{ \Carbon\Carbon::parse($pet->pet_registration)->format('F d, Y') }}</td>
-                                <td class="border px-2 py-2">{{ $pet->pet_name }}</td>
+                                <td class="border px-2 py-2">
+                                    <div class="flex flex-col items-center gap-1">
+                                        <span>{{ $pet->pet_name }}</span>
+                                        @if($referralInfo['label'])
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $referralInfo['badge_class'] }} border">
+                                                @if($referralInfo['type'] === 'outgoing')
+                                                    <i class="fas fa-arrow-right mr-1"></i>
+                                                @else
+                                                    <i class="fas fa-arrow-left mr-1"></i>
+                                                @endif
+                                                {{ $referralInfo['label'] }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                </td>
                                 <td class="border px-2 py-2">{{ $pet->pet_gender }}</td>
                                 <td class="border px-2 py-2">{{ $pet->pet_species }}</td>
                                 <td class="border px-2 py-2">{{ $pet->pet_breed }}</td>
@@ -289,7 +325,7 @@
                                 <td class="border px-2 py-2">{{ $pet->owner ? $pet->owner->own_name : 'N/A' }}</td>
                                 <td class="border px-2 py-1">
     <div class="flex justify-center items-center gap-1">
-        @if(hasPermission('edit_pet', $can))
+        @if(hasPermission('edit_pet', $can) && $canEdit)
             <button class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] flex items-center gap-1 text-xs editPetBtn" title="edit"
                 data-id="{{ $pet->pet_id }}"
                 data-name="{{ $pet->pet_name }}"
@@ -303,6 +339,10 @@
                 data-registration="{{ $pet->pet_registration }}"
               data-owner-id="{{ $pet->owner ? $pet->owner->own_id : '' }}"** data-owner-name="{{ $pet->owner ? $pet->owner->own_name : 'N/A' }}"
                 data-photo="{{ $pet->pet_photo }}">
+                <i class="fas fa-pen"></i>
+            </button>
+        @elseif(hasPermission('edit_pet', $can) && !$canEdit)
+            <button class="bg-gray-300 text-gray-500 px-2 py-1 rounded cursor-not-allowed flex items-center gap-1 text-xs" title="Cannot edit - Pet is referred to another branch" disabled>
                 <i class="fas fa-pen"></i>
             </button>
         @endif
@@ -336,7 +376,7 @@
                <i class="fa-solid fa-notes-medical"></i>
             </button>
         @endif
-        @if(hasPermission('delete_pet', $can))
+        @if(hasPermission('delete_pet', $can) && $canEdit)
             <form action="{{ route('pet-management.destroyPet', $pet->pet_id) }}" method="POST"
                 onsubmit="return confirm('Are you sure you want to delete this pet?');" class="inline">
                 @csrf
@@ -345,6 +385,10 @@
                     <i class="fas fa-trash"></i> 
                 </button>
             </form>
+        @elseif(hasPermission('delete_pet', $can) && !$canEdit)
+            <button class="bg-gray-300 text-gray-500 px-2 py-1 rounded cursor-not-allowed flex items-center gap-1 text-xs" title="Cannot delete - Pet is referred to another branch" disabled>
+                <i class="fas fa-trash"></i>
+            </button>
         @endif
     </div>
 </td>
@@ -359,30 +403,8 @@
                 </table>
             </div>
 
-            {{-- Pets Pagination --}}
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>Showing {{ $pets->firstItem() }} to {{ $pets->lastItem() }} of {{ $pets->total() }} entries</div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    @if ($pets->onFirstPage())
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                    @else
-                        <a href="{{ $pets->appends(array_merge(request()->query(), ['tab' => 'pets']))->previousPageUrl() }}" class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                    @endif
-
-                    @for ($i = 1; $i <= $pets->lastPage(); $i++)
-                        @if ($i == $pets->currentPage())
-                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                        @else
-                            <a href="{{ $pets->appends(array_merge(request()->query(), ['tab' => 'pets']))->url($i) }}" class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                        @endif
-                    @endfor
-
-                    @if ($pets->hasMorePages())
-                        <a href="{{ $pets->appends(array_merge(request()->query(), ['tab' => 'pets']))->nextPageUrl() }}" class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                    @else
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                    @endif
-                </div>
+            <div id="petsPagination" class="flex justify-between items-center mt-4">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
         </div>
 
@@ -392,7 +414,7 @@
                 <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
                     <input type="hidden" name="tab" value="medical">
                     <label for="medicalPerPage" class="text-sm text-black">Show</label>
-                    <select name="medicalPerPage" id="medicalPerPage" onchange="this.form.submit()"
+                    <select name="medicalPerPage" id="medicalPerPage"
                         class="border border-gray-400 rounded px-2 py-1 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('medicalPerPage') == $limit ? 'selected' : '' }}>
@@ -425,7 +447,7 @@
                     <tbody>
                         @forelse ($medicalHistories as $index => $medical)
                             <tr>
-                                <td class="border px-2 py-2">{{ $medicalHistories->firstItem() + $index }}</td>
+                                <td class="border px-2 py-2">{{ $index + 1 }}</td>
                                 <td class="border px-2 py-2">{{ $medical->pet ? $medical->pet->pet_name : 'N/A' }}</td>
                                 <td class="border px-2 py-2">{{ \Carbon\Carbon::parse($medical->visit_date)->format('M d, Y') }}</td>
                                 <td class="border px-2 py-2">{{ Str::limit($medical->diagnosis, 30) }}</td>
@@ -480,31 +502,10 @@
             </div>
 
             {{-- Medical History Pagination --}}
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>Showing {{ $medicalHistories->firstItem() }} to {{ $medicalHistories->lastItem() }} of {{ $medicalHistories->total() }} entries</div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    @if ($medicalHistories->onFirstPage())
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                    @else
-                        <a href="{{ $medicalHistories->appends(array_merge(request()->query(), ['tab' => 'medical']))->previousPageUrl() }}" class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                    @endif
-
-                    @for ($i = 1; $i <= $medicalHistories->lastPage(); $i++)
-                        @if ($i == $medicalHistories->currentPage())
-                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                        @else
-                            <a href="{{ $medicalHistories->appends(array_merge(request()->query(), ['tab' => 'medical']))->url($i) }}" class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                        @endif
-                    @endfor
-
-                    @if ($medicalHistories->hasMorePages())
-                        <a href="{{ $medicalHistories->appends(array_merge(request()->query(), ['tab' => 'medical']))->nextPageUrl() }}" class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                    @else
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                    @endif
-                </div>
+            <div id="medicalPagination" class="flex justify-between items-center mt-4">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
-        </div>-->
+        </div>
 
         <!--<div id="health-card-content" class="tab-content {{ request('tab') != 'health-card' ? 'hidden' : '' }}">
             
@@ -513,7 +514,7 @@
                 <form method="GET" action="{{ request()->url() }}" class="flex items-center space-x-2">
                     <input type="hidden" name="tab" value="health-card">
                     <label for="healthCardPerPage" class="text-sm text-black">Show</label>
-                    <select name="healthCardPerPage" id="healthCardPerPage" onchange="this.form.submit()"
+                    <select name="healthCardPerPage" id="healthCardPerPage"
                         class="border border-gray-400 rounded px-2 py-1 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
                             <option value="{{ $limit }}" {{ request('healthCardPerPage', 10) == $limit ? 'selected' : '' }}>
@@ -526,7 +527,7 @@
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="ownersTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             {{-- ADDED: # column header --}}
@@ -541,8 +542,8 @@
                         {{-- FIXED: Use standard Laravel pagination loop --}}
                         @forelse ($pets as $index => $pet)
                             <tr>
-                                {{-- FIXED: Row numbering using pagination offset --}}
-                                <td class="border px-2 py-2">{{ $pets->firstItem() + $index }}</td>
+                                {{-- FIXED: Row numbering using simple index --}}
+                                <td class="border px-2 py-2">{{ $index + 1 }}</td>
                                 <td class="border px-2 py-2">{{ $pet->pet_name }}</td>
                                 <td class="border px-2 py-2">{{ $pet->owner ? $pet->owner->own_name : 'N/A' }}</td>
                                 <td class="border px-2 py-2">{{ $pet->pet_species }}</td>
@@ -563,98 +564,35 @@
             </div>
 
             {{-- Pagination Links for the Health Card tab --}}
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>Showing {{ $pets->firstItem() }} to {{ $pets->lastItem() }} of {{ $pets->total() }} entries</div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    {{-- Previous Button --}}
-                    @if ($pets->onFirstPage())
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                    @else
-                        <a href="{{ $pets->appends(array_merge(request()->query(), ['tab' => 'health-card']))->previousPageUrl() }}" class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                    @endif
-
-                    {{-- Page Numbers --}}
-                    @for ($i = 1; $i <= $pets->lastPage(); $i++)
-                        @if ($i == $pets->currentPage())
-                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                        @else
-                            <a href="{{ $pets->appends(array_merge(request()->query(), ['tab' => 'health-card']))->url($i) }}" class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                        @endif
-                    @endfor
-
-                    {{-- Next Button --}}
-                    @if ($pets->hasMorePages())
-                        <a href="{{ $pets->appends(array_merge(request()->query(), ['tab' => 'health-card']))->nextPageUrl() }}" class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                    @else
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                    @endif
-                </div>
+            <div id="healthCardPagination" class="flex justify-between items-center mt-4">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
         </div>
         {{-- END CORRECTED TAB CONTENT --}}
-    </div> -->
+    </div> 
     
     <script>
     document.addEventListener('DOMContentLoaded', function(){
-        function persistKey(tab){ return `pm_search_${tab}`; }
-        function setPersist(tab, val){ try{ localStorage.setItem(persistKey(tab), val); }catch(e){} }
-        function getPersist(tab){ try{ return localStorage.getItem(persistKey(tab)) || ''; }catch(e){ return ''; } }
-
-        function filterBody(tbody, q){
-            const needle = String(q || '').toLowerCase();
-            tbody.querySelectorAll('tr').forEach(tr => {
-                const text = tr.textContent.toLowerCase();
-                tr.style.display = !needle || text.includes(needle) ? '' : 'none';
-            });
-        }
-
-        function setupFilter({inputId, tableSelector, tab, perPageSelectId, formSelector}){
-            const input = document.getElementById(inputId);
-            const table = document.querySelector(tableSelector);
-            const tbody = table ? table.querySelector('tbody') : null;
-            const sel = document.getElementById(perPageSelectId);
-            const form = formSelector ? document.querySelector(formSelector) : (sel ? sel.form : null);
-            if(!input || !tbody) return;
-
-            const last = getPersist(tab);
-            if(last){
-                input.value = last;
-                if (sel && sel.value !== 'all') {
-                    sel.value = 'all';
-                    if (form) form.submit();
-                    return;
-                }
-                filterBody(tbody, last);
-            }
-
-            input.addEventListener('input', function(){
-                const q = this.value.trim();
-                setPersist(tab, q);
-                if (q && sel && sel.value !== 'all') {
-                    sel.value = 'all';
-                    if (form) form.submit();
-                    return;
-                }
-                if (!tbody) return;
-                filterBody(tbody, q);
-            });
-        }
-
-        // Owners
-        setupFilter({
-            inputId: 'ownersSearch',
-            tableSelector: '#owners-content table',
-            tab: 'owners',
+        // Initialize ListFilter for owners table
+        new ListFilter({
+            tableSelector: '#ownersTable',
+            searchInputId: 'ownersSearch',
             perPageSelectId: 'ownersPerPage',
-            formSelector: '#owners-content form[action]'
+            paginationContainerId: 'ownersPagination',
+            searchColumns: [1, 2, 3], // Pet's Owner, Contact Number, Location columns
         });
-        // Pets
-        setupFilter({
-            inputId: 'petsSearch',
-            tableSelector: '#pets-content table',
-            tab: 'pets',
+        
+        // Initialize ListFilter for pets table
+        new ListFilter({
+            tableSelector: '#petsTable',
+            searchInputId: 'petsSearch',
             perPageSelectId: 'perPage',
-            formSelector: '#pets-content form[action]'
+            paginationContainerId: 'petsPagination',
+            searchColumns: [3, 4, 5, 6, 9], // Pet Name, Type, Breed, Owner columns
+            filterSelects: [
+                { selectId: 'petsGender', columnIndex: 4 }, // Gender column
+                { selectId: 'petsType', columnIndex: 5 }    // Type column
+            ]
         });
     });
     </script>

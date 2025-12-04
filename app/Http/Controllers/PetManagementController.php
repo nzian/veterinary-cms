@@ -45,58 +45,31 @@ class PetManagementController extends Controller
             $branchUserIds = \App\Models\User::where('branch_id', $activeBranchId)
                 ->pluck('user_id')
                 ->toArray();
-            
-            // --- Pets Pagination (Used by 'Pets' and 'Health Card' tabs) ---
+            //dd($branchUserIds);
+            // --- Get all data for client-side filtering ---
             // Model scope will automatically include referred pets
-            $petsQuery = Pet::with('owner')
-                ->orderBy('pet_id', 'desc'); 
-            
-            if ($perPage === 'all') {
-                $pets = $petsQuery->get();
-                $pets = new \Illuminate\Pagination\LengthAwarePaginator(
-                    $pets,
-                    $pets->count(),
-                    $pets->count(),
-                    1,
-                    ['path' => $request->url(), 'query' => $request->query()]
-                );
-            } else {
-                $pets = $petsQuery->paginate((int)$perPage);
-            }
-            // ----------------------------------------------------------------
-            
+            $pets = Pet::with('owner')
+            ->whereIn('tbl_pet.user_id', $branchUserIds)
+            ->orWhereExists(function($subQuery) use ($activeBranchId) {
+                              $subQuery->select(DB::raw(1))
+                                       ->from('tbl_ref')
+                                       ->whereColumn('tbl_ref.pet_id', 'tbl_pet.pet_id')
+                                       ->where('tbl_ref.ref_to', $activeBranchId)
+                                       ->where('tbl_ref.ref_type', 'interbranch')
+                                       ->whereIn('tbl_ref.ref_status', ['pending', 'attended', 'completed']);
+                          })
+                ->orderBy('pet_id', 'desc')
+                ->get(); 
+            //dd($pets);
             // Filter owners - model scope will automatically include referred pet owners
-            $ownersQuery = Owner::orderBy('own_id', 'desc'); 
-            
-            if ($ownersPerPage === 'all') {
-                $owners = $ownersQuery->get();
-                $owners = new \Illuminate\Pagination\LengthAwarePaginator(
-                    $owners,
-                    $owners->count(),
-                    $owners->count(),
-                    1,
-                    ['path' => $request->url(), 'query' => $request->query()]
-                );
-            } else {
-                $owners = $ownersQuery->paginate((int)$ownersPerPage);
-            }
-
+            $owners = Owner::whereIn('tbl_own.user_id', $branchUserIds)
+                ->orderBy('own_id', 'desc')
+                ->get(); 
+            //dd($owners);
             // Filter medical histories - model scope will automatically include referred pets' histories
-            $medicalQuery = MedicalHistory::with('pet')
-                ->orderBy('id', 'desc'); 
-            
-            if ($medicalPerPage === 'all') {
-                $medicalHistories = $medicalQuery->get();
-                $medicalHistories = new \Illuminate\Pagination\LengthAwarePaginator(
-                    $medicalHistories,
-                    $medicalHistories->count(),
-                    $medicalHistories->count(),
-                    1,
-                    ['path' => $request->url(), 'query' => $request->query()]
-                );
-            } else {
-                $medicalHistories = $medicalQuery->paginate((int)$medicalPerPage);
-            }
+            $medicalHistories = MedicalHistory::with('pet')
+                ->orderBy('id', 'desc')
+                ->get();
 
             // Get all owners and pets (model scopes will include referred data)
             $allOwners = Owner::get();
@@ -118,6 +91,8 @@ class PetManagementController extends Controller
                 // Use vr.user_id when available, otherwise fall back to p.user_id
                 $visitQuery->whereIn(\DB::raw('COALESCE(vr.user_id, p.user_id)'), $branchUserIds);
             }
+
+            
 
             if ($visitPerPage === 'all') {
                 $visitAll = $visitQuery->get();

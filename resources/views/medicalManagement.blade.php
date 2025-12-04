@@ -1,5 +1,7 @@
 @extends('AdminBoard')
 
+<script src="{{ asset('js/list-filter-new.js') }}"></script>
+
 @php
     $userRole = strtolower(auth()->user()->user_role ?? '');
     
@@ -51,12 +53,12 @@
                 </button>
                 @endif
                 
-                @if($userRole === 'receptionist')
+                @if($userRole === 'receptionist' || $userRole === 'superadmin')
                 <button onclick="showTab('grooming')" id="grooming-tab" 
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Grooming</h2>
                     @if(isset($pendingCounts['grooming']) && $pendingCounts['grooming'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['grooming'] }}
                         </span>
                     @endif
@@ -67,7 +69,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Boarding</h2>
                     @if(isset($pendingCounts['boarding']) && $pendingCounts['boarding'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['boarding'] }}
                         </span>
                     @endif
@@ -78,7 +80,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Check-up</h2>
                     @if(isset($pendingCounts['checkup']) && $pendingCounts['checkup'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['checkup'] }}
                         </span>
                     @endif
@@ -87,7 +89,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Vaccination</h2>
                     @if(isset($pendingCounts['vaccination']) && $pendingCounts['vaccination'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['vaccination'] }}
                         </span>
                     @endif
@@ -96,7 +98,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Deworming</h2>
                     @if(isset($pendingCounts['deworming']) && $pendingCounts['deworming'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['deworming'] }}
                         </span>
                     @endif
@@ -105,7 +107,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Surgical</h2>
                     @if(isset($pendingCounts['surgical']) && $pendingCounts['surgical'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['surgical'] }}
                         </span>
                     @endif
@@ -114,7 +116,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Diagnostics</h2>
                     @if(isset($pendingCounts['diagnostics']) && $pendingCounts['diagnostics'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['diagnostics'] }}
                         </span>
                     @endif
@@ -123,7 +125,7 @@
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Emergency</h2>
                     @if(isset($pendingCounts['emergency']) && $pendingCounts['emergency'] > 0)
-                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        <span class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center" style="border-radius: 50%;">
                             {{ $pendingCounts['emergency'] }}
                         </span>
                     @endif
@@ -280,9 +282,22 @@
                     </select>
                     <span class="whitespace-nowrap">entries</span>
                 </form>
-                <div class="relative flex-1 min-w-[200px] max-w-xs">
-                    <input type="search" id="visitsSearch" placeholder="Search visits..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
-                    <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <div class="flex items-center gap-2 flex-wrap">
+                     <select id="visitsStatus" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                        <option value="All">All Status</option>
+                        <option value="Arrived">Arrived</option>
+                        <option value="Billed">Billed</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Complete">Complete</option>
+                        <option value="Completed">Completed</option>
+                        </select>
+                    </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <div class="relative">
+                        <input type="search" id="visitsSearch" placeholder="Search visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                   
                 </div>
                 @if(auth()->check() && in_array(auth()->user()->user_role, ['receptionist']))
                 <button onclick="openAddVisitModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86] whitespace-nowrap ml-2">
@@ -293,7 +308,7 @@
             <br>
 
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="visitsTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -320,7 +335,21 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($visit->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $visit->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $visit->pet->pet_name ?? 'N/A' }}
+                                    @php
+                                        $visitSource = $visit->visit_source ?? 'walk-in';
+                                    @endphp
+                                    @if($visitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                            <i class="fas fa-exchange-alt mr-1"></i> Referral Visit
+                                        </span>
+                                    @elseif($visitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                            <i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment
+                                        </span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">
                                     @php
                                         $s = strtolower($visit->pet->pet_species ?? '');
@@ -399,7 +428,7 @@
                                         </button>
                                         @endif
                                         @if(hasPermission('delete_appointment', $can))
-                                        <form action="{{ route('medical.visits.destroy', $visit->visit_id) }}" method="POST" onsubmit="return confirm('Delete this visit?');" class="inline">
+                                        <form action="{{ route('medical.visits.destroy', $visit->visit_id) }}" method="POST" onsubmit="return confirm('Delete this visit?');" class="inline mb-0">
                                             @csrf
                                             @method('DELETE')
                                             <input type="hidden" name="active_tab" value="visits">
@@ -420,38 +449,9 @@
                 </table>
             </div>
 
-            @if(isset($visits) && method_exists($visits, 'links'))
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>
-                    Showing {{ $visits->firstItem() ?? 0 }} to {{ $visits->lastItem() ?? 0 }} of
-                    {{ $visits->total() }} entries
-                </div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    @if ($visits->onFirstPage())
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                    @else
-                        <a href="{{ $visits->appends(['active_tab' => 'visits'])->previousPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                    @endif
-
-                    @for ($i = 1; $i <= $visits->lastPage(); $i++)
-                        @if ($i == $visits->currentPage())
-                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                        @else
-                            <a href="{{ $visits->appends(['active_tab' => 'visits'])->url($i) }}"
-                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                        @endif
-                    @endfor
-
-                    @if ($visits->hasMorePages())
-                        <a href="{{ $visits->appends(['active_tab' => 'visits'])->nextPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                    @else
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                    @endif
-                </div>
+            <div id="visitsPagination" class="flex justify-between items-center mt-4">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
-            @endif
         </div>
 
         <div id="checkupContent" class="tab-content hidden">
@@ -468,14 +468,27 @@
                     </select>
                     <span class="whitespace-nowrap">entries</span>
                 </form>
-                <div class="relative flex-1 min-w-[200px] max-w-xs">
-                    <input type="search" id="checkupSearch" placeholder="Search check-up visits..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
-                    <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <select id="checkupStatus" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                        <option value="All">All Status</option>
+                        <option value="Arrived">Arrived</option>
+                        <option value="Billed">Billed</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Complete">Complete</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                    </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <div class="relative">
+                        <input type="search" id="checkupSearch" placeholder="Search check-up visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                    
                 </div>
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="checkupTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -498,7 +511,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($c->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $c->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $c->pet->pet_name ?? 'N/A' }}
+                                    @php $cVisitSource = $c->visit_source ?? 'walk-in'; @endphp
+                                    @if($cVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($cVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $c->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $c->workflow_status ?? ($c->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
@@ -546,6 +567,10 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+            
+            <div id="checkupPagination" class="flex justify-between items-center mt-4">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
             @if(isset($consultationVisits) && method_exists($consultationVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
@@ -602,7 +627,7 @@
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="dewormingTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -625,7 +650,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($d->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $d->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $d->pet->pet_name ?? 'N/A' }}
+                                    @php $dVisitSource = $d->visit_source ?? 'walk-in'; @endphp
+                                    @if($dVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($dVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $d->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $d->workflow_status ?? ($d->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
@@ -673,6 +706,10 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+            
+            <div id="dewormingPagination" class="flex justify-between items-center mt-4">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
             @if(isset($dewormingVisits) && method_exists($dewormingVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
@@ -729,7 +766,7 @@
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="diagnosticsTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -752,7 +789,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($d->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $d->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $d->pet->pet_name ?? 'N/A' }}
+                                    @php $dxVisitSource = $d->visit_source ?? 'walk-in'; @endphp
+                                    @if($dxVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($dxVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $d->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $d->workflow_status ?? ($d->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
@@ -800,6 +845,10 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+            
+            <div id="diagnosticsPagination" class="flex justify-between items-center mt-4">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
             @if(isset($diagnosticsVisits) && method_exists($diagnosticsVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
@@ -856,7 +905,7 @@
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="surgicalTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -879,7 +928,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($s->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $s->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $s->pet->pet_name ?? 'N/A' }}
+                                    @php $sxVisitSource = $s->visit_source ?? 'walk-in'; @endphp
+                                    @if($sxVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($sxVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $s->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $s->workflow_status ?? ($s->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
@@ -927,6 +984,10 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+            
+            <div id="surgicalPagination" class="flex justify-between items-center mt-4">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
             @if(isset($surgicalVisits) && method_exists($surgicalVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
@@ -983,7 +1044,7 @@
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="emergencyTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -1006,7 +1067,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($e->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $e->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $e->pet->pet_name ?? 'N/A' }}
+                                    @php $emVisitSource = $e->visit_source ?? 'walk-in'; @endphp
+                                    @if($emVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($emVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $e->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $e->workflow_status ?? ($e->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
@@ -1054,6 +1123,10 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+            
+            <div id="emergencyPagination" class="flex justify-between items-center mt-4">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
             @if(isset($emergencyVisits) && method_exists($emergencyVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
@@ -1110,7 +1183,7 @@
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="vaccinationTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -1133,7 +1206,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($v->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $v->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $v->pet->pet_name ?? 'N/A' }}
+                                    @php $vaccVisitSource = $v->visit_source ?? 'walk-in'; @endphp
+                                    @if($vaccVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($vaccVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $v->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $v->workflow_status ?? ($v->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
@@ -1181,6 +1262,10 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+            
+            <div id="vaccinationPagination" class="flex justify-between items-center mt-4">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
             @if(isset($vaccinationVisits) && method_exists($vaccinationVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
@@ -1237,7 +1322,7 @@
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="groomingTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -1260,7 +1345,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($g->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $g->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $g->pet->pet_name ?? 'N/A' }}
+                                    @php $groomVisitSource = $g->visit_source ?? 'walk-in'; @endphp
+                                    @if($groomVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($groomVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $g->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $g->workflow_status ?? ($g->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
@@ -1308,6 +1401,10 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+            
+            <div id="groomingPagination" class="flex justify-between items-center mt-4">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
             @if(isset($groomingVisits) && method_exists($groomingVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
@@ -1364,7 +1461,7 @@
             </div>
             <br>
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="boardingTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -1387,7 +1484,15 @@
                                     @endif
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($b->visit_date)->format('F j, Y') }}</td>
-                                <td class="border px-4 py-2">{{ $b->pet->pet_name ?? 'N/A' }}</td>
+                                <td class="border px-4 py-2">
+                                    {{ $b->pet->pet_name ?? 'N/A' }}
+                                    @php $boardVisitSource = $b->visit_source ?? 'walk-in'; @endphp
+                                    @if($boardVisitSource === 'referral')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-exchange-alt mr-1"></i> Referral Visit</span>
+                                    @elseif($boardVisitSource === 'appointment')
+                                        <br><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-calendar-check mr-1"></i> Follow-up Appointment</span>
+                                    @endif
+                                </td>
                                 <td class="border px-4 py-2">{{ $b->pet->owner->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">
                                     @php
@@ -1400,8 +1505,10 @@
                                     @endphp
                                     @if(strtolower($boardingStatus) === 'checked in')
                                         <span class="text-green-700 font-bold">Checked In</span>
+                                    @elseif(strtolower($boardingStatus) === 'checked out')
+                                        <span class="text-red-700 font-bold">Checked Out</span>
                                     @else
-                                        {{ $b->workflow_status ?? ($b->visit_status ?? '-') }}
+                                        {{ $b->workflow_status ?? $b->visit_status ?? '-' }}
                                     @endif
                                 </td>
                                 <td class="border px-2 py-1">
@@ -1449,6 +1556,10 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+            
+            <div id="boardingPagination" class="flex justify-between items-center mt-4">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
             @if(isset($boardingVisits) && method_exists($boardingVisits, 'links'))
             <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
@@ -1862,6 +1973,25 @@ function openAddVisitModal() {
 function closeAddVisitModal() {
     const modal = document.getElementById('addVisitModal');
     if (!modal) return;
+    
+    // Clear any validation errors
+    document.querySelectorAll('.validation-error').forEach(el => el.remove());
+    
+    // Reset form
+    const form = document.getElementById('addVisitForm');
+    if (form) form.reset();
+    
+    // Clear pets container
+    const petsContainer = document.getElementById('add_owner_pets_container');
+    if (petsContainer) {
+        petsContainer.innerHTML = '<div class="text-gray-500 text-sm">Select an owner to load their pets.</div>';
+    }
+    
+    // Reset Select2 if initialized
+    if (window.jQuery && $('#add_owner_id').data('select2')) {
+        $('#add_owner_id').val(null).trigger('change');
+    }
+    
     modal.classList.add('hidden');
     modal.classList.remove('flex');
 }
@@ -2209,93 +2339,244 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Persistent client-side search for Visits with auto-switch to 'All'
-document.addEventListener('DOMContentLoaded', function(){
-    function getKey(){ return 'mm_search_visits'; }
-    function setPersist(val){ try{ localStorage.setItem(getKey(), val); }catch(e){} }
-    function getPersist(){ try{ return localStorage.getItem(getKey()) || ''; }catch(e){ return ''; } }
-    function filterBody(tbody, q){
-        const needle = String(q || '').toLowerCase();
-        tbody.querySelectorAll('tr').forEach(tr => {
-            const text = tr.textContent.toLowerCase();
-            tr.style.display = !needle || text.includes(needle) ? '' : 'none';
+// Initialize all ListFilter instances for medical management tabs
+document.addEventListener('DOMContentLoaded', function() {
+    // Main visits table with status filtering
+    new ListFilter({
+        tableSelector: '#visitsTable',
+        searchInputId: 'visitsSearch',
+        perPageSelectId: 'visitPerPage',
+        paginationContainerId: 'visitsPagination',
+        searchColumns: [1, 2, 3, 4, 7, 8, 9], // Date, Pet, Species, Owner, Patient Type, Service Type, Status columns
+        filterSelects: [
+            { selectId: 'visitsStatus', columnIndex: 9 } // Status column (0-based)
+        ]
+    });
+    
+    // Checkup table with pagination
+    new ListFilter({
+        tableSelector: '#checkupContent table',
+        searchInputId: 'checkupSearch',
+        perPageSelectId: 'checkupPerPage',
+        paginationContainerId: 'checkupPagination',
+        searchColumns: [1, 2, 3, 4] // Date, Pet, Owner, Status
+    });
+    
+    // Deworming table with pagination
+    new ListFilter({
+        tableSelector: '#dewormingTable',
+        searchInputId: 'dewormingSearch',
+        perPageSelectId: 'dewormingVisitsPerPage',
+        paginationContainerId: 'dewormingPagination',
+        searchColumns: [1, 2, 3, 4] // Date, Pet, Owner, Status
+    });
+    
+    // Vaccination table with pagination
+    const vaccinationTable = document.querySelector('#vaccinationContent table');
+    if (vaccinationTable) {
+        new ListFilter({
+            tableSelector: '#vaccinationContent table',
+            searchInputId: 'vaccinationSearch',
+            perPageSelectId: 'vaccinationPerPage',
+            paginationContainerId: 'vaccinationPagination',
+            searchColumns: [1, 2, 3, 4] // Date, Pet, Owner, Status
         });
     }
-    const input = document.getElementById('visitsSearch');
-    const table = document.querySelector('#visitsContent table');
-    const tbody = table ? table.querySelector('tbody') : null;
-    const sel = document.getElementById('visitPerPage');
-    const form = document.querySelector('#visitsContent form[action]') || (sel ? sel.form : null);
-    if(!input || !tbody) return;
-
-    const last = getPersist();
-    if(last){
-        input.value = last;
-        if (sel && sel.value !== 'all') {
-            sel.value = 'all';
-            if (form) form.submit();
-            return;
-        }
-        filterBody(tbody, last);
-    }
-    input.addEventListener('input', function(){
-        const q = this.value.trim();
-        setPersist(q);
-        if (q && sel && sel.value !== 'all') {
-            sel.value = 'all';
-            if (form) form.submit();
-            return;
-        }
-        filterBody(tbody, q);
+    
+    // Grooming table with pagination
+    new ListFilter({
+        tableSelector: '#groomingTable',
+        searchInputId: 'groomingSearch',
+        perPageSelectId: 'groomingVisitsPerPage',
+        paginationContainerId: 'groomingPagination',
+        searchColumns: [1, 2, 3, 4] // Date, Pet, Owner, Status
+    });
+    
+    // Boarding table with pagination
+    new ListFilter({
+        tableSelector: '#boardingTable',
+        searchInputId: 'boardingSearch',
+        perPageSelectId: 'boardingVisitsPerPage',
+        paginationContainerId: 'boardingPagination',
+        searchColumns: [1, 2, 3, 4] // Date, Pet, Owner, Status
+    });
+    
+    // Diagnostics table with pagination
+    new ListFilter({
+        tableSelector: '#diagnosticsTable',
+        searchInputId: 'diagnosticsSearch',
+        perPageSelectId: 'diagnosticsVisitsPerPage',
+        paginationContainerId: 'diagnosticsPagination',
+        searchColumns: [1, 2, 3, 4] // Date, Pet, Owner, Status
+    });
+    
+    // Surgical table with pagination
+    new ListFilter({
+        tableSelector: '#surgicalTable',
+        searchInputId: 'surgicalSearch',
+        perPageSelectId: 'surgicalVisitsPerPage',
+        paginationContainerId: 'surgicalPagination',
+        searchColumns: [1, 2, 3, 4] // Date, Pet, Owner, Status
+    });
+    
+    // Emergency table with pagination
+    new ListFilter({
+        tableSelector: '#emergencyTable',
+        searchInputId: 'emergencySearch',
+        perPageSelectId: 'emergencyVisitsPerPage',
+        paginationContainerId: 'emergencyPagination',
+        searchColumns: [1, 2, 3, 4] // Date, Pet, Owner, Status
     });
 });
 
-// Generic search binder for other tabs
-document.addEventListener('DOMContentLoaded', function(){
-    function bindSearch(inputId, tableSelector, perPageSelectId, storageKey){
-        const input = document.getElementById(inputId);
-        const table = document.querySelector(tableSelector);
-        const tbody = table ? table.querySelector('tbody') : null;
-        const sel = document.getElementById(perPageSelectId);
-        if(!input || !tbody) return;
-        function setPersist(val){ try{ localStorage.setItem(storageKey, val); }catch(e){} }
-        function getPersist(){ try{ return localStorage.getItem(storageKey) || ''; }catch(e){ return ''; } }
-        function filterBody(q){
-            const needle = String(q || '').toLowerCase();
-            tbody.querySelectorAll('tr').forEach(tr => {
-                const text = tr.textContent.toLowerCase();
-                tr.style.display = !needle || text.includes(needle) ? '' : 'none';
+// Add Visit Form Validation
+document.addEventListener('DOMContentLoaded', function() {
+    const addVisitForm = document.getElementById('addVisitForm');
+    const submitButton = addVisitForm.querySelector('button[type="submit"]');
+    
+    function validateAddVisitForm() {
+        const errors = [];
+        
+        // 1. Check if at least one pet is selected
+        const selectedPets = document.querySelectorAll('#add_owner_pets_container input[name="pet_ids[]"]:checked');
+        if (selectedPets.length === 0) {
+            errors.push('Please select at least one pet');
+        }
+        
+        // 2. Check weight and temperature for selected pets
+        selectedPets.forEach((checkbox, index) => {
+            const petId = checkbox.value;
+            const petContainer = checkbox.closest('.border');
+            if (petContainer) {
+                const weightInput = petContainer.querySelector(`input[name="weight[${petId}]"]`);
+                const tempInput = petContainer.querySelector(`input[name="temperature[${petId}]"]`);
+                const petNameElement = petContainer.querySelector('.font-medium');
+                const petName = petNameElement ? petNameElement.textContent.replace(/^\s*[♦♠♥♣]\s*/, '').trim() : `Pet ${index + 1}`;
+                
+                if (weightInput && (!weightInput.value || weightInput.value.trim() === '')) {
+                    errors.push(`Please enter weight for ${petName}`);
+                }
+                if (tempInput && (!tempInput.value || tempInput.value.trim() === '')) {
+                    errors.push(`Please enter temperature for ${petName}`);
+                }
+                
+                // 3. Check if at least one service type is selected for this pet
+                const selectedServices = petContainer.querySelectorAll(`input[name="service_type[${petId}][]"]:checked`);
+                if (selectedServices.length === 0) {
+                    errors.push(`Please select at least one service type for ${petName}`);
+                }
+            }
+        });
+        
+        return errors;
+    }
+    
+    function updateSubmitButton() {
+        const errors = validateAddVisitForm();
+        if (errors.length > 0) {
+            submitButton.disabled = true;
+            submitButton.classList.add('opacity-50', 'cursor-not-allowed');
+            submitButton.classList.remove('hover:bg-[#0d6d8a]');
+        } else {
+            submitButton.disabled = false;
+            submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            submitButton.classList.add('hover:bg-[#0d6d8a]');
+        }
+    }
+    
+    function showValidationErrors(errors) {
+        // Remove existing error messages
+        document.querySelectorAll('.validation-error').forEach(el => el.remove());
+        
+        if (errors.length > 0) {
+            const errorContainer = document.createElement('div');
+            errorContainer.className = 'validation-error bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4';
+            
+            const errorList = document.createElement('ul');
+            errorList.className = 'list-disc list-inside';
+            
+            errors.forEach(error => {
+                const errorItem = document.createElement('li');
+                errorItem.textContent = error;
+                errorList.appendChild(errorItem);
+            });
+            
+            errorContainer.appendChild(errorList);
+            
+            // Insert error container at the top of the form
+            const firstElement = addVisitForm.querySelector('.space-y-4');
+            firstElement.insertBefore(errorContainer, firstElement.firstChild);
+        }
+    }
+    
+    // Add event listeners for real-time validation
+    function addValidationListeners() {
+        // Listen for changes in the pets container
+        const petsContainer = document.getElementById('add_owner_pets_container');
+        if (petsContainer) {
+            petsContainer.addEventListener('change', updateSubmitButton);
+            petsContainer.addEventListener('input', updateSubmitButton);
+        }
+        
+        // Listen for owner selection changes
+        const ownerSelect = document.getElementById('add_owner_id');
+        if (ownerSelect) {
+            ownerSelect.addEventListener('change', function() {
+                setTimeout(updateSubmitButton, 500); // Delay to allow pets to load
+            });
+            
+            // For Select2
+            if (window.jQuery && $(ownerSelect).data('select2')) {
+                $(ownerSelect).on('select2:select select2:clear', function() {
+                    setTimeout(updateSubmitButton, 500);
+                });
+            }
+        }
+    }
+    
+    // Initialize MutationObserver to watch for changes in pets container
+    function initializePetContainerObserver() {
+        const petsContainer = document.getElementById('add_owner_pets_container');
+        if (petsContainer) {
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'childList') {
+                        // Pets were added/removed, update validation
+                        setTimeout(updateSubmitButton, 100);
+                    }
+                });
+            });
+            
+            observer.observe(petsContainer, {
+                childList: true,
+                subtree: true
             });
         }
-        const last = getPersist();
-        if(last){
-            input.value = last;
-            if (sel && sel.value !== 'all') {
-                sel.value = 'all';
-                if (sel.form) sel.form.submit();
-                return;
-            }
-            filterBody(last);
-        }
-        input.addEventListener('input', function(){
-            const q = this.value.trim();
-            setPersist(q);
-            if (q && sel && sel.value !== 'all') {
-                sel.value = 'all';
-                if (sel.form) sel.form.submit();
-                return;
-            }
-            filterBody(q);
-        });
     }
-    bindSearch('checkupSearch', '#checkupContent table', 'consultationVisitsPerPage', 'mm_search_checkup');
-    bindSearch('dewormingSearch', '#dewormingContent table', 'dewormingVisitsPerPage', 'mm_search_deworming');
-    bindSearch('diagnosticsSearch', '#diagnosticsContent table', 'diagnosticsVisitsPerPage', 'mm_search_diagnostics');
-    bindSearch('surgicalSearch', '#surgicalContent table', 'surgicalVisitsPerPage', 'mm_search_surgical');
-    bindSearch('emergencySearch', '#emergencyContent table', 'emergencyVisitsPerPage', 'mm_search_emergency');
-    bindSearch('vaccinationSearch', '#vaccinationContent table', 'vaccinationVisitsPerPage', 'mm_search_vaccination');
-    bindSearch('groomingSearch', '#groomingContent table', 'groomingVisitsPerPage', 'mm_search_grooming');
-    bindSearch('boardingSearch', '#boardingContent table', 'boardingVisitsPerPage', 'mm_search_boarding');
+    
+    // Initialize validation listeners and observer
+    addValidationListeners();
+    initializePetContainerObserver();
+    updateSubmitButton();
+    
+    // Form submission validation
+    addVisitForm.addEventListener('submit', function(e) {
+        const errors = validateAddVisitForm();
+        if (errors.length > 0) {
+            e.preventDefault();
+            showValidationErrors(errors);
+            
+            // Scroll to error message
+            const errorElement = document.querySelector('.validation-error');
+            if (errorElement) {
+                errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            return false;
+        }
+        
+        // Remove any existing error messages on successful validation
+        document.querySelectorAll('.validation-error').forEach(el => el.remove());
+    });
 });
 </script>
 
@@ -2448,6 +2729,7 @@ document.addEventListener('DOMContentLoaded', function(){
         }, 200);
     }
     window.directPrintPrescription = directPrintPrescription;
+    
   </script>
 
   {{-- Print Container for Prescriptions --}}

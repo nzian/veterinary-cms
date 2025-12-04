@@ -26,7 +26,7 @@ class BranchReportController extends Controller
     }
     public function index(Request $request)
     {
-
+        //dd(session()->all());
         $user = auth()->user();
         $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
         $branchMode = session('branch_mode') === 'active';
@@ -54,6 +54,7 @@ class BranchReportController extends Controller
         
         // Initialize reports array
         $reports = [];
+        DB::enableQueryLog();
 
         // Generate reports based on type - ALL FILTERED BY BRANCH
         switch($reportType) {
@@ -61,12 +62,14 @@ class BranchReportController extends Controller
                 $query = Visit::whereHas('user', function($q) use ($branchId) {
                     $q->where('branch_id', $branchId);
                 });
+
+                //dd($query->get());
                 
                 // Only apply date filter if valid dates provided
                 if ($hasValidDates) {
                     $query->whereBetween('visit_date', [$startDate, $endDate]);
                 }
-                
+                //dd($query->with(['pet.owner', 'user.branch', 'services'])->get());
                 $reports['visits'] = [
                     'title' => 'Visit Management Report',
                     'description' => 'Complete visit records for ' . $branch->branch_name,
@@ -88,6 +91,8 @@ class BranchReportController extends Controller
                             ];
                         })
                 ];
+                //dd($reports['visits']);
+                //dd(DB::getQueryLog());
                 break;
 
             case 'pets':

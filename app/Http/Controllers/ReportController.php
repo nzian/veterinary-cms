@@ -13,6 +13,7 @@ class ReportController extends Controller
 {
     public function index(Request $request)
     {
+        //dd(session()->all());
         $reportType = $request->get('report', 'visits');
         $startDate = $request->get('start_date');
         $endDate = $request->get('end_date');

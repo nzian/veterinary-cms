@@ -186,6 +186,43 @@
                             </div>
                         </div>
                     </div>
+                    
+                    {{-- Consumable Products Section --}}
+                    <h3 class="text-lg font-semibold text-gray-700 mt-6 mb-4 flex items-center border-t pt-4">
+                        <i class="fas fa-pills mr-2 text-purple-600"></i> Consumable Products
+                        <span class="ml-2 text-sm font-normal text-gray-500">(Deducted from inventory on Check-In)</span>
+                    </h3>
+                    <div id="consumableProductsContainer" class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                        <div id="noProductsMessage" class="text-center text-gray-500 py-4">
+                            <i class="fas fa-info-circle mr-1"></i> Select a boarding package to view linked consumable products
+                        </div>
+                        <div id="consumableProductsList" class="hidden">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-purple-100">
+                                        <tr>
+                                            <th class="p-2 text-left font-semibold text-gray-700">Product Name</th>
+                                            <th class="p-2 text-center font-semibold text-gray-700">Qty/Day</th>
+                                            <th class="p-2 text-center font-semibold text-gray-700">Total Days</th>
+                                            <th class="p-2 text-center font-semibold text-gray-700">Total to Deduct</th>
+                                            <th class="p-2 text-center font-semibold text-gray-700">Current Stock</th>
+                                            <th class="p-2 text-center font-semibold text-gray-700">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="consumableProductsBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                                <p class="text-sm text-yellow-800">
+                                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                                    <strong>Note:</strong> These products will be deducted from inventory when the pet is <strong>Checked In</strong>.
+                                    Total deduction = Qty/Day × Total Days.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    {{-- End Consumable Products Section --}}
                     {{-- End Pet Weight --}}
                 </div>
                 
@@ -382,6 +419,91 @@
     document.addEventListener('DOMContentLoaded', function () {
       
       // ========================================
+      // CONSUMABLE PRODUCTS LOADING LOGIC
+      // ========================================
+      let currentServiceProducts = [];
+      
+      function loadConsumableProducts(serviceId) {
+          const noProductsMessage = document.getElementById('noProductsMessage');
+          const consumableProductsList = document.getElementById('consumableProductsList');
+          const consumableProductsBody = document.getElementById('consumableProductsBody');
+          
+          if (!serviceId) {
+              noProductsMessage.classList.remove('hidden');
+              consumableProductsList.classList.add('hidden');
+              currentServiceProducts = [];
+              return;
+          }
+          
+          // Show loading state
+          noProductsMessage.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Loading consumable products...';
+          noProductsMessage.classList.remove('hidden');
+          consumableProductsList.classList.add('hidden');
+          
+          fetch(`/services/${serviceId}/products`)
+              .then(response => response.json())
+              .then(data => {
+                  if (data.success && data.products && data.products.length > 0) {
+                      currentServiceProducts = data.products;
+                      updateConsumableProductsDisplay();
+                      noProductsMessage.classList.add('hidden');
+                      consumableProductsList.classList.remove('hidden');
+                  } else {
+                      currentServiceProducts = [];
+                      noProductsMessage.innerHTML = '<i class="fas fa-info-circle mr-1"></i> No consumable products linked to this boarding package';
+                      noProductsMessage.classList.remove('hidden');
+                      consumableProductsList.classList.add('hidden');
+                  }
+              })
+              .catch(error => {
+                  console.error('Error loading consumable products:', error);
+                  currentServiceProducts = [];
+                  noProductsMessage.innerHTML = '<i class="fas fa-exclamation-circle mr-1 text-red-500"></i> Error loading consumable products';
+                  noProductsMessage.classList.remove('hidden');
+                  consumableProductsList.classList.add('hidden');
+              });
+      }
+      
+      function updateConsumableProductsDisplay() {
+          const consumableProductsBody = document.getElementById('consumableProductsBody');
+          const totalDays = parseInt(document.getElementById('total_days_hidden').value) || 0;
+          
+          if (!currentServiceProducts || currentServiceProducts.length === 0) {
+              consumableProductsBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No products linked</td></tr>';
+              return;
+          }
+          
+          let html = '';
+          currentServiceProducts.forEach(product => {
+              const qtyPerDay = parseFloat(product.quantity_used) || 0;
+              const totalToDeduct = qtyPerDay * totalDays;
+              const currentStock = parseInt(product.current_stock) || 0;
+              const hasEnoughStock = currentStock >= totalToDeduct;
+              
+              const statusClass = hasEnoughStock ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100';
+              const statusText = hasEnoughStock ? '✓ Sufficient' : '⚠ Low Stock';
+              
+              html += `
+                  <tr class="border-b border-purple-200">
+                      <td class="p-2 font-medium text-gray-800">${product.product_name}</td>
+                      <td class="p-2 text-center">${qtyPerDay}</td>
+                      <td class="p-2 text-center font-semibold">${totalDays}</td>
+                      <td class="p-2 text-center font-bold text-purple-700">${totalToDeduct.toFixed(2)}</td>
+                      <td class="p-2 text-center ${currentStock < totalToDeduct ? 'text-red-600 font-bold' : 'text-green-600'}">${currentStock}</td>
+                      <td class="p-2 text-center">
+                          <span class="px-2 py-1 rounded text-xs font-semibold ${statusClass}">${statusText}</span>
+                      </td>
+                  </tr>
+              `;
+          });
+          
+          consumableProductsBody.innerHTML = html;
+      }
+      // ========================================
+      // END CONSUMABLE PRODUCTS LOGIC
+      // ========================================
+      
+      // ========================================
       // EQUIPMENT (CAGE/ROOM) LOADING LOGIC
       // ========================================
       const boardingServiceSelect = document.getElementById('boarding_service_id');
@@ -467,12 +589,14 @@
       if (boardingServiceSelect) {
           boardingServiceSelect.addEventListener('change', function() {
               loadEquipmentForService(this.value);
+              loadConsumableProducts(this.value);
               calculateBilling();
           });
           
           // Initial load for selected service
           if (boardingServiceSelect.value) {
               loadEquipmentForService(boardingServiceSelect.value);
+              loadConsumableProducts(boardingServiceSelect.value);
           }
       }
       
@@ -581,6 +705,9 @@
     dailyRateDisplay.textContent = `₱${servicePrice.toFixed(2)}`;
     durationDisplay.textContent = `${totalDays} ${totalDays === 1 ? 'day' : 'days'}`;
     totalAmountDisplay.textContent = `₱${totalAmount.toFixed(2)}`;
+    
+    // Update consumable products display with new total days
+    updateConsumableProductsDisplay();
 }
 
         // --- Event Listeners ---

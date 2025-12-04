@@ -122,21 +122,32 @@
         <!-- ==================== APPOINTMENTS TAB ==================== -->
         <div id="appointmentsContent" class="tab-content {{ request('tab', 'appointments') == 'appointments' ? '' : 'hidden' }}">
             <!-- Show Entries and Search for Appointments -->
-            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
-                    <input type="hidden" name="active_tab" value="appointments">
+            <div class="flex flex-wrap items-center justify-start gap-3 mt-4 text-sm font-semibold text-black pb-2">
+                <div class="flex items-center space-x-2">
                     <label for="appointmentsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
-                    <select name="appointmentsPerPage" id="appointmentsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                    <select name="appointmentsPerPage" id="appointmentsPerPage" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                            <option value="{{ $limit }}" {{ request('appointmentsPerPage') == $limit ? 'selected' : '' }}>
+                            <option value="{{ $limit }}" {{ request('appointmentsPerPage', 10) == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
                     <span class="whitespace-nowrap">entries</span>
-                </form>
-                <div class="relative flex-shrink-0 w-64">
-                    <input type="search" id="appointmentsSearch" placeholder="Search appointments..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                </div>
+                
+                <label class="whitespace-nowrap text-sm text-black">Status</label>
+                <select id="appointmentsStatusFilter" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                    <option value="">All Status</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="pending">Pending</option>
+                    <option value="arrived">Arrived</option>
+                    <option value="completed">Completed</option>
+                    <option value="rescheduled">Rescheduled</option>
+                    <option value="missed">Missed</option>
+                </select>
+                
+                <div class="relative ml-auto">
+                    <input type="search" id="appointmentsSearch" placeholder="Search appointments..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
             </div>
@@ -144,7 +155,7 @@
 
             <!-- Appointments Table -->
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="appointmentsTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -160,7 +171,7 @@
                     <tbody>
                         @forelse($appointments as $index => $appointment)
                             <tr>
-                                <td class="border px-2 py-2">{{ $appointments->firstItem() + $index }}</td>
+                                <td class="border px-2 py-2">{{ $index + 1 }}</td>
                                 <td class="border px-4 py-2">
                                     {{ \Carbon\Carbon::parse($appointment->appoint_date)->format('F j, Y') }}
                                 </td>
@@ -239,38 +250,7 @@
             </div>
 
             <!-- Pagination -->
-            @if(method_exists($appointments, 'links'))
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>
-                    Showing {{ $appointments->firstItem() ?? 0 }} to {{ $appointments->lastItem() ?? 0 }} of
-                    {{ $appointments->total() }} entries
-                </div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    @if ($appointments->onFirstPage())
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                    @else
-                        <a href="{{ $appointments->appends(['active_tab' => 'appointments'])->previousPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                    @endif
-
-                    @for ($i = 1; $i <= $appointments->lastPage(); $i++)
-                        @if ($i == $appointments->currentPage())
-                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                        @else
-                            <a href="{{ $appointments->appends(['active_tab' => 'appointments'])->url($i) }}"
-                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                        @endif
-                    @endfor
-
-                    @if ($appointments->hasMorePages())
-                        <a href="{{ $appointments->appends(['active_tab' => 'appointments'])->nextPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                    @else
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                    @endif
-                </div>
-            </div>
-            @endif
+            <div id="appointmentsPagination" class="mt-6 flex justify-end"></div>
         </div>
 
         <!-- ==================== PRESCRIPTIONS TAB ==================== -->
@@ -317,7 +297,7 @@
                                     {{ $index + 1 }}
                                 @endif
                             </td>
-                            <td class="border px-2 py-2">{{ $prescription->pet->pet_name }}</td>
+                            <td class="border px-2 py-2">{{ $prescription->pet->pet_name ?? 'N/A' }}</td>
                             <td class="border px-2 py-2">{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}</td>
                             <td class="border px-2 py-2">
                                 @if($prescription->medication)
@@ -333,13 +313,13 @@
                                @if(hasPermission('view_prescriptions', $can))
                                 <button onclick="viewPrescription(this)" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
                                     data-id="{{ $prescription->prescription_id }}"
-                                    data-pet="{{ $prescription->pet->pet_name }}"
-                                    data-species="{{ $prescription->pet->pet_species }}"
-                                    data-breed="{{ $prescription->pet->pet_breed }}"
-                                    data-weight="{{ $prescription->pet->pet_weight }}"
-                                    data-age="{{ $prescription->pet->pet_age }}"
-                                    data-temp="{{ $prescription->pet->pet_temperature }}"
-                                    data-gender="{{ $prescription->pet->pet_gender }}"
+                                    data-pet="{{ $prescription->pet->pet_name ?? '' }}"
+                                    data-species="{{ $prescription->pet->pet_species ?? '' }}"
+                                    data-breed="{{ $prescription->pet->pet_breed ?? '' }}"
+                                    data-weight="{{ $prescription->pet->pet_weight ?? '' }}"
+                                    data-age="{{ $prescription->pet->pet_age ?? '' }}"
+                                    data-temp="{{ $prescription->pet->pet_temperature ?? '' }}"
+                                    data-gender="{{ $prescription->pet->pet_gender ?? '' }}"
                                     data-date="{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}"
                                     data-medication="{{ $prescription->medication }}"
                                      data-differential-diagnosis="{{ $prescription->differential_diagnosis }}"
@@ -354,13 +334,13 @@
                                 <!-- Direct Print Button -->
                                 <button onclick="directPrint(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
                                     data-id="{{ $prescription->prescription_id }}"
-                                    data-pet="{{ $prescription->pet->pet_name }}"
-                                    data-species="{{ $prescription->pet->pet_species }}"
-                                    data-breed="{{ $prescription->pet->pet_breed }}"
-                                    data-weight="{{ $prescription->pet->pet_weight }}"
-                                    data-age="{{ $prescription->pet->pet_age }}"
-                                    data-temp="{{ $prescription->pet->pet_temperature }}"
-                                    data-gender="{{ $prescription->pet->pet_gender }}"
+                                    data-pet="{{ $prescription->pet->pet_name ?? '' }}"
+                                    data-species="{{ $prescription->pet->pet_species ?? '' }}"
+                                    data-breed="{{ $prescription->pet->pet_breed ?? '' }}"
+                                    data-weight="{{ $prescription->pet->pet_weight ?? '' }}"
+                                    data-age="{{ $prescription->pet->pet_age ?? '' }}"
+                                    data-temp="{{ $prescription->pet->pet_temperature ?? '' }}"
+                                    data-gender="{{ $prescription->pet->pet_gender ?? '' }}"
                                     data-date="{{ \Carbon\Carbon::parse($prescription->prescription_date)->format('F d, Y') }}"
                                     data-medication="{{ $prescription->medication }}"
                                      data-differential-diagnosis="{{ $prescription->differential_diagnosis }}"
@@ -438,21 +418,30 @@
         <!-- ==================== REFERRALS TAB ==================== -->
         <div id="referralsContent" class="tab-content hidden">
             <!-- Show Entries and Search for Referrals -->
-            <div class="flex flex-nowrap items-center justify-between gap-3 mt-4 text-sm font-semibold text-black w-full overflow-x-auto pb-2">
-                <form method="GET" action="{{ route('medical.index') }}" class="flex-shrink-0 flex items-center space-x-2">
-                    <input type="hidden" name="active_tab" value="referrals">
+            <div class="flex flex-wrap items-center justify-start gap-3 mt-4 text-sm font-semibold text-black pb-2">
+                <div class="flex items-center space-x-2">
                     <label for="referralsPerPage" class="whitespace-nowrap text-sm text-black">Show</label>
-                    <select name="referralsPerPage" id="referralsPerPage" onchange="this.form.submit()" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                    <select name="referralsPerPage" id="referralsPerPage" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                         @foreach ([10, 20, 50, 100, 'all'] as $limit)
-                            <option value="{{ $limit }}" {{ request('referralsPerPage') == $limit ? 'selected' : '' }}>
+                            <option value="{{ $limit }}" {{ request('referralsPerPage', 10) == $limit ? 'selected' : '' }}>
                                 {{ $limit === 'all' ? 'All' : $limit }}
                             </option>
                         @endforeach
                     </select>
                     <span class="whitespace-nowrap">entries</span>
-                </form>
-                <div class="relative flex-shrink-0 w-64">
-                    <input type="search" id="referralsSearch" placeholder="Search referrals..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                </div>
+                
+                <label class="whitespace-nowrap text-sm text-black">Status</label>
+                <select id="referralsStatusFilter" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                    <option value="">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="referred">Referred</option>
+                    <option value="attended">Attended</option>
+                    <option value="completed">Completed</option>
+                </select>
+                
+                <div class="relative ml-auto">
+                    <input type="search" id="referralsSearch" placeholder="Search referrals..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
                 <!--<button onclick="openReferralModal()" class="bg-[#0f7ea0] text-white text-sm px-4 py-2 rounded hover:bg-[#0c6a86]">
@@ -463,7 +452,7 @@
 
             <!-- Referrals Table -->
             <div class="overflow-x-auto">
-                <table class="w-full table-auto text-sm border text-center">
+                <table id="referralsTable" class="w-full table-auto text-sm border text-center">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="border px-2 py-2">#</th>
@@ -479,13 +468,7 @@
                     <tbody>
                         @forelse($referrals ?? [] as $index => $referral)
                             <tr>
-                                <td class="border px-2 py-2">
-                                    @if(method_exists($referrals, 'firstItem'))
-                                        {{ $referrals->firstItem() + $index }}
-                                    @else
-                                        {{ $index + 1 }}
-                                    @endif
-                                </td>
+                                <td class="border px-2 py-2">{{ $index + 1 }}</td>
                                 <td class="border px-2 py-2">{{ \Carbon\Carbon::parse($referral->ref_date)->format('F j, Y') }}</td>
                                 <td class="border px-2 py-2">{{ $referral->pet?->pet_name ?? 'N/A' }}</td>
                                 <td class="border px-2 py-2">{{ $referral->pet?->owner?->own_name ?? 'N/A' }}</td>
@@ -599,38 +582,7 @@
             </div>
 
             <!-- Pagination for Referrals -->
-            @if(method_exists($referrals, 'links'))
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>
-                    Showing {{ $referrals->firstItem() ?? 0 }} to {{ $referrals->lastItem() ?? 0 }} of
-                    {{ $referrals->total() }} entries
-                </div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    @if ($referrals->onFirstPage())
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                    @else
-                        <a href="{{ $referrals->appends(['active_tab' => 'referrals'])->previousPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                    @endif
-
-                    @for ($i = 1; $i <= $referrals->lastPage(); $i++)
-                        @if ($i == $referrals->currentPage())
-                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                        @else
-                            <a href="{{ $referrals->appends(['active_tab' => 'referrals'])->url($i) }}"
-                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                        @endif
-                    @endfor
-
-                    @if ($referrals->hasMorePages())
-                        <a href="{{ $referrals->appends(['active_tab' => 'referrals'])->nextPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                    @else
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                    @endif
-                </div>
-            </div>
-            @endif
+            <div id="referralsPagination" class="mt-6 flex justify-end"></div>
         </div>
     </div>
 </div>
@@ -1859,27 +1811,7 @@ function setupVaccineProductSearchListener(searchInputId, productIdInputId, sugg
 
 // ==================== APPOINTMENT FUNCTIONS ====================
 
-function openAddModal() {
-    // Reset the form
-    document.getElementById('addForm').reset();
-    
-    // Clear any existing service selections
-    selectedServices = [];
-    document.getElementById('selectedServicesDisplay').value = '';
-    
-    // Remove any existing hidden service inputs
-    const existingInputs = document.querySelectorAll('#addForm input[name="services[]"]');
-    existingInputs.forEach(n => n.remove());
-    
-    // Show the modal
-    document.getElementById('addModal').classList.remove('hidden');
-    document.getElementById('addModal').classList.add('flex');
-}
 
-function closeAddModal() {
-    document.getElementById('addModal').classList.remove('flex');
-    document.getElementById('addModal').classList.add('hidden');
-}
 
 function openEditModal(appointment) {
     // Point to Care Continuity update route
@@ -3094,7 +3026,7 @@ function closeViewReferralModal() {
 }
 
 // Form submission debugging for appointments
-document.getElementById('addForm').addEventListener('submit', function(e) {
+/*document.getElementById('addForm').addEventListener('submit', function(e) {
     const formData = new FormData(this);
     const services = formData.getAll('services[]');
     
@@ -3102,7 +3034,7 @@ document.getElementById('addForm').addEventListener('submit', function(e) {
         console.warn('No services found in form data!');
     }
 });
-
+*/
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     setupCSRF();
@@ -3631,69 +3563,52 @@ function closeViewAppointmentModal() {
     document.getElementById('viewAppointmentModal').classList.add('hidden');
 }
 
-// Simple search functionality for appointments and referrals
+// Initialize ListFilter for client-side filtering and pagination
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Initializing search functionality...');
+    console.log('Initializing list filters...');
     
-    // Function to initialize search for a specific input and table
-    function initSearch(inputId, tableId) {
-        const searchInput = document.getElementById(inputId);
-        const table = document.querySelector(tableId);
-        
-        if (!searchInput || !table) {
-            console.error(`Search elements not found for ${inputId} and ${tableId}`);
-            return;
-        }
-        
-        // Add input event listener
-        searchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const rows = table.querySelectorAll('tbody tr');
-            
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
-            });
-        });
-        
-        // Add clear button
-        const clearButton = document.createElement('button');
-        clearButton.innerHTML = '&times;';
-        clearButton.className = 'absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600';
-        clearButton.style.display = 'none';
-        clearButton.onclick = function(e) {
-            e.preventDefault();
-            searchInput.value = '';
-            searchInput.dispatchEvent(new Event('input'));
-            this.style.display = 'none';
-        };
-        
-        searchInput.parentNode.style.position = 'relative';
-        searchInput.parentNode.appendChild(clearButton);
-        
-        // Show/hide clear button based on input
-        searchInput.addEventListener('input', function() {
-            clearButton.style.display = this.value ? 'block' : 'none';
-        });
-    }
-    
-    // Initialize search for appointments
-    initSearch('appointmentsSearch', '#appointmentsContent table');
-    
-    // Initialize search for referrals
-    initSearch('referralsSearch', '#referralsContent table');
-    
-    // Reinitialize search when switching tabs
-    document.body.addEventListener('click', function(e) {
-        const tabButton = e.target.closest('button[onclick^="showTab"]');
-        if (tabButton) {
-            // Small delay to ensure tab content is loaded
-            setTimeout(() => {
-                initSearch('appointmentsSearch', '#appointmentsContent table');
-                initSearch('referralsSearch', '#referralsContent table');
-            }, 200);
-        }
+    // Initialize Appointments Filter
+    window.listFilters['appointments'] = new ListFilter({
+        tableSelector: '#appointmentsTable tbody',
+        searchInputId: 'appointmentsSearch',
+        perPageSelectId: 'appointmentsPerPage',
+        paginationContainerId: 'appointmentsPagination',
+        searchColumns: [1, 2, 3, 4, 5, 6], // Date, Type, Pet, Owner, Contact, Status
+        filterSelects: [
+            { selectId: 'appointmentsStatusFilter', columnIndex: 6 } // Status column
+        ],
+        storageKey: 'appointmentsFilter',
+        noResultsMessage: 'No appointments found.'
     });
+    
+    // Initialize Referrals Filter
+    window.listFilters['referrals'] = new ListFilter({
+        tableSelector: '#referralsTable tbody',
+        searchInputId: 'referralsSearch',
+        perPageSelectId: 'referralsPerPage',
+        paginationContainerId: 'referralsPagination',
+        searchColumns: [1, 2, 3, 4, 5, 6], // Date, Pet, Owner, Referred To, Description, Status
+        filterSelects: [
+            { selectId: 'referralsStatusFilter', columnIndex: 6 } // Status column
+        ],
+        storageKey: 'referralsFilter',
+        noResultsMessage: 'No referrals found.'
+    });
+    
+    // Refresh filters when switching tabs
+    const originalShowTab = window.showTab;
+    window.showTab = function(tab) {
+        if (originalShowTab) originalShowTab(tab);
+        
+        // Refresh the filter for the active tab
+        setTimeout(() => {
+            if (tab === 'appointments' && window.listFilters['appointments']) {
+                window.listFilters['appointments'].refresh();
+            } else if (tab === 'referrals' && window.listFilters['referrals']) {
+                window.listFilters['referrals'].refresh();
+            }
+        }, 100);
+    };
 });
 </script>
 

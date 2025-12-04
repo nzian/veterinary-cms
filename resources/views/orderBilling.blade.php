@@ -94,9 +94,11 @@
                         <option value="paid">Paid</option>
                     </select>
                 </form>
-                <div class="relative flex-1 min-w-[200px] max-w-xs">
-                    <input type="search" id="billingSearch" placeholder="Search billing..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
-                    <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <div class="relative">
+                        <input type="search" id="billingSearch" placeholder="Search billing..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
+                        <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
                 </div>
                 <div class="flex gap-2">
                     <form action="{{ route('sales.auto-generate') }}" method="POST" class="inline">
@@ -110,7 +112,7 @@
 
             {{-- Billing Table --}}
             <div class="w-full overflow-x-auto">
-                <table class="min-w-full table-auto text-sm border text-center">
+                <table id="billingTable" class="min-w-full table-auto text-sm border text-center">
                     <thead>
                         <tr class="bg-gray-100 text-centered">
                             <th class="px-2 py-2 border whitespace-nowrap w-8"></th>
@@ -195,25 +197,24 @@
                                 <td class="px-4 py-2 border">{{ \Carbon\Carbon::parse($billDate)->format('M d, Y') }}</td>
                                 <td class="px-4 py-2 border text-center">
                                     @php $groupPartialAmount = round(($totalAmount * 0.5), 2); @endphp
-                                    @if($groupHasBoarding && !$groupPartialPaid)
-                                        {{-- Show owner-level partial (50%) and hide Pay All until partial paid --}}
-                                        <button onclick="payPartialForOwner({{ $ownerId }}, '{{ $billDate }}', {{ $groupPartialAmount }}, {{ $petCount }})" 
-                                            class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 text-sm font-bold shadow-md transition-colors">
-                                            <i class="fas fa-hand-holding-dollar mr-2"></i>Pay Partial (50%) ₱{{ number_format($groupPartialAmount, 2) }}
+                                    @if($status === 'paid' || $balance <= 0.01)
+                                        {{-- Fully paid - show receipt button --}}
+                                        <a href="{{ route('sales.grouped.billing.receipt', ['owner_id' => $ownerId, 'bill_date' => $billDate]) }}" target="_blank"
+                                            class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm font-bold shadow-md transition-colors inline-flex items-center">
+                                            <i class="fas fa-receipt mr-2"></i>Receipt
+                                        </a>
+                                    @elseif($groupHasBoarding && !$groupPartialPaid)
+                                        {{-- Has boarding and partial not yet paid - show payment option selector --}}
+                                        <button onclick="showBoardingPaymentOptions({{ $ownerId }}, '{{ $billDate }}', {{ $totalAmount }}, {{ $groupPartialAmount }}, {{ max(0, $balance) }}, {{ $petCount }})" 
+                                            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-bold shadow-md transition-colors">
+                                            <i class="fas fa-credit-card mr-2"></i>Pay ₱{{ number_format($balance, 2) }}
                                         </button>
                                     @else
-                                        {{-- Show Pay All when no boarding partial required, or after partial paid --}}
-                                        @if($status !== 'paid' && $balance > 0.01)
-                                            <button onclick="payForOwner({{ $ownerId }}, '{{ $billDate }}', {{ max(0, $balance) }}, {{ $petCount }})" 
-                                                class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm font-bold shadow-md transition-colors">
-                                                <i class="fas fa-money-bill-wave mr-2"></i>Pay All
-                                            </button>
-                                        @else
-                                            <a href="{{ route('sales.grouped.billing.receipt', ['owner_id' => $ownerId, 'bill_date' => $billDate]) }}" target="_blank"
-                                                class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm font-bold shadow-md transition-colors inline-flex items-center">
-                                                <i class="fas fa-receipt mr-2"></i>Receipt
-                                            </a>
-                                        @endif
+                                        {{-- No boarding OR partial already paid - show Pay All for remaining balance --}}
+                                        <button onclick="payForOwner({{ $ownerId }}, '{{ $billDate }}', {{ max(0, $balance) }}, {{ $petCount }})" 
+                                            class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm font-bold shadow-md transition-colors">
+                                            <i class="fas fa-money-bill-wave mr-2"></i>Pay All ₱{{ number_format($balance, 2) }}
+                                        </button>
                                     @endif
                                 </td>
                             </tr>
@@ -222,7 +223,7 @@
                             <tr id="pets-{{ $index }}" class="hidden bg-gray-50">
                                 <td colspan="7" class="px-4 py-3">
                                     <div class="bg-white rounded-lg shadow-sm p-4">
-                                        <h4 class="font-semibold text-gray-700 mb-3">Pet Details for {{ $owner->own_name }}</h4>
+                                        <h4 class="font-semibold text-gray-700 mb-3">Pet Details for {{ $owner->own_name ?? 'Unknown Owner' }}</h4>
                                         <table class="w-full">
                                             <thead class="bg-gray-100">
                                                 <tr>
@@ -321,14 +322,20 @@
                                                                     <i class="fas fa-print mr-1"></i>Print
                                                                 </button>
                                                                 @if($balance > 0)
-                                                                    {{-- If this billing includes boarding, show partial pay (50%) and hide pet-level full pay --}}
+                                                                    @php $petPartialAmount = round(($petTotal * 0.5), 2); @endphp
+                                                                    {{-- If this billing includes boarding, show payment options (partial 50% or full) --}}
                                                                     @if($hasBoarding && !$paidPartialExists)
-                                                                        <button onclick="initiatePayment({{ $billing->bill_id }}, {{ $balance }}, 'partial', {{ $petTotal }}, {{ $paidAmount }})" 
-                                                                            class="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded text-xs" title="Pay Partial (50%)">
-                                                                            <i class="fas fa-hand-holding-dollar mr-1"></i>Pay Partial
+                                                                        <button onclick="showPetBoardingPaymentOptions({{ $billing->bill_id }}, {{ $petTotal }}, {{ $petPartialAmount }}, {{ $balance }}, {{ $paidAmount }})" 
+                                                                            class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs" title="Pay">
+                                                                            <i class="fas fa-credit-card mr-1"></i>Pay
+                                                                        </button>
+                                                                    @else
+                                                                        {{-- No boarding or partial already paid - show pay remaining --}}
+                                                                        <button onclick="initiatePayment({{ $billing->bill_id }}, {{ $balance }}, 'full', {{ $petTotal }}, {{ $paidAmount }})" 
+                                                                            class="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs" title="Pay Remaining">
+                                                                            <i class="fas fa-money-bill-wave mr-1"></i>Pay
                                                                         </button>
                                                                     @endif
-                                                                    {{-- Pet-level full pay intentionally not shown; owner-level Pay All handles full payments --}}
                                                                 @endif
                                                             </div>
                                                         </td>
@@ -351,38 +358,9 @@
             </div>
 
             {{-- Billing Pagination --}}
-            @if(isset($billings) && method_exists($billings, 'links'))
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>
-                    Showing {{ $billings->firstItem() ?? 0 }} to {{ $billings->lastItem() ?? 0 }} of
-                    {{ $billings->total() }} entries
-                </div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    @if ($billings->onFirstPage())
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                    @else
-                        <a href="{{ $billings->appends(['tab' => 'billing'])->previousPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                    @endif
-
-                    @for ($i = 1; $i <= $billings->lastPage(); $i++)
-                        @if ($i == $billings->currentPage())
-                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                        @else
-                            <a href="{{ $billings->appends(['tab' => 'billing'])->url($i) }}"
-                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                        @endif
-                    @endfor
-
-                    @if ($billings->hasMorePages())
-                        <a href="{{ $billings->appends(['tab' => 'billing'])->nextPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                    @else
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                    @endif
-                </div>
+            <div id="billingPagination" class="mt-4 flex justify-between items-center">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
-            @endif
         </div>
 
         {{-- Orders Tab Content (Unchanged) --}}
@@ -423,7 +401,7 @@
             </div>
 
             <div class="overflow-x-auto">
-                <table class="table-auto w-full border-collapse border text-sm text-center">
+                <table id="ordersTable" class="table-auto w-full border-collapse border text-sm text-center">
                     <thead class="bg-gray-200">
                         <tr>
                             <th class="border px-4 py-2">#</th>
@@ -458,7 +436,7 @@
                                     $totalItems = $orders->sum('ord_quantity');
                                 @endphp
                                 <tr class="hover:bg-gray-50">
-                                    <td class="border px-4 py-2">{{ $loop->iteration + (($paginator->currentPage() - 1) * $paginator->perPage()) }}</td>
+                                    <td class="border px-4 py-2">{{ $loop->iteration + (($paginator ? ($paginator->currentPage() - 1) * $paginator->perPage() : 0)) }}</td>
                                     <td class="border px-4 py-2 font-mono text-blue-600">
                                         #{{ is_string($transactionId) ? $transactionId : (isset($transaction['transaction_id']) ? $transaction['transaction_id'] : 'N/A') }}
                                     </td>
@@ -524,38 +502,11 @@
                     </tbody>
                 </table>
             </div>
-            @if(isset($paginator) && method_exists($paginator, 'links'))
-            <div class="flex justify-between items-center mt-4 text-sm font-semibold text-black">
-                <div>
-                    Showing {{ $paginator->firstItem() ?? 0 }} to {{ $paginator->lastItem() ?? 0 }} of
-                    {{ $paginator->total() }} entries
-                </div>
-                <div class="inline-flex border border-gray-400 rounded overflow-hidden">
-                    @if ($paginator->onFirstPage())
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed border-r">Previous</button>
-                    @else
-                        <a href="{{ $paginator->appends(request()->query())->previousPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200 border-r">Previous</a>
-                    @endif
 
-                    @for ($i = 1; $i <= $paginator->lastPage(); $i++)
-                        @if ($i == $paginator->currentPage())
-                            <button class="px-3 py-1 bg-[#0f7ea0] text-white border-r">{{ $i }}</button>
-                        @else
-                            <a href="{{ $paginator->appends(request()->query())->url($i) }}"
-                                class="px-3 py-1 hover:bg-gray-200 border-r">{{ $i }}</a>
-                        @endif
-                    @endfor
-
-                    @if ($paginator->hasMorePages())
-                        <a href="{{ $paginator->appends(request()->query())->nextPageUrl() }}"
-                            class="px-3 py-1 text-black hover:bg-gray-200">Next</a>
-                    @else
-                        <button disabled class="px-3 py-1 text-gray-400 cursor-not-allowed">Next</button>
-                    @endif
-                </div>
+            {{-- Orders Pagination --}}
+            <div id="ordersPagination" class="mt-6 flex justify-end">
+                <!-- Pagination will be generated by JavaScript -->
             </div>
-            @endif
         </div>
     </div>
 </div>
@@ -1308,6 +1259,48 @@ function payForOwner(ownerId, billDate, balance, petCount) {
     });
 }
 
+// Show payment options for boarding services - allows choice between partial (50%) and full payment
+function showBoardingPaymentOptions(ownerId, billDate, totalAmount, partialAmount, balance, petCount) {
+    Swal.fire({
+        title: 'Select Payment Option',
+        html: `
+            <div class="text-center mb-4">
+                <p class="text-gray-600 mb-2">Payment for ${petCount} pet(s) with boarding service</p>
+                <p class="text-lg font-semibold text-gray-700 mb-4">Total Amount: <span class="text-blue-600">₱${totalAmount.toFixed(2)}</span></p>
+                <div class="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
+                    <p class="text-sm text-blue-800">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Boarding services allow partial payment. Choose your payment option below.
+                    </p>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <button type="button" id="btnPartialPayment" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-3 px-4 rounded-lg font-semibold transition-colors flex items-center justify-between">
+                    <span><i class="fas fa-hand-holding-dollar mr-2"></i>Partial Payment (50%)</span>
+                    <span class="text-lg">₱${partialAmount.toFixed(2)}</span>
+                </button>
+                <button type="button" id="btnFullPayment" class="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-semibold transition-colors flex items-center justify-between">
+                    <span><i class="fas fa-money-bill-wave mr-2"></i>Full Payment</span>
+                    <span class="text-lg">₱${balance.toFixed(2)}</span>
+                </button>
+            </div>
+        `,
+        showConfirmButton: false,
+        showCancelButton: true,
+        cancelButtonText: 'Cancel',
+        didOpen: () => {
+            document.getElementById('btnPartialPayment').addEventListener('click', () => {
+                Swal.close();
+                payPartialForOwner(ownerId, billDate, partialAmount, petCount);
+            });
+            document.getElementById('btnFullPayment').addEventListener('click', () => {
+                Swal.close();
+                payForOwner(ownerId, billDate, balance, petCount);
+            });
+        }
+    });
+}
+
 // Pay Partial (50%) for owner group — owner-level action
 function payPartialForOwner(ownerId, billDate, partialAmount, petCount) {
     if (partialAmount <= 0) {
@@ -1439,6 +1432,48 @@ function viewSingleBilling(billId) {
 // Print single pet billing
 function printSingleBilling(billId) {
     window.open(`/sales/billing/${billId}/receipt`, '_blank', 'width=800,height=600');
+}
+
+// Show payment options for pet-level boarding services
+function showPetBoardingPaymentOptions(billId, totalAmount, partialAmount, balance, paidAmount) {
+    Swal.fire({
+        title: 'Select Payment Option',
+        html: `
+            <div class="text-center mb-4">
+                <p class="text-gray-600 mb-2">Payment for this pet's boarding service</p>
+                <p class="text-lg font-semibold text-gray-700 mb-4">Total Amount: <span class="text-blue-600">₱${totalAmount.toFixed(2)}</span></p>
+                <div class="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
+                    <p class="text-sm text-blue-800">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Boarding services allow partial payment. Choose your payment option below.
+                    </p>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <button type="button" id="btnPetPartialPayment" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-3 px-4 rounded-lg font-semibold transition-colors flex items-center justify-between">
+                    <span><i class="fas fa-hand-holding-dollar mr-2"></i>Partial Payment (50%)</span>
+                    <span class="text-lg">₱${partialAmount.toFixed(2)}</span>
+                </button>
+                <button type="button" id="btnPetFullPayment" class="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-semibold transition-colors flex items-center justify-between">
+                    <span><i class="fas fa-money-bill-wave mr-2"></i>Full Payment</span>
+                    <span class="text-lg">₱${balance.toFixed(2)}</span>
+                </button>
+            </div>
+        `,
+        showConfirmButton: false,
+        showCancelButton: true,
+        cancelButtonText: 'Cancel',
+        didOpen: () => {
+            document.getElementById('btnPetPartialPayment').addEventListener('click', () => {
+                Swal.close();
+                initiatePayment(billId, partialAmount, 'partial', totalAmount, paidAmount);
+            });
+            document.getElementById('btnPetFullPayment').addEventListener('click', () => {
+                Swal.close();
+                initiatePayment(billId, balance, 'full', totalAmount, paidAmount);
+            });
+        }
+    });
 }
 
 // Initiate payment (from dropdown)
@@ -2282,9 +2317,29 @@ document.addEventListener('DOMContentLoaded', function(){
         sessionStorage.removeItem('activeTab'); // Clean up
     }
     
-    // Setup client-side filters
-    setupFilter('billingSearch', '#billingContent table.min-w-full');
-    setupOrdersFilter(); // Use custom filter for orders
+    // Initialize ListFilter for billing table
+    new ListFilter({
+        tableSelector: '#billingTable',
+        searchInputId: 'billingSearch',
+        perPageSelectId: 'billingPerPage',
+        paginationContainerId: 'billingPagination',
+        searchColumns: [1, 2], // Owner, Pets columns
+        filterSelects: [
+            { selectId: 'billingStatus', columnIndex: 4 } // Status column
+        ]
+    });
+    
+    // Initialize ListFilter for orders table if needed
+    // Note: Orders search input needs to be added to the view first
+    if (document.getElementById('ordersSearch')) {
+        new ListFilter({
+            tableSelector: '#ordersTable',
+            searchInputId: 'ordersSearch', 
+            perPageSelectId: 'ordersPerPage',
+            paginationContainerId: 'ordersPagination',
+            searchColumns: [1, 2, 4, 7, 8] // Transaction ID, Source, Products, Customer, Cashier columns
+        });
+    }
 });
 </script>
 @endsection
