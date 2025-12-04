@@ -49,6 +49,47 @@ class MedicalManagementController extends Controller
     }
 
     /**
+     * Helper method to update visit_service_type by MERGING completed service types
+     * with the original service types (preserving uncompleted types)
+     */
+    protected function updateVisitServiceTypes(Visit $visit)
+    {
+        // Get the original service types from the visit (e.g., "Vaccination, Checkup")
+        $originalTypes = array_filter(array_map('trim', explode(',', $visit->visit_service_type ?? '')));
+        
+        // Get service types from attached services
+        $attachedServiceTypes = $visit->services()->pluck('serv_type')->toArray();
+        
+        // Merge original types with attached service types (unique, case-insensitive)
+        $allTypes = [];
+        foreach (array_merge($originalTypes, $attachedServiceTypes) as $type) {
+            $typeLower = strtolower(trim($type));
+            if (!empty($typeLower) && !in_array($typeLower, array_map('strtolower', $allTypes))) {
+                // Keep original casing from originalTypes if available
+                $found = false;
+                foreach ($originalTypes as $ot) {
+                    if (strtolower(trim($ot)) === $typeLower) {
+                        $allTypes[] = trim($ot);
+                        $found = true;
+                        break;
+                    }
+                }
+                if (!$found) {
+                    $allTypes[] = trim($type);
+                }
+            }
+        }
+        
+        // Update visit_service_type with merged types
+        if (!empty($allTypes) && Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
+            $visit->visit_service_type = implode(', ', $allTypes);
+            $visit->save();
+        }
+        
+        return $allTypes;
+    }
+
+    /**
      * Display the boarding form or details for a visit (GET).
      */
     public function showBoarding($visitId)
@@ -522,14 +563,9 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
             Log::info('[Checkup] Service attached', ['visit_id' => $visitModel->visit_id, 'service_id' => $serviceId, 'price' => $service->serv_price]);
         }
 
-        // Update visit_service_type to include all services (if column exists)
+        // Update visit_service_type - merge completed service types with original types
         $visitModel->refresh();
-        $allServices = $visitModel->services()->get();
-        if ($allServices->isNotEmpty() && Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
-            $typesSummary = $allServices->pluck('serv_type')->implode(', ');
-            $visitModel->visit_service_type = $typesSummary;
-            $visitModel->save();
-        }
+        $this->updateVisitServiceTypes($visitModel);
         
         // Check if all services are done
         $allCompleted = $visitModel->checkAllServicesCompleted();
@@ -706,16 +742,12 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
             // Ensure vaccination service pivot is marked completed (attach if missing)
             $this->ensureServiceCompleted($visitModel, $validated['service_id'] ?? null, ['vaccination'], 1);
 
-            // 5. Update visit_service_type to include all services
+            // 5. Update visit_service_type - merge completed service types with original types
             $visitModel->refresh();
-            $allServices = $visitModel->services()->get();
-            if ($allServices->isNotEmpty()) {
-                $visitModel->visit_status = $this->getVisitStatusAfterServiceUpdate($visitModel);
-                $visitModel->workflow_status = $visitModel->visit_status;
-                $typesSummary = $allServices->pluck('serv_name')->implode(', ');
-                $visitModel->visit_service_type = $typesSummary;
-                $visitModel->save();
-            }
+            $this->updateVisitServiceTypes($visitModel);
+            $visitModel->visit_status = $this->getVisitStatusAfterServiceUpdate($visitModel);
+            $visitModel->workflow_status = $visitModel->visit_status;
+            $visitModel->save();
             
             // 6. Check if all services are completed and generate billing
             $allCompleted = $visitModel->checkAllServicesCompleted();
@@ -891,14 +923,9 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
             // Ensure deworming service pivot is marked completed (attach if missing)
             $this->ensureServiceCompleted($visitModel, $validated['service_id'] ?? null, ['deworming'], 1);
 
-            // 4. Update visit_service_type to include all services
+            // 4. Update visit_service_type - merge completed service types with original types
             $visitModel->refresh();
-            $allServices = $visitModel->services()->get();
-            if ($allServices->isNotEmpty()) {
-                $typesSummary = $allServices->pluck('serv_name')->implode(', ');
-                $visitModel->visit_service_type = $typesSummary;
-                $visitModel->save();
-            }
+            $this->updateVisitServiceTypes($visitModel);
             
             // 5. Check if all services are completed and generate billing
             $allCompleted = $visitModel->checkAllServicesCompleted();
@@ -952,29 +979,11 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         try {
             $visit = Visit::with(['services', 'pet.owner'])->findOrFail($visitId);
             
-            // Get all existing services to preserve them
+            // Get existing services for reference
             $existingServices = $visit->services()->get();
+            
+            // Build sync data only for the grooming services from the request
             $syncData = [];
-            
-            // Preserve all existing services that are not in the request
-            foreach ($existingServices as $existingService) {
-                if (!in_array($existingService->serv_id, $request->services)) {
-                    $syncData[$existingService->serv_id] = [
-                        'status' => $existingService->pivot->status ?? 'pending',
-                        'completed_at' => $existingService->pivot->completed_at ?? null,
-                        'quantity' => $existingService->pivot->quantity ?? 1,
-                        'unit_price' => $existingService->pivot->unit_price ?? $existingService->serv_price,
-                        'total_price' => $existingService->pivot->total_price ?? $existingService->serv_price,
-                        'coat_condition' => $existingService->pivot->coat_condition ?? null,
-                        'skin_issues' => $existingService->pivot->skin_issues ?? null,
-                        'notes' => $existingService->pivot->notes ?? null,
-                        'created_at' => $existingService->pivot->created_at ?? now(),
-                        'updated_at' => now(),
-                    ];
-                }
-            }
-            
-            // Add/update the services from the request
             foreach ($request->services as $serviceId) {
                 $existingService = $existingServices->firstWhere('serv_id', $serviceId);
                 $syncData[$serviceId] = [
@@ -991,7 +1000,8 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                 ];
             }
             
-            $visit->services()->sync($syncData);
+            // Use syncWithoutDetaching to preserve other service types
+            $visit->services()->syncWithoutDetaching($syncData);
             
             DB::commit();
             
@@ -1090,31 +1100,12 @@ public function completeService(Request $request, $visitId, $serviceId)
             ->pluck('tbl_serv.serv_id')
             ->toArray();
         $to_detach = array_diff($existing_grooming, $selectedServiceIds);
+        // Only detach grooming services that are NOT in the selected list (to handle changes within grooming)
+        // DO NOT detach other service types
         if (!empty($to_detach)) {
             $visitModel->services()->detach($to_detach);
         }
 
-        // 2. Get all existing services for this visit to preserve them
-        $existingServices = $visitModel->services()->get();
-        $syncData = [];
-        
-       foreach ($existingServices as $index => $existingService) {
-            // Skip grooming services that are being updated - we'll add them below with new data
-            if (in_array($existingService->serv_id, $selectedServiceIds)) {
-                continue;
-            }
-            
-            $syncData[$existingService->serv_id] = [
-                'status' => $existingService->pivot->status ?? 'pending',
-                'completed_at' => $existingService->pivot->completed_at ?? null,
-                'quantity' => $existingService->pivot->quantity ?? 1,
-                'unit_price' => $existingService->pivot->unit_price ?? $existingService->serv_price,
-                'total_price' => $existingService->pivot->total_price ?? ($existingService->serv_price * ($existingService->pivot->quantity ?? 1)),
-                'created_at' => $existingService->pivot->created_at ?? now(),
-                'updated_at' => now(),
-            ];
-        }
-        //dd($syncData);
         // Determine grooming service status based on workflow
         $groomingStatus = 'pending';
         $groomingCompletedAt = null;
@@ -1127,12 +1118,14 @@ public function completeService(Request $request, $visitId, $serviceId)
             $groomingStatus = 'pending';
         }
 
+        // Build sync data ONLY for the selected grooming services
+        $groomingSyncData = [];
         foreach ($selectedServices as $service) {
-            // Check if this service already exists in the existing services to preserve created_at
-            $existingService = $existingServices->firstWhere('serv_id', $service->serv_id);
+            // Check if this service already exists to preserve created_at
+            $existingService = $visitModel->services()->where('tbl_serv.serv_id', $service->serv_id)->first();
             $existingCreatedAt = $existingService?->pivot->created_at;
             
-            $syncData[$service->serv_id] = [
+            $groomingSyncData[$service->serv_id] = [
                 'status' => $groomingStatus,
                 'completed_at' => $groomingCompletedAt,
                 'quantity' => 1,
@@ -1143,10 +1136,8 @@ public function completeService(Request $request, $visitId, $serviceId)
             ];
         }
 
-        //dd($syncData);
-        
-        // 3. Sync all services (existing + grooming services)
-        $visitModel->services()->sync($syncData);
+        // Use syncWithoutDetaching to add/update grooming services WITHOUT removing other service types
+        $visitModel->services()->syncWithoutDetaching($groomingSyncData);
 
         // 4. Determine workflow status based on start_time and end_time for grooming
         $workflowStatus = 'Completed'; // Default when saving
@@ -1183,14 +1174,9 @@ public function completeService(Request $request, $visitId, $serviceId)
         
         Log::info('[Grooming] Record saved', ['visit_id' => $visitModel->visit_id, 'package' => $selectedPackageName, 'status' => $workflowStatus]);
         
-        // 6. Update visit_service_type to include all services
+        // 6. Update visit_service_type - merge completed service types with original types
         $visitModel->refresh();
-        $allServices = $visitModel->services()->get();
-        if ($allServices->isNotEmpty()) {
-            $typesSummary = $allServices->pluck('serv_type')->implode(', ');
-            $visitModel->visit_service_type = $typesSummary;
-            $visitModel->save();
-        }
+        $this->updateVisitServiceTypes($visitModel);
         
         // 7. Check if all services are completed and generate billing
         $allCompleted = $visitModel->checkAllServicesCompleted();
@@ -1303,47 +1289,20 @@ public function completeService(Request $request, $visitId, $serviceId)
         DB::beginTransaction();
         $shouldGenerateBillingAfterCommit = false;
         try {
-            // preserve existing services except any boarding-type services
-            // (we remove old boarding service lines to avoid duplicates and only add the selected service)
-            $existingServices = $visitModel->services()->get();
-            $syncData = [];
-            foreach ($existingServices as $existingService) {
-                $servType = strtolower($existingService->serv_type ?? '');
-                $servName = strtolower($existingService->serv_name ?? '');
-
-                // Skip any existing boarding-type service entries so we don't bill them twice
-                if ($servType === 'boarding' || strpos($servName, 'boarding') === 0) {
-                    continue;
-                }
-
-                // Also skip if this is the exact service we're about to (re)attach
-                if ($existingService->serv_id == $validated['service_id']) {
-                    continue;
-                }
-
-                $syncData[$existingService->serv_id] = [
-                    'status' => $existingService->pivot->status ?? 'pending',
-                    'completed_at' => $existingService->pivot->completed_at ?? null,
-                    'quantity' => $existingService->pivot->quantity ?? 1,
-                    'unit_price' => $existingService->pivot->unit_price ?? $existingService->serv_price,
-                    'total_price' => $existingService->pivot->total_price ?? $existingService->serv_price * ($existingService->pivot->quantity ?? 1),
-                    'created_at' => $existingService->pivot->created_at ?? now(),
+            // add/update boarding service - use syncWithoutDetaching to preserve other service types
+            $boardingServiceData = [
+                $validated['service_id'] => [
+                    'status' => $boardingStatus === 'Checked Out' ? 'completed' : 'pending',
+                    'completed_at' => $boardingStatus === 'Checked Out' ? now() : null,
+                    'quantity' => $actualDays,
+                    'unit_price' => $dailyRate,
+                    'total_price' => $totalAmount,
+                    'created_at' => now(),
                     'updated_at' => now(),
-                ];
-            }
-
-            // add/update boarding service
-            $syncData[$validated['service_id']] = [
-                'status' => $boardingStatus === 'Checked Out' ? 'completed' : 'pending',
-                'completed_at' => $boardingStatus === 'Checked Out' ? now() : null,
-                'quantity' => $actualDays,
-                'unit_price' => $dailyRate,
-                'total_price' => $totalAmount,
-                'created_at' => now(),
-                'updated_at' => now(),
+                ]
             ];
 
-            $visitModel->services()->sync($syncData);
+            $visitModel->services()->syncWithoutDetaching($boardingServiceData);
 
             // Get equipment ID from request
             $equipmentId = $request->input('equipment_id');
@@ -1446,10 +1405,8 @@ public function completeService(Request $request, $visitId, $serviceId)
 
             $visitModel->workflow_status = $boardingStatus;
             $visitModel->visit_status = $boardingStatus;
-            $allServices = $visitModel->services()->get();
-            if ($allServices->isNotEmpty()) {
-                $visitModel->visit_service_type = $allServices->pluck('serv_name')->implode(', ');
-            }
+            // Update visit_service_type - merge completed service types with original types
+            $this->updateVisitServiceTypes($visitModel);
             $visitModel->save();
 
             // Generate billing on Check-In (not just Check-Out)
@@ -1550,14 +1507,9 @@ public function completeService(Request $request, $visitId, $serviceId)
         ); 
         
 
-        // Update visit_service_type to include all services (if column exists)
+        // Update visit_service_type - merge completed service types with original types
         $visitModel->refresh();
-        $allServices = $visitModel->services()->get();
-        if ($allServices->isNotEmpty() && Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
-            $typesSummary = $allServices->pluck('serv_name')->implode(', ');
-            $visitModel->visit_service_type = $typesSummary;
-            $visitModel->save();
-        }
+        $this->updateVisitServiceTypes($visitModel);
         
         // Check if all services are completed and generate billing
         $allCompleted = $visitModel->checkAllServicesCompleted();
@@ -1675,14 +1627,9 @@ public function completeService(Request $request, $visitId, $serviceId)
         // Ensure surgical service pivot is marked completed (attach if missing)
         $this->ensureServiceCompleted($visitModel, $validated['service_id'] ?? null, ['surgical', 'surgery'], 1);
         
-        // Update visit_service_type to include all services (if column exists)
+        // Update visit_service_type - merge completed service types with original types
         $visitModel->refresh();
-        $allServices = $visitModel->services()->get();
-        if ($allServices->isNotEmpty() && Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
-            $typesSummary = $allServices->pluck('serv_name')->implode(', ');
-            $visitModel->visit_service_type = $typesSummary;
-            $visitModel->save();
-        }
+        $this->updateVisitServiceTypes($visitModel);
         
         // Check if all services are completed and generate billing
         $allCompleted = $visitModel->checkAllServicesCompleted();
@@ -1740,14 +1687,9 @@ public function completeService(Request $request, $visitId, $serviceId)
             ]
         );
         
-        // Update visit_service_type to include all services (if column exists)
+        // Update visit_service_type - merge completed service types with original types
         $visitModel->refresh();
-        $allServices = $visitModel->services()->get();
-        if ($allServices->isNotEmpty() && Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
-            $typesSummary = $allServices->pluck('serv_name')->implode(', ');
-            $visitModel->visit_service_type = $typesSummary;
-            $visitModel->save();
-        }
+        $this->updateVisitServiceTypes($visitModel);
         
         // Check if all services are completed and generate billing
         $allCompleted = $visitModel->checkAllServicesCompleted();

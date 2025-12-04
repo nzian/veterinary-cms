@@ -198,23 +198,75 @@ public function checkAllServicesCompleted()
     // Refresh to get latest service statuses
     $this->refresh();
 
-    // Get all services for this visit directly from pivot table to ensure fresh data
+    // Get planned service types from visit_service_type column
+    $plannedTypes = array_filter(array_map('trim', explode(',', $this->visit_service_type ?? '')));
+    
+    // If no planned types, fall back to checking attached services
+    if (empty($plannedTypes)) {
+        $pivotRecords = \Illuminate\Support\Facades\DB::table('tbl_visit_service')
+            ->where('visit_id', $this->visit_id)
+            ->get();
+        
+        if ($pivotRecords->isEmpty()) {
+            return false;
+        }
+        
+        return $pivotRecords->every(function($pivot) {
+            $status = $pivot->status ?? null;
+            return $status === 'completed';
+        });
+    }
+    
+    // Get all attached services with their types
+    $attachedServices = $this->services()->get();
+    $attachedTypes = $attachedServices->pluck('serv_type')->map(fn($t) => strtolower(trim($t)))->toArray();
+    
+    // Normalize planned types for comparison
+    $plannedTypesLower = array_map(fn($t) => strtolower(trim($t)), $plannedTypes);
+    
+    // Map of service type variations to normalized types
+    $typeMap = [
+        'check-up' => 'checkup', 'check up' => 'checkup', 'consultation' => 'checkup',
+        'diagnostics' => 'diagnostic', 'laboratory' => 'diagnostic',
+        'surgical' => 'surgery',
+    ];
+    
+    // Check if all planned types have at least one completed service
+    foreach ($plannedTypesLower as $plannedType) {
+        // Normalize the type
+        $normalizedPlanned = $typeMap[$plannedType] ?? $plannedType;
+        
+        // Check if this type has a completed service
+        $hasCompleted = $attachedServices->contains(function($service) use ($normalizedPlanned, $typeMap) {
+            $serviceType = strtolower(trim($service->serv_type ?? ''));
+            $normalizedService = $typeMap[$serviceType] ?? $serviceType;
+            
+            // Check if types match (or are variations of each other)
+            $typesMatch = ($normalizedService === $normalizedPlanned) || 
+                          (str_contains($serviceType, $normalizedPlanned)) ||
+                          (str_contains($normalizedPlanned, $serviceType));
+            
+            return $typesMatch && ($service->pivot->status ?? null) === 'completed';
+        });
+        
+        if (!$hasCompleted) {
+            return false;
+        }
+    }
+
+    // All planned service types have completed services
+    
+    // Also verify all attached services are completed
     $pivotRecords = \Illuminate\Support\Facades\DB::table('tbl_visit_service')
         ->where('visit_id', $this->visit_id)
         ->get();
-
-    // If no services, return false
-    if ($pivotRecords->isEmpty()) {
-        return false;
-    }
-
-    // Check if ALL services are completed
-    $allCompleted = $pivotRecords->every(function($pivot) {
+    
+    $allAttachedCompleted = $pivotRecords->every(function($pivot) {
         $status = $pivot->status ?? null;
         return $status === 'completed';
     });
 
-    if ($allCompleted) {
+    if ($allAttachedCompleted) {
         // Update workflow status to Completed
         $this->workflow_status = 'Completed';
         $this->service_status = 'Completed';

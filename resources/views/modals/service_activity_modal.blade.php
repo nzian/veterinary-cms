@@ -424,7 +424,7 @@
         activeButton.classList.remove('bg-gray-200', 'text-gray-600');
     }
 
-    function openActivityModal(petId, ownerId, currentService) {
+    function openActivityModal(petId, ownerId, currentService, visitId = null) {
         const modal = document.getElementById('serviceActivityModal');
         const petName = document.getElementById('activity_pet_name');
         
@@ -437,12 +437,12 @@
         document.getElementById('activity_appoint_pet_id').value = petId;
         document.getElementById('activity_prescription_pet_id').value = petId;
         document.getElementById('activity_referral_pet_id').value = petId;
-        document.getElementById('activity_referral_visit_id').value = String({{ $visit->visit_id ?? '""' }});
-        document.getElementById('activity_prescription_visit_id').value = String({{ $visit->visit_id ?? '""' }});
+        document.getElementById('activity_referral_visit_id').value = visitId || '';
+        document.getElementById('activity_prescription_visit_id').value = visitId || '';
         const initPetInput = document.getElementById('activity_initial_pet_id');
         const initVisitInput = document.getElementById('activity_initial_visit_id');
         if (initPetInput) initPetInput.value = petId;
-        if (initVisitInput) initVisitInput.value = String({{ $visit->visit_id ?? '""' }});
+        if (initVisitInput) initVisitInput.value = visitId || '';
         
         // 2. Pre-fill default values for Appointment Type
         document.getElementById('activity_appoint_type').value = 

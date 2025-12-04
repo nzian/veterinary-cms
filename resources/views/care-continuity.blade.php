@@ -700,6 +700,7 @@
             @csrf
             <input type="hidden" name="_method" id="prescriptionFormMethod" value="POST">
             <input type="hidden" name="prescription_id" id="prescription_id">
+            <input type="hidden" name="pvisit_id" id="prescription_visit_id">
             <input type="hidden" name="active_tab" value="prescriptions">
 
             <div class="grid grid-cols-2 gap-4 mb-4">

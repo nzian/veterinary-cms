@@ -238,6 +238,7 @@
             <form id="prescriptionForm" onsubmit="return handlePrescriptionSubmit(event)" class="space-y-4 border border-green-200 p-4 rounded-lg bg-green-50">
                 @csrf
                 <input type="hidden" name="pet_id" id="prescription_pet_id">
+                <input type="hidden" name="pvisit_id" id="prescription_visit_id" value="{{ $visit->visit_id ?? '' }}">
                 <input type="hidden" name="medications_json" id="medications_json">
                 <input type="hidden" name="active_tab" value="visits">
 

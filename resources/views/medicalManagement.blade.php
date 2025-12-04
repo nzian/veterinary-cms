@@ -396,14 +396,8 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            // Check if prescription exists for this visit - use pres_visit_id as primary link
+                                            // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $visitPrescription = \App\Models\Prescription::where('pres_visit_id', $visit->visit_id)->first();
-                                            // Fallback: check by pet_id and date if no visit_id link
-                                            if (!$visitPrescription && $visit->pet_id) {
-                                                $visitPrescription = \App\Models\Prescription::where('pet_id', $visit->pet_id)
-                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($visit->visit_date))
-                                                    ->first();
-                                            }
                                         @endphp
                                         @if($visitPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -536,13 +530,8 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $checkupPrescription = \App\Models\Prescription::where('pres_visit_id', $c->visit_id)->first();
-                                            if (!$checkupPrescription && $c->pet_id) {
-                                                $checkupPrescription = \App\Models\Prescription::where('pet_id', $c->pet_id)
-                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($c->visit_date))
-                                                    ->first();
-                                            }
                                         @endphp
                                         @if($checkupPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -681,13 +670,8 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $dewormPrescription = \App\Models\Prescription::where('pres_visit_id', $d->visit_id)->first();
-                                            if (!$dewormPrescription && $d->pet_id) {
-                                                $dewormPrescription = \App\Models\Prescription::where('pet_id', $d->pet_id)
-                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($d->visit_date))
-                                                    ->first();
-                                            }
                                         @endphp
                                         @if($dewormPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -826,13 +810,8 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $diagPrescription = \App\Models\Prescription::where('pres_visit_id', $d->visit_id)->first();
-                                            if (!$diagPrescription && $d->pet_id) {
-                                                $diagPrescription = \App\Models\Prescription::where('pet_id', $d->pet_id)
-                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($d->visit_date))
-                                                    ->first();
-                                            }
                                         @endphp
                                         @if($diagPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -971,13 +950,8 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $surgPrescription = \App\Models\Prescription::where('pres_visit_id', $s->visit_id)->first();
-                                            if (!$surgPrescription && $s->pet_id) {
-                                                $surgPrescription = \App\Models\Prescription::where('pet_id', $s->pet_id)
-                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($s->visit_date))
-                                                    ->first();
-                                            }
                                         @endphp
                                         @if($surgPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -1116,13 +1090,8 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $emergPrescription = \App\Models\Prescription::where('pres_visit_id', $e->visit_id)->first();
-                                            if (!$emergPrescription && $e->pet_id) {
-                                                $emergPrescription = \App\Models\Prescription::where('pet_id', $e->pet_id)
-                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($e->visit_date))
-                                                    ->first();
-                                            }
                                         @endphp
                                         @if($emergPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -1261,13 +1230,8 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $vaccPrescription = \App\Models\Prescription::where('pres_visit_id', $v->visit_id)->first();
-                                            if (!$vaccPrescription && $v->pet_id) {
-                                                $vaccPrescription = \App\Models\Prescription::where('pet_id', $v->pet_id)
-                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($v->visit_date))
-                                                    ->first();
-                                            }
                                         @endphp
                                         @if($vaccPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -1406,13 +1370,8 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $groomPrescription = \App\Models\Prescription::where('pres_visit_id', $g->visit_id)->first();
-                                            if (!$groomPrescription && $g->pet_id) {
-                                                $groomPrescription = \App\Models\Prescription::where('pet_id', $g->pet_id)
-                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($g->visit_date))
-                                                    ->first();
-                                            }
                                         @endphp
                                         @if($groomPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -1567,13 +1526,9 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $boardPrescription = \App\Models\Prescription::where('pres_visit_id', $b->visit_id)->first();
-                                            if (!$boardPrescription && $b->pet_id) {
-                                                $boardPrescription = \App\Models\Prescription::where('pet_id', $b->pet_id)
-                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($b->visit_date))
-                                                    ->first();
-                                            }
+                                        @endphp
                                         @endphp
                                         @if($boardPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -2919,14 +2874,16 @@ document.addEventListener('DOMContentLoaded', function() {
     function openInitialAssessment(visitId, petId, ownerId){
         // Ensure modal is present and open with Initial Assessment tab
         if (typeof openActivityModal === 'function') {
-            openActivityModal(String(petId), String(ownerId || ''), 'Initial Assessment');
+            openActivityModal(String(petId), String(ownerId || ''), 'Initial Assessment', String(visitId));
             if (typeof switchActivityTab === 'function') {
                 switchActivityTab('initial');
             }
             const v = document.getElementById('activity_initial_visit_id');
             const p = document.getElementById('activity_initial_pet_id');
+            const pv = document.getElementById('activity_prescription_visit_id');
             if (v) v.value = String(visitId);
             if (p) p.value = String(petId);
+            if (pv) pv.value = String(visitId);
         } else {
             alert('Initial Assessment modal is not available.');
         }
