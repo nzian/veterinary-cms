@@ -108,16 +108,16 @@ public function getBranchIdColumn()
         // and that usage is indicated by a specific transaction_type, e.g., 'used' or similar
         // Adjust 'used' to your actual usage type if different
         if($this->prod_type === 'Consumable'){
-            return -1 * DB::table('tbl_inventory_transactions')
+            return abs( DB::table('tbl_inventory_transactions')
             ->where('prod_id', $this->prod_id)
             ->where('transaction_type', 'service_usage') // Adjust this as needed        
-            ->sum('quantity_change') ?? 0;
+            ->sum('quantity_change') ?? 0);
         }
         else {
-            return -1 * DB::table('tbl_inventory_transactions')
+            return abs(DB::table('tbl_inventory_transactions')
             ->where('prod_id', $this->prod_id)
             ->where('transaction_type', 'order_usage') // Adjust this as needed        
-            ->sum('quantity_change') ?? 0;
+            ->sum('quantity_change') ?? 0);
         }
         
     } 

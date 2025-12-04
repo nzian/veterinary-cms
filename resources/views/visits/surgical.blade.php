@@ -398,8 +398,8 @@
                 option.setAttribute('data-quantity-used', product.quantity_used || 1);
                 
                 let optionText = product.prod_name;
-                if (product.prod_stocks !== undefined) {
-                  optionText += ` (Stock: ${product.prod_stocks})`;
+                if (product.current_stock !== undefined) {
+                  optionText += ` (Stock: ${product.current_stock})`;
                 }
                 if (product.prod_expiry) {
                   optionText += ` - Exp: ${product.prod_expiry}`;
@@ -408,7 +408,7 @@
                 option.textContent = optionText;
                 
                 // Disable if out of stock
-                if (product.prod_stocks <= 0) {
+                if (product.current_stock <= 0) {
                   option.disabled = true;
                   option.textContent += ' - OUT OF STOCK';
                 }

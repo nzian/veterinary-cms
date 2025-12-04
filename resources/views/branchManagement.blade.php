@@ -890,7 +890,7 @@ function loadBranchProducts(products) {
     
     if (products.length > 0) {
         products.forEach(product => {
-            const stockStatus = product.prod_stocks <= (product.prod_reorderlevel || 10) ? 'Low Stock' : 'In Stock';
+            const stockStatus = product.current_stock <= (product.prod_reorderlevel || 10) ? 'Low Stock' : 'In Stock';
             const statusClass = stockStatus === 'Low Stock' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
             
             const row = document.createElement('tr');
@@ -905,7 +905,7 @@ function loadBranchProducts(products) {
                 <td class="border px-2 py-2">${product.prod_name}</td>
                 <td class="border px-2 py-2">${product.prod_category || 'N/A'}</td>
                 <td class="border px-2 py-2">₱${parseFloat(product.prod_price).toLocaleString()}</td>
-                <td class="border px-2 py-2">${product.prod_stocks}</td>
+                <td class="border px-2 py-2">${product.current_stock}</td>
                 <td class="border px-2 py-2">
                     <span class="text-xs px-2 py-1 rounded-full ${statusClass}">${stockStatus}</span>
                 </td>

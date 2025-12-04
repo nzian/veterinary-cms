@@ -2319,7 +2319,7 @@
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <h4 class="font-bold text-lg mb-3">Inventory Status</h4>
                             <div class="space-y-2">
-                                <div><span class="font-medium">Current Stock:</span> <span class="text-lg font-bold ${product.prod_stocks <= (product.prod_reorderlevel || 10) ? 'text-red-600' : 'text-green-600'}">${product.prod_stocks || 0}</span></div>
+                                <div><span class="font-medium">Current Stock:</span> <span class="text-lg font-bold ${product.current_stock <= (product.prod_reorderlevel || 10) ? 'text-red-600' : 'text-green-600'}">${product.current_stock || 0}</span></div>
                                 <div><span class="font-medium">Reorder Level:</span> ${product.prod_reorderlevel || 'Not set'}</div>
                                 <div><span class="font-medium">Total Damaged:</span> <span class="text-red-600">${product.prod_damaged || 0}</span></div>
                                 <div><span class="font-medium">Total Pull-out:</span> <span class="text-orange-600">${product.prod_pullout || 0}</span></div>
@@ -2335,9 +2335,10 @@
                                     <tr>
                                         <th class="p-2 border">Batch</th>
                                         <th class="p-2 border">Initial Qty</th>
-                                        <th class="p-2 border">Available</th>
+                                        <th class="p-2 border">Used</th>
                                         <th class="p-2 border">Damaged</th>
                                         <th class="p-2 border">Pullout</th>
+                                        <th class="p-2 border">Available</th>
                                         <th class="p-2 border">Expiry Date</th>
                                         <th class="p-2 border">Added By</th>
                                         <th class="p-2 border">Date Added</th>
@@ -2355,11 +2356,12 @@
                             <tr class="${isExpired ? 'bg-red-50' : ''}">
                                 <td class="p-2 border font-medium">${batch.batch}</td>
                                 <td class="p-2 border text-center">${batch.quantity}</td>
+                                <td class="p-2 border text-center text-blue-600 font-semibold">${batch.total_used || 0}</td>
+                                <td class="p-2 border text-center text-red-600">${batch.total_damage || 0}</td>
+                                <td class="p-2 border text-center text-orange-600">${batch.total_pullout || 0}</td>
                                 <td class="p-2 border text-center">
                                     <span class="font-bold ${batch.available_quantity > 0 ? 'text-green-600' : 'text-gray-400'}">${batch.available_quantity}</span>
                                 </td>
-                                <td class="p-2 border text-center text-red-600">${batch.total_damage}</td>
-                                <td class="p-2 border text-center text-orange-600">${batch.total_pullout}</td>
                                 <td class="p-2 border ${isExpired ? 'text-red-600 font-bold' : ''}">
                                     ${expiryDate ? expiryDate.toLocaleDateString() : 'N/A'}
                                     ${isExpired ? '<br><span class="text-xs">(EXPIRED)</span>' : ''}
@@ -2369,7 +2371,7 @@
                             </tr>`;
                         });
                     } else {
-                        content += '<tr><td colspan="8" class="p-4 text-center text-gray-500">No stock batches found</td></tr>';
+                        content += '<tr><td colspan="9" class="p-4 text-center text-gray-500">No stock batches found</td></tr>';
                     }
 
                     content += `
@@ -3154,7 +3156,7 @@
                     </div>
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Current Available Stock</label>
-                        <input type="number" value="${data.prod_stocks || 0}" class="border p-2 w-full rounded bg-gray-100" readonly>
+                        <input type="number" value="${data.current_stock || 0}" class="border p-2 w-full rounded bg-gray-100" readonly>
                         <small class="text-gray-500">Stock is managed through "Add Stock" batches. Current value shows non-expired available stock.</small>
                     </div>
                     <div class="mb-4">
@@ -3216,7 +3218,7 @@
         // UPDATE STOCK MODAL
         function openUpdateStockModal(data) {
             document.getElementById('updateStockModal').classList.remove('hidden');
-            document.getElementById('currentStock').innerText = data.prod_stocks || 0;
+            document.getElementById('currentStock').innerText = data.current_stock || 0;
             document.getElementById('productName').innerText = data.prod_name;
 
             let form = document.getElementById('updateStockForm');
@@ -3262,7 +3264,7 @@
         function openDamagePulloutModal(data) {
             document.getElementById('damagePulloutModal').classList.remove('hidden');
             document.getElementById('damageProductName').innerText = data.prod_name;
-            document.getElementById('damageCurrentStock').innerText = data.prod_stocks || 0;
+            document.getElementById('damageCurrentStock').innerText = data.current_stock || 0;
 
             let form = document.getElementById('damagePulloutForm');
             form.action = `/inventory/update-damage/${data.prod_id}`;
@@ -3507,7 +3509,7 @@
                     if (consumableProducts.length > 0) {
                         consumableProducts.forEach(product => {
                             const addedDate = product.created_at ? new Date(product.created_at) : null;
-                            const stockClass = product.prod_stocks <= 10 ? 'text-red-600 font-bold' : 'text-green-600';
+                            const stockClass = product.current_stock <= 10 ? 'text-red-600 font-bold' : 'text-green-600';
                             
                             content += `
                             <tr>
@@ -3515,7 +3517,7 @@
                                 <td class="p-2 border">
                                     <span class="px-2 py-1 text-xs rounded ${product.prod_type === 'Consumable' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}">${product.prod_type || 'N/A'}</span>
                                 </td>
-                                <td class="p-2 border text-center ${stockClass}">${product.prod_stocks || 0}</td>
+                                <td class="p-2 border text-center ${stockClass}">${product.current_stock || 0}</td>
                                 <td class="p-2 border text-center font-semibold">${product.quantity_used || 0}</td>
                                 <td class="p-2 border text-center">${product.is_billable ? '<span class="text-green-600">✓ Yes</span>' : '<span class="text-gray-400">✗ No</span>'}</td>
                                 <td class="p-2 border">${product.added_by || 'System'}</td>
@@ -3580,12 +3582,13 @@
                         const statusColors = {
                             'completed': 'bg-green-50 text-green-600',
                             'pending': 'bg-yellow-50 text-yellow-600',
-                            'cancelled': 'bg-red-50 text-red-600'
+                            'cancelled': 'bg-red-50 text-red-600',
+                            'arrived': 'bg-gray-50 text-blue-600'
                         };
                         const colorClass = statusColors[status.appoint_status] || 'bg-gray-50 text-gray-600';
                         content += `
                         <div class="${colorClass} p-4 rounded-lg">
-                            <div class="text-sm capitalize">${status.appoint_status}</div>
+                            <div class="text-sm capitalize">${status.visit_status}</div>
                             <div class="text-2xl font-bold">${status.count}</div>
                         </div>`;
                     });

@@ -33,6 +33,16 @@ class ProductStock extends Model
     {
         return $this->belongsTo(Product::class, 'stock_prod_id', 'prod_id');
     }
+    public function stockProduct()
+    {
+        return $this->belongsTo(Product::class, 'stock_prod_id', 'prod_id');
+    }
+
+    public function inventoryTransactions()
+    {
+        return $this->hasMany(InventoryTransaction::class, 'batch_id',  'id');
+    }
+    
 
     /**
      * Get the user who created this stock entry
@@ -60,6 +70,8 @@ class ProductStock extends Model
         
         return max(0, $this->quantity - $damagePulloutTotal);
     }
+
+    
 
     /**
      * Check if this stock is expired
@@ -95,4 +107,50 @@ class ProductStock extends Model
             ->leftJoin('product_damage_pullout', 'product_stock.id', '=', 'product_damage_pullout.stock_id')
             ->groupBy('product_stock.id');
     }
+
+    /**
+     * Get the count of inventory transactions related to this product stock batch
+     * 
+     * @return int
+     */
+    public function getInventoryTransactionCount()
+    {
+        return $this->inventoryTransactions()->count();
+    }
+
+    /**
+     * Get the total quantity used from this batch via inventory transactions
+     * 
+     * @return float
+     */
+    public function getTotalUsedQuantity()
+    {
+        return abs($this->inventoryTransactions()->sum('quantity_change'));
+    }
+
+    /**
+     * Get inventory transactions with related data
+     * Useful for audit trail and reporting
+     * 
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function getInventoryTransactionsWithDetails()
+    {
+        return $this->inventoryTransactions()
+            ->with(['product', 'appointment', 'service', 'performer'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+    }
+
+    /**
+     * Attribute accessor for inventory transaction count
+     * Usage: $productStock->inventory_transaction_count
+     * 
+     * @return int
+     */
+    public function getInventoryTransactionCountAttribute()
+    {
+        return $this->getInventoryTransactionCount();
+    }
 }
+

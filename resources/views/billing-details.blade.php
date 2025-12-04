@@ -120,7 +120,7 @@
                              @click="toggleProduct(product)">
                             <div class="font-medium" x-text="product.prod_name"></div>
                             <div class="price" x-text="'₱' + product.prod_price.toFixed(2)"></div>
-                            <div class="stock" x-text="'Stock: ' + product.prod_stocks"></div>
+                            <div class="stock" x-text="'Stock: ' + product.current_stock"></div>
                         </div>
                     </template>
                 </div>

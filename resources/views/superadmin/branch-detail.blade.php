@@ -488,8 +488,8 @@
                                     <span class="font-weight-bold text-success">₱{{ number_format($product->prod_price, 2) }}</span>
                                 </td>
                                 <td>
-                                    <div class="stock-indicator {{ $product->prod_stocks > 10 ? 'bg-success' : ($product->prod_stocks > 0 ? 'bg-warning' : 'bg-danger') }} text-white">
-                                        {{ $product->prod_stocks }}
+                                    <div class="stock-indicator {{ $product->current_stock > 10 ? 'bg-success' : ($product->current_stock > 0 ? 'bg-warning' : 'bg-danger') }} text-white">
+                                        {{ $product->current_stock }}
                                     </div>
                                 </td>
                             </tr>

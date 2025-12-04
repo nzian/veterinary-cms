@@ -3,6 +3,8 @@
 @section('content')
 <head>
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <!-- Select2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <style>
         /* Modern animations and effects */
         .fade-in { animation: fadeIn 0.3s ease-in-out; }
@@ -109,26 +111,11 @@
                     <i class="fas fa-user mr-2 text-[#ff8c42]"></i>Select Customer
                 </label>
                 <select id="petOwner" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#ff8c42] focus:border-transparent transition-all duration-300 bg-white shadow-sm">
-                    <option value="0" selected disabled>Select owner</option>
+                    <option value="" selected disabled>-- Select owner or walk-in customer --</option>
                     @foreach ($owners as $owner)
                         <option value="{{ $owner->own_id }}">{{ $owner->own_name }}{{ $owner->own_id > 0 ? ' (' . ($owner->pets_count ?? 0) . ' ' . (($owner->pets_count ?? 0) == 1 ? 'pet' : 'pets') . ')' : '' }}</option>
                     @endforeach
                 </select>
-                <!-- Select2 JS and CSS -->
-                <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-                <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-                <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-                <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    // Initialize Select2 for owner dropdown
-                    $('#petOwner').select2({
-                        width: '100%',
-                        placeholder: 'Select owner',
-                        allowClear: true,
-                        minimumResultsForSearch: 0
-                    });
-                });
-                </script>
             </div>
         </div>
 
@@ -276,8 +263,23 @@
 </div>
 
 @push('scripts')
+<!-- jQuery (required for Select2) -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+    console.log('DOMContentLoaded fired');
+    
+    // Initialize Select2 for owner dropdown
+    $('#petOwner').select2({
+        width: '100%',
+        placeholder: 'Select owner or walk-in customer',
+        allowClear: true,
+        minimumResultsForSearch: 0
+    });
+    console.log('Select2 initialized');
+    
     const searchInput = document.getElementById("searchItem");
     const posItems = document.getElementById("posItems");
     const totalQtyEl = document.getElementById("totalQty");
@@ -548,8 +550,13 @@ document.addEventListener("DOMContentLoaded", function () {
         // --- End of Receipt HTML ---
         
         const printWindow = window.open('', '_blank', 'width=400,height=600,scrollbars=yes');
-        printWindow.document.write(receiptContent);
-        printWindow.document.close();
+        if (printWindow) {
+            printWindow.document.write(receiptContent);
+            printWindow.document.close();
+        } else {
+            console.error('Failed to open print window. Popup may be blocked.');
+            alert('Unable to open print window. Please allow popups for this site and try again.');
+        }
     }
     // *** END of printReceipt function ***
 
@@ -593,21 +600,27 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // Pay Now button (Triggers Modal)
-    payNowBtn.addEventListener("click", () => {
-        const grandTotal = parseFloat(grandTotalEl.textContent.replace("₱", "").replace(",", ""));
+    console.log('Pay Now Button:', payNowBtn);
+    if (payNowBtn) {
+        payNowBtn.addEventListener("click", () => {
+            console.log('Pay Now button clicked!');
+            const grandTotal = parseFloat(grandTotalEl.textContent.replace("₱", "").replace(",", ""));
         
         if (grandTotal === 0) {
             alert("Please add items to cart first.");
             return;
         }
         
-        // CHECK: Customer must be selected
-        const selectedOwner = document.getElementById("petOwner");
-        if (selectedOwner.value === "0" || selectedOwner.value === "") {
-            alert("Please select a customer before proceeding to payment.");
-            selectedOwner.focus();
+        // CHECK: Customer must be selected (either owner or walk-in customer with value 0)
+        // Use jQuery .val() for Select2 compatibility
+        const ownerId = $('#petOwner').val();
+        console.log('Selected owner ID:', ownerId);
+        if (ownerId === null || ownerId === undefined || ownerId === "") {
+            alert("Please select a customer (owner or walk-in) before proceeding to payment.");
+            $('#petOwner').focus();
             return;
         }
+
         
         // Update payment modal content
         document.getElementById("paymentModalTitle").textContent = "Process Product Sale";
@@ -648,7 +661,10 @@ document.addEventListener("DOMContentLoaded", function () {
         changeAmountDisplay.className = "text-3xl font-bold text-green-600";
         paymentModal.classList.remove("hidden");
         setTimeout(() => cashInput.focus(), 300);
-    });
+        });
+    } else {
+        console.error('Pay Now button not found!');
+    }
 
     // Cancel payment
     cancelPaymentBtn.addEventListener("click", () => {
@@ -699,8 +715,9 @@ document.addEventListener("DOMContentLoaded", function () {
             price: item.price
         }));
 
-        const selectedOwner = document.getElementById("petOwner");
-        const ownerId = selectedOwner.value;
+        const ownerId = document.querySelector('#petOwner').value;
+        // Use the validated ownerId from earlier validation
+        const ownerIdValue = ownerId === "0" ? 0 : parseInt(ownerId);
 
         fetch("/pos", {
             method: 'POST',
@@ -713,7 +730,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 items: items,
                 cash: cash,
                 total: total,
-                owner_id: ownerId !== "0" ? parseInt(ownerId) : null
+                owner_id: ownerIdValue
             })
         })
         .then(response => response.json())
@@ -727,10 +744,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 // Finalize receipt data with actual change from server
                 window.currentTransaction.change = data.change;
                 window.currentTransaction.cash = cash;
-                if (ownerId !== "0") {
-                    window.currentTransaction.customerName = selectedOwner.options[selectedOwner.selectedIndex].text;
+                if (ownerIdValue === 0) {
+                    window.currentTransaction.customerName = 'Walk-in Customer';
                 } else {
-                     window.currentTransaction.customerName = 'Walk-in Customer';
+                    const selectedOwner = document.getElementById("petOwner");
+                    window.currentTransaction.customerName = selectedOwner.options[selectedOwner.selectedIndex].text;
                 }
                 
                 // Print is now triggered immediately after successful server response

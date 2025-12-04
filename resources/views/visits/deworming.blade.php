@@ -1123,7 +1123,7 @@
                     filtered.forEach(product => {
                         const item = document.createElement('div');
                         item.className = 'product-suggestion-item px-3 py-2 cursor-pointer hover:bg-blue-50 text-sm';
-                        item.innerHTML = `<div>${product.prod_name}</div><div class="text-xs text-gray-500">Stock: ${product.prod_stocks} - ₱${parseFloat(product.prod_price || 0).toFixed(2)}</div>`;
+                        item.innerHTML = `<div>${product.prod_name}</div><div class="text-xs text-gray-500">Stock: ${product.current_stock} - ₱${parseFloat(product.prod_price || 0).toFixed(2)}</div>`;
                         
                         item.onclick = function() {
                             productIdInput.value = product.prod_id;
