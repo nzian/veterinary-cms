@@ -161,6 +161,32 @@
                     <input type="hidden" name="weight" value="{{ $visit->weight }}">
                     <input type="hidden" name="redirect_to" value="perform">
 
+                    {{-- Error Display --}}
+                    @if($errors->any())
+                        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded-lg">
+                            <strong class="font-bold"><i class="fas fa-exclamation-circle mr-2"></i>Validation Errors:</strong>
+                            <ul class="mt-2 list-disc list-inside">
+                                @foreach($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
+                    @if(session('error'))
+                        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded-lg">
+                            <strong class="font-bold"><i class="fas fa-exclamation-circle mr-2"></i>Error:</strong>
+                            <span>{{ session('error') }}</span>
+                        </div>
+                    @endif
+
+                    @if(session('success'))
+                        <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-4 rounded-lg">
+                            <strong class="font-bold"><i class="fas fa-check-circle mr-2"></i>Success:</strong>
+                            <span>{{ session('success') }}</span>
+                        </div>
+                    @endif
+
                     {{-- 🌟 FIX: Define $currentWeight and display strings once for all HTML/JS references --}}
                     @php
                         $currentWeight = $visit->weight ?? 0;

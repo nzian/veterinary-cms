@@ -542,10 +542,11 @@ class NotificationService
             
             $recentVisits = DB::table('tbl_visit_record')
                 ->join('tbl_pet', 'tbl_visit_record.pet_id', '=', 'tbl_pet.pet_id')
+                ->leftJoin('tbl_user', 'tbl_user.user_id', '=', 'tbl_visit_record.user_id')
                 ->leftJoin('tbl_own', 'tbl_pet.own_id', '=', 'tbl_own.own_id')
                 ->where('tbl_visit_record.created_at', '>=', Carbon::now()->subDay())
                 ->when($activeBranchId, function($query) use ($activeBranchId) {
-                    return $query->where('tbl_visit_record.branch_id', $activeBranchId);
+                    return $query->where('tbl_user.branch_id', $activeBranchId);
                 })
                 ->orderBy('tbl_visit_record.created_at', 'desc')
                 ->limit(10)

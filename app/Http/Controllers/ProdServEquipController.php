@@ -94,7 +94,7 @@ class ProdServEquipController extends Controller
     {
         try {
             $validated = $request->validate([
-                'products' => 'required|array',
+                'products' => 'nullable|array',
                 'products.*.prod_id' => 'required|exists:tbl_prod,prod_id',
                 'products.*.quantity_used' => 'required|numeric|min:0.01',
                 'products.*.is_billable' => 'boolean'
@@ -102,8 +102,11 @@ class ProdServEquipController extends Controller
 
             DB::beginTransaction();
 
+            // If no products provided, just clear existing links
+            $products = $validated['products'] ?? [];
+
             // Validate that all products are consumable
-            foreach ($validated['products'] as $productData) {
+            foreach ($products as $productData) {
                 $product = Product::find($productData['prod_id']);
                 if (!$product) {
                     throw new \Exception("Product not found: " . $productData['prod_id']);
@@ -114,9 +117,11 @@ class ProdServEquipController extends Controller
                 }
             }
 
+            // Clear existing product links
             ServiceProduct::where('serv_id', $serviceId)->delete();
 
-            foreach ($validated['products'] as $productData) {
+            // Create new links if products provided
+            foreach ($products as $productData) {
                 ServiceProduct::create([
                     'serv_id' => $serviceId,
                     'prod_id' => $productData['prod_id'],
@@ -182,7 +187,7 @@ class ProdServEquipController extends Controller
     {
         try {
             $validated = $request->validate([
-                'equipment' => 'required|array',
+                'equipment' => 'nullable|array',
                 'equipment.*.equipment_id' => 'required|exists:tbl_equipment,equipment_id',
                 'equipment.*.quantity_used' => 'required|integer|min:1',
                 'equipment.*.notes' => 'nullable|string|max:500'
@@ -193,8 +198,11 @@ class ProdServEquipController extends Controller
             // Delete existing service equipment links
             ServiceEquipment::where('serv_id', $serviceId)->delete();
 
-            // Create new links
-            foreach ($validated['equipment'] as $equipmentData) {
+            // Get equipment array or empty array if not provided
+            $equipment = $validated['equipment'] ?? [];
+
+            // Create new links if equipment provided
+            foreach ($equipment as $equipmentData) {
                 ServiceEquipment::create([
                     'serv_id' => $serviceId,
                     'equipment_id' => $equipmentData['equipment_id'],
@@ -424,8 +432,6 @@ class ProdServEquipController extends Controller
                 
                 // Get recent service usage from inventory transactions
                 $recentServiceUsage = DB::table('tbl_inventory_transactions as it')
-                    ->leftJoin('tbl_visit_record as vr', 'it.visit_id', '=', 'vr.visit_id')
-                    ->leftJoin('tbl_pet as pet', 'vr.pet_id', '=', 'pet.pet_id')
                     ->leftJoin('tbl_serv as serv', 'it.serv_id', '=', 'serv.serv_id')
                     ->leftJoin('tbl_user as performer', 'it.performed_by', '=', 'performer.user_id')
                     ->where('it.prod_id', $id)
@@ -435,9 +441,6 @@ class ProdServEquipController extends Controller
                         'it.quantity_change as quantity',
                         'it.notes',
                         'it.reference',
-                        'vr.visit_id',
-                        'vr.visit_date',
-                        'pet.pet_name',
                         'serv.serv_name',
                         'performer.user_name as performed_by'
                     )
@@ -808,7 +811,7 @@ class ProdServEquipController extends Controller
                 ->orderBy('prod_id', 'desc')
                 ->get();
 
-        return view('prodServEquip', compact('products', 'branches', 'services', 'equipment','allProducts', 'manufacturers'));
+        return view('prodServEquip', compact('products', 'branches', 'services', 'equipment','allProducts', 'manufacturers', 'activeBranchId'));
     }
 
     // -------------------- PRODUCT METHODS --------------------
@@ -818,7 +821,7 @@ class ProdServEquipController extends Controller
             'prod_name' => 'required|string|max:255',
             'prod_category' => 'nullable|string|max:255',
             'service_category' => 'nullable|string|max:255',
-            'prod_type' => 'required|in:Sale,Consumable',
+            'prod_type' => 'required|in:Sale,Consumable,Prescription',
             'prod_description' => 'required|string|max:1000',
             'prod_price' => 'nullable|numeric|min:0',
             'prod_reorderlevel' => 'required|integer|min:0',
@@ -830,6 +833,14 @@ class ProdServEquipController extends Controller
         
         // Remove non-database fields
         unset($validated['tab']);
+        
+        // Auto-set branch_id from active branch if not provided
+        if (empty($validated['branch_id'])) {
+            $user = auth()->user();
+            $validated['branch_id'] = $user->user_role === 'superadmin' 
+                ? session('active_branch_id') 
+                : $user->branch_id;
+        }
         
         // Set category based on product type
         // For Sale products: use prod_category
@@ -868,7 +879,7 @@ class ProdServEquipController extends Controller
             'prod_name' => 'required|string|max:255',
             'prod_category' => 'nullable|string|max:255',
             'service_category' => 'nullable|string|max:255',
-            'prod_type' => 'required|in:Sale,Consumable',
+            'prod_type' => 'required|in:Sale,Consumable,Prescription',
             'prod_description' => 'required|string|max:1000',
             'prod_price' => 'nullable|numeric|min:0',
             'prod_reorderlevel' => 'nullable|integer|min:0',
@@ -1469,9 +1480,17 @@ class ProdServEquipController extends Controller
         'serv_type' => 'nullable|string|max:255',
         'serv_description' => 'nullable|string|max:1000',
         'serv_price' => 'required|numeric|min:0',
-        'branch_id' => 'required|exists:tbl_branch,branch_id',
+        'branch_id' => 'nullable|exists:tbl_branch,branch_id',
         'tab' => 'nullable|string|in:products,service,equipment' // Added tab for redirect
     ]);
+
+    // Auto-set branch_id from active branch if not provided
+    if (empty($validated['branch_id'])) {
+        $user = auth()->user();
+        $validated['branch_id'] = $user->user_role === 'superadmin' 
+            ? session('active_branch_id') 
+            : $user->branch_id;
+    }
 
     Service::create($validated);
     
@@ -1517,9 +1536,17 @@ class ProdServEquipController extends Controller
         'equipment_category' => 'required|string|max:255',
         'equipment_status' => 'nullable|string|max:50',
         'equipment_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        'branch_id' => 'required|exists:tbl_branch,branch_id', 
+        'branch_id' => 'nullable|exists:tbl_branch,branch_id', 
         'tab' => 'nullable|string|in:products,services,equipment' 
     ]);
+
+    // Auto-set branch_id from active branch if not provided
+    if (empty($validated['branch_id'])) {
+        $user = auth()->user();
+        $validated['branch_id'] = $user->user_role === 'superadmin' 
+            ? session('active_branch_id') 
+            : $user->branch_id;
+    }
 
     if ($request->hasFile('equipment_image')) {
         $validated['equipment_image'] = $request->file('equipment_image')->store('equipment', 'public');

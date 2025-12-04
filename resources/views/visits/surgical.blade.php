@@ -62,6 +62,25 @@
 
         {{-- Row 3+: Main Content (full width) --}}
         <div class="space-y-6">
+            {{-- Display validation errors --}}
+            @if ($errors->any())
+                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
+                    <strong class="font-bold">Validation Error!</strong>
+                    <ul class="mt-2 list-disc list-inside">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+            
+            {{-- Display success/error messages --}}
+            @if(session('error'))
+                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
+                    {{ session('error') }}
+                </div>
+            @endif
+            
             <form action="{{ route('medical.visits.surgical.save', $visit->visit_id) }}" method="POST" class="space-y-6" id="surgical_form">
                 @csrf
                 <input type="hidden" name="visit_id" value="{{ $visit->visit_id }}">
@@ -523,6 +542,31 @@
           batchNoInput.value = 'Error';
           batchInfo.textContent = 'Error fetching batch information';
         });
+    }
+    
+    // Form validation before submission
+    const surgicalForm = document.getElementById('surgical_form');
+    if (surgicalForm) {
+      surgicalForm.addEventListener('submit', function(e) {
+        const serviceId = document.getElementById('service_id_hidden').value;
+        const surgeryType = document.getElementById('surgery_type_selector').value;
+        
+        console.log('Form submission - service_id:', serviceId, 'surgery_type:', surgeryType);
+        
+        if (!serviceId || serviceId === '') {
+          e.preventDefault();
+          alert('Please select a surgical service. The service_id is required.');
+          return false;
+        }
+        
+        if (!surgeryType || surgeryType === '') {
+          e.preventDefault();
+          alert('Please select a surgery type.');
+          return false;
+        }
+        
+        return true;
+      });
     }
   });
 </script>

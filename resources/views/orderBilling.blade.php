@@ -237,8 +237,34 @@
                                                 @foreach($petBillings as $billing)
                                                     @php
                                                         $petTotal = (float) $billing->total_amount;
+                                                        // Fetch prescriptions for this visit - use pres_visit_id as primary link
+                                                        $prescriptions = collect();
+                                                        if ($billing->visit) {
+                                                            $prescriptions = \App\Models\Prescription::where('pres_visit_id', $billing->visit->visit_id)->get();
+                                                            // If no prescriptions found by visit_id, try fallback to pet + date
+                                                            if ($prescriptions->isEmpty() && $billing->visit->pet_id) {
+                                                                $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit->pet_id)
+                                                                    ->whereDate('prescription_date', $billing->visit->visit_date)
+                                                                    ->get();
+                                                            }
+                                                        }
+                                                        
+                                                        // Calculate prescription total
+                                                        $prescriptionTotal = 0;
+                                                        foreach($prescriptions as $prescription) {
+                                                            $medications = json_decode($prescription->medication, true) ?? [];
+                                                            foreach($medications as $med) {
+                                                                $medPrice = isset($med['price']) ? (float)$med['price'] : 0;
+                                                                if ($medPrice <= 0 && isset($med['unit_price'])) {
+                                                                    $qty = $med['quantity'] ?? 1;
+                                                                    $medPrice = (float)$med['unit_price'] * $qty;
+                                                                }
+                                                                $prescriptionTotal += $medPrice;
+                                                            }
+                                                        }
+                                                        
                                                         if($petTotal <= 0) {
-                                                            // Calculate from visit services and prescriptions if total_amount is zero or not set
+                                                            // Calculate from visit services if total_amount is zero or not set
                                                             $petTotal = 0;
                                                             if($billing->visit && $billing->visit->services) {
                                                                 foreach($billing->visit->services as $service) {
@@ -246,24 +272,10 @@
                                                                     $petTotal += $servicePrice;
                                                                 }
                                                             }
-                                                            // Add prescription costs
-                                                            $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit?->pet_id)
-                                                            ->where('pres_visit_id', $billing->visit?->visit_id)
-                                                                ->whereDate('prescription_date', $billing->visit?->visit_date)
-                                                                ->get();
-                                                            foreach($prescriptions as $prescription) {
-                                                                $medications = json_decode($prescription->medication, true) ?? [];
-                                                                foreach($medications as $med) {
-                                                                    $medPrice = isset($med['price']) ? (float)$med['price'] : 0;
-                                                                    $petTotal += $medPrice;
-                                                                }
-                                                            }
                                                         }
-                                                        // Fetch prescriptions for this pet on the visit date
-                                                        $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit?->pet_id)
-                                                            ->where('pres_visit_id', $billing->visit?->visit_id)
-                                                            ->whereDate('prescription_date', $billing->visit?->visit_date)
-                                                            ->get();
+                                                        
+                                                        // Always add prescription costs to pet total
+                                                        $petTotal += $prescriptionTotal;
                                                     @endphp
                                                     <tr class="border-b hover:bg-gray-50">
                                                         <td class="px-3 py-2">
@@ -321,22 +333,6 @@
                                                                     class="bg-purple-500 hover:bg-purple-600 text-white px-2 py-1 rounded text-xs" title="Print">
                                                                     <i class="fas fa-print mr-1"></i>Print
                                                                 </button>
-                                                                @if($balance > 0)
-                                                                    @php $petPartialAmount = round(($petTotal * 0.5), 2); @endphp
-                                                                    {{-- If this billing includes boarding, show payment options (partial 50% or full) --}}
-                                                                    @if($hasBoarding && !$paidPartialExists)
-                                                                        <button onclick="showPetBoardingPaymentOptions({{ $billing->bill_id }}, {{ $petTotal }}, {{ $petPartialAmount }}, {{ $balance }}, {{ $paidAmount }})" 
-                                                                            class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs" title="Pay">
-                                                                            <i class="fas fa-credit-card mr-1"></i>Pay
-                                                                        </button>
-                                                                    @else
-                                                                        {{-- No boarding or partial already paid - show pay remaining --}}
-                                                                        <button onclick="initiatePayment({{ $billing->bill_id }}, {{ $balance }}, 'full', {{ $petTotal }}, {{ $paidAmount }})" 
-                                                                            class="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs" title="Pay Remaining">
-                                                                            <i class="fas fa-money-bill-wave mr-1"></i>Pay
-                                                                        </button>
-                                                                    @endif
-                                                                @endif
                                                             </div>
                                                         </td>
                                                     </tr>

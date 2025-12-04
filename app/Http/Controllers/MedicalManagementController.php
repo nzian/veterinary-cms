@@ -136,7 +136,9 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         $allOwners = Owner::withCount('pets')->get();
         $allBranches = Branch::all();
         
-        $allProducts = Product::select('prod_id', 'prod_name', 'prod_stocks', 'prod_price')
+        // Filter products to only Prescription type for the prescription modal
+        $allProducts = Product::select('prod_id', 'prod_name', 'prod_stocks', 'prod_price', 'prod_type')
+            ->where('prod_type', 'Prescription')
             ->orderBy('prod_name')
             ->get();
             
@@ -147,7 +149,9 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
 
     public function getAllProductsForPrescription(Request $request)
     {
-        return Product::select('prod_id', 'prod_name', 'prod_stocks', 'prod_price')
+        // Filter products to only Prescription type
+        return Product::select('prod_id', 'prod_name', 'prod_stocks', 'prod_price', 'prod_type')
+            ->where('prod_type', 'Prescription')
             ->orderBy('prod_name')
             ->get();
     }
@@ -203,14 +207,24 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         };
 
         // Helper for getting all records for client-side filtering
+        // Filter by visit_service_type column OR by attached services (for backward compatibility)
         $getAllRecords = function ($types) use ($baseVisitQuery) {
-            return $baseVisitQuery()->whereHas('services', fn($sq) => $sq->whereIn(DB::raw('LOWER(serv_type)'), $types))->get();
+            return $baseVisitQuery()->where(function($query) use ($types) {
+                // Filter by visit_service_type column (case-insensitive)
+                $query->where(function($q) use ($types) {
+                    foreach ($types as $type) {
+                        $q->orWhere(DB::raw('LOWER(visit_service_type)'), 'LIKE', '%' . strtolower($type) . '%');
+                    }
+                });
+                // OR filter by attached services (for backward compatibility)
+                $query->orWhereHas('services', fn($sq) => $sq->whereIn(DB::raw('LOWER(serv_type)'), $types));
+            })->get();
         };
         
         $visits = $baseVisitQuery()->get();
 
-        // FIX: Comprehensive service type lists for tabs
-        $checkupTypes = ['check-up', 'consultation', 'checkup'];
+        // FIX: Comprehensive service type lists for tabs (include all variations)
+        $checkupTypes = ['check-up', 'check up', 'consultation', 'checkup'];
         $diagnosticTypes = ['diagnostics', 'diagnostic', 'laboratory'];
         $surgicalTypes = ['surgical', 'surgery'];
         
@@ -227,39 +241,35 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
        
 
         // Calculate pending counts for each service type
+        // A visit is pending if it has the service type but no completed service attached yet
+        $getPendingCount = function($types) use ($baseVisitQuery) {
+            return $baseVisitQuery()->where(function($query) use ($types) {
+                // Has visit_service_type matching but no services OR has pending services
+                $query->where(function($q) use ($types) {
+                    foreach ($types as $type) {
+                        $q->orWhere(DB::raw('LOWER(visit_service_type)'), 'LIKE', '%' . strtolower($type) . '%');
+                    }
+                })->where(function($q) use ($types) {
+                    // Either no services attached yet
+                    $q->doesntHave('services')
+                    // OR has services with pending status
+                    ->orWhereHas('services', function($sq) use ($types) {
+                        $sq->whereIn(DB::raw('LOWER(serv_type)'), $types)
+                           ->where('tbl_visit_service.status', 'pending');
+                    });
+                });
+            })->count();
+        };
+
         $pendingCounts = [
-            'checkup' => $baseVisitQuery()->whereHas('services', function($sq) use ($checkupTypes) {
-                $sq->whereIn(DB::raw('LOWER(serv_type)'), $checkupTypes)
-                  ->where('tbl_visit_service.status', 'pending');
-            })->count(),
-            'grooming' => $baseVisitQuery()->whereHas('services', function($sq) {
-                $sq->where(DB::raw('LOWER(serv_type)'), 'grooming')
-                  ->where('tbl_visit_service.status', 'pending');
-            })->count(),
-            'vaccination' => $baseVisitQuery()->whereHas('services', function($sq) {
-                $sq->where(DB::raw('LOWER(serv_type)'), 'vaccination')
-                  ->where('tbl_visit_service.status', 'pending');
-            })->count(),
-            'deworming' => $baseVisitQuery()->whereHas('services', function($sq) {
-                $sq->where(DB::raw('LOWER(serv_type)'), 'deworming')
-                  ->where('tbl_visit_service.status', 'pending');
-            })->count(),
-            'diagnostics' => $baseVisitQuery()->whereHas('services', function($sq) use ($diagnosticTypes) {
-                $sq->whereIn(DB::raw('LOWER(serv_type)'), $diagnosticTypes)
-                  ->where('tbl_visit_service.status', 'pending');
-            })->count(),
-            'surgical' => $baseVisitQuery()->whereHas('services', function($sq) use ($surgicalTypes) {
-                $sq->whereIn(DB::raw('LOWER(serv_type)'), $surgicalTypes)
-                  ->where('tbl_visit_service.status', 'pending');
-            })->count(),
-            'emergency' => $baseVisitQuery()->whereHas('services', function($sq) {
-                $sq->where(DB::raw('LOWER(serv_type)'), 'emergency')
-                  ->where('tbl_visit_service.status', 'pending');
-            })->count(),
-            'boarding' => $baseVisitQuery()->whereHas('services', function($sq) {
-                $sq->where(DB::raw('LOWER(serv_type)'), 'boarding')
-                  ->where('tbl_visit_service.status', 'pending');
-            })->count(),
+            'checkup' => $getPendingCount($checkupTypes),
+            'grooming' => $getPendingCount(['grooming']),
+            'vaccination' => $getPendingCount(['vaccination']),
+            'deworming' => $getPendingCount(['deworming']),
+            'diagnostics' => $getPendingCount($diagnosticTypes),
+            'surgical' => $getPendingCount($surgicalTypes),
+            'emergency' => $getPendingCount(['emergency']),
+            'boarding' => $getPendingCount(['boarding']),
         ];
 
         // Appointments query - show all if Super Admin in global mode
@@ -429,6 +439,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
     public function saveConsultation(Request $request, $visitId)
     {
         $validated = $request->validate([
+            'service_id' => ['required','integer','exists:tbl_serv,serv_id'],
             'weight' => ['nullable','numeric','min:1','max:90'],
             'temperature' => ['nullable','numeric'],
             'heart_rate' => ['nullable','numeric'], 
@@ -438,6 +449,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
             'recommendations' => ['nullable','string'],
         ]);
         
+        $branchId = Auth::user()->branch_id ?? session('active_branch_id');
         $visitModel = Visit::with('pet', 'services')->findOrFail($visitId);
         $rr = $request->input('respiration_rate') ?: $request->input('respiratory_rate');
 
@@ -465,12 +477,50 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                 'respiration_rate' => $rr,
                 'symptoms' => $validated['physical_findings'],
                 'findings' => $validated['diagnosis'],
+                'created_at' => now(),
                 'updated_at' => now(),
             ]
         );
         
-        // Ensure consultation service pivot is marked completed (attach if missing)
-        $this->ensureServiceCompleted($visitModel, null, ['consultation', 'check up', 'check-up'], 1);
+        // Attach the selected consultation service and mark as completed
+        $serviceId = $validated['service_id'];
+        $service = Service::find($serviceId);
+        
+        if ($service) {
+            // Check if service is already attached
+            $exists = DB::table('tbl_visit_service')
+                ->where('visit_id', $visitModel->visit_id)
+                ->where('serv_id', $serviceId)
+                ->exists();
+            
+            if ($exists) {
+                // Update existing pivot
+                DB::table('tbl_visit_service')
+                    ->where('visit_id', $visitModel->visit_id)
+                    ->where('serv_id', $serviceId)
+                    ->update([
+                        'status' => 'completed',
+                        'completed_at' => now(),
+                        'quantity' => 1,
+                        'unit_price' => $service->serv_price,
+                        'total_price' => $service->serv_price,
+                        'updated_at' => now(),
+                    ]);
+            } else {
+                // Attach new service
+                $visitModel->services()->attach($serviceId, [
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                    'quantity' => 1,
+                    'unit_price' => $service->serv_price,
+                    'total_price' => $service->serv_price,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+            
+            Log::info('[Checkup] Service attached', ['visit_id' => $visitModel->visit_id, 'service_id' => $serviceId, 'price' => $service->serv_price]);
+        }
 
         // Update visit_service_type to include all services (if column exists)
         $visitModel->refresh();
@@ -487,6 +537,20 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
         $visitModel->visit_status = $visit_status;
         $visitModel->workflow_status = $visit_status;
         $visitModel->save();
+        
+        // Generate billing if all services completed
+        $billingExists = false;
+        if ($allCompleted) {
+            try {
+                if (property_exists($this, 'groupedBillingService') && $this->groupedBillingService) {
+                    $this->groupedBillingService->generateSingleBilling($visitModel->visit_id, true);
+                    Log::info('[Checkup] Billing generated for visit ' . $visitModel->visit_id);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('[Checkup] Failed to generate billing: ' . $e->getMessage());
+            }
+        }
+        
         // Verify billing was actually created
         $visitModel->refresh();
         $billingExists = \Illuminate\Support\Facades\DB::table('tbl_bill')
@@ -564,11 +628,26 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                     }])
                     ->first();
             }
-             $pending_vaccination = $visitModel->services()->where(DB::raw('LOWER(serv_type)'), strtolower('Vaccination'))->where('branch_id', $branchId)->wherePivot('status', 'pending')->pluck('tbl_serv.serv_id')->toArray();
-              $to_detach = array_diff($pending_vaccination, [$validated['service_id']] );
-            if(!empty($to_detach)) {
+            
+            // Get ALL vaccination services attached to this visit (pending, null status, or any other status except completed)
+            // This ensures we clean up any duplicate or orphaned vaccination services
+            $existing_vaccination_services = $visitModel->services()
+                ->where(DB::raw('LOWER(serv_type)'), strtolower('Vaccination'))
+                ->where('branch_id', $branchId)
+                ->where(function($q) {
+                    $q->where('tbl_visit_service.status', 'pending')
+                      ->orWhereNull('tbl_visit_service.status')
+                      ->orWhere('tbl_visit_service.status', '');
+                })
+                ->pluck('tbl_serv.serv_id')
+                ->toArray();
+            
+            // Detach all vaccination services except the one being completed
+            $to_detach = array_diff($existing_vaccination_services, [$validated['service_id']]);
+            if (!empty($to_detach)) {
                 $visitModel->services()->detach($to_detach);
             }
+            
             if ($selectedService && $selectedService->products->isNotEmpty()) {
                 $vaccine = $selectedService->products->where('pivot.prod_id', $validated['vaccine_name'])->first();
                 $quantityUsed = $vaccine->pivot->quantity_used ?? 1;
@@ -792,6 +871,23 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
                 $dwNewDose
             );*/
 
+            // Get all deworming services (pending, null status, or empty) and detach those not selected
+            $branchId = Auth::user()->branch_id ?? session('active_branch_id');
+            $existing_deworming = $visitModel->services()
+                ->where(DB::raw('LOWER(serv_type)'), strtolower('Deworming'))
+                ->where('branch_id', $branchId)
+                ->where(function($q) {
+                    $q->where('tbl_visit_service.status', 'pending')
+                      ->orWhereNull('tbl_visit_service.status')
+                      ->orWhere('tbl_visit_service.status', '');
+                })
+                ->pluck('tbl_serv.serv_id')
+                ->toArray();
+            $to_detach = array_diff($existing_deworming, [$validated['service_id']]);
+            if (!empty($to_detach)) {
+                $visitModel->services()->detach($to_detach);
+            }
+
             // Ensure deworming service pivot is marked completed (attach if missing)
             $this->ensureServiceCompleted($visitModel, $validated['service_id'] ?? null, ['deworming'], 1);
 
@@ -964,19 +1060,37 @@ public function completeService(Request $request, $visitId, $serviceId)
         $selectedAddonNames = $validated['addon_services'] ?? [];
         $allSelectedNames = array_merge([$selectedPackageName], $selectedAddonNames);
         
-        $selectedServices = Service::whereIn('serv_name', $allSelectedNames)->get();
+        // Filter services by name AND branch_id
+        $selectedServices = Service::whereIn('serv_name', $allSelectedNames)
+            ->where('branch_id', $branchId)
+            ->get();
         $selectedServiceIds = $selectedServices->pluck('serv_id')->toArray();
+
+        Log::info('[Grooming] Service lookup', [
+            'branch_id' => $branchId,
+            'requested_names' => $allSelectedNames,
+            'found_services' => $selectedServices->pluck('serv_name')->toArray(),
+        ]);
 
         $missing = array_diff($allSelectedNames, $selectedServices->pluck('serv_name')->all());
         if (!empty($missing)) {
-            Log::warning('Grooming save failed: Some selected services were not found.', ['missing' => $missing]);
-            throw new \Exception('One or more selected grooming services were not found.');
+            Log::warning('Grooming save failed: Some selected services were not found.', ['missing' => $missing, 'branch_id' => $branchId]);
+            return back()->with('error', 'One or more selected grooming services were not found. Please ensure the services exist for this branch.');
         }
 
-        // if we can get pending services from existing services, with the same type as grooming and those or that are not seletced by user then we can safely detach that.
-        $pending_grooming = $visitModel->services()->where(DB::raw('LOWER(serv_type)'), strtolower('Grooming'))->where('branch_id', $branchId)->wherePivot('status', 'pending')->pluck('tbl_serv.serv_id')->toArray();
-        $to_detach = array_diff($pending_grooming, $selectedServiceIds);
-        if(!empty($to_detach)) {
+        // Get all grooming services (pending, null status, or empty) and detach those not selected
+        $existing_grooming = $visitModel->services()
+            ->where(DB::raw('LOWER(serv_type)'), strtolower('Grooming'))
+            ->where('branch_id', $branchId)
+            ->where(function($q) {
+                $q->where('tbl_visit_service.status', 'pending')
+                  ->orWhereNull('tbl_visit_service.status')
+                  ->orWhere('tbl_visit_service.status', '');
+            })
+            ->pluck('tbl_serv.serv_id')
+            ->toArray();
+        $to_detach = array_diff($existing_grooming, $selectedServiceIds);
+        if (!empty($to_detach)) {
             $visitModel->services()->detach($to_detach);
         }
 
@@ -1062,9 +1176,12 @@ public function completeService(Request $request, $visitId, $serviceId)
                 'groomer_name' => $validated['assigned_groomer'] ?? Auth::user()->user_name,
                 'start_time' => $validated['start_time'], 'end_time' => $validated['end_time'],
                 'status' => $workflowStatus, 'remarks' => $validated['instructions'],
+                'created_at' => now(),
                 'updated_at' => now(),
             ]
         );
+        
+        Log::info('[Grooming] Record saved', ['visit_id' => $visitModel->visit_id, 'package' => $selectedPackageName, 'status' => $workflowStatus]);
         
         // 6. Update visit_service_type to include all services
         $visitModel->refresh();
@@ -1077,6 +1194,18 @@ public function completeService(Request $request, $visitId, $serviceId)
         
         // 7. Check if all services are completed and generate billing
         $allCompleted = $visitModel->checkAllServicesCompleted();
+        
+        // Generate billing if all services completed
+        if ($allCompleted) {
+            try {
+                if (property_exists($this, 'groupedBillingService') && $this->groupedBillingService) {
+                    $this->groupedBillingService->generateSingleBilling($visitModel->visit_id, true);
+                    Log::info('[Grooming] Billing generated for visit ' . $visitModel->visit_id);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('[Grooming] Failed to generate billing: ' . $e->getMessage());
+            }
+        }
         
         // Verify billing was actually created
         $visitModel->refresh();
@@ -1128,9 +1257,19 @@ public function completeService(Request $request, $visitId, $serviceId)
 
         $visitModel = Visit::findOrFail($visitId);
         $service = Service::findOrFail($validated['service_id']);
-        $pending_boarding = $visitModel->services()->where(DB::raw('LOWER(serv_type)'), strtolower('Boarding'))->where('branch_id', $branchId)->wherePivot('status', 'pending')->pluck('tbl_serv.serv_id')->toArray();
-        $to_detach = array_diff($pending_boarding, [$validated['service_id']]);
-        if(!empty($to_detach)) {
+        // Get all boarding services (pending, null status, or empty) and detach those not selected
+        $existing_boarding = $visitModel->services()
+            ->where(DB::raw('LOWER(serv_type)'), strtolower('Boarding'))
+            ->where('branch_id', $branchId)
+            ->where(function($q) {
+                $q->where('tbl_visit_service.status', 'pending')
+                  ->orWhereNull('tbl_visit_service.status')
+                  ->orWhere('tbl_visit_service.status', '');
+            })
+            ->pluck('tbl_serv.serv_id')
+            ->toArray();
+        $to_detach = array_diff($existing_boarding, [$validated['service_id']]);
+        if (!empty($to_detach)) {
             $visitModel->services()->detach($to_detach);
         }
         $dailyRate = (float) $service->serv_price;
@@ -1313,8 +1452,10 @@ public function completeService(Request $request, $visitId, $serviceId)
             }
             $visitModel->save();
 
-            if (in_array($boardingStatus, ['Checked Out', 'Checked In']) || $autoCheckedOut) {
+            // Generate billing on Check-In (not just Check-Out)
+            if ($boardingStatus === 'Checked In' || $boardingStatus === 'Checked Out' || $autoCheckedOut) {
                 $shouldGenerateBillingAfterCommit = true;
+                Log::info('[Boarding] Will generate billing', ['status' => $boardingStatus, 'visit_id' => $visitModel->visit_id]);
             }
 
             DB::commit();
@@ -1362,9 +1503,19 @@ public function completeService(Request $request, $visitId, $serviceId)
         $visitModel = Visit::find($visitId);
         $branchId = Auth::user()->branch_id ?? session('active_branch_id');
         $selectedServiceIds = [$validated['service_id']];
-         $pending_grooming = $visitModel->services()->where(DB::raw('LOWER(serv_type)'), strtolower('Diagnostics'))->where('branch_id', $branchId)->wherePivot('status', 'pending')->pluck('tbl_serv.serv_id')->toArray();
-        $to_detach = array_diff($pending_grooming, $selectedServiceIds);
-        if(!empty($to_detach)) {
+        // Get all diagnostics services (pending, null status, or empty) and detach those not selected
+        $existing_diagnostics = $visitModel->services()
+            ->where(DB::raw('LOWER(serv_type)'), strtolower('Diagnostics'))
+            ->where('branch_id', $branchId)
+            ->where(function($q) {
+                $q->where('tbl_visit_service.status', 'pending')
+                  ->orWhereNull('tbl_visit_service.status')
+                  ->orWhere('tbl_visit_service.status', '');
+            })
+            ->pluck('tbl_serv.serv_id')
+            ->toArray();
+        $to_detach = array_diff($existing_diagnostics, $selectedServiceIds);
+        if (!empty($to_detach)) {
             $visitModel->services()->detach($to_detach);
         }
 
@@ -1435,16 +1586,22 @@ public function completeService(Request $request, $visitId, $serviceId)
     public function saveSurgical(Request $request, $visitId)
     {
         $validated = $request->validate([
-            'surgery_type' => ['required','string'], 'service_id' => ['integer','exists:tbl_serv,serv_id'],
+            'surgery_type' => ['required','string'], 
+            'service_id' => ['required','integer','exists:tbl_serv,serv_id'],
             'staff' => ['nullable','string'], 'anesthesia' => ['nullable','string'],
             'dosage' => ['nullable','string'], 'manufacturer' => ['nullable','string'], 'batch_no' => ['nullable','string'],
             'start_time' => ['nullable','date'], 'end_time' => ['nullable','date','after_or_equal:start_time'],
             'checklist' => ['nullable','string'], 'post_op_notes' => ['nullable','string'], 'medications_used' => ['nullable','string'],
             'follow_up' => ['nullable','date'], 'workflow_status' => ['nullable','string'],
         ]);
-        $branchId = Auth::user()->branch_id ?? session('active_branch_id');
-        $selectedServiceIds = [$validated['service_id']];
+        
         $visitModel = Visit::with('services')->findOrFail($visitId);
+        
+        try {
+            DB::beginTransaction();
+            
+            $branchId = Auth::user()->branch_id ?? session('active_branch_id');
+            $selectedServiceIds = [$validated['service_id']];
         
         DB::table('tbl_surgical_record')->updateOrInsert(
             ['visit_id' => $visitModel->visit_id, 'pet_id' => $visitModel->pet_id],
@@ -1461,6 +1618,7 @@ public function completeService(Request $request, $visitId, $serviceId)
                 'batch_no' => $validated['batch_no'],
                 'findings' => $validated['checklist'] ?? null, 
                 'status' => 'Completed', 
+                'created_at' => now(),
                 'updated_at' => now(),
             ]
         );
@@ -1471,11 +1629,21 @@ public function completeService(Request $request, $visitId, $serviceId)
             //dd($selectedService->pivot);
             if ($selectedService) {
                 // check if any same type service exist in pivot table
-                $pending_surgical = $visitModel->services()->where(DB::raw('LOWER(serv_type)'), strtolower('Surgical'))->where('branch_id', $branchId)->wherePivot('status', 'pending')->pluck('tbl_serv.serv_id')->toArray();
-                        $to_detach = array_diff($pending_surgical, $selectedServiceIds);
-                        if(!empty($to_detach)) {
-                            $visitModel->services()->detach($to_detach);
-                        }
+                // Get all surgical services (pending, null status, or empty) and detach those not selected
+                $existing_surgical = $visitModel->services()
+                    ->where(DB::raw('LOWER(serv_type)'), strtolower('Surgical'))
+                    ->where('branch_id', $branchId)
+                    ->where(function($q) {
+                        $q->where('tbl_visit_service.status', 'pending')
+                          ->orWhereNull('tbl_visit_service.status')
+                          ->orWhere('tbl_visit_service.status', '');
+                    })
+                    ->pluck('tbl_serv.serv_id')
+                    ->toArray();
+                $to_detach = array_diff($existing_surgical, $selectedServiceIds);
+                if (!empty($to_detach)) {
+                    $visitModel->services()->detach($to_detach);
+                }
               
                 $anesthesiaProduct = $selectedService->products()
                     ->where('prod_name', $validated['anesthesia'])
@@ -1528,6 +1696,8 @@ public function completeService(Request $request, $visitId, $serviceId)
             ->where('visit_id', $visitModel->visit_id)
             ->exists();
         
+        DB::commit();
+        
         $message = 'Surgical record saved successfully!';
         if ($allCompleted) {
             $message .= $billingExists 
@@ -1537,6 +1707,12 @@ public function completeService(Request $request, $visitId, $serviceId)
         
         // Redirect to the surgical tab
         return redirect()->route('medical.index', ['tab' => 'surgical'])->with('success', $message);
+        
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error saving surgical record: ' . $e->getMessage() . ' | Trace: ' . $e->getTraceAsString());
+            return back()->with('error', 'Failed to save surgical record: ' . $e->getMessage())->withInput();
+        }
     }
 
     public function saveEmergency(Request $request, $visitId)
@@ -1651,65 +1827,25 @@ public function completeService(Request $request, $visitId, $serviceId)
                 $visit = Visit::create($data);
                 $visitsCreated++;
 
-                // Get selected services for this pet
+                // Get selected service TYPES for this pet (these are just categories, NOT actual services)
                 $selectedTypes = $request->input("service_type.$petId", []);
                 
                 if (!empty($selectedTypes)) {
                     // Remove duplicates from selected types
                     $selectedTypes = array_unique($selectedTypes);
-                    //dd($selectedTypes);
-                    // Prepare sync data - ONE service per selected type
-                    $syncData = [];
-                    $serviceNames = [];
                     
-                    foreach ($selectedTypes as $selectedType) {
-                        // First, try to find by exact service name match
-                        $service = Service::where(DB::raw('LOWER(serv_type)'), strtolower($selectedType))->where('branch_id', $branchId)->first();
-                        //dd($service);
-                        // If not found by name, find the first service of this type
-                        if (!$service) {
-                            $service = Service::where('branch_id', $branchId )
-                            ->where('serv_type', $selectedType)
-                            ->orWhere(DB::raw('LOWER(serv_type)'), 'LIKE', '%' . strtolower($selectedType) . '%')
-                                ->first();
-                        }
-                        
-                        // If still not found, try case-insensitive match
-                        if (!$service) {
-                            $service = Service::where('branch_id', $branchId)
-                                ->where(DB::raw('LOWER(serv_type)'), strtolower($selectedType))
-                                ->first();
-                        }
-                        
-                        // Only add if we found a service and haven't added it yet
-                        if ($service && !isset($syncData[$service->serv_id])) {
-                            $syncData[$service->serv_id] = [
-                                'status' => 'pending',
-                                'completed_at' => null,
-                                'quantity' => 1,
-                                'unit_price' => $service->serv_price,
-                                'total_price' => $service->serv_price,
-                                'created_at' => now(),
-                                'updated_at' => now()
-                            ];
-                            $serviceNames[] = $service->serv_name;
-                        }
-                    }
-                    
-                    // Sync services with pivot data (this will replace any existing services)
-                    $visit->services()->sync($syncData);
-                    $totalServicesCreated += count($syncData);
-                    
-                    // Store service summary in visit record (if column exists)
-                    $typesSummary = implode(', ', $serviceNames);
+                    // Store service TYPE names in visit record for categorization
+                    // DO NOT attach actual services here - services are attached when completing the service type tab
+                    $typesSummary = implode(', ', $selectedTypes);
                     $updateData = [
-                        'workflow_status' => 'Pending (0/' . count($syncData) . ' completed)'
+                        'workflow_status' => 'Pending'
                     ];
                     if (Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
                         $updateData['visit_service_type'] = $typesSummary;
                     }
                     
                     $visit->update($updateData);
+                    $totalServicesCreated += count($selectedTypes);
                 }
             }
         });
@@ -1743,7 +1879,7 @@ public function completeService(Request $request, $visitId, $serviceId)
             $visit->save();
         }
 
-        // Handle service types - add/update services
+        // Handle service types - update visit_service_type field only (NOT actual services)
         if ($request->has('service_type')) {
             $selectedTypes = $request->input('service_type', []);
             
@@ -1751,71 +1887,12 @@ public function completeService(Request $request, $visitId, $serviceId)
                 // Remove duplicates from selected types
                 $selectedTypes = array_unique(array_filter($selectedTypes));
                 
-                // Get all existing services first to preserve them
-                $existingServices = $visit->services()->get();
-                $syncData = [];
-                
-                // First, add all existing services to syncData to preserve them
-                foreach ($existingServices as $existingService) {
-                    $syncData[$existingService->serv_id] = [
-                        'status' => $existingService->pivot->status ?? 'pending',
-                        'completed_at' => $existingService->pivot->completed_at,
-                        'quantity' => $existingService->pivot->quantity ?? 1,
-                        'unit_price' => $existingService->pivot->unit_price ?? $existingService->serv_price,
-                        'total_price' => $existingService->pivot->total_price ?? $existingService->serv_price,
-                        'created_at' => $existingService->pivot->created_at ?? now(),
-                        'updated_at' => now()
-                    ];
-                }
-                
-                // Now process newly added services
-                foreach ($selectedTypes as $selectedType) {
-                    // First, try to find by exact service name match
-                    $service = Service::where(['serv_name' => $selectedType, 'branch_id' => $branchId])->first();
-                    
-                    // If not found by name, find the first service of this type
-                    if (!$service) {
-                        $service = Service::where('serv_type', $selectedType)
-                            ->where('branch_id', $branchId )
-                            ->orWhere('serv_type', 'LIKE', '%' . $selectedType . '%')
-                            ->orWhere(DB::raw('LOWER(serv_type)'), 'LIKE', '%' . strtolower($selectedType) . '%')
-                            ->first();
-                    }
-                    
-                    // If still not found, try case-insensitive match
-                    if (!$service) {
-                        $service = Service::where(DB::raw('LOWER(serv_name)'), strtolower($selectedType))
-                            ->where('branch_id', $branchId )
-                            ->orWhere(DB::raw('LOWER(serv_type)'), strtolower($selectedType))
-                            ->first();
-                    }
-                    
-                    // Only add if we found a service and haven't added it yet
-                    if ($service && !isset($syncData[$service->serv_id])) {
-                        $syncData[$service->serv_id] = [
-                            'status' => 'pending',
-                            'completed_at' => null,
-                            'quantity' => 1,
-                            'unit_price' => $service->serv_price,
-                            'total_price' => $service->serv_price,
-                            'created_at' => now(),
-                            'updated_at' => now()
-                        ];
-                    }
-                }
-                
-                // Sync services with pivot data (this will keep existing + add new ones)
-                if (!empty($syncData)) {
-                    $visit->services()->sync($syncData);
-                    
-                    // Update service summary in visit record (if column exists)
-                    $allServices = $visit->services()->get();
-                    $serviceNames = $allServices->pluck('serv_name')->toArray();
-                    $typesSummary = implode(', ', $serviceNames);
-                    if (Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
-                        $visit->visit_service_type = $typesSummary;
-                        $visit->save();
-                    }
+                // Store service TYPE names in visit record for categorization
+                // DO NOT attach actual services here - services are attached when completing the service type tab
+                $typesSummary = implode(', ', $selectedTypes);
+                if (Schema::hasColumn('tbl_visit_record', 'visit_service_type')) {
+                    $visit->visit_service_type = $typesSummary;
+                    $visit->save();
                 }
             }
         }
@@ -2133,6 +2210,17 @@ public function completeService(Request $request, $visitId, $serviceId)
                 return true;
             })
             ->values();
+        } elseif ($blade === 'checkup') {
+            // For checkup/consultation, load checkup services for this branch
+            $availableServices = Service::where(function($q) {
+                    $q->where('serv_type', 'LIKE', '%check%')
+                      ->orWhere('serv_type', 'LIKE', '%consult%');
+                })
+                ->where('branch_id', $branchId)
+                ->orderBy('serv_name')
+                ->get();
+                
+            Log::info('[Checkup] Available services loaded', ['count' => $availableServices->count(), 'branch_id' => $branchId]);
         } elseif ($blade === 'boarding') {
             // For boarding, load only services with serv_type = 'boarding' and filter by branch
             $activeBranchId = Auth::user()->user_role !== 'superadmin' 
@@ -2582,12 +2670,37 @@ public function completeService(Request $request, $visitId, $serviceId)
             foreach ($medications as $med) {
                 if (!empty($med['product_id'])) {
                     // Deduct from inventory if a product was selected (not manual entry)
+                    $quantity = isset($med['quantity']) ? (int)$med['quantity'] : 1;
                     $this->inventoryService->deductFromInventory(
                         $med['product_id'],
-                        1, // Default quantity of 1
+                        $quantity,
                         'Prescription #' . $prescription->prescription_id,
                         'service_usage'
                     );
+                }
+            }
+
+            // Update the billing if it exists for this visit to include prescription costs
+            if ($request->pvisit_id) {
+                $billing = Billing::where('visit_id', $request->pvisit_id)->first();
+                if ($billing) {
+                    // Calculate prescription total from the medications
+                    $prescriptionTotal = 0;
+                    foreach ($medications as $med) {
+                        if (isset($med['price']) && $med['price'] > 0) {
+                            $prescriptionTotal += (float) $med['price'];
+                        } elseif (isset($med['unit_price']) && $med['unit_price'] > 0) {
+                            $qty = isset($med['quantity']) ? (int) $med['quantity'] : 1;
+                            $prescriptionTotal += (float) $med['unit_price'] * $qty;
+                        }
+                    }
+                    
+                    // Add prescription total to billing
+                    if ($prescriptionTotal > 0) {
+                        $billing->total_amount = (float) $billing->total_amount + $prescriptionTotal;
+                        $billing->save();
+                        Log::info("Updated billing {$billing->bill_id} with prescription total: {$prescriptionTotal}. New total: {$billing->total_amount}");
+                    }
                 }
             }
 
@@ -2635,9 +2748,15 @@ public function completeService(Request $request, $visitId, $serviceId)
 
     public function searchProducts(Request $request)
     {
-        // Placeholder implementation of product search
+        // Search for Prescription type products only
         $query = $request->get('q');
-        return response()->json(Product::select('prod_id as id', 'prod_name as name', 'prod_price as price')->where('prod_name', 'like', "%$query%")->limit(15)->get());
+        return response()->json(
+            Product::select('prod_id as id', 'prod_name as name', 'prod_price as price', 'prod_stocks as stocks', 'prod_type as type')
+                ->where('prod_type', 'Prescription')
+                ->where('prod_name', 'like', "%$query%")
+                ->limit(15)
+                ->get()
+        );
     }
 
     // ==================== REFERRAL METHODS (Full Implementations) ====================

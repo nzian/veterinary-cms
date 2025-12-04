@@ -217,12 +217,10 @@ class ListFilter {
             console.log('Showing row', absoluteIndex, 'on page position', pageIndex);
             row.style.display = 'table-row';
             
-            // Update row number in first cell
+            // Update row number in first cell (# column)
             const firstCell = row.cells[0];
-            if (firstCell) {
-                // Always update the first cell with the correct row number
+            if (firstCell && firstCell.textContent.trim().match(/^\d+$/)) {
                 firstCell.textContent = (absoluteIndex + 1);
-                console.log('Updated cell to:', absoluteIndex + 1);
             }
         });
         

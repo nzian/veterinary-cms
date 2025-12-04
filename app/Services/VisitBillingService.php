@@ -32,12 +32,33 @@ class VisitBillingService
     try {
         return DB::transaction(function () use ($visit) {
             
+            // Calculate total amount from services BEFORE creating bill
+            $servicesTotal = $visit->services->sum(function ($service) {
+                $quantity = $service->pivot->quantity ?? 1;
+                
+                // If pivot has a total_price > 0, use it
+                if (isset($service->pivot->total_price) && $service->pivot->total_price > 0) {
+                    return $service->pivot->total_price;
+                }
+                
+                // If pivot has unit_price > 0, calculate from it
+                if (isset($service->pivot->unit_price) && $service->pivot->unit_price > 0) {
+                    return $service->pivot->unit_price * $quantity;
+                }
+                
+                // Otherwise, use service base price
+                $basePrice = $service->serv_price ?? 0;
+                return $basePrice * $quantity;
+            });
+            
             // Build billing data
             $billingData = [
                 'bill_date' => $visit->visit_date ? Carbon::parse($visit->visit_date)->toDateString() : Carbon::now()->toDateString(),
                 'visit_id' => $visit->visit_id,
                 'bill_status' => 'Pending',
                 'owner_id' => $this->resolveOwnerId($visit),
+                'total_amount' => $servicesTotal,  // Set the total amount!
+                'paid_amount' => 0,
             ];
             
             // Only add branch_id if column exists
@@ -48,7 +69,7 @@ class VisitBillingService
             
             $bill = Billing::create($billingData);
 
-            Log::info("Billing record created: Bill ID {$bill->bill_id} for Visit ID {$visit->visit_id}");
+            Log::info("Billing record created: Bill ID {$bill->bill_id} for Visit ID {$visit->visit_id}, Total: {$servicesTotal}");
 
         $serviceLines = $this->buildServiceLines($visit);
         Log::info("Service lines built for visit {$visit->visit_id}: " . count($serviceLines) . " lines");
@@ -129,20 +150,33 @@ class VisitBillingService
                 }
             }
 
-            // 4) Update bill header
+            // 4) Update bill header with final total (services + prescriptions)
+            // Recalculate from orders to include prescriptions
+            $finalTotal = DB::table('tbl_ord')
+                ->where('bill_id', $bill->bill_id)
+                ->sum('ord_total');
+            
+            // If no orders created, use services total
+            if ($finalTotal == 0) {
+                $finalTotal = $servicesTotal;
+            }
+            
+            $bill->total_amount = $finalTotal;
+            
             if (!empty($createdOrderIds)) {
                 // Only update ord_id if column exists
                 if (Schema::hasColumn('tbl_bill', 'ord_id')) {
                     $bill->ord_id = $createdOrderIds[0];
-                    $bill->save();
                 }
             } else {
                 // Log warning if no orders were created
                 Log::warning("Billing created for visit {$visit->visit_id} but no orders were created. Service lines: " . count($serviceLines));
                 Log::warning("This might indicate that services don't have products or product creation failed.");
             }
+            
+            $bill->save();
 
-            Log::info("Billing created successfully for visit {$visit->visit_id}. Bill ID: {$bill->bill_id}, Orders created: " . count($createdOrderIds));
+            Log::info("Billing created successfully for visit {$visit->visit_id}. Bill ID: {$bill->bill_id}, Total: {$finalTotal}, Orders created: " . count($createdOrderIds));
 
             // Always return the bill, even if no orders were created
             return $bill->fresh(['orders']);
@@ -258,13 +292,24 @@ class VisitBillingService
         if (!DB::getSchemaBuilder()->hasTable('tbl_prescription')) {
             return [];
         }
+        
         $date = $visit->visit_date ? Carbon::parse($visit->visit_date)->toDateString() : null;
-        $prescriptions = DB::table('tbl_prescription')
-            ->where('pet_id', $visit->pet_id)
-            ->when($date, function ($q) use ($date) {
-                $q->whereDate('prescription_date', $date);
-            })
-            ->orderBy('prescription_date', 'desc')
+        
+        // Build query for prescriptions
+        $query = DB::table('tbl_prescription')
+            ->where('pet_id', $visit->pet_id);
+        
+        // Add date filter if available
+        if ($date) {
+            $query->whereDate('prescription_date', $date);
+        }
+        
+        // Add visit_id filter if column exists
+        if (Schema::hasColumn('tbl_prescription', 'pres_visit_id')) {
+            $query->where('pres_visit_id', $visit->visit_id);
+        }
+        
+        $prescriptions = $query->orderBy('prescription_date', 'desc')
             ->limit(5)
             ->get();
 
@@ -274,19 +319,75 @@ class VisitBillingService
             if (!is_array($meds)) continue;
             
             foreach ($meds as $m) {
-                $name = $m['name'] ?? null;
+                // Support both 'name' and 'product_name' keys
+                $name = $m['product_name'] ?? $m['name'] ?? null;
                 $qty = isset($m['quantity']) ? (float)$m['quantity'] : 1;
+                $prodId = $m['product_id'] ?? null;
+                
                 if (!$name) continue;
                 
+                // First try to use price from the medication JSON
+                $price = 0;
+                if (isset($m['price']) && $m['price'] > 0) {
+                    $price = $m['price'] / max(1, $qty); // Convert total price to unit price
+                } elseif (isset($m['unit_price']) && $m['unit_price'] > 0) {
+                    $price = $m['unit_price'];
+                }
+                
+                // If we have a product_id from the JSON, use it directly
+                if (!empty($prodId)) {
+                    $prod = Product::find($prodId);
+                    if ($prod) {
+                        // Use stored price if available, otherwise get from product
+                        if ($price <= 0) {
+                            $price = $prod->prod_price ?? 0;
+                        }
+                        $lines[] = [
+                            'prod_id' => $prod->prod_id,
+                            'price' => $price,
+                            'quantity' => max(1, $qty),
+                        ];
+                        continue;
+                    }
+                }
+                
+                // Fall back to searching by product name
                 $prod = Product::where('prod_name', 'like', "%$name%")->first();
                 
                 if ($prod) {
-                    $price = $prod->prod_price ?? 0;
+                    // Use stored price if available, otherwise get from product
+                    if ($price <= 0) {
+                        $price = $prod->prod_price ?? 0;
+                    }
                     $lines[] = [
                         'prod_id' => $prod->prod_id,
                         'price' => $price,
                         'quantity' => max(1, $qty),
                     ];
+                } elseif ($price > 0) {
+                    // Manual entry with price - create a temporary product entry
+                    try {
+                        $branchId = optional($visit->user)->branch_id ?? optional(Auth::user())->branch_id;
+                        $tempProd = Product::create([
+                            'prod_name' => $name,
+                            'prod_category' => 'Prescription',
+                            'prod_type' => 'Prescription',
+                            'prod_price' => $price,
+                            'prod_stocks' => 0,
+                            'branch_id' => $branchId,
+                            'prod_description' => "Prescription medication: {$name}",
+                        ]);
+                        
+                        $lines[] = [
+                            'prod_id' => $tempProd->prod_id,
+                            'price' => $price,
+                            'quantity' => max(1, $qty),
+                        ];
+                        
+                        Log::info("Created prescription product: {$name} (Product ID: {$tempProd->prod_id})");
+                    } catch (\Throwable $e) {
+                        Log::warning("Could not create product for manual prescription entry: {$name}. Error: " . $e->getMessage());
+                    }
                 }
             }
         }

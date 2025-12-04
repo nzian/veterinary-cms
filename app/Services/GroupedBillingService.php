@@ -8,6 +8,7 @@ use App\Models\Owner;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use App\Models\Payment;
 
 class GroupedBillingService
@@ -226,32 +227,57 @@ class GroupedBillingService
         // Calculate prescription medications total
         // Get prescriptions for this visit's pet on the same date
         $prescriptionTotal = 0;
-        $prescriptions = DB::table('tbl_prescription')
-            ->where('pet_id', $visit->pet_id)
-            ->where('branch_id', $visit->branch_id)
-            ->where('visit_id', $visit->visit_id)
-            ->whereDate('prescription_date', $visit->visit_date) // Not sure if time matters
-            ->get();
-        if(!$prescriptions->isEmpty()){
-            foreach ($prescriptions as $prescription) {
-            if (!empty($prescription->medication)) {
-                $medications = json_decode($prescription->medication, true);
-                if (is_array($medications)) {
-                    foreach ($medications as $med) {
-                        if (isset($med['product_id'])) {
-                            $product = DB::table('tbl_prod')
-                                ->where('prod_id', $med['product_id'])
-                                ->first();
-                            if ($product) {
-                                $quantity = $med['quantity'] ?? 1;
-                                $prescriptionTotal += $product->prod_price * $quantity;
+        try {
+            // Check if pres_visit_id column exists in tbl_prescription
+            $hasVisitIdColumn = Schema::hasColumn('tbl_prescription', 'pres_visit_id');
+            
+            $prescriptionQuery = DB::table('tbl_prescription')
+                ->where('pet_id', $visit->pet_id)
+                ->whereDate('prescription_date', $visit->visit_date);
+            
+            // Only add branch_id filter if it's not null
+            if ($visit->branch_id) {
+                $prescriptionQuery->where('branch_id', $visit->branch_id);
+            }
+            
+            // Only add pres_visit_id filter if column exists
+            if ($hasVisitIdColumn) {
+                $prescriptionQuery->where('pres_visit_id', $visit->visit_id);
+            }
+            
+            $prescriptions = $prescriptionQuery->get();
+            
+            if(!$prescriptions->isEmpty()){
+                foreach ($prescriptions as $prescription) {
+                if (!empty($prescription->medication)) {
+                    $medications = json_decode($prescription->medication, true);
+                    if (is_array($medications)) {
+                        foreach ($medications as $med) {
+                            $quantity = $med['quantity'] ?? 1;
+                            
+                            // First try to use the price stored directly in the medication JSON
+                            if (isset($med['price']) && $med['price'] > 0) {
+                                $prescriptionTotal += $med['price'];
+                            } elseif (isset($med['unit_price']) && $med['unit_price'] > 0) {
+                                $prescriptionTotal += $med['unit_price'] * $quantity;
+                            } elseif (isset($med['product_id']) && !empty($med['product_id'])) {
+                                // Fall back to looking up product price from inventory
+                                $product = DB::table('tbl_prod')
+                                    ->where('prod_id', $med['product_id'])
+                                    ->first();
+                                if ($product) {
+                                    $prescriptionTotal += $product->prod_price * $quantity;
+                                }
                             }
                         }
                     }
                 }
             }
         }
-    }
+        } catch (\Throwable $e) {
+            // If prescription query fails, just log and continue with services total
+            Log::warning('[Billing] Prescription query failed: ' . $e->getMessage());
+        }
        
         
         return $servicesTotal + ($productsTotal ?? 0) + $prescriptionTotal;

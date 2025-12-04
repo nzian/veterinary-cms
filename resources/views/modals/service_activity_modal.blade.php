@@ -478,9 +478,21 @@
                 </div>
                 <div class="relative mb-3">
                     <label class="block text-xs text-gray-600 mb-1">Product Name / Manual Entry</label>
-                    <input type="text" class="product-search w-full border px-2 py-2 rounded-lg text-sm" placeholder="Search product or enter manually" data-field-id="${fieldId}">
+                    <input type="text" class="product-search w-full border px-2 py-2 rounded-lg text-sm" placeholder="Search prescription product or enter manually" data-field-id="${fieldId}">
                     <div class="product-suggestions absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-32 overflow-y-auto hidden" data-field-id="${fieldId}"></div>
                     <input type="hidden" class="selected-product-id" data-field-id="${fieldId}">
+                    <input type="hidden" class="selected-product-price" data-field-id="${fieldId}" value="0">
+                </div>
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Quantity</label>
+                        <input type="number" class="medication-quantity w-full border px-2 py-2 rounded-lg text-sm" data-field-id="${fieldId}" value="1" min="1" placeholder="Qty">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Unit Price (₱)</label>
+                        <input type="number" step="0.01" class="medication-price w-full border px-2 py-2 rounded-lg text-sm" data-field-id="${fieldId}" value="0" min="0" placeholder="Price per unit">
+                        <p class="text-xs text-gray-400 mt-1">Auto-filled from inventory or enter manually</p>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-xs text-gray-600 mb-1">Instructions (Sig.)</label>
@@ -503,6 +515,8 @@
         const searchInput = document.querySelector(`.product-search[data-field-id="${fieldId}"]`);
         const suggestionsDiv = document.querySelector(`.product-suggestions[data-field-id="${fieldId}"]`);
         const productIdInput = document.querySelector(`.selected-product-id[data-field-id="${fieldId}"]`);
+        const productPriceInput = document.querySelector(`.selected-product-price[data-field-id="${fieldId}"]`);
+        const priceInput = document.querySelector(`.medication-price[data-field-id="${fieldId}"]`);
 
         let searchTimeout;
 
@@ -510,8 +524,9 @@
             const query = this.value.toLowerCase().trim();
             clearTimeout(searchTimeout);
 
-            // Clear selected product ID on manual typing
+            // Clear selected product ID and price on manual typing
             productIdInput.value = '';
+            productPriceInput.value = '0';
 
             if (query.length < 2) {
                 suggestionsDiv.classList.add('hidden');
@@ -519,18 +534,26 @@
             }
 
             searchTimeout = setTimeout(() => {
-                const filtered = availablePrescriptionProducts.filter(p => p.prod_name.toLowerCase().includes(query));
+                // Filter prescription products only
+                const filtered = availablePrescriptionProducts.filter(p => 
+                    p.prod_name.toLowerCase().includes(query)
+                );
                 suggestionsDiv.innerHTML = '';
                 
                 if (filtered.length > 0) {
                     filtered.forEach(product => {
+                        const stockClass = product.prod_stocks > 0 ? 'text-green-600' : 'text-red-500';
+                        const stockText = product.prod_stocks > 0 ? `In Stock: ${product.prod_stocks}` : 'Out of Stock';
                         const item = document.createElement('div');
                         item.className = 'product-suggestion-item px-3 py-2 cursor-pointer hover:bg-blue-50 text-sm';
-                        item.innerHTML = `<div>${product.prod_name}</div><div class="text-xs text-gray-500">Stock: ${product.prod_stocks} - ₱${parseFloat(product.prod_price || 0).toFixed(2)}</div>`;
+                        item.innerHTML = `<div class="font-medium">${product.prod_name}</div><div class="text-xs ${stockClass}">${stockText} - ₱${parseFloat(product.prod_price || 0).toFixed(2)}</div>`;
                         
                         item.onclick = function() {
                             productIdInput.value = product.prod_id;
+                            productPriceInput.value = product.prod_price || 0;
                             searchInput.value = product.prod_name;
+                            // Auto-fill the price field
+                            priceInput.value = parseFloat(product.prod_price || 0).toFixed(2);
                             suggestionsDiv.classList.add('hidden');
                             searchInput.focus();
                         };
@@ -538,7 +561,8 @@
                     });
                     suggestionsDiv.classList.remove('hidden');
                 } else {
-                    suggestionsDiv.innerHTML = '<div class="px-3 py-2 text-gray-500 text-xs">No matching products found.</div>';
+                    // Show message that manual entry is allowed
+                    suggestionsDiv.innerHTML = '<div class="px-3 py-2 text-gray-500 text-xs"><i class="fas fa-info-circle mr-1"></i>No prescription products found. You can enter manually and set the price.</div>';
                     suggestionsDiv.classList.remove('hidden');
                 }
             }, 300);
@@ -563,15 +587,22 @@
             const searchInput = document.querySelector(`input.product-search[data-field-id="${fieldId}"]`);
             const productIdInput = document.querySelector(`input.selected-product-id[data-field-id="${fieldId}"]`);
             const instructionsTextarea = document.querySelector(`textarea.medication-instructions[data-field-id="${fieldId}"]`);
+            const quantityInput = document.querySelector(`input.medication-quantity[data-field-id="${fieldId}"]`);
+            const priceInput = document.querySelector(`input.medication-price[data-field-id="${fieldId}"]`);
             
             const productName = searchInput.value.trim();
             const instructions = instructionsTextarea.value.trim();
+            const quantity = parseInt(quantityInput.value) || 1;
+            const unitPrice = parseFloat(priceInput.value) || 0;
             
             if (productName && instructions) {
                 medications.push({
                     product_id: productIdInput.value || null,
                     product_name: productName,
-                    instructions: instructions
+                    instructions: instructions,
+                    quantity: quantity,
+                    unit_price: unitPrice,
+                    price: unitPrice * quantity // Total price for this medication
                 });
             } else if (productName || instructions) {
                 isValid = false;

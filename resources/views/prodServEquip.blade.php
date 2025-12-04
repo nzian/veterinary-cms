@@ -133,6 +133,7 @@
                     <table id="productsTable" class="w-full table-auto text-sm border text-center">
                         <thead class="bg-gray-100">
                             <tr>
+                                <th class="p-2 border">#</th>
                                 <th class="p-2 border">Image</th>
                                 <th class="p-2 border">Name</th>
                                 <th class="p-2 border">Category</th>
@@ -141,7 +142,6 @@
                                 <th class="p-2 border">Description</th>
                                 <th class="p-2 border">Price</th>
                                 <th class="p-2 border">Stock</th>
-                                <th class="p-2 border">Branch</th>
                                 <th class="p-2 border">Actions</th>
                             </tr>
                         </thead>
@@ -155,6 +155,7 @@
                                     $rowClass = $isDisabled ? 'bg-gray-100 opacity-60' : '';
                                 @endphp
                                 <tr class="{{ $rowClass }}">
+                                    <td class="p-2 border">{{ $loop->iteration }}</td>
                                     <td class="p-2 border">
                                         @if($product->prod_image)
                                             <img src="{{ asset('storage/' . $product->prod_image) }}"
@@ -201,7 +202,6 @@
                                             <span class="{{ $stockStatus }}">{{ $product->available_stock - $product->usage_from_inventory_transactions ?? 0 }}</span>
                                         </div>
                                     </td>
-                                    <td class="p-2 border">{{ $product->branch->branch_name ?? 'N/A' }}</td>
                                     <td class="p-2 border">
                                         <div class="flex justify-center gap-1 flex-wrap">
                                             @if(hasPermission('view_details', $can))
@@ -236,7 +236,7 @@
                                                 </button>
                                             @endif
 
-                                            @if($product->prod_type === 'Consumable' && hasPermission('edit_product', $can))
+                                            @if($product->prod_type === 'Consumable' && $product->prod_category !== 'Medical Supply' && hasPermission('edit_product', $can))
                                                 <button onclick="openLinkedConsumablesModal({{ $product->prod_id }}, '{{ addslashes($product->prod_name) }}')"
                                                     class="bg-cyan-500 text-white px-2 py-1 rounded hover:bg-cyan-600 text-xs"
                                                     title="Link Consumables (e.g., add syringe to vaccine)">
@@ -315,22 +315,22 @@
                     <table id="servicesTable" class="w-full table-auto text-sm border text-center">
                         <thead class="bg-gray-100">
                             <tr>
+                                <th class="p-2 border">#</th>
                                 <th class="p-2 border">Name</th>
                                 <th class="p-2 border">Type</th>
                                 <th class="p-2 border">Description</th>
                                 <th class="p-2 border">Price</th>
-                                <th class="p-2 border">Branch</th>
                                 <th class="p-2 border">Actions</th>
                             </tr>
                         </thead>
                        <tbody>
                             @foreach($services as $index => $service)
                                 <tr>
+                                    <td class="p-2 border">{{ $loop->iteration }}</td>
                                     <td class="p-2 border">{{ $service->serv_name }}</td>
                                     <td class="p-2 border">{{ $service->serv_type }}</td>
                                     <td class="p-2 border">{{ Str::limit($service->serv_description, 50) }}</td>
                                     <td class="p-2 border">₱{{ number_format($service->serv_price, 2) }}</td>
-                                    <td class="p-2 border">{{ $service->branch->branch_name ?? 'N/A' }}</td>
                                     <td class="p-2 border">
                                         <div class="flex justify-center gap-2">
                                             <button onclick="viewServiceDetails({{ $service->serv_id }})"
@@ -451,12 +451,12 @@
                     <table id="equipmentTable" class="w-full table-auto text-sm border text-center">
                         <thead class="bg-gray-100">
                             <tr>
+                                <th class="p-2 border">#</th>
                                 <th class="p-2 border">Image</th>
                                 <th class="p-2 border">Name</th>
                                 <th class="p-2 border">Category</th>
                                 <th class="p-2 border">Description</th>
                                 <th class="p-2 border">Quantity</th>
-                                <th class="p-2 border">Branch</th>
                                 <th class="p-2 border">Status Breakdown</th>
                                 <th class="p-2 border">Actions</th>
                             </tr>
@@ -476,6 +476,7 @@
                                     elseif ($eqInUse > 0) $eqStatus = 'in_use';
                                 @endphp
                                 <tr class="equipment-row" data-status="{{ $eqStatus }}" data-available="{{ $eqAvailable }}" data-inuse="{{ $eqInUse }}" data-maintenance="{{ $eqMaintenance }}" data-outofservice="{{ $eqOutOfService }}">
+                                    <td class="p-2 border">{{ $loop->iteration }}</td>
                                     <td class="p-2 border">
                                         @if($equip->equipment_image)
                                             <img src="{{ asset('storage/' . $equip->equipment_image) }}"
@@ -489,7 +490,6 @@
                                     
                                     <td class="p-2 border">{{ Str::limit($equip->equipment_description ?? 'N/A', 50) }}</td>
                                     <td class="p-2 border">{{ $equip->equipment_quantity }}</td>
-                                    <td class="p-2 border">{{ $equip->branch->branch_name ?? 'N/A' }}</td>
                                     <td class="p-2 border">
                                         @php
                                             $totalQty = $equip->equipment_quantity;
@@ -3597,8 +3597,9 @@
                         <select name="prod_type" id="addProductType" class="border p-2 w-full rounded ${isServiceProduct ? 'bg-gray-100' : ''}" required ${isServiceProduct ? 'readonly onclick="return false;"' : ''} onchange="toggleProductTypeFields('add')">
                             <option value="Sale" ${defaultType === 'Sale' ? 'selected' : ''}>Sale (Available for POS)</option>
                             <option value="Consumable" ${defaultType === 'Consumable' ? 'selected' : ''}>Consumable (Used in Services)</option>
+                            <option value="Prescription" ${defaultType === 'Prescription' ? 'selected' : ''}>Prescription (For Prescriptions)</option>
                         </select>
-                        <small class="text-gray-500">${isServiceProduct ? 'Service products are always Consumable type' : 'Sale products appear in POS, Consumable products are deducted when services are used'}</small>
+                        <small class="text-gray-500">${isServiceProduct ? 'Service products are always Consumable type' : 'Sale = POS, Consumable = Services, Prescription = Prescriptions'}</small>
                     </div>
                     <div class="mb-4" id="addProductCategoryField">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Product Category</label>
@@ -3633,11 +3634,12 @@
                         </select>
                         <small class="text-gray-500" id="addServiceCategoryNote">For Consumable products only</small>
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-4" id="addManufacturerField">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Manufacturer</label>
-                        <select name="manufacturer_id" class="border p-2 w-full rounded">
+                        <select name="manufacturer_id" id="addManufacturer" class="border p-2 w-full rounded ${defaultType === 'Sale' ? 'bg-gray-100 cursor-not-allowed' : ''}" ${defaultType === 'Sale' ? 'disabled' : ''}>
                             ${manufacturerOptions}
                         </select>
+                        <small class="text-gray-500" id="addManufacturerNote">${defaultType === 'Sale' ? 'Manufacturer not applicable for Sale products' : 'Select manufacturer for this product'}</small>
                     </div>
                     <div class="mb-4" id="addProductPriceField">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Price <span id="addPriceRequired">*</span></label>
@@ -3649,18 +3651,7 @@
                         <input type="number" name="prod_reorderlevel" placeholder="Enter reorder level" class="border p-2 w-full rounded" value="10" required min="0">
                         <small class="text-gray-500">Alert level for low stock (must be 0 or greater)</small>
                     </div>
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Branch</label>
-                        <select name="branch_id" class="border p-2 w-full rounded">
-                            <option value="">Select Branch</option>`;
-
-                    @foreach($branches as $branch)
-                        fields += `<option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>`;
-                    @endforeach
-
-                    fields += `
-                        </select>
-                    </div>
+                    <input type="hidden" name="branch_id" value="{{ $activeBranchId ?? '' }}">
                     <div class="mb-4 md:col-span-2">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Description *</label>
                         <textarea name="prod_description" placeholder="Enter product description" class="border p-2 w-full rounded" rows="3" required></textarea>
@@ -3726,8 +3717,9 @@
                         <select name="prod_type" id="editProductType" class="border p-2 w-full rounded" required onchange="toggleProductTypeFields('edit')">
                             <option value="Sale" ${data.prod_type === 'Sale' ? 'selected' : ''}>Sale (Available for POS)</option>
                             <option value="Consumable" ${data.prod_type === 'Consumable' ? 'selected' : ''}>Consumable (Used in Services)</option>
+                            <option value="Prescription" ${data.prod_type === 'Prescription' ? 'selected' : ''}>Prescription (For Prescriptions)</option>
                         </select>
-                        <small class="text-gray-500">Sale products appear in POS, Consumable products are deducted when services are used</small>
+                        <small class="text-gray-500">Sale = POS, Consumable = Services, Prescription = Prescriptions</small>
                     </div>
                     <div class="mb-4" id="editProductCategoryField">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Product Category</label>
@@ -3762,11 +3754,12 @@
                         </select>
                         <small class="text-gray-500" id="editServiceCategoryNote">For Consumable products only</small>
                     </div>
-                    <div class="mb-4">
+                    <div class="mb-4" id="editManufacturerField">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Manufacturer</label>
-                        <select name="manufacturer_id" class="border p-2 w-full rounded">
+                        <select name="manufacturer_id" id="editManufacturer" class="border p-2 w-full rounded ${data.prod_type === 'Sale' ? 'bg-gray-100 cursor-not-allowed' : ''}" ${data.prod_type === 'Sale' ? 'disabled' : ''}>
                             ${manufacturerOptions}
                         </select>
+                        <small class="text-gray-500" id="editManufacturerNote">${data.prod_type === 'Sale' ? 'Manufacturer not applicable for Sale products' : 'Select manufacturer for this product'}</small>
                     </div>
                     <div class="mb-4" id="editProductPriceField">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Price <span id="editPriceRequired">*</span></label>
@@ -3783,18 +3776,7 @@
                         <input type="number" name="prod_reorderlevel" value="${data.prod_reorderlevel || ''}" class="border p-2 w-full rounded" required min="0">
                         <small class="text-gray-500">Alert level for low stock (must be 0 or greater)</small>
                     </div>
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Branch</label>
-                        <select name="branch_id" class="border p-2 w-full rounded">
-                            <option value="">Select Branch</option>`;
-
-                    @foreach($branches as $branch)
-                        fields += `<option value="{{ $branch->branch_id }}" ${data.branch_id == '{{ $branch->branch_id }}' ? 'selected' : ''}>{{ $branch->branch_name }}</option>`;
-                    @endforeach
-
-                    fields += `
-                        </select>
-                    </div>
+                    <input type="hidden" name="branch_id" value="${data.branch_id}">
                     <div class="mb-4 md:col-span-2">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Description *</label>
                         <textarea name="prod_description" class="border p-2 w-full rounded" rows="3" required>${escapeHtml(data.prod_description || '')}</textarea>
@@ -4575,18 +4557,7 @@
                     <label class="block text-sm font-medium text-gray-700 mb-2">Price</label>
                     <input type="number" step="0.01" name="serv_price" placeholder="Enter service price" class="border p-2 w-full rounded" required>
                 </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Branch</label>
-                    <select name="branch_id" class="border p-2 w-full rounded">
-                        <option value="">Select Branch</option>`;
-
-                @foreach($branches as $branch)
-                    fields += `<option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>`;
-                @endforeach
-
-                fields += `
-                    </select>
-                </div>
+                <input type="hidden" name="branch_id" value="{{ $activeBranchId ?? '' }}">
                 <div class="mb-4 md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
                     <textarea name="serv_description" placeholder="Enter service description" class="border p-2 w-full rounded" rows="3"></textarea>
@@ -4622,19 +4593,7 @@
                     <label class="block text-sm font-medium text-gray-700 mb-2">Equipment Image</label>
                     <input type="file" name="equipment_image" accept="image/*" class="border p-2 w-full rounded">
                 </div>
-                {{-- ✅ UPDATED FIELD: Branch ID for Equipment Add --}}
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Branch *</label>
-                    <select name="branch_id" class="border p-2 w-full rounded" required>
-                        <option value="">Select Branch</option>`;
-
-                @foreach($branches as $branch)
-                    fields += `<option value="{{ $branch->branch_id }}">{{ $branch->branch_name }}</option>`;
-                @endforeach
-
-                fields += `
-                    </select>
-                </div>
+                <input type="hidden" name="branch_id" value="{{ $activeBranchId ?? '' }}">
                 <div class="mb-4 md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
                     <textarea name="equipment_description" placeholder="Enter equipment description" class="border p-2 w-full rounded" rows="3"></textarea>
@@ -4682,18 +4641,7 @@
                     <label class="block text-sm font-medium text-gray-700 mb-2">Price</label>
                     <input type="number" step="0.01" name="serv_price" value="${data.serv_price}" class="border p-2 w-full rounded" required>
                 </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Branch</label>
-                    <select name="branch_id" class="border p-2 w-full rounded">
-                        <option value="">Select Branch</option>`;
-
-                @foreach($branches as $branch)
-                    fields += `<option value="{{ $branch->branch_id }}" ${data.branch_id == '{{ $branch->branch_id }}' ? 'selected' : ''}>{{ $branch->branch_name }}</option>`;
-                @endforeach
-
-                fields += `
-                    </select>
-                </div>
+                <input type="hidden" name="branch_id" value="${data.branch_id}">
                 <div class="mb-4 md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
                     <textarea name="serv_description" class="border p-2 w-full rounded" rows="3">${escapeHtml(data.serv_description || '')}</textarea>
@@ -4808,19 +4756,7 @@
 
                 fields += `
                 </div>
-                {{-- ✅ UPDATED FIELD: Branch ID for Equipment Edit --}}
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Branch *</label>
-                    <select name="branch_id" class="border p-2 w-full rounded" required>
-                        <option value="">Select Branch</option>`;
-
-                @foreach($branches as $branch)
-                    fields += `<option value="{{ $branch->branch_id }}" ${data.branch_id == '{{ $branch->branch_id }}' ? 'selected' : ''}>{{ $branch->branch_name }}</option>`;
-                @endforeach
-
-                fields += `
-                    </select>
-                </div>
+                <input type="hidden" name="branch_id" value="${data.branch_id}">
                 <div class="mb-4 md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
                     <textarea name="equipment_description" class="border p-2 w-full rounded" rows="3">${escapeHtml(data.equipment_description || '')}</textarea>
@@ -4871,10 +4807,16 @@
             const productCategorySelect = document.getElementById(mode + 'ProductCategory');
             const serviceCategorySelect = document.getElementById(mode + 'ServiceCategory');
             
+            const manufacturerField = document.getElementById(mode + 'ManufacturerField');
+            const manufacturerSelect = document.getElementById(mode + 'Manufacturer');
+            const manufacturerNote = document.getElementById(mode + 'ManufacturerNote');
+            
             if (!typeSelect) return;
             
             const selectedType = typeSelect.value;
             const isConsumable = selectedType === 'Consumable';
+            const isPrescription = selectedType === 'Prescription';
+            const isSale = selectedType === 'Sale';
             
             // Toggle Price Field
             if (priceField) {
@@ -4897,6 +4839,22 @@
                 }
             }
             
+            // Toggle Manufacturer Field based on Product Type
+            if (manufacturerSelect) {
+                if (isConsumable || isPrescription) {
+                    // Consumable or Prescription: Enable Manufacturer
+                    manufacturerSelect.disabled = false;
+                    manufacturerSelect.classList.remove('bg-gray-100', 'cursor-not-allowed');
+                    if (manufacturerNote) manufacturerNote.textContent = 'Select manufacturer for this product';
+                } else {
+                    // Sale: Disable Manufacturer
+                    manufacturerSelect.disabled = true;
+                    manufacturerSelect.value = ''; // Clear value
+                    manufacturerSelect.classList.add('bg-gray-100', 'cursor-not-allowed');
+                    if (manufacturerNote) manufacturerNote.textContent = 'Manufacturer not applicable for Sale products';
+                }
+            }
+            
             // Toggle Category Fields based on Product Type - HIDE/SHOW instead of disable
             if (isConsumable) {
                 // Consumable: Hide Product Category, Show Service Category
@@ -4913,6 +4871,22 @@
                 if (serviceCategorySelect) {
                     serviceCategorySelect.disabled = false;
                     serviceCategorySelect.classList.remove('bg-gray-100', 'cursor-not-allowed');
+                }
+            } else if (isPrescription) {
+                // Prescription: Show Product Category, Hide Service Category
+                if (productCategoryField) {
+                    productCategoryField.style.display = 'block';
+                }
+                if (productCategorySelect) {
+                    productCategorySelect.disabled = false;
+                    productCategorySelect.classList.remove('bg-gray-100', 'cursor-not-allowed');
+                }
+                if (serviceCategoryField) {
+                    serviceCategoryField.style.display = 'none';
+                }
+                if (serviceCategorySelect) {
+                    serviceCategorySelect.disabled = true;
+                    serviceCategorySelect.value = ''; // Clear value
                 }
             } else {
                 // Sale: Show Product Category, Hide Service Category

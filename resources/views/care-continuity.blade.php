@@ -2204,20 +2204,33 @@ function addMedicationField() {
             
             <div class="grid grid-cols-1 gap-3 mb-3">
                 <div class="relative">
-                    <label class="block text-xs text-gray-600 mb-1">Search Product or Enter Manually</label>
+                    <label class="block text-xs text-gray-600 mb-1">Search Prescription Product or Enter Manually</label>
                     <input type="text" 
                            class="product-search w-full border px-2 py-2 rounded text-sm" 
-                           placeholder="Type product name or search from database..."
+                           placeholder="Type prescription product name or search from database..."
                            data-field-id="${fieldId}">
                     <div class="product-suggestions hidden" data-field-id="${fieldId}"></div>
                     <input type="hidden" class="selected-product-id" data-field-id="${fieldId}">
                     <input type="hidden" class="selected-product-name" data-field-id="${fieldId}">
+                    <input type="hidden" class="selected-product-price" data-field-id="${fieldId}" value="0">
                 </div>
                 
                 <div class="bg-gray-50 p-2 rounded text-xs">
                     <div class="selected-product-display" data-field-id="${fieldId}">
                         Manual entry or select from search results above
                     </div>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">Quantity</label>
+                    <input type="number" class="medication-quantity w-full border px-2 py-2 rounded text-sm" data-field-id="${fieldId}" value="1" min="1" placeholder="Qty">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">Unit Price (₱)</label>
+                    <input type="number" step="0.01" class="medication-price w-full border px-2 py-2 rounded text-sm" data-field-id="${fieldId}" value="0" min="0" placeholder="Price per unit">
+                    <p class="text-xs text-gray-400 mt-1">Auto-filled from inventory or enter manually</p>
                 </div>
             </div>
             
@@ -2247,6 +2260,8 @@ function setupProductSearch(fieldId) {
     const suggestionsDiv = document.querySelector(`.product-suggestions[data-field-id="${fieldId}"]`);
     const productIdInput = document.querySelector(`.selected-product-id[data-field-id="${fieldId}"]`);
     const productNameInput = document.querySelector(`.selected-product-name[data-field-id="${fieldId}"]`);
+    const productPriceInput = document.querySelector(`.selected-product-price[data-field-id="${fieldId}"]`);
+    const priceInput = document.querySelector(`.medication-price[data-field-id="${fieldId}"]`);
     const displayDiv = document.querySelector(`.selected-product-display[data-field-id="${fieldId}"]`);
     
     let searchTimeout;
@@ -2259,6 +2274,7 @@ function setupProductSearch(fieldId) {
         }
         
         productNameInput.value = query;
+        productPriceInput.value = '0';
         if (query) {
             displayDiv.innerHTML = `<span class="text-blue-700 font-medium">Manual Entry: ${query}</span>`;
             displayDiv.classList.remove('bg-gray-100');
@@ -2289,12 +2305,15 @@ function setupProductSearch(fieldId) {
                 .then(response => response.json())
                 .then(products => {
                     if (products.length > 0) {
-                        suggestionsDiv.innerHTML = products.map(product => `
-                            <div class="product-suggestion-item" data-product-id="${product.id}" data-product-name="${product.name}">
+                        suggestionsDiv.innerHTML = products.map(product => {
+                            const stockClass = product.stocks > 0 ? 'text-green-600' : 'text-red-500';
+                            const stockText = product.stocks > 0 ? `In Stock: ${product.stocks}` : 'Out of Stock';
+                            return `
+                            <div class="product-suggestion-item" data-product-id="${product.id}" data-product-name="${product.name}" data-product-price="${product.price || 0}">
                                 <div class="font-medium">${product.name}</div>
-                                <div class="text-xs text-gray-500">₱${parseFloat(product.price || 0).toFixed(2)} - ${product.type || 'Product'}</div>
+                                <div class="text-xs ${stockClass}">${stockText} - ₱${parseFloat(product.price || 0).toFixed(2)}</div>
                             </div>
-                        `).join('');
+                        `}).join('');
                         
                         suggestionsDiv.classList.remove('hidden');
                         
@@ -2302,9 +2321,12 @@ function setupProductSearch(fieldId) {
                             item.addEventListener('click', function() {
                                 const productId = this.dataset.productId;
                                 const productName = this.dataset.productName;
+                                const productPrice = this.dataset.productPrice || 0;
                                 
                                 productIdInput.value = productId;
                                 productNameInput.value = productName;
+                                productPriceInput.value = productPrice;
+                                priceInput.value = parseFloat(productPrice).toFixed(2);
                                 displayDiv.innerHTML = `<span class="text-green-700 font-medium">Selected: ${productName}</span>`;
                                 displayDiv.classList.remove('bg-gray-100', 'bg-blue-100');
                                 displayDiv.classList.add('bg-green-100');
@@ -2314,7 +2336,7 @@ function setupProductSearch(fieldId) {
                             });
                         });
                     } else {
-                        suggestionsDiv.innerHTML = '<div class="product-suggestion-item text-gray-500">No products found in database. You can still type manually above.</div>';
+                        suggestionsDiv.innerHTML = '<div class="product-suggestion-item text-gray-500"><i class="fas fa-info-circle mr-1"></i>No prescription products found. You can still type manually above and set the price.</div>';
                         suggestionsDiv.classList.remove('hidden');
                     }
                 })
@@ -2346,16 +2368,23 @@ document.getElementById('prescriptionForm').addEventListener('submit', async fun
         const searchInput = field.querySelector(`input[data-field-id="${fieldId}"].product-search`);
         const productIdInput = field.querySelector(`.selected-product-id[data-field-id="${fieldId}"]`);
         const instructionsTextarea = field.querySelector(`.medication-instructions[data-field-id="${fieldId}"]`);
+        const quantityInput = field.querySelector(`.medication-quantity[data-field-id="${fieldId}"]`);
+        const priceInput = field.querySelector(`.medication-price[data-field-id="${fieldId}"]`);
         
         const productName = searchInput ? searchInput.value.trim() : '';
         const instructions = instructionsTextarea ? instructionsTextarea.value.trim() : '';
         const productId = productIdInput ? productIdInput.value : null;
+        const quantity = quantityInput ? parseInt(quantityInput.value) || 1 : 1;
+        const unitPrice = priceInput ? parseFloat(priceInput.value) || 0 : 0;
         
         if (productName && instructions) {
             medications.push({
                 product_id: productId || null,
                 product_name: productName,
-                instructions: instructions
+                instructions: instructions,
+                quantity: quantity,
+                unit_price: unitPrice,
+                price: unitPrice * quantity
             });
         } else if (productName || instructions) {
             // If only one field is filled, show error

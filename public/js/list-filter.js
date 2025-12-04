@@ -204,9 +204,9 @@ class ListFilter {
         // Show only visible rows and update row numbers
         visibleRows.forEach((row, index) => {
             row.style.display = '';
-            // Update row number in first cell if it contains a number
+            // Update row number in first cell (# column)
             const firstCell = row.cells[0];
-            if (firstCell && /^\d+$/.test(firstCell.textContent.trim())) {
+            if (firstCell && firstCell.textContent.trim().match(/^\d+$/)) {
                 firstCell.textContent = startIndex + index + 1;
             }
         });

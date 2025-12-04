@@ -281,17 +281,15 @@
                         @endforeach
                     </select>
                     <span class="whitespace-nowrap">entries</span>
-                </form>
-                <div class="flex items-center gap-2 flex-wrap">
-                     <select id="visitsStatus" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                    <select id="visitsStatus" class="border border-gray-400 rounded px-2 py-1 text-sm ml-2">
                         <option value="All">All Status</option>
                         <option value="Arrived">Arrived</option>
                         <option value="Billed">Billed</option>
                         <option value="Pending">Pending</option>
                         <option value="Complete">Complete</option>
                         <option value="Completed">Completed</option>
-                        </select>
-                    </div>
+                    </select>
+                </form>
                 <div class="flex items-center gap-2 flex-wrap">
                     <div class="relative">
                         <input type="search" id="visitsSearch" placeholder="Search visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
@@ -386,6 +384,9 @@
                                 </td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        <button type="button" onclick="openViewVisitModal({{ $visit->visit_id }})" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
                                         @if(auth()->check() && in_array(auth()->user()->user_role, ['veterinarian']) && !in_array(auth()->user()->user_role, ['super_admin']))
                                         <a href="{{ route('medical.visits.perform', ['id' => $visit->visit_id]) }}" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
@@ -395,11 +396,14 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            // Check if prescription exists for this visit's pet on the same date
-                                            $visitPrescription = $visit->pet_id ? \App\Models\Prescription::where('pet_id', $visit->pet_id)
-                                            ->where('pres_visit_id', $visit->visit_id)
-                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($visit->visit_date))
-                                                ->first() : null;
+                                            // Check if prescription exists for this visit - use pres_visit_id as primary link
+                                            $visitPrescription = \App\Models\Prescription::where('pres_visit_id', $visit->visit_id)->first();
+                                            // Fallback: check by pet_id and date if no visit_id link
+                                            if (!$visitPrescription && $visit->pet_id) {
+                                                $visitPrescription = \App\Models\Prescription::where('pet_id', $visit->pet_id)
+                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($visit->visit_date))
+                                                    ->first();
+                                            }
                                         @endphp
                                         @if($visitPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -467,9 +471,7 @@
                         @endforeach
                     </select>
                     <span class="whitespace-nowrap">entries</span>
-                </form>
-                <div class="flex items-center gap-2 flex-wrap">
-                    <select id="checkupStatus" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                    <select id="checkupStatus" class="border border-gray-400 rounded px-2 py-1 text-sm ml-2">
                         <option value="All">All Status</option>
                         <option value="Arrived">Arrived</option>
                         <option value="Billed">Billed</option>
@@ -477,7 +479,7 @@
                         <option value="Complete">Complete</option>
                         <option value="Completed">Completed</option>
                     </select>
-                    </div>
+                </form>
                 <div class="flex items-center gap-2 flex-wrap">
                     <div class="relative">
                         <input type="search" id="checkupSearch" placeholder="Search check-up visits..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
@@ -524,6 +526,9 @@
                                 <td class="border px-4 py-2">{{ $c->workflow_status ?? ($c->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        <button type="button" onclick="openViewVisitModal({{ $c->visit_id }}, 'check-up')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
                                         <a href="{{ route('medical.visits.perform', ['id' => $c->visit_id]) }}?type=check-up" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
@@ -531,10 +536,13 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $checkupPrescription = $c->pet_id ? \App\Models\Prescription::where('pet_id', $c->pet_id)
-                                            ->where('pres_visit_id', $c->visit_id)
-                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($c->visit_date))
-                                                ->first() : null;
+                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            $checkupPrescription = \App\Models\Prescription::where('pres_visit_id', $c->visit_id)->first();
+                                            if (!$checkupPrescription && $c->pet_id) {
+                                                $checkupPrescription = \App\Models\Prescription::where('pet_id', $c->pet_id)
+                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($c->visit_date))
+                                                    ->first();
+                                            }
                                         @endphp
                                         @if($checkupPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -663,6 +671,9 @@
                                 <td class="border px-4 py-2">{{ $d->workflow_status ?? ($d->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        <button type="button" onclick="openViewVisitModal({{ $d->visit_id }}, 'deworming')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
                                         <a href="{{ route('medical.visits.perform', ['id' => $d->visit_id]) }}?type=deworming" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
@@ -670,10 +681,13 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $dewormPrescription = $d->pet_id ? \App\Models\Prescription::where('pet_id', $d->pet_id)
-                                            ->where('pres_visit_id', $d->visit_id)
-                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($d->visit_date))
-                                                ->first() : null;
+                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            $dewormPrescription = \App\Models\Prescription::where('pres_visit_id', $d->visit_id)->first();
+                                            if (!$dewormPrescription && $d->pet_id) {
+                                                $dewormPrescription = \App\Models\Prescription::where('pet_id', $d->pet_id)
+                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($d->visit_date))
+                                                    ->first();
+                                            }
                                         @endphp
                                         @if($dewormPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -802,6 +816,9 @@
                                 <td class="border px-4 py-2">{{ $d->workflow_status ?? ($d->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        <button type="button" onclick="openViewVisitModal({{ $d->visit_id }}, 'diagnostics')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
                                         <a href="{{ route('medical.visits.perform', ['id' => $d->visit_id]) }}?type=diagnostic" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
@@ -809,10 +826,13 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $diagPrescription = $d->pet_id ? \App\Models\Prescription::where('pet_id', $d->pet_id)
-                                            ->where('pres_visit_id', $d->visit_id)
-                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($d->visit_date))
-                                                ->first() : null;
+                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            $diagPrescription = \App\Models\Prescription::where('pres_visit_id', $d->visit_id)->first();
+                                            if (!$diagPrescription && $d->pet_id) {
+                                                $diagPrescription = \App\Models\Prescription::where('pet_id', $d->pet_id)
+                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($d->visit_date))
+                                                    ->first();
+                                            }
                                         @endphp
                                         @if($diagPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -941,6 +961,9 @@
                                 <td class="border px-4 py-2">{{ $s->workflow_status ?? ($s->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        <button type="button" onclick="openViewVisitModal({{ $s->visit_id }}, 'surgical')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
                                         <a href="{{ route('medical.visits.perform', ['id' => $s->visit_id]) }}?type=surgical" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
@@ -948,10 +971,13 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $surgPrescription = $s->pet_id ? \App\Models\Prescription::where('pet_id', $s->pet_id)
-                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($s->visit_date))
-                                                ->where('pres_visit_id', $s->visit_id)
-                                                ->first() : null;
+                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            $surgPrescription = \App\Models\Prescription::where('pres_visit_id', $s->visit_id)->first();
+                                            if (!$surgPrescription && $s->pet_id) {
+                                                $surgPrescription = \App\Models\Prescription::where('pet_id', $s->pet_id)
+                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($s->visit_date))
+                                                    ->first();
+                                            }
                                         @endphp
                                         @if($surgPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -1080,6 +1106,9 @@
                                 <td class="border px-4 py-2">{{ $e->workflow_status ?? ($e->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        <button type="button" onclick="openViewVisitModal({{ $e->visit_id }}, 'emergency')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
                                         <a href="{{ route('medical.visits.perform', ['id' => $e->visit_id]) }}?type=emergency" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
@@ -1087,10 +1116,13 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $emergPrescription = $e->pet_id ? \App\Models\Prescription::where('pet_id', $e->pet_id)
-                                                ->where('pres_visit_id', $e->visit_id)
-                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($e->visit_date))
-                                                ->first() : null;
+                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            $emergPrescription = \App\Models\Prescription::where('pres_visit_id', $e->visit_id)->first();
+                                            if (!$emergPrescription && $e->pet_id) {
+                                                $emergPrescription = \App\Models\Prescription::where('pet_id', $e->pet_id)
+                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($e->visit_date))
+                                                    ->first();
+                                            }
                                         @endphp
                                         @if($emergPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -1219,6 +1251,9 @@
                                 <td class="border px-4 py-2">{{ $v->workflow_status ?? ($v->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        <button type="button" onclick="openViewVisitModal({{ $v->visit_id }}, 'vaccination')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
                                         <a href="{{ route('medical.visits.perform', ['id' => $v->visit_id]) }}?type=vaccination" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
@@ -1226,10 +1261,13 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $vaccPrescription = $v->pet_id ? \App\Models\Prescription::where('pet_id', $v->pet_id)
-                                                ->where('pres_visit_id', $v->visit_id)
-                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($v->visit_date))
-                                                ->first() : null;
+                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            $vaccPrescription = \App\Models\Prescription::where('pres_visit_id', $v->visit_id)->first();
+                                            if (!$vaccPrescription && $v->pet_id) {
+                                                $vaccPrescription = \App\Models\Prescription::where('pet_id', $v->pet_id)
+                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($v->visit_date))
+                                                    ->first();
+                                            }
                                         @endphp
                                         @if($vaccPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -1358,6 +1396,9 @@
                                 <td class="border px-4 py-2">{{ $g->workflow_status ?? ($g->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        <button type="button" onclick="openViewVisitModal({{ $g->visit_id }}, 'grooming')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
                                         <a href="{{ route('medical.visits.perform', ['id' => $g->visit_id]) }}?type=grooming" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
@@ -1365,10 +1406,13 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $groomPrescription = $g->pet_id ? \App\Models\Prescription::where('pet_id', $g->pet_id)
-                                                ->where('pres_visit_id', $g->visit_id)
-                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($g->visit_date))
-                                                ->first() : null;
+                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            $groomPrescription = \App\Models\Prescription::where('pres_visit_id', $g->visit_id)->first();
+                                            if (!$groomPrescription && $g->pet_id) {
+                                                $groomPrescription = \App\Models\Prescription::where('pet_id', $g->pet_id)
+                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($g->visit_date))
+                                                    ->first();
+                                            }
                                         @endphp
                                         @if($groomPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -1513,6 +1557,9 @@
                                 </td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        <button type="button" onclick="openViewVisitModal({{ $b->visit_id }}, 'boarding')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
                                         <a href="{{ route('medical.visits.perform', ['id' => $b->visit_id]) }}?type=boarding" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
@@ -1520,10 +1567,13 @@
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
                                         @php
-                                            $boardPrescription = $b->pet_id ? \App\Models\Prescription::where('pet_id', $b->pet_id)
-                                                ->where('pres_visit_id', $b->visit_id)
-                                                ->whereDate('prescription_date', \Carbon\Carbon::parse($b->visit_date))
-                                                ->first() : null;
+                                            // Check if prescription exists - use pres_visit_id as primary link
+                                            $boardPrescription = \App\Models\Prescription::where('pres_visit_id', $b->visit_id)->first();
+                                            if (!$boardPrescription && $b->pet_id) {
+                                                $boardPrescription = \App\Models\Prescription::where('pet_id', $b->pet_id)
+                                                    ->whereDate('prescription_date', \Carbon\Carbon::parse($b->visit_date))
+                                                    ->first();
+                                            }
                                         @endphp
                                         @if($boardPrescription)
                                         <button onclick="directPrintPrescription(this)" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 text-xs"
@@ -1806,13 +1856,19 @@
                     </div>
                     
                     <div class="border-t pt-4 mt-4">
-                        <label class="block text-sm font-medium mb-2">Services</label>
-                        <div class="space-y-2 mb-3" id="edit_services_list">
-                            <!-- Services will be populated here -->
+                        <label class="block text-sm font-medium mb-2">Service Type(s)</label>
+                        <div class="grid grid-cols-4 gap-3" id="edit_services_list" data-service-group="edit">
+                            @php
+                                $editServiceTypes = ['boarding', 'check-up', 'deworming', 'diagnostics', 'emergency', 'grooming', 'surgical', 'vaccination'];
+                            @endphp
+                            @foreach($editServiceTypes as $type)
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="service_type[]" value="{{ $type }}" class="edit-service-checkbox mr-1">
+                                    <span>{{ ucfirst($type) }}</span>
+                                </label>
+                            @endforeach
                         </div>
-                        <button type="button" onclick="addServiceToEdit()" class="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600">
-                            <i class="fas fa-plus mr-1"></i> Add Service Type
-                        </button>
+                        <p class="text-xs text-gray-400 mt-1">Select one or more services for this visit. Some services cannot be paired together.</p>
                     </div>
                     
                     <div class="flex justify-end gap-2 pt-2">
@@ -1820,6 +1876,29 @@
                         <button type="submit" class="px-4 py-2 bg-[#0f7ea0] text-white rounded">Update</button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        {{-- View Visit Details Modal --}}
+        <div id="viewVisitModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50 overflow-y-auto">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl p-6 my-8 mx-auto max-h-[90vh] flex flex-col">
+                <div class="flex justify-between items-center mb-4 flex-shrink-0 border-b pb-3">
+                    <h3 class="text-xl font-bold text-gray-800" id="viewVisitTitle">
+                        <i class="fas fa-clipboard-list mr-2 text-[#0f7ea0]"></i>Visit Details
+                    </h3>
+                    <button onclick="closeViewVisitModal()" class="text-gray-500 hover:text-gray-700 text-xl"><i class="fas fa-times"></i></button>
+                </div>
+                
+                <div id="viewVisitContent" class="overflow-y-auto flex-grow">
+                    <div class="text-center py-8">
+                        <i class="fas fa-spinner fa-spin text-3xl text-gray-400"></i>
+                        <p class="mt-2 text-gray-500">Loading visit details...</p>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end gap-2 pt-4 border-t mt-4 flex-shrink-0">
+                    <button type="button" onclick="closeViewVisitModal()" class="px-4 py-2 border rounded hover:bg-gray-100">Close</button>
+                </div>
             </div>
         </div>
 
@@ -2031,7 +2110,9 @@ function openEditVisitModal(visitId, attending) {
         // Load service types
         const servicesList = document.getElementById('edit_services_list');
         if (servicesList) {
-            servicesList.innerHTML = '';
+            // Initialize checkbox listeners
+            initEditServiceCheckboxes();
+            
             if (v.services && v.services.length > 0) {
                 // Get unique service types from services
                 const serviceTypesSet = new Set();
@@ -2041,10 +2122,11 @@ function openEditVisitModal(visitId, attending) {
                         serviceTypesSet.add(serviceType);
                     }
                 });
-                // Add a row for each unique service type
-                serviceTypesSet.forEach(serviceType => {
-                    addServiceToEditRow(serviceType);
-                });
+                // Set checkboxes for the service types
+                setEditServiceCheckboxes(Array.from(serviceTypesSet));
+            } else {
+                // Reset all checkboxes if no services
+                setEditServiceCheckboxes([]);
             }
         }
 
@@ -2066,56 +2148,302 @@ function closeEditVisitModal() {
     modal.classList.remove('flex');
 }
 
+// ===== View Visit Details Functions =====
+function openViewVisitModal(visitId, serviceType = null) {
+    const modal = document.getElementById('viewVisitModal');
+    const content = document.getElementById('viewVisitContent');
+    const title = document.getElementById('viewVisitTitle');
+    
+    if (!modal || !content) return;
+    
+    // Show loading state
+    content.innerHTML = `
+        <div class="text-center py-8">
+            <i class="fas fa-spinner fa-spin text-3xl text-gray-400"></i>
+            <p class="mt-2 text-gray-500">Loading visit details...</p>
+        </div>
+    `;
+    
+    // Update title based on service type
+    if (title) {
+        const typeLabel = serviceType ? capitalizeFirstLetter(serviceType) : 'Visit';
+        title.innerHTML = `<i class="fas fa-clipboard-list mr-2 text-[#0f7ea0]"></i>${typeLabel} Details`;
+    }
+    
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    
+    // Fetch visit details
+    fetch(`/medical-management/visits/${visitId}`, {
+        headers: { 'Accept': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(v => {
+        renderVisitDetails(v, serviceType);
+    })
+    .catch(err => {
+        console.error('Error loading visit:', err);
+        content.innerHTML = `
+            <div class="text-center py-8 text-red-500">
+                <i class="fas fa-exclamation-circle text-3xl"></i>
+                <p class="mt-2">Failed to load visit details.</p>
+            </div>
+        `;
+    });
+}
+
+function renderVisitDetails(v, serviceType) {
+    const content = document.getElementById('viewVisitContent');
+    if (!content) return;
+    
+    // Format date
+    const visitDate = v.visit_date ? new Date(v.visit_date).toLocaleDateString('en-US', { 
+        year: 'numeric', month: 'long', day: 'numeric' 
+    }) : 'N/A';
+    
+    // Get services list
+    let servicesHtml = '-';
+    if (v.services && v.services.length > 0) {
+        const serviceTypes = [...new Set(v.services.map(s => s.serv_type || s.serv_name))];
+        servicesHtml = serviceTypes.map(t => `<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-1 mb-1">${capitalizeFirstLetter(t)}</span>`).join('');
+    }
+    
+    // Get status badge color
+    const status = v.visit_status || 'pending';
+    let statusClass = 'bg-gray-100 text-gray-700';
+    if (['complete', 'completed', 'arrive', 'arrived'].includes(status.toLowerCase())) {
+        statusClass = 'bg-green-100 text-green-700';
+    } else if (status.toLowerCase() === 'pending') {
+        statusClass = 'bg-yellow-100 text-yellow-700';
+    } else if (status.toLowerCase() === 'billed') {
+        statusClass = 'bg-blue-100 text-blue-700';
+    }
+    
+    // Patient type
+    const patientType = v.patient_type || 'Outpatient';
+    let patientTypeClass = 'bg-gray-100 text-gray-700';
+    if (patientType.toLowerCase() === 'emergency') {
+        patientTypeClass = 'bg-red-100 text-red-700';
+    } else if (patientType.toLowerCase() === 'inpatient') {
+        patientTypeClass = 'bg-purple-100 text-purple-700';
+    }
+    
+    content.innerHTML = `
+        <div class="space-y-6">
+            <!-- Pet & Owner Information -->
+            <div class="bg-gray-50 rounded-lg p-4">
+                <h4 class="font-semibold text-gray-700 mb-3 flex items-center">
+                    <i class="fas fa-paw mr-2 text-[#0f7ea0]"></i>Pet & Owner Information
+                </h4>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Pet Name</p>
+                        <p class="font-medium">${v.pet?.pet_name || 'N/A'}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Species</p>
+                        <p class="font-medium">${v.pet?.pet_species || 'N/A'}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Breed</p>
+                        <p class="font-medium">${v.pet?.pet_breed || 'N/A'}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Owner</p>
+                        <p class="font-medium">${v.pet?.owner?.own_name || 'N/A'}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Contact</p>
+                        <p class="font-medium">${v.pet?.owner?.own_contactnum || 'N/A'}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Email</p>
+                        <p class="font-medium">${v.pet?.owner?.own_email || 'N/A'}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Visit Information -->
+            <div class="bg-blue-50 rounded-lg p-4">
+                <h4 class="font-semibold text-gray-700 mb-3 flex items-center">
+                    <i class="fas fa-calendar-check mr-2 text-[#0f7ea0]"></i>Visit Information
+                </h4>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Visit Date</p>
+                        <p class="font-medium">${visitDate}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Patient Type</p>
+                        <p><span class="px-2 py-1 rounded text-xs ${patientTypeClass}">${capitalizeFirstLetter(patientType)}</span></p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Status</p>
+                        <p><span class="px-2 py-1 rounded text-xs ${statusClass}">${capitalizeFirstLetter(status)}</span></p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Weight</p>
+                        <p class="font-medium">${v.weight ? parseFloat(v.weight).toFixed(2) + ' kg' : 'N/A'}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Temperature</p>
+                        <p class="font-medium">${v.temperature ? parseFloat(v.temperature).toFixed(1) + ' °C' : 'N/A'}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Visit Source</p>
+                        <p class="font-medium">${capitalizeFirstLetter(v.visit_source || 'Walk-in')}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Service Types -->
+            <div class="bg-green-50 rounded-lg p-4">
+                <h4 class="font-semibold text-gray-700 mb-3 flex items-center">
+                    <i class="fas fa-stethoscope mr-2 text-[#0f7ea0]"></i>Service Type(s)
+                </h4>
+                <div>${servicesHtml}</div>
+            </div>
+            
+            ${v.patient_type?.toLowerCase() === 'inpatient' ? `
+            <!-- Inpatient Information -->
+            <div class="bg-purple-50 rounded-lg p-4">
+                <h4 class="font-semibold text-gray-700 mb-3 flex items-center">
+                    <i class="fas fa-procedures mr-2 text-purple-600"></i>Inpatient Information
+                </h4>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Admission Date</p>
+                        <p class="font-medium">${v.admission_date ? new Date(v.admission_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Discharge Date</p>
+                        <p class="font-medium">${v.discharge_date ? new Date(v.discharge_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Not yet discharged'}</p>
+                    </div>
+                    <div class="col-span-2">
+                        <p class="text-xs text-gray-500 uppercase">Reason for Admission</p>
+                        <p class="font-medium">${v.admission_reason || 'N/A'}</p>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
+            
+            ${v.notes || v.visit_notes ? `
+            <!-- Notes -->
+            <div class="bg-yellow-50 rounded-lg p-4">
+                <h4 class="font-semibold text-gray-700 mb-3 flex items-center">
+                    <i class="fas fa-sticky-note mr-2 text-yellow-600"></i>Notes
+                </h4>
+                <p class="text-gray-700 whitespace-pre-wrap">${v.notes || v.visit_notes || 'No notes available.'}</p>
+            </div>
+            ` : ''}
+            
+            <!-- Visit ID -->
+            <div class="text-right text-xs text-gray-400">
+                Visit ID: #${v.visit_id}
+            </div>
+        </div>
+    `;
+}
+
+function closeViewVisitModal() {
+    const modal = document.getElementById('viewVisitModal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
 // Service management functions for edit visit
-let editServiceCounter = 0;
+// 🛑 SERVICE PAIRING RULES for Edit (same as Add)
+const editServicePairingRules = {
+    'surgical': ['grooming', 'vaccination', 'deworming', 'boarding'],
+    'emergency': ['check-up', 'grooming', 'vaccination', 'deworming', 'surgical', 'boarding'],
+    'vaccination': ['surgical', 'grooming'],
+    'boarding': ['surgical', 'emergency'],
+    'diagnostics': ['grooming', 'deworming'],
+    'deworming': ['vaccination'],
+};
 
-function addServiceToEdit() {
+function updateEditServicePairing() {
     const servicesList = document.getElementById('edit_services_list');
     if (!servicesList) return;
     
-    const serviceTypes = ['boarding', 'check-up', 'deworming', 'diagnostics', 'emergency', 'grooming', 'surgical', 'vaccination'];
-    
-    const rowId = `edit_service_row_${editServiceCounter++}`;
-    const row = document.createElement('div');
-    row.id = rowId;
-    row.className = 'flex gap-2 items-center';
-    row.innerHTML = `
-        <select name="service_type[]" class="border border-gray-300 rounded px-3 py-2 flex-1" required>
-            <option value="">Select Service Type</option>
-            ${serviceTypes.map(type => `<option value="${type}">${capitalizeFirstLetter(type)}</option>`).join('')}
-        </select>
-        <button type="button" onclick="removeEditServiceRow('${rowId}')" class="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600">
-            <i class="fas fa-trash"></i>
-        </button>
-    `;
-    servicesList.appendChild(row);
+    const checkboxes = servicesList.querySelectorAll('input[type="checkbox"]');
+    const selectedServices = Array.from(checkboxes)
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
+
+    checkboxes.forEach(cb => {
+        const service = cb.value;
+        let shouldBeDisabled = false;
+
+        // Check if any *selected* service makes the *current* service incompatible
+        for (const selected of selectedServices) {
+            if (selected in editServicePairingRules && editServicePairingRules[selected].includes(service)) {
+                shouldBeDisabled = true;
+                break;
+            }
+            if (service !== selected && service in editServicePairingRules && editServicePairingRules[service].includes(selected)) {
+                if (!cb.checked) {
+                    shouldBeDisabled = true;
+                    break;
+                }
+            }
+        }
+
+        if (!cb.checked) {
+            if (shouldBeDisabled) {
+                cb.disabled = true;
+                cb.title = `Cannot be paired with selected services: ${selectedServices.join(', ')}`;
+                cb.parentElement.classList.add('opacity-50');
+            } else {
+                cb.disabled = false;
+                cb.title = '';
+                cb.parentElement.classList.remove('opacity-50');
+            }
+        } else {
+            cb.disabled = false;
+            cb.title = '';
+            cb.parentElement.classList.remove('opacity-50');
+        }
+    });
 }
 
-function addServiceToEditRow(serviceType) {
+function setEditServiceCheckboxes(serviceTypes) {
     const servicesList = document.getElementById('edit_services_list');
     if (!servicesList) return;
     
-    const serviceTypes = ['boarding', 'check up', 'deworming', 'diagnostics', 'emergency', 'grooming', 'surgical', 'vaccination'];
+    // Reset all checkboxes
+    const checkboxes = servicesList.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        cb.checked = false;
+        cb.disabled = false;
+        cb.title = '';
+        cb.parentElement.classList.remove('opacity-50');
+    });
     
-    const rowId = `edit_service_row_${editServiceCounter++}`;
-    const row = document.createElement('div');
-    row.id = rowId;
-    row.className = 'flex gap-2 items-center';
-    row.innerHTML = `
-        <select name="service_type[]" class="border border-gray-300 rounded px-3 py-2 flex-1" required>
-            <option value="">Select Service Type</option>
-            ${serviceTypes.map(type => `<option value="${type}" ${type === serviceType ? 'selected' : ''}>${capitalizeFirstLetter(type)}</option>`).join('')}
-        </select>
-        <button type="button" onclick="removeEditServiceRow('${rowId}')" class="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600">
-            <i class="fas fa-trash"></i>
-        </button>
-    `;
-    servicesList.appendChild(row);
+    // Normalize and check the matching service types
+    const normalizedTypes = serviceTypes.map(t => t.toLowerCase().trim().replace(/\s+/g, '-'));
+    checkboxes.forEach(cb => {
+        const cbValue = cb.value.toLowerCase().trim();
+        if (normalizedTypes.includes(cbValue) || normalizedTypes.includes(cbValue.replace('-', ' '))) {
+            cb.checked = true;
+        }
+    });
+    
+    // Apply pairing rules
+    updateEditServicePairing();
 }
 
-function removeEditServiceRow(rowId) {
-    const row = document.getElementById(rowId);
-    if (row) row.remove();
+// Initialize edit service checkbox listeners
+function initEditServiceCheckboxes() {
+    const servicesList = document.getElementById('edit_services_list');
+    if (!servicesList) return;
+    
+    const checkboxes = servicesList.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        cb.removeEventListener('change', updateEditServicePairing);
+        cb.addEventListener('change', updateEditServicePairing);
+    });
 }
 
 // Advance workflow status inline for service tabs
@@ -2258,7 +2586,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Fixed serv_type options (normalized to lowercase)
             const fixedTypes = ['boarding','check-up','deworming','diagnostics','emergency','grooming','surgical','vaccination'];
             const serviceCheckboxes = fixedTypes.map(type => `
-                <label class='inline-flex items-center mr-3 mb-1'>
+                <label class='inline-flex items-center'>
                     <input type="checkbox" name="service_type[${p.pet_id}][]" value="${type}" class="service-checkbox mr-1"> ${capitalizeFirstLetter(type)}
                 </label>
             `).join('');
@@ -2286,7 +2614,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="grid grid-cols-4 gap-3 mt-2 text-sm">
                             <div class="col-span-4">
                                 <label class="block text-xs text-gray-600">Service Type(s)</label>
-                                <div class="flex flex-wrap" data-service-group="${p.pet_id}">${serviceCheckboxes}</div>
+                                <div class="grid grid-cols-4 gap-2" data-service-group="${p.pet_id}">${serviceCheckboxes}</div>
                                 <p class="text-xs text-gray-400 mt-1">Select one or more services for this pet's visit.</p>
                             </div>
                         </div>

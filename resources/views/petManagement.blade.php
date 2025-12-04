@@ -239,19 +239,12 @@
                         @endforeach
                     </select>
                     <span class="whitespace-nowrap">entries</span>
-                </form>
-                <div class="flex items-center gap-2 flex-wrap">
-                    <select id="petsGender" class="border border-gray-400 rounded px-2 py-1 text-sm">
-                        <option value="All">All Genders</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                    </select>
-                    <select id="petsType" class="border border-gray-400 rounded px-2 py-1 text-sm">
+                    <select id="petsType" class="border border-gray-400 rounded px-2 py-1 text-sm ml-2">
                         <option value="All">All Types</option>
                         <option value="Dog">Dog</option>
                         <option value="Cat">Cat</option>
                     </select>
-                </div>
+                </form>
                 <div class="relative flex-1 min-w-[200px] max-w-xs">
                     <input type="search" id="petsSearch" placeholder="Search pets..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -590,7 +583,6 @@
             paginationContainerId: 'petsPagination',
             searchColumns: [3, 4, 5, 6, 9], // Pet Name, Type, Breed, Owner columns
             filterSelects: [
-                { selectId: 'petsGender', columnIndex: 4 }, // Gender column
                 { selectId: 'petsType', columnIndex: 5 }    // Type column
             ]
         });
