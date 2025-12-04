@@ -160,7 +160,7 @@
                             @endphp
                             
                             {{-- Main Owner Row --}}
-                            <tr class="hover:bg-gray-50 bg-white border-b-2 border-gray-300">
+                            <tr class="hover:bg-gray-50 bg-white border-b-2 border-gray-300" data-parent-row="{{ $index }}">
                                 <td class="px-2 py-2 border">
                                     <button onclick="togglePetDetails({{ $index }})" class="text-blue-600 hover:text-blue-800">
                                         <i id="icon-{{ $index }}" class="fas fa-chevron-right transition-transform"></i>
@@ -220,7 +220,7 @@
                             </tr>
                             
                             {{-- Expandable pet details row --}}
-                            <tr id="pets-{{ $index }}" class="hidden bg-gray-50">
+                            <tr id="pets-{{ $index }}" class="hidden bg-gray-50" data-detail-row="{{ $index }}">
                                 <td colspan="7" class="px-4 py-3">
                                     <div class="bg-white rounded-lg shadow-sm p-4">
                                         <h4 class="font-semibold text-gray-700 mb-3">Pet Details for {{ $owner->own_name ?? 'Unknown Owner' }}</h4>
@@ -1132,14 +1132,33 @@ document.addEventListener('click', function(event) {
 });
 
 // Toggle pet details for grouped billing
-function togglePetDetails(index) {
+window.togglePetDetails = function(index) {
     const row = document.getElementById('pets-' + index);
     const icon = document.getElementById('icon-' + index);
     
-    if (row && icon) {
-        row.classList.toggle('hidden');
-        icon.classList.toggle('fa-chevron-right');
-        icon.classList.toggle('fa-chevron-down');
+    if (!row) {
+        console.error('Could not find row with id: pets-' + index);
+        return;
+    }
+    
+    const isHidden = row.classList.contains('hidden') || row.style.display === 'none';
+    
+    if (isHidden) {
+        // Show the row
+        row.classList.remove('hidden');
+        row.style.display = 'table-row';
+        if (icon) {
+            icon.classList.remove('fa-chevron-right');
+            icon.classList.add('fa-chevron-down');
+        }
+    } else {
+        // Hide the row
+        row.classList.add('hidden');
+        row.style.display = 'none';
+        if (icon) {
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-right');
+        }
     }
 }
 
@@ -2195,16 +2214,12 @@ function filterBillingTable() {
     const searchQuery = searchInput ? searchInput.value.toLowerCase() : '';
     const statusValue = statusFilter ? statusFilter.value.toLowerCase() : '';
     
-    // Get all main owner rows and their detail rows
-    const allRows = tbody.querySelectorAll('tr');
+    // Get all parent rows (those with data-parent-row attribute)
+    const parentRows = tbody.querySelectorAll('tr[data-parent-row]');
     
-    allRows.forEach(tr => {
-        // Skip detail rows (pet-details-*) - they will follow their parent
-        if (tr.id && tr.id.startsWith('pet-details-')) {
-            return;
-        }
-        
+    parentRows.forEach(tr => {
         const text = tr.textContent.toLowerCase();
+        const rowIndex = tr.getAttribute('data-parent-row');
         
         // Check search match
         const searchMatch = !searchQuery || text.includes(searchQuery);
@@ -2222,18 +2237,21 @@ function filterBillingTable() {
         const shouldShow = searchMatch && statusMatch;
         tr.style.display = shouldShow ? '' : 'none';
         
-        // Also hide/show the corresponding pet details row
-        const rowIndex = tr.querySelector('button[onclick^="togglePetDetails"]');
-        if (rowIndex) {
-            const onclickAttr = rowIndex.getAttribute('onclick');
-            const match = onclickAttr.match(/togglePetDetails\((\d+)\)/);
-            if (match) {
-                const index = match[1];
-                const detailsRow = document.getElementById('pet-details-' + index);
-                if (detailsRow) {
-                    detailsRow.style.display = shouldShow ? '' : 'none';
+        // Handle the corresponding detail row
+        const detailRow = document.getElementById('pets-' + rowIndex);
+        if (detailRow) {
+            if (!shouldShow) {
+                // If parent is hidden, hide detail row too
+                detailRow.style.display = 'none';
+                detailRow.classList.add('hidden');
+                // Reset the icon
+                const icon = document.getElementById('icon-' + rowIndex);
+                if (icon) {
+                    icon.classList.remove('fa-chevron-down');
+                    icon.classList.add('fa-chevron-right');
                 }
             }
+            // If parent is shown, keep detail row in its current toggle state (don't force show)
         }
     });
 }
@@ -2317,17 +2335,24 @@ document.addEventListener('DOMContentLoaded', function(){
         sessionStorage.removeItem('activeTab'); // Clean up
     }
     
-    // Initialize ListFilter for billing table
-    new ListFilter({
-        tableSelector: '#billingTable',
-        searchInputId: 'billingSearch',
-        perPageSelectId: 'billingPerPage',
-        paginationContainerId: 'billingPagination',
-        searchColumns: [1, 2], // Owner, Pets columns
-        filterSelects: [
-            { selectId: 'billingStatus', columnIndex: 4 } // Status column
-        ]
-    });
+    // Custom billing table filtering that handles expandable rows
+    const billingTable = document.getElementById('billingTable');
+    const billingSearch = document.getElementById('billingSearch');
+    const billingPerPage = document.getElementById('billingPerPage');
+    const billingStatusFilter = document.getElementById('billingStatusFilter');
+    
+    if (billingTable && billingSearch) {
+        // Don't use ListFilter for billing table - handle it manually to support expandable rows
+        billingSearch.addEventListener('input', filterBillingTable);
+    }
+    
+    if (billingPerPage) {
+        // Prevent form submission
+        const form = billingPerPage.closest('form');
+        if (form) {
+            form.addEventListener('submit', (e) => e.preventDefault());
+        }
+    }
     
     // Initialize ListFilter for orders table if needed
     // Note: Orders search input needs to be added to the view first

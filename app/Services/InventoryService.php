@@ -51,7 +51,8 @@ class InventoryService
             $transaction = new InventoryTransaction();
             $transaction->prod_id = $productId;
             $transaction->transaction_type = $type;
-            $transaction->quantity_change = -1 * $quantity;
+            $quantityChange = -1 * $quantity;
+            $transaction->quantity_change = $quantityChange;
             $transaction->reference = $reference;
            // $transaction->transaction_date = now();
             $transaction->performed_by = Auth::id();
@@ -232,6 +233,7 @@ class InventoryService
                     }
                     
                     // Determine the actual amount to deduct (max is current stock)
+                    $oldStock = $product->prod_stocks;
                     $actualDeduction = min($product->prod_stocks, $quantityNeeded);
 
                     // Check if enough stock (for warning log)

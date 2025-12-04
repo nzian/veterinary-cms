@@ -99,9 +99,7 @@
                             @endforeach
                         </select>
                         <span class="whitespace-nowrap">entries</span>
-                    </div>
-                    <div class="flex-shrink-0 flex items-center space-x-2">
-                        <label for="productsType" class="whitespace-nowrap text-sm text-black">Filter</label>
+                        <label for="productsType" class="whitespace-nowrap text-sm text-black ml-2">Filter</label>
                         <select name="productsType" id="productsType"
                             class="border border-gray-400 rounded px-2 py-1.5 text-sm">
                             @foreach (['All', 'Sale', 'Consumable'] as $type)
@@ -283,18 +281,19 @@
                             @endforeach
                         </select>
                         <span class="whitespace-nowrap">entries</span>
+                        <label for="servicesCategoryFilter" class="whitespace-nowrap text-sm text-black ml-2">Filter</label>
+                        <select id="servicesCategoryFilter" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                            <option value="">All Categories</option>
+                            <option value="boarding">Boarding</option>
+                            <option value="check-up">Check-up</option>
+                            <option value="deworming">Deworming</option>
+                            <option value="diagnostics">Diagnostics</option>
+                            <option value="emergency">Emergency</option>
+                            <option value="grooming">Grooming</option>
+                            <option value="surgical">Surgical</option>
+                            <option value="vaccination">Vaccination</option>
+                        </select>
                     </div>
-                    <select id="servicesCategoryFilter" class="border border-gray-400 rounded px-2 py-1.5 text-sm">
-                        <option value="">All Categories</option>
-                        <option value="boarding">Boarding</option>
-                        <option value="check-up">Check-up</option>
-                        <option value="deworming">Deworming</option>
-                        <option value="diagnostics">Diagnostics</option>
-                        <option value="emergency">Emergency</option>
-                        <option value="grooming">Grooming</option>
-                        <option value="surgical">Surgical</option>
-                        <option value="vaccination">Vaccination</option>
-                    </select>
                     <div class="relative flex-1 min-w-[200px] max-w-xs">
                         <input type="search" id="servicesSearch" placeholder="Search services..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                         <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -404,6 +403,14 @@
                             @endforeach
                         </select>
                         <span class="whitespace-nowrap">entries</span>
+                        <label for="equipmentStatusFilter" class="whitespace-nowrap text-sm text-black ml-2">Filter</label>
+                        <select id="equipmentStatusFilter" class="border border-gray-400 rounded px-2 py-1.5 text-sm" onchange="filterEquipmentByStatus()">
+                            <option value="">All Status</option>
+                            <option value="available">Available</option>
+                            <option value="in_use">In Use</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="out_of_service">Out of Service</option>
+                        </select>
                     </div>
                     <div class="relative flex-1 min-w-[200px] max-w-xs">
                         <input type="search" id="equipmentSearch" placeholder="Search equipment..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">

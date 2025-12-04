@@ -147,7 +147,7 @@
                                 $ownerCanEdit = $ownerReferralInfo['can_edit'];
                             @endphp
                             <tr class="{{ $ownerReferralInfo['type'] === 'outgoing' ? 'bg-orange-50' : ($ownerReferralInfo['type'] === 'incoming' ? 'bg-purple-50' : '') }}">
-                                <td class="border px-2 py-2">{{ $owners->firstItem() + $index }}</td>
+                                <td class="border px-2 py-2">{{ $index + 1 }}</td>
                                 <td class="border px-2 py-2">
                                     <div class="flex flex-col items-center gap-1">
                                         <span>{{ $owner->own_name }}</span>
@@ -289,7 +289,7 @@
                                 $canEdit = $referralInfo['can_edit'];
                             @endphp
                             <tr class="hover:bg-gray-50 {{ $referralInfo['type'] === 'outgoing' ? 'bg-orange-50' : ($referralInfo['type'] === 'incoming' ? 'bg-purple-50' : '') }}">
-                                <td class="border px-2 py-2">{{ $pets->firstItem() + $index }}</td>
+                                <td class="border px-2 py-2">{{ $index + 1 }}</td>
                                 <td class="border px-2 py-2">
                                     @if($pet->pet_photo)
                                         <img src="{{ asset('storage/' . $pet->pet_photo) }}" alt="{{ $pet->pet_name }}" 
