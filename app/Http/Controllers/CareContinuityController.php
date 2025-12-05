@@ -51,14 +51,15 @@ class CareContinuityController extends Controller
             })
             ->where(function($q) {
                 // Exact generic follow-up types
-                $q->whereIn('appoint_type', ['Follow-up', 'Vaccination Follow-up', 'Deworming Follow-up', 'Post-Surgical Recheck'])
+                $q->whereIn('appoint_type', ['General Follow-up', 'Vaccination Follow-up', 'Deworming Follow-up', 'Post-Surgical Recheck'])
                   // Auto-scheduled detailed types like "Vaccination Follow-up for 5-in-1 (Dose 2)"
                   ->orWhere('appoint_type', 'like', 'Vaccination Follow-up%')
                   ->orWhere('appoint_type', 'like', 'Deworming Follow-up%')
                   ->orWhere('appoint_type', 'like', 'Post-Surgical Recheck%');
             })
-            ->orderBy('appoint_date', 'asc')
-            ->orderBy('appoint_time', 'asc')
+            ->orderBy('appoint_date', 'desc')
+            ->orderBy('appoint_time', 'desc')
+            ->orderBy('appoint_id', 'desc')
             ->get();
 
         // Prescriptions Query - Load all for client-side filtering
@@ -123,13 +124,27 @@ class CareContinuityController extends Controller
         $validated = $request->validate([
             'pet_id' => 'required|exists:tbl_pet,pet_id',
             'appoint_date' => 'required|date',
-            'appoint_time' => 'required',
-            'appoint_type' => 'required|in:Follow-up,Vaccination Follow-up,Deworming Follow-up,Post-Surgical Recheck',
+            'appoint_type' => 'required|in:General Follow-up,Vaccination Follow-up,Deworming Follow-up,Post-Surgical Recheck',
             'appoint_description' => 'nullable|string',
         ]);
 
+        // Set default time since we no longer validate it from frontend
+        $validated['appoint_time'] = '09:00:00';
         $validated['user_id'] = Auth::id();
         $validated['appoint_status'] = 'scheduled';
+
+        // Check for duplicate appointments (same pet, date, type, and active status)
+        $existingAppointment = Appointment::where('pet_id', $validated['pet_id'])
+            ->whereDate('appoint_date', Carbon::parse($validated['appoint_date'])->toDateString())
+            ->where('appoint_type', $validated['appoint_type'])
+            ->whereIn('appoint_status', ['scheduled', 'confirmed'])
+            ->first();
+        
+        if ($existingAppointment) {
+            $activeTab = $request->input('active_tab', 'appointments');
+            return redirect()->route('care-continuity.index', ['active_tab' => $activeTab])
+                ->with('warning', 'An appointment with the same type already exists for this pet on this date.');
+        }
 
         $appointment = Appointment::create($validated);
 
@@ -138,6 +153,15 @@ class CareContinuityController extends Controller
             $this->smsService->sendNewAppointmentSMS($appointment);
         } catch (\Exception $e) {
             Log::warning("Failed to send SMS for appointment {$appointment->appoint_id}: " . $e->getMessage());
+        }
+
+        // Return JSON response for inline success message
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Follow-up appointment created successfully',
+                'appointment' => $appointment->load(['pet.owner'])
+            ]);
         }
 
         $activeTab = $request->input('active_tab', 'appointments');

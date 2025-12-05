@@ -1074,6 +1074,12 @@
                         <p class="text-sm text-gray-600">
                             <i class="fas fa-user mr-2"></i><span id="enhancedPetOwner"></span>
                         </p>
+                        <p class="text-sm text-gray-600">
+                            <i class="fas fa-weight-hanging mr-2"></i><span id="enhancedPetWeight"></span>
+                        </p>
+                        <p class="text-sm text-gray-600">
+                            <i class="fas fa-thermometer-half mr-2"></i><span id="enhancedPetTemperature"></span>
+                        </p>
                     </div>
                 </div>
                 
@@ -1081,20 +1087,12 @@
                 <div>
                     <div class="grid grid-cols-2 gap-3">
                         <div class="bg-white p-3 rounded shadow">
-                            <div class="text-2xl font-bold text-blue-600" id="ownerStatsAnimals">0</div>
-                            <div class="text-sm text-gray-600">Pets</div>
-                        </div>
-                        <div class="bg-white p-3 rounded shadow">
-                            <div class="text-2xl font-bold text-green-600" id="ownerStatsAppointments">0</div>
-                            <div class="text-sm text-gray-600">Visits</div>
-                        </div>
-                        <div class="bg-white p-3 rounded shadow">
-                            <div class="text-2xl font-bold text-purple-600" id="ownerStatsPurchases">1</div>
-                            <div class="text-sm text-gray-600">Purchase</div>
+                            <div class="text-2xl font-bold text-green-600" id="petStatsVisits">0</div>
+                            <div class="text-sm text-gray-600">Total Visits</div>
                         </div>
                         <div class="bg-white p-3 rounded shadow">
                             <div class="text-sm text-gray-600">Last Visit</div>
-                            <div class="text-sm font-semibold text-gray-800" id="ownerStatsLastVisit">Never</div>
+                            <div class="text-sm font-semibold text-gray-800" id="petStatsLastVisit">Never</div>
                         </div>
                     </div>
                 </div>

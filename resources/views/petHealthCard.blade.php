@@ -373,17 +373,19 @@
                     <tr>
                         <td class="border border-gray-400 px-1">{{ \Carbon\Carbon::parse($record->visit_date)->format('M d, Y') }}</td>
                         
-                        {{-- Mapped to Product Description (from Diagnosis/product_description field) --}}
-                        <td class="border border-gray-400 px-1">{{ Str::limit($record->product_description, 30) }}</td>
+                        {{-- AGAINTS - Product Description (what the vaccine protects against) --}}
+                        <td class="border border-gray-400 px-1 text-xs">
+                            <p class="leading-tight">{{ Str::limit($record->againts_description ?? 'Vaccination administered', 35) }}</p>
+                        </td>
                         
-                        {{-- Mapped to Vaccine Name + Batch Number --}}
-                       <td class="border border-gray-400 px-1 text-xs">
-    <p class="font-semibold leading-tight">{{ $record->vaccine_name ?? 'N/A' }}</p>
-    @if(isset($record->manufacturer) && $record->manufacturer !== '--')
-        <p class="text-gray-600 leading-tight text-[10px]">Mfr: {{ $record->manufacturer }}</p>
-    @endif
-    <p class="text-gray-600 leading-tight">Batch: {{ $record->batch_number ?? '--' }}</p>
-</td>
+                        {{-- VACCINE NAME & BATCH # - Vaccine name, manufacturer, and batch number --}}
+                        <td class="border border-gray-400 px-1 text-xs">
+                            <p class="font-semibold leading-tight">{{ $record->vaccine_name ?? 'N/A' }}</p>
+                            @if(isset($record->manufacturer) && $record->manufacturer !== '--')
+                                <p class="text-gray-600 leading-tight text-[10px]">{{ $record->manufacturer }}</p>
+                            @endif
+                            <p class="text-gray-600 leading-tight text-[10px]">Batch: {{ $record->batch_number ?? '--' }}</p>
+                        </td>
                         
                         <td class="border border-gray-400 px-1 font-bold color-orange-main">
                             {{ $record->follow_up_date ? \Carbon\Carbon::parse($record->follow_up_date)->format('M d, Y') : 'N/A' }}

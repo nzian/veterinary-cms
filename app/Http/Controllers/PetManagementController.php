@@ -69,6 +69,7 @@ class PetManagementController extends Controller
             // Filter medical histories - model scope will automatically include referred pets' histories
             $medicalHistories = MedicalHistory::with('pet')
                 ->orderBy('id', 'desc')
+                ->orderBy('created_at', 'desc')
                 ->get();
 
             // Get all owners and pets (model scopes will include referred data)
@@ -240,7 +241,30 @@ class PetManagementController extends Controller
     public function getPetDetails($id)
 {
     try {
-        $pet = Pet::with(['owner'])->find($id);
+        // Get active branch ID using trait
+        $activeBranchId = $this->getActiveBranchId();
+        
+        // Get all user IDs from the active branch (for visit records query)
+        $branchUserIds = \App\Models\User::where('branch_id', $activeBranchId)
+            ->pluck('user_id')
+            ->toArray();
+            
+        // Use the same query logic as index method to find pets (including referred ones)
+        $pet = Pet::with(['owner'])
+            ->where('tbl_pet.pet_id', $id)
+            ->where(function($query) use ($branchUserIds, $activeBranchId) {
+                $query->whereIn('tbl_pet.user_id', $branchUserIds)
+                    ->orWhereExists(function($subQuery) use ($activeBranchId) {
+                        $subQuery->select(DB::raw(1))
+                            ->from('tbl_ref')
+                            ->whereColumn('tbl_ref.pet_id', 'tbl_pet.pet_id')
+                            ->where('tbl_ref.ref_to', $activeBranchId)
+                            ->where('tbl_ref.ref_type', 'interbranch')
+                            ->whereIn('tbl_ref.ref_status', ['pending', 'attended', 'completed']);
+                    });
+            })
+            ->first();
+            
         if (!$pet) {
             return response()->json(['error' => 'Pet not found'], 404);
         }
@@ -263,6 +287,7 @@ class PetManagementController extends Controller
         ])
         ->where('pet_id', $pet->pet_id)
         ->orderBy('visit_date', 'desc')
+        ->orderBy('visit_id', 'desc')
         ->limit(50)
         ->get();
 
@@ -974,15 +999,16 @@ class PetManagementController extends Controller
             // Lookup vet by ID first, then by name from administered_by field
             $vetUser = $veterinariansById->get($vetUserId) ?? $veterinariansByName->get($record->administered_by);
             
-            // Fetch product description based on vaccine name
+            // Fetch product details based on vaccine name
             $product = \App\Models\Product::where('prod_name', $record->vaccine_name)->first();
             $productDescription = optional($product)->prod_description ?? 'Vaccination administered';
+            $productManufacturer = optional($product)->prod_manufacturer ?? $record->manufacturer ?? '--';
             
             $vaccinations->push((object) [
                 'visit_date' => $record->date_administered ?? $record->created_at,
-                'product_description' => $productDescription,
+                'againts_description' => $productDescription, // What the vaccine protects against
                 'vaccine_name' => $record->vaccine_name ?? 'N/A',
-                'manufacturer' => $record->manufacturer ?? '--',
+                'manufacturer' => $productManufacturer,
                 'batch_number' => $record->batch_no ?? '--',
                 'follow_up_date' => $record->next_due_date,
                 'user_name' => $record->administered_by ?? optional($vetUser)->user_name ?? 'N/A',
@@ -1037,8 +1063,9 @@ class PetManagementController extends Controller
                     $vaccineProduct = $products->get($pivot->prod_id);
                     $vaccineProductName = optional($vaccineProduct)->prod_name ?? null;
 
-                    // Use product description from the actual product
+                    // Use product description from the actual product (what the vaccine protects against)
                     $productDescription = optional($vaccineProduct)->prod_description ?? 'Vaccination record';
+                    $productManufacturer = optional($vaccineProduct)->prod_manufacturer ?? '--';
 
                     // Check if this vaccination is already in the collection (avoid duplicates)
                     $exists = $vaccinations->contains(function($vacc) use ($appointment, $vaccineProductName) {
@@ -1049,8 +1076,9 @@ class PetManagementController extends Controller
                     if (!$exists) {
                         $vaccinations->push((object) [
                             'visit_date' => $appointment->appoint_date,
-                            'product_description' => $productDescription,
+                            'againts_description' => $productDescription, // What the vaccine protects against
                             'vaccine_name' => $vaccineProductName ?? 'Vaccine',
+                            'manufacturer' => $productManufacturer,
                             'batch_number' => $pivot->vacc_batch_no ?? '--',
                             'follow_up_date' => $pivot->vacc_next_dose,
                             'user_name' => optional($vetUser)->user_name ?? optional($appointment->user)->user_name ?? 'N/A',

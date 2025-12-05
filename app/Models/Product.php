@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\BranchDataScope;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 class Product extends Model
 {
     use HasFactory, BranchDataScope;
@@ -163,11 +164,20 @@ public function getBranchIdColumn()
     }
 
     /**
-     * Check if product should be disabled (expired or out of stock)
+     * Check if product should be disabled (expired, out of stock, or manually disabled)
      */
     public function getIsDisabledAttribute()
     {
-        return $this->is_out_of_stock || $this->all_expired;
+        // Check basic stock and expiry conditions
+        $basicDisabled = $this->is_out_of_stock || $this->all_expired;
+        
+        // If prod_status column exists, also check if it's not 'active'
+        if (Schema::hasColumn('tbl_prod', 'prod_status')) {
+            $statusDisabled = !empty($this->prod_status) && $this->prod_status !== 'active';
+            return $basicDisabled || $statusDisabled;
+        }
+        
+        return $basicDisabled;
     }
 
     /**

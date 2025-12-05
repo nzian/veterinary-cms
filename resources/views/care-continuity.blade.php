@@ -150,6 +150,11 @@
                     <input type="search" id="appointmentsSearch" placeholder="Search appointments..." class="border border-gray-300 rounded px-3 py-1.5 text-sm pl-8">
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
+                
+                <!-- Add Appointment Button
+                <button onclick="openModal('addAppointmentModal')" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium">
+                    <i class="fas fa-plus mr-1"></i> Add Appointment
+                </button>-->
             </div>
             <br>
 
@@ -650,25 +655,12 @@
                     <label class="block text-sm mb-1">Appointment Type</label>
                     <select id="edit_appoint_type" name="appoint_type" class="w-full border rounded px-3 py-2 text-sm">
                         <option value="Walk-in">Walk-in</option>
-                        <option value="Follow-up">Follow-up</option>
+                        <option value="General Follow-up">General Follow-up</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-sm mb-1">Appointment Date</label>
                     <input type="date" id="edit_appoint_date" name="appoint_date" class="w-full border rounded px-3 py-2 text-sm" />
-                </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                    <label class="block text-sm mb-1">Appointment Time</label>
-                    <select id="edit_appoint_time" name="appoint_time" class="w-full border rounded px-3 py-2 text-sm">
-                        @foreach ([
-                            '09:00 AM','10:00 AM','11:00 AM','01:00 PM','02:00 PM','03:00 PM','04:00 PM','05:00 PM'
-                        ] as $label)
-                            <option value="{{ date('H:i', strtotime($label)) }}">{{ $label }}</option>
-                        @endforeach
-                    </select>
                 </div>
             </div>
 
@@ -1077,12 +1069,6 @@
                     </div>
                     <div class="flex">
                         <span class="font-medium w-32 text-gray-600">
-                            <i class="fas fa-clock mr-1"></i>Time:
-                        </span>
-                        <span id="view_appoint_time" class="text-gray-800 font-medium">-</span>
-                    </div>
-                    <div class="flex">
-                        <span class="font-medium w-32 text-gray-600">
                             <i class="fas fa-tag mr-1"></i>Type:
                         </span>
                         <span id="view_appoint_type" class="text-gray-800 font-medium">-</span>
@@ -1121,35 +1107,6 @@
                         <span id="view_owner_contact_appt" class="text-gray-800 font-medium">-</span>
                     </div>
                 </div>
-            </div>
-        </div>
-        
-        <!-- Services -->
-        <div class="mb-6">
-            <h3 class="font-semibold text-gray-700 mb-3 flex items-center">
-                <i class="fas fa-briefcase-medical mr-2 text-purple-600"></i>
-                Services
-            </h3>
-            <div id="view_services" class="bg-purple-50 p-3 rounded-lg text-sm text-gray-700 border border-purple-200">-</div>
-        </div>
-        
-        <!-- Description -->
-        <div class="mb-6">
-            <h3 class="font-semibold text-gray-700 mb-3 flex items-center">
-                <i class="fas fa-file-alt mr-2 text-orange-600"></i>
-                Description
-            </h3>
-            <div id="view_description" class="bg-orange-50 p-3 rounded-lg text-sm text-gray-700 border border-orange-200">No description provided</div>
-        </div>
-        
-        <!-- History Timeline -->
-        <div>
-            <h3 class="font-semibold text-gray-700 mb-4 flex items-center">
-                <i class="fas fa-history mr-2 text-indigo-600"></i>
-                Change History Timeline
-            </h3>
-            <div id="appointment_history" class="space-y-3 bg-gray-50 p-4 rounded-lg">
-                <!-- History items will be inserted here -->
             </div>
         </div>
         
@@ -1818,10 +1775,8 @@ function openEditModal(appointment) {
     // Point to Care Continuity update route
     document.getElementById('editForm').action = `/care-continuity/appointments/${appointment.appoint_id}`;
     document.getElementById('edit_appoint_id').value = appointment.appoint_id ?? '';
-    // Only reschedule: date and time
+    // Only reschedule: date
     document.getElementById('edit_appoint_date').value = appointment.appoint_date ?? '';
-    const timeValue = formatTime24hr(appointment.appoint_time ?? '');
-    document.getElementById('edit_appoint_time').value = timeValue;
 
     const m = document.getElementById('editModal');
     m.classList.remove('hidden');
@@ -3088,7 +3043,6 @@ document.addEventListener('DOMContentLoaded', function() {
         appointmentForm.addEventListener('submit', function(e) {
             const petId = document.getElementById('pet_id').value;
             const appointDate = document.querySelector('input[name="appoint_date"]').value;
-            const appointTime = document.querySelector('select[name="appoint_time"]').value;
             const appointStatus = document.querySelector('select[name="appoint_status"]').value;
             
             if (!petId) {
@@ -3100,12 +3054,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!appointDate) {
                 e.preventDefault();
                 alert('Please select an appointment date');
-                return false;
-            }
-            
-            if (!appointTime) {
-                e.preventDefault();
-                alert('Please select an appointment time');
                 return false;
             }
             
@@ -3163,7 +3111,7 @@ function handleAjaxError(error, userMessage = 'An error occurred') {
 
 // Function to validate form data
 function validateAppointmentForm(formData) {
-    const required = ['pet_id', 'appoint_date', 'appoint_time', 'appoint_status', 'appoint_type'];
+    const required = ['pet_id', 'appoint_date', 'appoint_status', 'appoint_type'];
     const missing = required.filter(field => !formData.get(field));
     
     if (missing.length > 0) {
@@ -3350,12 +3298,6 @@ function viewAppointment(appointmentId) {
                 day: 'numeric' 
             });
         
-        document.getElementById('view_appoint_time').textContent = 
-            new Date('2000-01-01 ' + appt.appoint_time).toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-            });
-        
         document.getElementById('view_appoint_type').textContent = appt.appoint_type || '-';
         
         const statusBadge = `<span class="px-3 py-1 rounded-full text-xs font-medium ${
@@ -3373,220 +3315,12 @@ function viewAppointment(appointmentId) {
         document.getElementById('view_owner_name_appt').textContent = appt.pet?.owner?.own_name || 'N/A';
         document.getElementById('view_owner_contact_appt').textContent = appt.pet?.owner?.own_contactnum || 'N/A';
         
-        const servicesText = appt.services && appt.services.length > 0 
-            ? appt.services.map(s => s.serv_name).join(', ')
-            : 'No services assigned';
-        document.getElementById('view_services').textContent = servicesText;
-        
-        document.getElementById('view_description').textContent = appt.appoint_description || 'No description provided';
-        
-        populateAppointmentHistory(data.history || []);
-        
         document.getElementById('viewAppointmentModal').classList.remove('hidden');
     })
     .catch(error => {
         console.error('Full error:', error);
         alert('Error: ' + error.message);
     });
-}
-
-function populateAppointmentHistory(history) {
-    const container = document.getElementById('appointment_history');
-    
-    if (!history || history.length === 0) {
-        container.innerHTML = `
-            <div class="text-center text-gray-500 py-8">
-                <i class="fas fa-info-circle text-3xl mb-2"></i>
-                <p>No history available for this appointment</p>
-            </div>
-        `;
-        return;
-    }
-    
-    // Reverse to show newest first
-    const reversedHistory = [...history].reverse();
-    
-    container.innerHTML = reversedHistory.map((item, index) => {
-        const isLast = index === reversedHistory.length - 1;
-        const changeIcon = getChangeIcon(item.change_type);
-        const changeColor = getChangeColor(item.change_type);
-        
-        return `
-            <div class="relative ${isLast ? '' : 'pl-8 pb-6'}">
-                ${!isLast ? '<div class="absolute left-3 top-8 bottom-0 w-0.5 bg-gray-300"></div>' : ''}
-                <div class="flex items-start gap-3">
-                    <div class="flex-shrink-0 w-8 h-8 rounded-full ${changeColor} flex items-center justify-center text-white shadow-md">
-                        <i class="fas ${changeIcon} text-xs"></i>
-                    </div>
-                    <div class="flex-grow bg-white border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-                        <div class="flex justify-between items-start mb-2 flex-wrap gap-2">
-                            <span class="font-semibold text-sm ${changeColor.replace('bg-', 'text-').replace('-500', '-700')} flex items-center gap-2">
-                                ${formatChangeType(item.change_type)}
-                            </span>
-                            <span class="text-xs text-gray-500 flex items-center gap-1">
-                                <i class="fas fa-clock"></i>
-                                ${formatDateTime(item.changed_at)}
-                            </span>
-                        </div>
-                        ${formatChanges(item)}
-                        <div class="mt-3 pt-3 border-t text-xs text-gray-600 flex items-center gap-2">
-                            <i class="fas fa-user-circle"></i>
-                            <span>Changed by: <strong>${item.changed_by}</strong></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-function getChangeIcon(changeType) {
-    switch(changeType) {
-        case 'created': return 'fa-plus-circle';
-        case 'rescheduled': return 'fa-calendar-alt';
-        case 'status_changed': return 'fa-exchange-alt';
-        default: return 'fa-edit';
-    }
-}
-
-function getChangeColor(changeType) {
-    switch(changeType) {
-        case 'created': return 'bg-green-500';
-        case 'rescheduled': return 'bg-blue-500';
-        case 'status_changed': return 'bg-purple-500';
-        default: return 'bg-gray-500';
-    }
-}
-
-function formatChangeType(changeType) {
-    const types = {
-        'created': 'Appointment Created',
-        'rescheduled': 'Schedule Changed',
-        'status_changed': 'Status Updated',
-        'updated': 'Information Updated'
-    };
-    return types[changeType] || changeType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-}
-
-function formatDateTime(dateTimeString) {
-    if (!dateTimeString) return '-';
-    try {
-        return new Date(dateTimeString).toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    } catch (e) {
-        return dateTimeString;
-    }
-}
-
-function formatChanges(item) {
-    let html = '';
-    
-    if (item.old_data && Object.keys(item.old_data).length > 0) {
-        html += '<div class="space-y-2">';
-        
-        // Date change
-        if (item.old_data.date && item.new_data.date) {
-            html += `
-                <div class="flex items-center gap-2 text-sm bg-gray-50 p-2 rounded">
-                    <i class="fas fa-calendar text-gray-400"></i>
-                    <span class="text-red-600 line-through">${formatDate(item.old_data.date)}</span>
-                    <i class="fas fa-arrow-right text-gray-400"></i>
-                    <span class="text-green-600 font-medium">${formatDate(item.new_data.date)}</span>
-                </div>
-            `;
-        }
-        
-        // Time change
-        if (item.old_data.time && item.new_data.time) {
-            html += `
-                <div class="flex items-center gap-2 text-sm bg-gray-50 p-2 rounded">
-                    <i class="fas fa-clock text-gray-400"></i>
-                    <span class="text-red-600 line-through">${formatTime(item.old_data.time)}</span>
-                    <i class="fas fa-arrow-right text-gray-400"></i>
-                    <span class="text-green-600 font-medium">${formatTime(item.new_data.time)}</span>
-                </div>
-            `;
-        }
-        
-        // Status change
-        if (item.old_data.status && item.new_data.status) {
-            html += `
-                <div class="flex items-center gap-2 text-sm bg-gray-50 p-2 rounded">
-                    <i class="fas fa-flag text-gray-400"></i>
-                    <span class="text-red-600 line-through capitalize">${item.old_data.status}</span>
-                    <i class="fas fa-arrow-right text-gray-400"></i>
-                    <span class="text-green-600 font-medium capitalize">${item.new_data.status}</span>
-                </div>
-            `;
-        }
-        
-        // Type change
-        if (item.old_data.type && item.new_data.type) {
-            html += `
-                <div class="flex items-center gap-2 text-sm bg-gray-50 p-2 rounded">
-                    <i class="fas fa-tag text-gray-400"></i>
-                    <span class="text-red-600 line-through capitalize">${item.old_data.type}</span>
-                    <i class="fas fa-arrow-right text-gray-400"></i>
-                    <span class="text-green-600 font-medium capitalize">${item.new_data.type}</span>
-                </div>
-            `;
-        }
-        
-        html += '</div>';
-    } else if (item.new_data) {
-        // Initial creation
-        html += '<div class="text-sm text-gray-700 space-y-1 bg-green-50 p-3 rounded">';
-        html += '<div class="font-medium text-green-700 mb-2">Initial Appointment Details:</div>';
-        
-        if (item.new_data.date) {
-            html += `<div><i class="fas fa-calendar mr-2 text-gray-500"></i>Date: <strong>${formatDate(item.new_data.date)}</strong></div>`;
-        }
-        if (item.new_data.time) {
-            html += `<div><i class="fas fa-clock mr-2 text-gray-500"></i>Time: <strong>${formatTime(item.new_data.time)}</strong></div>`;
-        }
-        if (item.new_data.status) {
-            html += `<div><i class="fas fa-flag mr-2 text-gray-500"></i>Status: <strong class="capitalize">${item.new_data.status}</strong></div>`;
-        }
-        if (item.new_data.type) {
-            html += `<div><i class="fas fa-tag mr-2 text-gray-500"></i>Type: <strong class="capitalize">${item.new_data.type}</strong></div>`;
-        }
-        
-        html += '</div>';
-    } else {
-        html += `<div class="text-sm text-gray-600 italic">${item.notes || 'No details available'}</div>`;
-    }
-    
-    return html;
-}
-
-function formatDate(dateString) {
-    if (!dateString) return '-';
-    try {
-        return new Date(dateString).toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short', 
-            day: 'numeric' 
-        });
-    } catch (e) {
-        return dateString;
-    }
-}
-
-function formatTime(timeString) {
-    if (!timeString) return '-';
-    try {
-        return new Date('2000-01-01 ' + timeString).toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-        });
-    } catch (e) {
-        return timeString;
-    }
 }
 
 function closeViewAppointmentModal() {
@@ -3639,6 +3373,80 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }, 100);
     };
+
+    // Modal management functions
+    function openModal(modalId) {
+        document.getElementById(modalId).classList.remove('hidden');
+    }
+    
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.add('hidden');
+    }
+    
+    // Make functions globally available
+    window.openModal = openModal;
+    window.closeModal = closeModal;
+
+    // Add AJAX handling for appointment forms
+    const addAppointmentForm = document.getElementById('addAppointmentForm');
+    if (addAppointmentForm) {
+        addAppointmentForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Creating...';
+            
+            try {
+                const formData = new FormData(this);
+                formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
+                
+                const response = await fetch('{{ route('medical.appointments.store') }}', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast('success', result.message || 'Appointment created successfully');
+                    closeModal('addAppointmentModal');
+                    addAppointmentForm.reset();
+                    // Refresh the appointments list
+                    if (window.listFilters['appointments']) {
+                        window.listFilters['appointments'].refresh();
+                    }
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast('error', result.message || 'Failed to create appointment');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('error', 'An error occurred while creating the appointment');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+            }
+        });
+    }
+    
+    // Toast notification function
+    function showToast(type, message) {
+        const toast = document.createElement('div');
+        toast.className = `fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-white ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
+    }
 });
 </script>
 

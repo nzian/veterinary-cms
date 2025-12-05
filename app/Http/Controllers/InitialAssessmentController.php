@@ -68,4 +68,30 @@ class InitialAssessmentController extends Controller
             ], 500);
         }
     }
+
+    public function getByVisit($visitId)
+    {
+        try {
+            $assessment = InitialAssessment::where('visit_id', $visitId)->first();
+            
+            if ($assessment) {
+                return response()->json([
+                    'success' => true,
+                    'assessment' => $assessment
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No assessment found for this visit'
+                ], 404);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Initial Assessment Get Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve initial assessment: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

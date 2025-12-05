@@ -293,7 +293,7 @@
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Follow-up Type</label>
                         <select name="appoint_type" id="appoint_type" class="w-full border border-gray-300 p-2 rounded-lg" required>
-                            <option value="Follow-up">General Follow-up</option>
+                            <option value="General Follow-up">General Follow-up</option>
                             <option value="Vaccination Follow-up">Vaccination Follow-up</option>
                             <option value="Deworming Follow-up">Deworming Follow-up</option>
                             <option value="Post-Surgical Recheck">Post-Surgical Recheck</option>
@@ -302,14 +302,6 @@
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Date</label>
                         <input type="date" name="appoint_date" value="{{ \Carbon\Carbon::now()->format('Y-m-d') }}" class="w-full border border-gray-300 p-2 rounded-lg" required>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Time</label>
-                        <select name="appoint_time" class="w-full border border-gray-300 p-2 rounded-lg" required>
-                            @foreach (['09:00:00','10:00:00','11:00:00','13:00:00','14:00:00','15:00:00','16:00:00'] as $time)
-                                <option value="{{ $time }}">{{ \Carbon\Carbon::parse($time)->format('h:i A') }}</option>
-                            @endforeach
-                        </select>
                     </div>
                     <div class="col-span-2">
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Description</label>

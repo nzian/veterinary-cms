@@ -74,12 +74,25 @@
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Emergency Type</label>
-                            <select name="emergency_type" class="w-full border border-gray-300 p-3 rounded-lg">
+                            <select name="emergency_type" id="emergency_type_select" class="w-full border border-gray-300 p-3 rounded-lg">
                                 @php($selectedType = old('emergency_type', $__emerg['emergency_type'] ?? ''))
                                 <option value="">Select type</option>
                                 @if(isset($availableServices) && $availableServices->count() > 0)
                                     @foreach($availableServices as $service)
-                                        <option value="{{ $service->serv_name }}" {{ $selectedType === $service->serv_name ? 'selected' : '' }}>{{ $service->serv_name }}</option>
+                                        <option value="{{ $service->serv_name }}" 
+                                                data-service-id="{{ $service->serv_id }}"
+                                                data-products='@json($service->products->map(function($p) {
+                                                    return [
+                                                        "prod_id" => $p->prod_id,
+                                                        "prod_name" => $p->prod_name,
+                                                        "prod_stocks" => $p->prod_stocks,
+                                                        "prod_expiry" => $p->prod_expiry,
+                                                        "quantity_used" => $p->pivot->quantity_used ?? 1
+                                                    ];
+                                                }))'
+                                                {{ $selectedType === $service->serv_name ? 'selected' : '' }}>
+                                            {{ $service->serv_name }}
+                                        </option>
                                     @endforeach
                                 @else
                                     {{-- Fallback options if no services are found --}}
@@ -89,6 +102,16 @@
                                     <option value="Seizure" {{ $selectedType === 'Seizure' ? 'selected' : '' }}>Seizure</option>
                                 @endif
                             </select>
+                            <input type="hidden" name="service_id" id="service_id_hidden" value="{{ old('service_id', '') }}">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Emergency Consumables</label>
+                            <select name="consumable_product_id" id="emergency_product_select" class="w-full border border-gray-300 p-3 rounded-lg" disabled>
+                                <option value="">First select an emergency type</option>
+                            </select>
+                            <small class="text-xs text-gray-500 mt-1" id="product_helper_text">
+                                Select an emergency type first to see available consumable products.
+                            </small>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Vitals on Arrival</label>
@@ -311,6 +334,116 @@
         const m = document.getElementById('medicalHistoryModal'); 
         if(m){ m.classList.add('hidden'); } 
     }
+
+    // Emergency Product Selection Logic
+    document.addEventListener('DOMContentLoaded', function() {
+        const typeSelector = document.getElementById('emergency_type_select');
+        const productSelect = document.getElementById('emergency_product_select');
+        const productHelperText = document.getElementById('product_helper_text');
+        
+        // Listen for service selection changes
+        typeSelector.addEventListener('change', function() {
+            updateProductOptions();
+        });
+
+        // Listen for product selection changes to show stock warnings
+        productSelect.addEventListener('change', function() {
+            checkStockWarning();
+        });
+
+        function updateProductOptions() {
+            const selectedOption = typeSelector.options[typeSelector.selectedIndex];
+            
+            // Update hidden field with selected service_id
+            const serviceIdHidden = document.getElementById('service_id_hidden');
+            if (serviceIdHidden) {
+                serviceIdHidden.value = selectedOption.getAttribute('data-service-id') || '';
+            }
+            
+            // Clear existing options
+            productSelect.innerHTML = '<option value="">Select Emergency Consumable</option>';
+            
+            if (!selectedOption.value) {
+                productSelect.disabled = true;
+                productHelperText.textContent = 'Select an emergency type first to see available consumable products.';
+                return;
+            }
+
+            // Get products from the selected service
+            const products = JSON.parse(selectedOption.dataset.products || '[]');
+            
+            if (products.length === 0) {
+                productSelect.innerHTML = '<option value="">No consumable products for this emergency type</option>';
+                productSelect.disabled = true;
+                productHelperText.innerHTML = '<span class="text-red-600">⚠️ This emergency type has no consumable products configured.</span>';
+                return;
+            }
+
+            // Enable the select and populate with products
+            productSelect.disabled = false;
+            productHelperText.innerHTML = 'Available consumable products for the selected emergency type. <strong>Only stock is displayed.</strong>';
+            
+            products.forEach(function(product) {
+                const option = document.createElement('option');
+                option.value = product.prod_id;
+                option.dataset.stock = product.prod_stocks;
+                option.dataset.prodId = product.prod_id;
+                option.dataset.quantityUsed = product.quantity_used;
+                
+                // Build option text - ONLY SHOW STOCK, NO PRICE
+                let optionText = `${product.prod_name} (Stock: ${product.prod_stocks})`;
+                
+                // Check for low stock or expiring
+                if (product.prod_stocks <= 5) {
+                    optionText += ' ⚠️ Low Stock';
+                }
+                
+                if (product.prod_expiry) {
+                    const expiryDate = new Date(product.prod_expiry);
+                    const daysUntilExpiry = Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24));
+                    if (daysUntilExpiry <= 30 && daysUntilExpiry > 0) {
+                        optionText += ' ⚠️ Expiring Soon';
+                    }
+                }
+                
+                option.textContent = optionText;
+                
+                // Disable if out of stock
+                if (product.prod_stocks <= 0) {
+                    option.disabled = true;
+                    option.textContent += ' - OUT OF STOCK';
+                }
+                
+                productSelect.appendChild(option);
+            });
+            
+            // Clear any existing warnings
+            const existingWarning = productSelect.parentElement.querySelector('.stock-warning');
+            if (existingWarning) existingWarning.remove();
+        }
+
+        function checkStockWarning() {
+            const selectedOption = productSelect.options[productSelect.selectedIndex];
+            const stock = selectedOption ? parseInt(selectedOption.dataset.stock) : 0;
+            
+            // Remove existing warning
+            const existingWarning = productSelect.parentElement.querySelector('.stock-warning');
+            if (existingWarning) existingWarning.remove();
+            
+            // Show warning for low stock
+            if (selectedOption && selectedOption.value && stock <= 5) {
+                const warningDiv = document.createElement('div');
+                warningDiv.className = 'stock-warning text-xs mt-1 text-orange-600 font-medium';
+                warningDiv.innerHTML = `⚠️ Warning: Only ${stock} units left in stock!`;
+                productSelect.parentElement.appendChild(warningDiv);
+            }
+        }
+
+        // Initialize on page load if there's already a selected emergency type
+        if (typeSelector.value) {
+            updateProductOptions();
+        }
+    });
 </script>
 
 @endsection

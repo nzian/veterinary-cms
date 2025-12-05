@@ -218,7 +218,7 @@ Route::put('appointments/{appointmentId}/record-vaccine-details', [MedicalManage
     Route::put('/visit-records/{id}/patient-type', [MedicalManagementController::class, 'updateVisitPatientType'])->name('visit-records.update-patient-type');
     Route::delete('/visit-records/{id}', [MedicalManagementController::class, 'destroyVisitRecord'])->name('visit-records.destroy');
     Route::get('/visit-records/owners-with-pets', [MedicalManagementController::class, 'ownersWithPets'])->name('visit-records.owners');
-     Route::put('/medical-management/appointments/{id}', [YourController::class, 'update'])->name('medical.appointments.update');
+     Route::put('/medical-management/appointments/{id}', [MedicalManagementController::class, 'update'])->name('medical.appointments.update');
     Route::get('/medical-management/appointments/{id}/view', [MedicalManagementController::class, 'showAppointment'])
     ->name('medical.appointments.show');
     Route::post('/medical-management/appointments', [MedicalManagementController::class, 'storeAppointment'])->name('medical.appointments.store');
@@ -583,6 +583,9 @@ Route::controller(ActivityController::class)->group(function () {
 
 Route::post('/medical/initial-assessments', [InitialAssessmentController::class, 'store'])
     ->name('medical.initial_assessments.store');
+
+Route::get('/api/initial-assessment/{visitId}', [InitialAssessmentController::class, 'getByVisit'])
+    ->name('api.initial_assessment.get');
 
 
 

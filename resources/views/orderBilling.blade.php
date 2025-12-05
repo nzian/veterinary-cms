@@ -203,7 +203,7 @@
                     </form>
                 </div>
             </div>
-
+ <br>
             {{-- Billing Table --}}
             <div class="w-full overflow-x-auto">
                 <table id="billingTable" class="min-w-full table-auto text-sm border text-center">
@@ -489,7 +489,7 @@
                     <i class="fas fa-search absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
             </div>
-
+ <br>
             <div class="overflow-x-auto">
                 <table id="ordersTable" class="table-auto w-full border-collapse border text-sm text-center">
                     <thead class="bg-gray-200">

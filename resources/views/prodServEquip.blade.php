@@ -101,7 +101,7 @@
                         <span class="whitespace-nowrap">entries</span>
                         <label for="productsType" class="whitespace-nowrap text-sm text-black ml-2">Filter</label>
                         <select name="productsType" id="productsType"
-                            class="border border-gray-400 rounded px-2 py-1.5 text-sm">
+                            class="border border-gray-400 rounded px-2 py-1.5 text-sm" onchange="toggleManufacturerColumn()">
                             @foreach (['All', 'Sale', 'Consumable'] as $type)
                                 <option value="{{ $type }}" {{ request('productsType', 'All') == $type ? 'selected' : '' }}>
                                     {{ $type }}
@@ -128,7 +128,7 @@
                     </div>
                 </div>
 
-
+ <br>
                 <div class="overflow-x-auto">
                     <table id="productsTable" class="w-full table-auto text-sm border text-center">
                         <thead class="bg-gray-100">
@@ -138,7 +138,7 @@
                                 <th class="p-2 border">Name</th>
                                 <th class="p-2 border">Category</th>
                                 <th class="p-2 border">Type</th>
-                                <th class="p-2 border">Manufacturer</th>
+                                <th class="p-2 border" id="manufacturerHeader">Manufacturer</th>
                                 <th class="p-2 border">Description</th>
                                 <th class="p-2 border">Price</th>
                                 <th class="p-2 border">Stock</th>
@@ -182,7 +182,7 @@
                                             {{ $product->prod_type }}
                                         </span>
                                     </td>
-                                    <td class="p-2 border">{{ $product->manufacturer->manufacturer_name ?? 'N/A' }}</td>
+                                    <td class="p-2 border manufacturer-cell">{{ $product->manufacturer->manufacturer_name ?? 'N/A' }}</td>
                                     <td class="p-2 border">{{ Str::limit($product->prod_description, 30) }}</td>
                                     <td class="p-2 border">
                                         @if($product->prod_type === 'Sale')
@@ -310,6 +310,7 @@
                         @endif
                     </div>
                 </div>
+                 <br>
 
                 <div class="overflow-x-auto">
                     <table id="servicesTable" class="w-full table-auto text-sm border text-center">
@@ -1148,9 +1149,19 @@
                 </div>
 
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Expiry Date *</label>
-                    <input type="date" name="new_expiry" class="border p-2 w-full rounded" required>
-                    <small class="text-gray-500">Expiry date for this batch (must be in the future)</small>
+                    <div class="flex items-center mb-2">
+                        <input type="checkbox" id="nonExpiringCheckbox" name="non_expiring" value="1" 
+                               onchange="toggleExpiryField()" class="mr-2">
+                        <label for="nonExpiringCheckbox" class="text-sm font-medium text-gray-700">
+                            Non-expiring product (no expiry date)
+                        </label>
+                    </div>
+                    
+                    <div id="expiryDateField">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Expiry Date *</label>
+                        <input type="date" name="new_expiry" id="new_expiry" class="border p-2 w-full rounded" required>
+                        <small class="text-gray-500">Expiry date for this batch (must be in the future)</small>
+                    </div>
                 </div>
 
                 <div class="mb-4">
@@ -1372,11 +1383,7 @@
                 <div>
                     <select id="equipmentCategoryFilter" class="border border-gray-300 rounded px-3 py-2 text-sm" onchange="filterEquipmentMovementHistory()">
                         <option value="">All Categories</option>
-                        <option value="Cage">Cage</option>
-                        <option value="Room">Room</option>
-                        <option value="Ward">Ward</option>
-                        <option value="Kennel">Kennel</option>
-                        <option value="Equipment">Equipment</option>
+                        <!-- Categories will be populated dynamically -->
                     </select>
                 </div>
                 <div>
@@ -1404,6 +1411,35 @@
     </div>
 
     <script>
+
+        // MANUFACTURER COLUMN TOGGLE
+        function toggleManufacturerColumn() {
+            const filterValue = document.getElementById('productsType').value;
+            const manufacturerHeader = document.getElementById('manufacturerHeader');
+            const manufacturerCells = document.querySelectorAll('.manufacturer-cell');
+            
+            // Show manufacturer column ONLY for Consumable filter
+            // Hide for All, Sale, and any other filter
+            if (filterValue === 'Consumable') {
+                // Show manufacturer column for Consumable products only
+                manufacturerHeader.style.display = '';
+                manufacturerCells.forEach(cell => {
+                    cell.style.display = '';
+                });
+            } else {
+                // Hide manufacturer column for All, Sale, and others
+                manufacturerHeader.style.display = 'none';
+                manufacturerCells.forEach(cell => {
+                    cell.style.display = 'none';
+                });
+            }
+        }
+
+
+        // Initialize manufacturer column visibility on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleManufacturerColumn();
+        });
 
         // MAIN TAB SWITCHING
         function switchMainTab(tabId, tabParam) {
@@ -2600,11 +2636,44 @@
                     document.getElementById('equipmentSummaryUnique').textContent = summary.unique_equipment;
                     document.getElementById('equipmentSummaryPets').textContent = summary.unique_pets;
 
+                    // Populate equipment categories dynamically
+                    populateEquipmentCategories(allEquipmentMovements);
+                    
                     renderEquipmentMovementHistory(allEquipmentMovements);
                 })
                 .catch(error => {
                     document.getElementById('equipmentInventoryContent').innerHTML = `<div class="text-red-500 text-center py-8"><i class="fas fa-exclamation-circle text-3xl mb-2"></i><p>Error: ${error.message}</p></div>`;
                 });
+        }
+        
+        function populateEquipmentCategories(movements) {
+            const categorySelect = document.getElementById('equipmentCategoryFilter');
+            const currentValue = categorySelect.value;
+            
+            // Clear existing options except "All Categories"
+            categorySelect.innerHTML = '<option value="">All Categories</option>';
+            
+            // Add predefined equipment categories from add equipment form
+            const equipmentCategories = [
+                'Diagnostic Equipment',
+                'Surgical Equipment', 
+                'Monitoring Equipment',
+                'Treatment & Therapy Equipment',
+                'Laboratory Equipment',
+                'Grooming & Handling Equipment',
+                'Sanitation & Sterilization Equipment',
+                'Furniture & General Clinic Equipment'
+            ];
+            
+            equipmentCategories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                if (category === currentValue) {
+                    option.selected = true;
+                }
+                categorySelect.appendChild(option);
+            });
         }
         
         function renderEquipmentMovementHistory(movements) {
@@ -4018,9 +4087,33 @@
             document.getElementById('autoBatchCode').value = batchCode;
         }
 
+        function toggleExpiryField() {
+            const checkbox = document.getElementById('nonExpiringCheckbox');
+            const expiryField = document.getElementById('expiryDateField');
+            const expiryInput = document.getElementById('new_expiry');
+
+            if (checkbox.checked) {
+                expiryField.style.display = 'none';
+                expiryInput.required = false;
+                expiryInput.value = '';
+            } else {
+                expiryField.style.display = 'block';
+                expiryInput.required = true;
+            }
+        }
+
         function closeUpdateStockModal() {
             document.getElementById('updateStockModal').classList.add('hidden');
             document.getElementById('updateStockForm').reset();
+            
+            // Reset the non-expiring checkbox and expiry field
+            const checkbox = document.getElementById('nonExpiringCheckbox');
+            const expiryField = document.getElementById('expiryDateField');
+            const expiryInput = document.getElementById('new_expiry');
+            
+            checkbox.checked = false;
+            expiryField.style.display = 'block';
+            expiryInput.required = true;
         }
 
         // DAMAGE/PULL-OUT MODAL

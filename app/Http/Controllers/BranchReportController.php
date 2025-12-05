@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
+use App\Models\Billing;
 use App\Models\Branch;
 use App\Models\Product;
 use App\Models\Service;
@@ -48,6 +49,16 @@ class BranchReportController extends Controller
         $startDate = $request->get('start_date');
         $endDate = $request->get('end_date');
         
+        // Get additional filter parameters
+        $visitStatus = $request->get('visit_status', '');
+        $petSpecies = $request->get('pet_species', '');
+        $billingStatus = $request->get('billing_status', '');
+        $serviceCategory = $request->get('service_category', '');
+        $stockStatus = $request->get('stock_status', '');
+        $productType = $request->get('product_type', '');
+        $referralStatus = $request->get('referral_status', '');
+        $equipmentCategory = $request->get('equipment_category', '');
+        
         // Check if dates are valid (not empty and not placeholder format)
         $hasValidDates = !empty($startDate) && !empty($endDate) && 
                         $startDate !== 'dd/mm/yyyy' && $endDate !== 'dd/mm/yyyy';
@@ -69,6 +80,11 @@ class BranchReportController extends Controller
                 if ($hasValidDates) {
                     $query->whereBetween('visit_date', [$startDate, $endDate]);
                 }
+                
+                // Apply visit status filter
+                if (!empty($visitStatus) && $visitStatus !== 'all') {
+                    $query->where('visit_status', $visitStatus);
+                }
                 //dd($query->with(['pet.owner', 'user.branch', 'services'])->get());
                 $reports['visits'] = [
                     'title' => 'Visit Management Report',
@@ -85,7 +101,6 @@ class BranchReportController extends Controller
                                 'branch_name' => $visit->user->branch->branch_name ?? 'N/A',
                                 'visit_date' => $visit->visit_date,
                                 'patient_type' => $visit->patient_type,
-                                'veterinarian' => $visit->user->name ?? 'N/A',
                                 'status' => $visit->visit_status,
                                 'services' => $visit->services->pluck('serv_name')->join(', ')
                             ];
@@ -106,6 +121,11 @@ class BranchReportController extends Controller
                 // Only apply date filter if valid dates provided
                 if ($hasValidDates) {
                     $petQuery->whereBetween('pet_registration', [$startDate, $endDate]);
+                }
+                
+                // Apply species filter
+                if (!empty($petSpecies) && $petSpecies !== 'all') {
+                    $petQuery->where('pet_species', $petSpecies);
                 }
                 
                 $reports['pets'] = [
@@ -145,6 +165,11 @@ class BranchReportController extends Controller
                     $billingQuery->whereBetween('tbl_bill.bill_date', [$startDate, $endDate]);
                 }
                 
+                // Apply billing status filter
+                if (!empty($billingStatus) && $billingStatus !== 'all') {
+                    $billingQuery->where('tbl_bill.bill_status', $billingStatus);
+                }
+                
                 $reports['billing'] = [
                     'title' => 'Financial Billing Report',
                     'description' => 'Billing records for ' . $branch->branch_name,
@@ -180,6 +205,13 @@ class BranchReportController extends Controller
                     $salesQuery->whereBetween('ord_date', [$startDate, $endDate]);
                 }
                 
+                // Apply product type filter
+                if (!empty($productType) && $productType !== 'all') {
+                    $salesQuery->whereHas('product', function($q) use ($productType) {
+                        $q->where('prod_category', $productType);
+                    });
+                }
+                
                 $reports['sales'] = [
                     'title' => 'Product Sales Report',
                     'description' => 'Sales transactions for ' . $branch->branch_name,
@@ -201,68 +233,113 @@ class BranchReportController extends Controller
                 break;
 
             case 'referrals':
-                $referralQuery = Referral::whereHas('appointment.user', function($q) use ($branchId) {
-                    $q->where('branch_id', $branchId);
+                $referralQuery = Referral::where(function($q) use ($branchId) {
+                    $q->where('ref_from', $branchId)
+                      ->orWhere('ref_to', $branchId);
                 });
-                
+
                 // Only apply date filter if valid dates provided
                 if ($hasValidDates) {
                     $referralQuery->whereBetween('ref_date', [$startDate, $endDate]);
                 }
-                
+
+                // Apply referral status filter
+                if (!empty($referralStatus) && $referralStatus !== 'all') {
+                    $referralQuery->where('ref_status', $referralStatus);
+                }
+
                 $reports['referrals'] = [
                     'title' => 'Referral Report',
-                    'description' => 'Patient referrals from ' . $branch->branch_name,
-                    'data' => $referralQuery->with(['appointment.pet.owner', 'appointment.user'])
+                    'description' => 'Patient referrals (interbranch and external) for ' . $branch->branch_name,
+                    'data' => $referralQuery->with(['appointment', 'refFromBranch', 'refToBranch'])
                         ->get()
                         ->map(function($referral) {
+                            $pet = null;
+                            $owner = null;
+                            if ($referral->appointment && $referral->appointment->pet_id) {
+                                $pet = \App\Models\Pet::withoutGlobalScopes()->find($referral->appointment->pet_id);
+                                if ($pet && $pet->own_id) {
+                                    $owner = \App\Models\Owner::withoutGlobalScope('branch_owner_scope')->find($pet->own_id);
+                                }
+                            }
                             return (object)[
                                 'ref_id' => $referral->ref_id,
                                 'ref_date' => $referral->ref_date,
-                                'owner_name' => $referral->appointment->pet->owner->own_name ?? 'N/A',
-                                'pet_name' => $referral->appointment->pet->pet_name ?? 'N/A',
+                                'owner_name' => $owner && $owner->own_name ? $owner->own_name : ($pet && $pet->own_id ? 'Owner ID: ' . $pet->own_id : 'N/A'),
+                                'pet_name' => $pet && $pet->pet_name ? $pet->pet_name : ($referral->appointment && $referral->appointment->pet_id ? 'Pet ID: ' . $referral->appointment->pet_id : 'N/A'),
                                 'referral_reason' => $referral->ref_description,
-                                'referred_by' => $referral->appointment->user->name ?? 'N/A',
-                                'referred_to' => $referral->ref_to
+                                'referred_by' => optional($referral->refFromBranch)->branch_name ?? 'External',
+                                'referred_to' => optional($referral->refToBranch)->branch_name ?? 'External',
+                                'ref_type' => $referral->ref_type
                             ];
                         })
                 ];
                 break;
 
             case 'equipment':
+
+                $equipmentQuery = DB::table('tbl_equipment')
+                    ->join('tbl_branch', 'tbl_equipment.branch_id', '=', 'tbl_branch.branch_id')
+                    ->where('tbl_equipment.branch_id', $branchId);
+
+                // Apply equipment category filter
+                if (!empty($equipmentCategory) && $equipmentCategory !== 'all') {
+                    $equipmentQuery->where('tbl_equipment.equipment_category', $equipmentCategory);
+                }
+
+                $equipmentData = $equipmentQuery->select(
+                        'tbl_equipment.equipment_id',
+                        'tbl_equipment.equipment_name',
+                        'tbl_equipment.equipment_category',
+                        'tbl_equipment.equipment_description',
+                        'tbl_branch.branch_name',
+                        'tbl_equipment.equipment_available',
+                        'tbl_equipment.equipment_maintenance',
+                        'tbl_equipment.equipment_quantity as total_in_use',
+                        'tbl_equipment.equipment_out_of_service'
+                    )
+                    ->get();
+
+                // Map to new structure for the report
+                $equipmentData = $equipmentData->map(function($equipment) {
+                    return (object) [
+                        'equipment_id' => $equipment->equipment_id,
+                        'equipment_name' => $equipment->equipment_name,
+                        'equipment_category' => $equipment->equipment_category,
+                        'equipment_description' => $equipment->equipment_description,
+                        'branch_name' => $equipment->branch_name,
+                        'total_in_use' => $equipment->total_in_use ?? 0,
+                        'total_maintenance' => $equipment->equipment_maintenance ?? 0,
+                        'total_available' => $equipment->equipment_available ?? 0,
+                        'total_out_of_service' => $equipment->equipment_out_of_service ?? 0
+                    ];
+                });
+
                 $reports['equipment'] = [
                     'title' => 'Equipment Inventory Report',
                     'description' => 'Equipment inventory for ' . $branch->branch_name,
-                    'data' => DB::table('tbl_equipment')
-                        ->join('tbl_branch', 'tbl_equipment.branch_id', '=', 'tbl_branch.branch_id')
-                        ->where('tbl_equipment.branch_id', $branchId)
-                        ->select(
-                            'tbl_equipment.equipment_id', // Select ID for action button
-                            'tbl_equipment.equipment_name',
-                            'tbl_equipment.equipment_description',
-                            'tbl_equipment.equipment_quantity',
-                            'tbl_branch.branch_name',
-                            DB::raw("CASE 
-                                WHEN equipment_quantity > 10 THEN 'Good Stock'
-                                WHEN equipment_quantity BETWEEN 1 AND 10 THEN 'Low Stock'
-                                ELSE 'Out of Stock'
-                            END as stock_status")
-                        )
-                        ->get()
+                    'data' => $equipmentData
                 ];
                 break;
 
             case 'services':
+                $servicesQuery = Service::where('branch_id', $branchId);
+                
+                // Apply service category filter
+                if (!empty($serviceCategory) && $serviceCategory !== 'all') {
+                    $servicesQuery->where('serv_type', $serviceCategory);
+                }
+                
                 $reports['services'] = [
                     'title' => 'Service Availability Report',
                     'description' => 'Available services at ' . $branch->branch_name,
-                    'data' => Service::where('branch_id', $branchId)
-                        ->with('branch')
+                    'data' => $servicesQuery->with('branch')
                         ->get()
                         ->map(function($service) {
                             return (object)[
                                 'service_id' => $service->serv_id,
                                 'service_name' => $service->serv_name,
+                                'service_type' => $service->serv_type ?? 'General',
                                 'service_description' => $service->serv_description,
                                 'service_price' => $service->serv_price,
                                 'branch_name' => $service->branch->branch_name ?? 'N/A',
@@ -273,36 +350,63 @@ class BranchReportController extends Controller
                 break;
 
             case 'inventory':
+                // Get all products without type filtering
+                $inventoryQuery = Product::where('branch_id', $branchId);
+                
+                $inventoryData = $inventoryQuery->with('branch')
+                    ->get()
+                    ->map(function($product) use ($productType) {
+                        $quantity = $product->prod_quantity ?? $product->prod_stocks ?? 0;
+                        $status = $quantity > 20 ? 'Good Stock' : 
+                                        ($quantity > 0 ? 'Low Stock' : 'Out of Stock');
+                        
+                        return (object)[
+                            'product_id' => $product->prod_id,
+                            'product_name' => $product->prod_name,
+                            'product_type' => $product->prod_type ?? $product->prod_category ?? 'N/A',
+                            'product_description' => $product->prod_description,
+                            'total_pull_out' => $product->prod_pullout ?? 0,
+                            'total_damage' => $product->prod_damaged ?? 0,
+                            'total_stocks' => $quantity,
+                            'unit_price' => ($productType === 'sales') ? $product->prod_price : null,
+                            'branch_name' => $product->branch->branch_name ?? 'N/A',
+                            'stock_status' => $status
+                        ];
+                    });
+                
+                // Apply product type filter for display filtering only
+                if (!empty($productType) && $productType !== 'all') {
+                    $inventoryData = $inventoryData->filter(function($product) use ($productType) {
+                        return strtolower($product->product_type) === strtolower($productType);
+                    });
+                }
+                
+                // Apply stock status filter
+                if (!empty($stockStatus) && $stockStatus !== 'all') {
+                    $inventoryData = $inventoryData->filter(function($product) use ($stockStatus) {
+                        return $product->stock_status === $stockStatus;
+                    });
+                }
+                
                 $reports['inventory'] = [
                     'title' => 'Inventory Status Report',
                     'description' => 'Product inventory for ' . $branch->branch_name,
-                    'data' => Product::where('branch_id', $branchId)
-                        ->with('branch')
-                        ->get()
-                        ->map(function($product) {
-                            $quantity = $product->prod_quantity ?? $product->prod_stocks ?? 0;
-                            $status = $quantity > 20 ? 'Good Stock' : 
-                                            ($quantity > 0 ? 'Low Stock' : 'Out of Stock');
-                            
-                            return (object)[
-                                'product_id' => $product->prod_id,
-                                'product_name' => $product->prod_name,
-                                'product_description' => $product->prod_description,
-                                'quantity' => $quantity,
-                                'unit_price' => $product->prod_price,
-                                'branch_name' => $product->branch->branch_name ?? 'N/A',
-                                'stock_status' => $status
-                            ];
-                        })
+                    'data' => $inventoryData
                 ];
                 break;
 
             case 'revenue':
-                $totalRevenue = Order::whereBetween('ord_date', [$startDate, $endDate])
+                $totalSales = Order::whereBetween('ord_date', [$startDate, $endDate])
                     ->whereHas('user', function($q) use ($branchId) {
                         $q->where('branch_id', $branchId);
                     })
                     ->sum('ord_total');
+
+                $totalBillings = Billing::whereBetween('bill_date', [$startDate, $endDate])
+                    ->where('branch_id', $branchId)
+                    ->sum('total_amount');
+
+                $totalRevenue = $totalSales + $totalBillings;
 
                 $reports['revenue'] = [
                     'title' => 'Revenue Analysis Report',
@@ -311,6 +415,8 @@ class BranchReportController extends Controller
                         'branch_name' => $branch->branch_name,
                         'period_start' => $startDate,
                         'period_end' => $endDate,
+                        'total_sales' => $totalSales,
+                        'total_billings' => $totalBillings,
                         'total_revenue' => $totalRevenue,
                         'total_transactions' => Order::whereBetween('ord_date', [$startDate, $endDate])
                             ->whereHas('user', function($q) use ($branchId) {
@@ -319,6 +425,108 @@ class BranchReportController extends Controller
                     ]])
                 ];
                 break;
+                
+            /*case 'batch_history':
+                $batchQuery = DB::table('tbl_product_batch')
+                    ->join('tbl_product', 'tbl_product_batch.prod_id', '=', 'tbl_product.prod_id')
+                    ->join('tbl_branch', 'tbl_product.branch_id', '=', 'tbl_branch.branch_id')
+                    ->where('tbl_product.branch_id', $branchId);
+                
+                // Apply date filter if valid dates provided
+                if ($hasValidDates) {
+                    $batchQuery->whereBetween('tbl_product_batch.batch_expiry', [$startDate, $endDate]);
+                }
+                
+                // Apply product type filter
+                if (!empty($productType) && $productType !== 'all') {
+                    $batchQuery->where('tbl_product.prod_category', $productType);
+                }
+                
+                $reports['batch_history'] = [
+                    'title' => 'Product Batch History Report',
+                    'description' => 'Product batch tracking for ' . $branch->branch_name,
+                    'data' => $batchQuery->select(
+                            'tbl_product_batch.batch_id',
+                            'tbl_product.prod_name as product_name',
+                            'tbl_product.prod_category as product_type',
+                            'tbl_product_batch.batch_number',
+                            'tbl_product_batch.batch_quantity',
+                            'tbl_product_batch.batch_received_date',
+                            'tbl_product_batch.batch_expiry',
+                            'tbl_branch.branch_name'
+                        )
+                        ->get()
+                ];
+                break;
+                
+            /*case 'service_usage_history':
+                $serviceHistoryQuery = DB::table('tbl_visit_service')
+                    ->join('tbl_serv', 'tbl_visit_service.serv_id', '=', 'tbl_serv.serv_id')
+                    ->join('tbl_visit_record', 'tbl_visit_service.visit_id', '=', 'tbl_visit_record.visit_id')
+                    ->join('tbl_pet', 'tbl_visit_record.pet_id', '=', 'tbl_pet.pet_id')
+                    ->join('tbl_own', 'tbl_pet.own_id', '=', 'tbl_own.own_id')
+                    ->join('tbl_user', 'tbl_visit_record.user_id', '=', 'tbl_user.user_id')
+                    ->where('tbl_serv.branch_id', $branchId);
+                
+                // Apply date filter if valid dates provided
+                if ($hasValidDates) {
+                    $serviceHistoryQuery->whereBetween('tbl_visit_record.visit_date', [$startDate, $endDate]);
+                }
+                
+                // Apply service category filter
+                if (!empty($serviceCategory) && $serviceCategory !== 'all') {
+                    $serviceHistoryQuery->where('tbl_serv.serv_type', $serviceCategory);
+                }
+                
+                $reports['service_usage_history'] = [
+                    'title' => 'Service Usage History Report',
+                    'description' => 'Service usage tracking for ' . $branch->branch_name,
+                    'data' => $serviceHistoryQuery->select(
+                            'tbl_visit_service.visit_service_id',
+                            'tbl_serv.serv_name as service_name',
+                            'tbl_serv.serv_type as service_category',
+                            'tbl_own.own_name as owner_name',
+                            'tbl_pet.pet_name',
+                            'tbl_visit_record.visit_date',
+                            'tbl_user.name as veterinarian',
+                            'tbl_serv.serv_price as service_price'
+                        )
+                        ->get()
+                ];
+                break;
+                
+            /*case 'equipment_assignment_history':
+                $equipmentAssignmentQuery = DB::table('tbl_equipment_assignment')
+                    ->join('tbl_equipment', 'tbl_equipment_assignment.equipment_id', '=', 'tbl_equipment.equipment_id')
+                    ->join('tbl_user', 'tbl_equipment_assignment.user_id', '=', 'tbl_user.user_id')
+                    ->where('tbl_equipment.branch_id', $branchId);
+                
+                // Apply date filter if valid dates provided
+                if ($hasValidDates) {
+                    $equipmentAssignmentQuery->whereBetween('tbl_equipment_assignment.assigned_date', [$startDate, $endDate]);
+                }
+                
+                // Apply equipment category filter
+                if (!empty($equipmentCategory) && $equipmentCategory !== 'all') {
+                    $equipmentAssignmentQuery->where('tbl_equipment.equipment_category', $equipmentCategory);
+                }
+                
+                $reports['equipment_assignment_history'] = [
+                    'title' => 'Equipment Assignment History Report',
+                    'description' => 'Equipment assignment tracking for ' . $branch->branch_name,
+                    'data' => $equipmentAssignmentQuery->select(
+                            'tbl_equipment_assignment.assignment_id',
+                            'tbl_equipment.equipment_name',
+                            'tbl_equipment.equipment_category',
+                            'tbl_user.name as assigned_to',
+                            'tbl_equipment_assignment.assigned_date',
+                            'tbl_equipment_assignment.return_date',
+                            'tbl_equipment_assignment.assignment_status',
+                            'tbl_equipment_assignment.notes'
+                        )
+                        ->get()
+                ];
+                break;*/
         }
 
         return view('branch-reports', compact(
@@ -326,7 +534,15 @@ class BranchReportController extends Controller
             'reportType',
             'startDate',
             'endDate',
-            'branch'
+            'branch',
+            'visitStatus',
+            'petSpecies',
+            'billingStatus',
+            'serviceCategory',
+            'stockStatus',
+            'productType',
+            'referralStatus',
+            'equipmentCategory'
         ));
     }
 
@@ -341,6 +557,16 @@ class BranchReportController extends Controller
         $reportType = $request->get('report', 'visits');
         $startDate = $request->get('start_date', Carbon::now()->startOfMonth()->format('Y-m-d'));
         $endDate = $request->get('end_date', Carbon::now()->format('Y-m-d'));
+        
+        // Get filter parameters
+        $visitStatus = $request->get('visit_status', '');
+        $petSpecies = $request->get('pet_species', '');
+        $billingStatus = $request->get('billing_status', '');
+        $serviceCategory = $request->get('service_category', '');
+        $stockStatus = $request->get('stock_status', '');
+        $productType = $request->get('product_type', '');
+        $referralStatus = $request->get('referral_status', '');
+        $equipmentCategory = $request->get('equipment_category', '');
 
         $filename = $reportType . '_report_' . $branch->branch_name . '_' . date('Y-m-d') . '.csv';
         
@@ -349,7 +575,7 @@ class BranchReportController extends Controller
             'Content-Disposition' => "attachment; filename=\"$filename\"",
         ];
 
-        $callback = function() use ($reportType, $startDate, $endDate, $branchId, $branch) {
+        $callback = function() use ($reportType, $startDate, $endDate, $branchId, $branch, $visitStatus, $petSpecies, $billingStatus, $serviceCategory, $stockStatus, $productType, $referralStatus, $equipmentCategory) {
             $file = fopen('php://output', 'w');
             
             // Add UTF-8 BOM for Excel compatibility
@@ -357,26 +583,33 @@ class BranchReportController extends Controller
             
             switch($reportType) {
                 case 'visits':
-                    fputcsv($file, ['Visit ID', 'Visit Date', 'Patient Type', 'Owner Name', 'Contact', 'Pet Name', 'Breed', 'Veterinarian', 'Status', 'Services', 'Branch']);
+                    fputcsv($file, ['#', 'Visit Date', 'Owner Name', 'Contact', 'Pet Name', 'Patient Type', 'Services', 'Status', 'Branch']);
                     
-                    Visit::whereBetween('visit_date', [$startDate, $endDate])
+                    $visitQuery = Visit::whereBetween('visit_date', [$startDate, $endDate])
                         ->whereHas('user', function($q) use ($branchId) {
                             $q->where('branch_id', $branchId);
-                        })
-                        ->with(['pet.owner', 'user.branch', 'services'])
+                        });
+                    
+                    // Apply visit status filter
+                    if (!empty($visitStatus) && $visitStatus !== 'all') {
+                        $visitQuery->where('visit_status', $visitStatus);
+                    }
+                    
+                    $visitQuery->with(['pet.owner', 'user.branch', 'services'])
                         ->chunk(100, function($visits) use ($file) {
+                            static $counter = 0;
                             foreach($visits as $visit) {
+                                $counter++;
+                                
                                 fputcsv($file, [
-                                    $visit->visit_id,
+                                    $counter, // # instead of visit_id
                                     $visit->visit_date,
-                                    is_object($visit->patient_type) ? $visit->patient_type->value : $visit->patient_type,
                                     $visit->pet->owner->own_name ?? 'N/A',
                                     $visit->pet->owner->own_contactnum ?? 'N/A',
                                     $visit->pet->pet_name ?? 'N/A',
-                                    $visit->pet->pet_breed ?? 'N/A',
-                                    $visit->user->name ?? 'N/A',
-                                    $visit->visit_status,
+                                    is_object($visit->patient_type) ? $visit->patient_type->value : $visit->patient_type,
                                     $visit->services->pluck('serv_name')->join(', '),
+                                    $visit->visit_status,
                                     $visit->user->branch->branch_name ?? 'N/A'
                                 ]);
                             }
@@ -384,7 +617,7 @@ class BranchReportController extends Controller
                     break;
 
                 case 'pets':
-                    fputcsv($file, ['Pet ID', 'Registration Date', 'Owner Name', 'Contact', 'Pet Name', 'Species', 'Breed', 'Age', 'Gender']);
+                    fputcsv($file, ['#', 'Registration Date', 'Owner Name', 'Contact', 'Pet Name', 'Species', 'Breed', 'Age', 'Gender']);
                     
                     Pet::whereBetween('pet_registration', [$startDate, $endDate])
                         ->whereHas('visits', function($q) use ($branchId) {
@@ -394,9 +627,11 @@ class BranchReportController extends Controller
                         })
                         ->with('owner')
                         ->chunk(100, function($pets) use ($file) {
+                            static $counter = 0;
                             foreach($pets as $pet) {
+                                $counter++;
                                 fputcsv($file, [
-                                    $pet->pet_id,
+                                    $counter, // # instead of pet_id
                                     $pet->pet_registration,
                                     $pet->owner->own_name ?? 'N/A',
                                     $pet->owner->own_contactnum ?? 'N/A',
@@ -411,7 +646,7 @@ class BranchReportController extends Controller
                     break;
 
                 case 'billing':
-                    fputcsv($file, ['Bill ID', 'Bill Date', 'Customer Name', 'Pet Name', 'Service Date', 'Total Amount', 'Payment Status', 'Branch']);
+                    fputcsv($file, ['#', 'Service Date', 'Pet Owner', 'Pet Name', 'Total Amount', 'Payment Status', 'Branch']);
                     
                     DB::table('tbl_bill')
                         ->join('tbl_visit_record', 'tbl_bill.visit_id', '=', 'tbl_visit_record.visit_id')
@@ -443,13 +678,14 @@ class BranchReportController extends Controller
                             'tbl_bill.bill_status'
                         )
                         ->chunk(100, function($bills) use ($file) {
+                            static $counter = 0;
                             foreach($bills as $bill) {
+                                $counter++;
                                 fputcsv($file, [
-                                    $bill->bill_id,
-                                    $bill->bill_date,
+                                    $counter, // # instead of bill_id
+                                    $bill->visit_date, // Service Date (visit date)
                                     $bill->own_name,
                                     $bill->pet_name,
-                                    $bill->visit_date,
                                     $bill->pay_total,
                                     $bill->bill_status,
                                     $bill->branch_name
@@ -459,7 +695,7 @@ class BranchReportController extends Controller
                     break;
 
                 case 'sales':
-                    fputcsv($file, ['Order ID', 'Sale Date', 'Customer Name', 'Product Name', 'Quantity Sold', 'Unit Price', 'Total Amount', 'Cashier']);
+                    fputcsv($file, ['#', 'Sale Date', 'Customer Name', 'Product Name', 'Quantity Sold', 'Unit Price', 'Total Amount', 'Cashier']);
                     
                     Order::whereBetween('ord_date', [$startDate, $endDate])
                         ->whereHas('user', function($q) use ($branchId) {
@@ -467,9 +703,12 @@ class BranchReportController extends Controller
                         })
                         ->with(['product', 'owner', 'user'])
                         ->chunk(100, function($orders) use ($file) {
+                            static $counter = 0;
                             foreach($orders as $order) {
+                                $counter++;
+                                
                                 fputcsv($file, [
-                                    $order->ord_id,
+                                    $counter, // # instead of ord_id
                                     $order->ord_date,
                                     $order->owner->own_name ?? 'Walk-in',
                                     $order->product->prod_name ?? 'N/A',
@@ -538,15 +777,17 @@ class BranchReportController extends Controller
                     break;
 
                 case 'services':
-                    fputcsv($file, ['Service ID', 'Service Name', 'Description', 'Price', 'Branch', 'Status']);
+                    fputcsv($file, ['#', 'Service Name', 'Service Type', 'Description', 'Price', 'Branch', 'Status']);
                     
+                    $serviceCounter = 1;
                     Service::where('branch_id', $branchId)
                         ->with('branch')
-                        ->chunk(100, function($services) use ($file) {
+                        ->chunk(100, function($services) use ($file, &$serviceCounter) {
                             foreach($services as $service) {
                                 fputcsv($file, [
-                                    $service->serv_id,
+                                    $serviceCounter++,
                                     $service->serv_name,
+                                    $service->serv_type ?? 'General',
                                     $service->serv_description,
                                     $service->serv_price,
                                     $service->branch->branch_name ?? 'N/A',
@@ -557,47 +798,73 @@ class BranchReportController extends Controller
                     break;
 
                 case 'inventory':
-                    fputcsv($file, ['Product ID', 'Product Name', 'Description', 'Quantity', 'Unit Price', 'Stock Status', 'Branch']);
+                    // Dynamic headers based on product type filter
+                    $headers = ['#', 'Product Name', 'Product Type', 'Description', 'Total Pull Out', 'Total Damage', 'Total Stocks'];
+                    if (!empty($productType) && $productType === 'sales') {
+                        $headers[] = 'Unit Price';
+                    }
+                    $headers = array_merge($headers, ['Stock Status', 'Branch']);
+                    fputcsv($file, $headers);
                     
+                    $counter = 1;
                     Product::where('branch_id', $branchId)
                         ->with('branch')
-                        ->chunk(100, function($products) use ($file) {
+                        ->chunk(100, function($products) use ($file, &$counter, $productType) {
                             foreach($products as $product) {
                                 $quantity = $product->prod_quantity ?? $product->prod_stocks ?? 0;
                                 $status = $quantity > 20 ? 'Good Stock' : ($quantity > 0 ? 'Low Stock' : 'Out of Stock');
                                 
-                                fputcsv($file, [
-                                    $product->prod_id,
+                                $row = [
+                                    $counter++,
                                     $product->prod_name,
+                                    $product->prod_type ?? $product->prod_category ?? 'N/A',
                                     $product->prod_description,
-                                    $quantity,
-                                    $product->prod_price,
+                                    $product->prod_pullout ?? 0,
+                                    $product->prod_damaged ?? 0,
+                                    $quantity
+                                ];
+                                
+                                if (!empty($productType) && $productType === 'sales') {
+                                    $row[] = $product->prod_price;
+                                }
+                                
+                                $row = array_merge($row, [
                                     $status,
                                     $product->branch->branch_name ?? 'N/A'
                                 ]);
+                                
+                                fputcsv($file, $row);
                             }
                         });
                     break;
 
                 case 'revenue':
-                    fputcsv($file, ['Branch', 'Period Start', 'Period End', 'Total Revenue', 'Total Transactions']);
-                    
-                    $totalRevenue = Order::whereBetween('ord_date', [$startDate, $endDate])
+                    fputcsv($file, ['Branch', 'Period Start', 'Period End', 'Total Sales', 'Total Billings', 'Total Revenue', 'Total Transactions']);
+
+                    $totalSales = Order::whereBetween('ord_date', [$startDate, $endDate])
                         ->whereHas('user', function($q) use ($branchId) {
                             $q->where('branch_id', $branchId);
                         })
                         ->sum('ord_total');
-                    
+
+                    $totalBillings = Billing::whereBetween('bill_date', [$startDate, $endDate])
+                        ->where('branch_id', $branchId)
+                        ->sum('total_amount');
+
+                    $totalRevenue = $totalSales + $totalBillings;
+
                     $totalTransactions = Order::whereBetween('ord_date', [$startDate, $endDate])
                         ->whereHas('user', function($q) use ($branchId) {
                             $q->where('branch_id', $branchId);
                         })
                         ->count();
-                    
+
                     fputcsv($file, [
                         $branch->branch_name,
                         $startDate,
                         $endDate,
+                        $totalSales,
+                        $totalBillings,
                         $totalRevenue,
                         $totalTransactions
                     ]);
@@ -732,7 +999,7 @@ class BranchReportController extends Controller
         $pdf = \PDF::loadView('branch-reports-pdf', compact('data', 'reportType', 'title', 'branch'));
         
         // Set paper size and orientation
-        $pdf->setPaper('letter', 'portrait');
+        $pdf->setPaper('letter', 'landscape');
         
         // Enable remote access for images (for public_path('images/header.jpg'))
         $pdf->setOption('isRemoteEnabled', true);

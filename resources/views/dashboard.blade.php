@@ -564,14 +564,6 @@
                     <textarea id="visitNotes" rows="3" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Add notes..."></textarea>
                 </div>
                 
-                {{-- Add Visit Button - Only shown when appointment is Arrived --}}
-                <div id="addVisitBtnContainer" class="hidden">
-                    <button id="addVisitBtn" class="w-full px-4 py-2 bg-blue-500 text-white text-sm sm:text-base rounded-lg hover:bg-blue-600 transition-colors">
-                        <i class="fas fa-plus mr-2"></i> Create Visit Entry
-                    </button>
-                    <p class="text-xs text-gray-500 mt-1 text-center">This will create a new visit record in the Visits tab</p>
-                </div>
-                
                 <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
                     <button id="updateVisitBtn" class="flex-1 px-4 py-2 bg-green-500 text-white text-sm sm:text-base rounded-lg hover:bg-green-600 transition-colors">
                         Update Status
@@ -810,10 +802,6 @@
                     <p class="font-medium text-sm sm:text-base">${appointment.date}</p>
                 </div>
                 <div>
-                    <span class="text-xs sm:text-sm text-gray-600">Time:</span>
-                    <p class="font-medium text-sm sm:text-base">${appointment.time || 'No time set'}</p>
-                </div>
-                <div>
                     <span class="text-xs sm:text-sm text-gray-600">Appointment Type:</span>
                     <p class="font-medium text-sm sm:text-base">${appointment.type || 'Checkup'}</p>
                 </div>
@@ -867,10 +855,6 @@
                         <span class="text-gray-600">Date:</span>
                         <span class="font-medium">${currentAppointment.date}</span>
                     </div>
-                    <div>
-                        <span class="text-gray-600">Time:</span>
-                        <span class="font-medium">${currentAppointment.time || 'No time set'}</span>
-                    </div>
                     <div class="col-span-1 sm:col-span-2">
                         <span class="text-gray-600">Current Status:</span>
                         <span class="${getStatusColor(currentAppointment.status)}">${currentAppointment.status || 'Pending'}</span>
@@ -882,63 +866,12 @@
         statusSelect.value = (currentAppointment.status || 'pending').toLowerCase();
         notesTextarea.value = currentAppointment.notes || '';
         
-        // Show/hide "Add Visit" button based on current status
-        toggleAddVisitButton(statusSelect.value);
-        
-        // Listen for status change to show/hide Add Visit button
-        statusSelect.onchange = function() {
-            toggleAddVisitButton(this.value);
-        };
-        
         modal.classList.remove('hidden');
     }
     
-    function toggleAddVisitButton(status) {
-        const addVisitBtnContainer = document.getElementById('addVisitBtnContainer');
-        if (status === 'arrived') {
-            addVisitBtnContainer.classList.remove('hidden');
-        } else {
-            addVisitBtnContainer.classList.add('hidden');
-        }
-    }
+
     
-    function createVisitFromAppointment() {
-        if (!currentAppointment) return;
-        
-        const addVisitBtn = document.getElementById('addVisitBtn');
-        addVisitBtn.disabled = true;
-        addVisitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Creating Visit...';
-        
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-        
-        fetch(`/care-continuity/appointments/${currentAppointment.id}/create-visit`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({})
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showNotification('Visit created successfully! Redirecting...', 'success');
-                setTimeout(() => {
-                    window.location.href = data.redirect || '/medical-management?tab=visits';
-                }, 1000);
-            } else {
-                showNotification(data.message || 'Failed to create visit', 'error');
-                addVisitBtn.disabled = false;
-                addVisitBtn.innerHTML = '<i class="fas fa-plus mr-2"></i> Create Visit Entry';
-            }
-        })
-        .catch(error => {
-            showNotification(`Error: ${error.message}`, 'error');
-            addVisitBtn.disabled = false;
-            addVisitBtn.innerHTML = '<i class="fas fa-plus mr-2"></i> Create Visit Entry';
-        });
-    }
+
 
     function updateVisit() {
         if (!currentAppointment) return;
@@ -996,9 +929,6 @@
             
             showNotification('Appointment updated successfully!', 'success');
             
-            // Show Add Visit button if status changed to arrived
-            toggleAddVisitButton(newStatus);
-            
             document.getElementById('visitModal').classList.add('hidden');
             renderCalendar(currentView);
             
@@ -1044,7 +974,6 @@
     document.getElementById('closeVisitModal').onclick = () => visitModal.classList.add('hidden');
     document.getElementById('closeVisitModalBtn').onclick = () => visitModal.classList.add('hidden');
     document.getElementById('updateVisitBtn').onclick = updateVisit;
-    document.getElementById('addVisitBtn').onclick = createVisitFromAppointment;
 
     appointmentModal.onclick = (e) => {
         if (e.target === appointmentModal) {

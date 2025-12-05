@@ -66,23 +66,32 @@ class ProductStock extends Model
      */
     public function isExpired()
     {
+        // Non-expiring products (null expire_date) are never expired
+        if (is_null($this->expire_date)) {
+            return false;
+        }
+        
         return $this->expire_date < Carbon::today();
     }
 
     /**
-     * Scope to get only non-expired stock
+     * Scope to get only non-expired stock (including non-expiring products)
      */
     public function scopeNotExpired($query)
     {
-        return $query->where('expire_date', '>=', Carbon::today());
+        return $query->where(function($q) {
+            $q->whereNull('expire_date') // Non-expiring products
+              ->orWhere('expire_date', '>=', Carbon::today()); // Non-expired products
+        });
     }
 
     /**
-     * Scope to get expired stock
+     * Scope to get expired stock (excludes non-expiring products)
      */
     public function scopeExpired($query)
     {
-        return $query->where('expire_date', '<', Carbon::today());
+        return $query->whereNotNull('expire_date')
+                     ->where('expire_date', '<', Carbon::today());
     }
 
     /**

@@ -3,11 +3,13 @@
 @section('content')
 <div class="min-h-screen bg-gray-50">
     <div class="max-w-7xl mx-auto p-6">
-        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <form method="GET" id="reportForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <form method="GET" id="reportForm" class="space-y-4">
+            <!-- First Row: Report Type and Dates -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Report Type</label>
-                    <select name="report" id="reportSelect" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <select name="report" id="reportSelect" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" onchange="toggleFilters()">
                         @php
                             $reportOptions = [
                                 'visits' => 'Visit Management',
@@ -18,7 +20,7 @@
                                 'inventory' => 'Inventory Status',
                                 'revenue' => 'Revenue Analysis',
                                 'referrals' => 'Referral Report', 
-                                'equipment' => 'Equipment Inventory', 
+                                'equipment' => 'Equipment Inventory'
                             ];
                         @endphp
                         @foreach($reportOptions as $key => $label)
@@ -51,8 +53,9 @@
                         </button>
                     </div>
                 </div>
-            </form>
-        </div>
+            </div>
+            
+        </form>
 
         <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
             <div class="flex">
@@ -77,6 +80,99 @@
                         <p class="text-gray-600 mt-2">{{ $currentReport['description'] }}</p>
                     </div>
                     <div class="flex items-center space-x-3">
+                        <!-- Filter Dropdown Before Record Count -->
+                        <form method="GET" class="inline">
+                            <input type="hidden" name="report" value="{{ $reportType }}">
+                            <input type="hidden" name="start_date" value="{{ $startDate }}">
+                            <input type="hidden" name="end_date" value="{{ $endDate }}">
+                            
+                            @if($reportType === 'visits')
+                                <div class="flex items-center space-x-2">
+                                    <label class="text-sm font-medium text-gray-700">Visit Status:</label>
+                                    <select name="visit_status" class="border border-gray-300 rounded-md px-3 py-1 text-sm" onchange="this.form.submit()">
+                                        <option value="">All Statuses</option>
+                                        <option value="pending" {{ request('visit_status') === 'pending' ? 'selected' : '' }}>Pending</option>
+                                        <option value="in_progress" {{ request('visit_status') === 'in_progress' ? 'selected' : '' }}>In Progress</option>
+                                        <option value="completed" {{ request('visit_status') === 'completed' ? 'selected' : '' }}>Completed</option>
+                                        <option value="cancelled" {{ request('visit_status') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                                    </select>
+                                </div>
+                            @elseif($reportType === 'pets')
+                                <div class="flex items-center space-x-2">
+                                    <label class="text-sm font-medium text-gray-700">Species:</label>
+                                    <select name="pet_species" class="border border-gray-300 rounded-md px-3 py-1 text-sm" onchange="this.form.submit()">
+                                        <option value="">All Species</option>
+                                        <option value="Dog" {{ request('pet_species') === 'Dog' ? 'selected' : '' }}>Dog</option>
+                                        <option value="Cat" {{ request('pet_species') === 'Cat' ? 'selected' : '' }}>Cat</option>
+                                        <option value="Bird" {{ request('pet_species') === 'Bird' ? 'selected' : '' }}>Bird</option>
+                                        <option value="Rabbit" {{ request('pet_species') === 'Rabbit' ? 'selected' : '' }}>Rabbit</option>
+                                        <option value="Fish" {{ request('pet_species') === 'Fish' ? 'selected' : '' }}>Fish</option>
+                                        <option value="Other" {{ request('pet_species') === 'Other' ? 'selected' : '' }}>Other</option>
+                                    </select>
+                                </div>
+                            @elseif($reportType === 'billing')
+                                <div class="flex items-center space-x-2">
+                                    <label class="text-sm font-medium text-gray-700">Billing Status:</label>
+                                    <select name="billing_status" class="border border-gray-300 rounded-md px-3 py-1 text-sm" onchange="this.form.submit()">
+                                        <option value="">All Statuses</option>
+                                        <option value="pending" {{ request('billing_status') === 'pending' ? 'selected' : '' }}>Pending</option>
+                                        <option value="paid" {{ request('billing_status') === 'paid' ? 'selected' : '' }}>Paid</option>
+                                        <option value="partially_paid" {{ request('billing_status') === 'partially_paid' ? 'selected' : '' }}>Partially Paid</option>
+                                        <option value="overdue" {{ request('billing_status') === 'overdue' ? 'selected' : '' }}>Overdue</option>
+                                        <option value="cancelled" {{ request('billing_status') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                                    </select>
+                                </div>
+                            @elseif($reportType === 'services')
+                                <div class="flex items-center space-x-2">
+                                    <label class="text-sm font-medium text-gray-700">Service Category:</label>
+                                    <select name="service_category" class="border border-gray-300 rounded-md px-3 py-1 text-sm" onchange="this.form.submit()">
+                                        <option value="">All Categories</option>
+                                        <option value="Vaccination" {{ request('service_category') === 'Vaccination' ? 'selected' : '' }}>Vaccination</option>
+                                        <option value="Deworming" {{ request('service_category') === 'Deworming' ? 'selected' : '' }}>Deworming</option>
+                                        <option value="Grooming" {{ request('service_category') === 'Grooming' ? 'selected' : '' }}>Grooming</option>
+                                        <option value="Emergency" {{ request('service_category') === 'Emergency' ? 'selected' : '' }}>Emergency</option>
+                                        <option value="Check-up" {{ request('service_category') === 'Check-up' ? 'selected' : '' }}>Check-up</option>
+                                        <option value="Diagnostics" {{ request('service_category') === 'Diagnostics' ? 'selected' : '' }}>Diagnostics</option>
+                                        <option value="Surgical" {{ request('service_category') === 'Surgical' ? 'selected' : '' }}>Surgical</option>
+                                        <option value="Boarding" {{ request('service_category') === 'Boarding' ? 'selected' : '' }}>Boarding</option>
+                                    </select>
+                                </div>
+                            @elseif(in_array($reportType, ['inventory', 'sales']))
+                                <div class="flex items-center space-x-2">
+                                    <label class="text-sm font-medium text-gray-700">Product Type:</label>
+                                    <select name="product_type" class="border border-gray-300 rounded-md px-3 py-1 text-sm" onchange="this.form.submit()">
+                                        <option value="">All Types</option>
+                                        <option value="Consumable" {{ request('product_type') === 'Consumable' ? 'selected' : '' }}>Consumable</option>
+                                        <option value="Sale" {{ request('product_type') === 'Sale' ? 'selected' : '' }}>Sale</option>
+                                    </select>
+                                </div>
+                            @elseif($reportType === 'referrals')
+                                <div class="flex items-center space-x-2">
+                                    <label class="text-sm font-medium text-gray-700">Referral Status:</label>
+                                    <select name="referral_status" class="border border-gray-300 rounded-md px-3 py-1 text-sm" onchange="this.form.submit()">
+                                        <option value="">All Statuses</option>
+                                        <option value="pending" {{ request('referral_status') === 'pending' ? 'selected' : '' }}>Pending</option>
+                                        <option value="attended" {{ request('referral_status') === 'attended' ? 'selected' : '' }}>Attended</option>
+                                        <option value="completed" {{ request('referral_status') === 'completed' ? 'selected' : '' }}>Completed</option>
+                                        <option value="cancelled" {{ request('referral_status') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                                    </select>
+                                </div>
+                            @elseif($reportType === 'equipment')
+                                <div class="flex items-center space-x-2">
+                                    <label class="text-sm font-medium text-gray-700">Equipment Category:</label>
+                                    <select name="equipment_category" class="border border-gray-300 rounded-md px-3 py-1 text-sm" onchange="this.form.submit()">
+                                        <option value="">All Categories</option>
+                                        <option value="Diagnostic Equipment" {{ request('equipment_category') === 'Diagnostic Equipment' ? 'selected' : '' }}>Diagnostic Equipment</option>
+                                        <option value="Surgical Equipment" {{ request('equipment_category') === 'Surgical Equipment' ? 'selected' : '' }}>Surgical Equipment</option>
+                                        <option value="Monitoring Equipment" {{ request('equipment_category') === 'Monitoring Equipment' ? 'selected' : '' }}>Monitoring Equipment</option>
+                                        <option value="Treatment & Therapy Equipment" {{ request('equipment_category') === 'Treatment & Therapy Equipment' ? 'selected' : '' }}>Treatment & Therapy Equipment</option>
+                                        <option value="Laboratory Equipment" {{ request('equipment_category') === 'Laboratory Equipment' ? 'selected' : '' }}>Laboratory Equipment</option>
+                                        <option value="Grooming & Handling Equipment" {{ request('equipment_category') === 'Grooming & Handling Equipment' ? 'selected' : '' }}>Grooming & Handling Equipment</option>
+                                    </select>
+                                </div>
+                            @endif
+                        </form>
+
                         <div class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                             {{ $currentReport['data']->count() }} Records
                         </div>
@@ -95,18 +191,18 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     @if($reportType === 'visits')
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visit ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visit Date</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner Name</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet Name</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visit Date</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient Type</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Services</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Veterinarian</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     @elseif($reportType === 'pets')
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registration Date</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner Name</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet Name</th>
@@ -114,28 +210,27 @@
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Breed</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registration Date</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     @elseif($reportType === 'billing')
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill ID</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Date</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet Owner</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet Name</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     @elseif($reportType === 'sales')
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sale Date</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cashier</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     @elseif($reportType === 'referrals')
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet</th>
@@ -144,31 +239,42 @@
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referred To</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     @elseif($reportType === 'equipment')
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Equipment ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Equipment Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total In Use</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Maintenance</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Available</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Out of Service</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     @elseif($reportType === 'services')
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Type</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     @elseif($reportType === 'inventory')
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Type</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Pull Out</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Damage</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Stocks</th>
+                                        @if(request('product_type') === 'sales')
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
+                                        @endif
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock Status</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     @elseif($reportType === 'revenue')
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period Start</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period End</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Sales</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Billings</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Revenue</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Transactions</th>
                                     @endif
@@ -178,11 +284,11 @@
                                 @foreach($currentReport['data'] as $row)
                                     <tr class="hover:bg-gray-50">
                                         @if($reportType === 'visits')
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $row->visit_id }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $loop->iteration }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ \Carbon\Carbon::parse($row->visit_date)->format('M d, Y') }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $row->owner_name }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->owner_contact }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $row->pet_name }}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ \Carbon\Carbon::parse($row->visit_date)->format('M d, Y') }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
                                                     {{ is_string($row->patient_type) ? ucfirst($row->patient_type) : ($row->patient_type->value ?? 'N/A') }}
@@ -191,7 +297,6 @@
                                             <td class="px-6 py-4 text-sm text-gray-500" style="max-width: 200px; white-space: normal;">
                                                 {{ $row->services ?: 'No services' }}
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $row->veterinarian }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                                                     {{ $row->status === 'completed' ? 'bg-green-100 text-green-800' : 
@@ -208,7 +313,8 @@
                                                 </div>
                                             </td>
                                         @elseif($reportType === 'pets')
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $row->pet_id }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $loop->iteration }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ \Carbon\Carbon::parse($row->registration_date)->format('M d, Y') }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $row->owner_name }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->owner_contact }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $row->pet_name }}</td>
@@ -220,20 +326,19 @@
                                                     {{ ucfirst($row->pet_gender) }}
                                                 </span>
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ \Carbon\Carbon::parse($row->registration_date)->format('M d, Y') }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
                                                     <button onclick="openDetailedPDF('pets', '{{ $row->pet_id }}')" 
-                                                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
-                                                        <i class="fas fa-file-pdf"></i> View & Print
+                                                             class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
+                                                        <i class="fas fa-eye"></i>
                                                     </button>
                                                 </div>
                                             </td>
                                         @elseif($reportType === 'billing')
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $row->bill_id }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $loop->iteration }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ \Carbon\Carbon::parse($row->service_date)->format('M d, Y') }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $row->customer_name }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->pet_name }}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ \Carbon\Carbon::parse($row->service_date)->format('M d, Y') }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">₱{{ number_format($row->pay_total, 2) }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ $row->payment_status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' }}">
@@ -243,13 +348,13 @@
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
                                                     <button onclick="openDetailedPDF('billing', '{{ $row->bill_id }}')" 
-                                                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
-                                                        <i class="fas fa-file-pdf"></i> View & Print
+                                                             class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
+                                                        <i class="fas fa-eye"></i>
                                                     </button>
                                                 </div>
                                             </td>
                                         @elseif($reportType === 'sales')
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $row->ord_id }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $loop->iteration }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ \Carbon\Carbon::parse($row->sale_date)->format('M d, Y') }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $row->customer_name }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->product_name }}</td>
@@ -260,13 +365,13 @@
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
                                                     <button onclick="openDetailedPDF('sales', '{{ $row->ord_id }}')" 
-                                                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
-                                                        <i class="fas fa-file-pdf"></i> View & Print
+                                                             class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
+                                                        <i class="fas fa-eye"></i>
                                                     </button>
                                                 </div>
                                             </td>
                                         @elseif($reportType === 'referrals')
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $row->ref_id }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $loop->iteration }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ \Carbon\Carbon::parse($row->ref_date)->format('M d, Y') }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $row->owner_name }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->pet_name }}</td>
@@ -276,34 +381,32 @@
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
                                                     <button onclick="openDetailedPDF('referrals', '{{ $row->ref_id }}')" 
-                                                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
-                                                        <i class="fas fa-file-pdf"></i> View & Print
+                                                             class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
+                                                        <i class="fas fa-eye"></i>
                                                     </button>
                                                 </div>
                                             </td>
                                         @elseif($reportType === 'equipment')
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $row->equipment_id }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $loop->iteration }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $row->equipment_name }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->equipment_category ?? 'N/A' }}</td>
                                             <td class="px-6 py-4 text-sm text-gray-500">{{ Str::limit($row->equipment_description ?? 'N/A', 50) }}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->equipment_quantity }}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap">
-                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                                    {{ $row->stock_status === 'Good Stock' ? 'bg-green-100 text-green-800' : 
-                                                        ($row->stock_status === 'Low Stock' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
-                                                    {{ $row->stock_status }}
-                                                </span>
-                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->total_in_use }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->total_maintenance }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->total_available }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->total_out_of_service }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
                                                     <button onclick="openDetailedPDF('equipment', '{{ $row->equipment_id }}')" 
-                                                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
-                                                        <i class="fas fa-file-pdf"></i> View & Print
+                                                             class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
+                                                        <i class="fas fa-eye"></i>
                                                     </button>
                                                 </div>
                                             </td>
                                         @elseif($reportType === 'services')
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $row->service_id }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $loop->iteration }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $row->service_name }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $row->service_type }}</td>
                                             <td class="px-6 py-4 text-sm text-gray-500">{{ Str::limit($row->service_description, 50) }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">₱{{ number_format($row->service_price, 2) }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap">
@@ -313,18 +416,25 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="openDetailedPDF('services', '{{ $row->service_id }}')" 
-                                                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
-                                                        <i class="fas fa-file-pdf"></i> View & Print
+                                                    <button onclick="openDetailedPDF('services', '{{ $row->service_id }}')"
+                                                            class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
+                                                        <i class="fas fa-eye"></i>
                                                     </button>
                                                 </div>
                                             </td>
                                         @elseif($reportType === 'inventory')
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $row->product_id }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $loop->iteration }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $row->product_name }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $row->product_type }}</td>
                                             <td class="px-6 py-4 text-sm text-gray-500">{{ Str::limit($row->product_description, 50) }}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->quantity }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ number_format($row->total_pull_out) }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ number_format($row->total_damage) }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">{{ number_format($row->total_stocks) }}</td>
+                                            @if(request('product_type') === 'sales' && $row->unit_price !== null)
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ number_format($row->unit_price, 2) }}</td>
+                                            @elseif(request('product_type') === 'sales')
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">-</td>
+                                            @endif
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                                                     {{ $row->stock_status === 'Good Stock' ? 'bg-green-100 text-green-800' : 
@@ -334,9 +444,9 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="openDetailedPDF('inventory', '{{ $row->product_id }}')" 
-                                                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
-                                                        <i class="fas fa-file-pdf"></i> View & Print
+                                                    <button onclick="openDetailedPDF('inventory', '{{ $row->product_id }}')"
+                                                             class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
+                                                        <i class="fas fa-eye"></i>
                                                     </button>
                                                 </div>
                                             </td>
@@ -344,6 +454,8 @@
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $row->branch_name }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->period_start }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->period_end }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-blue-600">₱{{ number_format($row->total_sales, 2) }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-yellow-600">₱{{ number_format($row->total_billings, 2) }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">₱{{ number_format($row->total_revenue, 2) }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->total_transactions }}</td>
                                         @endif

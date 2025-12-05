@@ -20,18 +20,18 @@ class AutoCheckoutBoarding extends Command
     {
         $now = Carbon::now();
         $boardings = DB::table('tbl_boarding_record')
-            ->where('status', 'Check In')
+            ->where('status', 'Checked In')
             ->whereNotNull('check_out_date')
             ->where('check_out_date', '<=', $now)
             ->get();
 
         $count = 0;
         foreach ($boardings as $boarding) {
-            // Update status to Check Out
+            // Update status to Checked Out
             DB::table('tbl_boarding_record')
                 ->where('visit_id', $boarding->visit_id)
                 ->where('pet_id', $boarding->pet_id)
-                ->update(['status' => 'Check Out', 'updated_at' => $now]);
+                ->update(['status' => 'Checked Out', 'updated_at' => $now]);
 
             // NOTE: Consumable products are now deducted on CHECK-IN, not checkout
             // The deduction happens when the pet is first checked in, based on total_days

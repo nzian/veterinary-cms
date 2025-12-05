@@ -5,6 +5,9 @@
 @php
     $userRole = strtolower(auth()->user()->user_role ?? '');
     
+    // Check if super admin is in branch switching mode
+    $isSuperAdminBranchSwitching = ($userRole === 'superadmin' && isset($isInBranchMode) && $isInBranchMode);
+    
     // Define permissions for each role
     $permissions = [
         'superadmin' => [
@@ -12,6 +15,8 @@
             'add_appointment' => false,
             'edit_appointment' => false,
             'delete_appointment' => false,
+            'view_prescription' => true,
+            'print_prescription' => true,
         ],
         'veterinarian' => [
             'view_appointments' => true,
@@ -20,12 +25,16 @@
             'delete_appointment' => false,
             'view_vaccinations' => true,
             'edit_vaccinations' => true,
+            'view_prescription' => true,
+            'print_prescription' => true,
         ],
         'receptionist' => [
             'view_appointments' => true,
             'add_appointment' => true,
             'edit_appointment' => true,
             'delete_appointment' => true,
+            'view_prescription' => true,
+            'print_prescription' => true,
         ],
     ];
     
@@ -53,7 +62,7 @@
                 </button>
                 @endif
                 
-                @if($userRole === 'receptionist' || $userRole === 'superadmin')
+                @if($userRole === 'receptionist' || $userRole === 'superadmin' || $isSuperAdminBranchSwitching)
                 <button onclick="showTab('grooming')" id="grooming-tab" 
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Grooming</h2>
@@ -75,7 +84,7 @@
                     @endif
                 </button>
                 
-                @if($userRole === 'veterinarian')
+                @if($userRole === 'veterinarian' || $isSuperAdminBranchSwitching)
                 <button onclick="showTab('checkup')" id="checkup-tab" 
                     class="tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-600 hover:text-gray-900 hover:border-gray-300 relative">
                     <h2 class="font-bold text-xl">Check-up</h2>
@@ -159,7 +168,6 @@
                             <th class="border px-2 py-2">#</th>
                             <th class="border px-4 py-2">Date</th>
                             <th class="border px-4 py-2">Type</th>
-                            <th class="border px-4 py-2">Time</th>
                             <th class="border px-4 py-2">Pet</th>
                             <th class="border px-4 py-2">Owner</th>
                             <th class="border px-4 py-2">Contact</th>
@@ -179,7 +187,6 @@
                                 </td>
                                 <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($appointment->appoint_date)->format('F j, Y') }}</td>
                                 <td class="border px-4 py-2">{{ $appointment->appoint_type }}</td>
-                                <td class="border px-4 py-2">{{ \Carbon\Carbon::parse($appointment->appoint_time)->format('h:i A') }}</td>
                                 <td class="border px-4 py-2">{{ $appointment->pet?->pet_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_name ?? 'N/A' }}</td>
                                 <td class="border px-4 py-2">{{ $appointment->pet?->owner?->own_contactnum }}</td>
@@ -384,17 +391,21 @@
                                 </td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        @if(!$isSuperAdminBranchSwitching || hasPermission('view_prescription', $can))
                                         <button type="button" onclick="openViewVisitModal({{ $visit->visit_id }})" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
                                             <i class="fas fa-eye"></i>
                                         </button>
-                                        @if(auth()->check() && in_array(auth()->user()->user_role, ['veterinarian']) && !in_array(auth()->user()->user_role, ['super_admin']))
+                                        @endif
+                                        @if(auth()->check() && in_array(auth()->user()->user_role, ['veterinarian']) && !in_array(auth()->user()->user_role, ['super_admin']) && !$isSuperAdminBranchSwitching)
                                         <a href="{{ route('medical.visits.perform', ['id' => $visit->visit_id]) }}" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
                                         @endif
+                                        @if(!$isSuperAdminBranchSwitching)
                                         <button type="button" onclick="openInitialAssessment({{ $visit->visit_id }}, {{ $visit->pet_id ?? 0 }}, '{{ $visit->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @endif
                                         @php
                                             // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $visitPrescription = \App\Models\Prescription::where('pres_visit_id', $visit->visit_id)->first();
@@ -420,12 +431,12 @@
                                             <i class="fas fa-prescription"></i>
                                         </button>
                                         @endif
-                                        @if(hasPermission('edit_appointment', $can))
+                                        @if(hasPermission('edit_appointment', $can) && !$isSuperAdminBranchSwitching)
                                         <button onclick="openEditVisitModal({{ $visit->visit_id }}, false)" class="bg-[#0f7ea0] text-white px-2 py-1 rounded hover:bg-[#0c6a86] text-xs" title="edit">
                                             <i class="fas fa-pen"></i>
                                         </button>
                                         @endif
-                                        @if(hasPermission('delete_appointment', $can))
+                                        @if(hasPermission('delete_appointment', $can) && !$isSuperAdminBranchSwitching)
                                         <form action="{{ route('medical.visits.destroy', $visit->visit_id) }}" method="POST" onsubmit="return confirm('Delete this visit?');" class="inline mb-0">
                                             @csrf
                                             @method('DELETE')
@@ -520,15 +531,19 @@
                                 <td class="border px-4 py-2">{{ $c->workflow_status ?? ($c->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        @if(!$isSuperAdminBranchSwitching || hasPermission('view_prescription', $can))
                                         <button type="button" onclick="openViewVisitModal({{ $c->visit_id }}, 'check-up')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
                                             <i class="fas fa-eye"></i>
                                         </button>
+                                        @endif
+                                        @if(!$isSuperAdminBranchSwitching)
                                         <a href="{{ route('medical.visits.perform', ['id' => $c->visit_id]) }}?type=check-up" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
                                         <button type="button" onclick="openInitialAssessment({{ $c->visit_id }}, {{ $c->pet_id ?? 0 }}, '{{ $c->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @endif
                                         @php
                                             // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $checkupPrescription = \App\Models\Prescription::where('pres_visit_id', $c->visit_id)->first();
@@ -660,15 +675,19 @@
                                 <td class="border px-4 py-2">{{ $d->workflow_status ?? ($d->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        @if(!$isSuperAdminBranchSwitching || hasPermission('view_prescription', $can))
                                         <button type="button" onclick="openViewVisitModal({{ $d->visit_id }}, 'deworming')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
                                             <i class="fas fa-eye"></i>
                                         </button>
+                                        @endif
+                                        @if(!$isSuperAdminBranchSwitching)
                                         <a href="{{ route('medical.visits.perform', ['id' => $d->visit_id]) }}?type=deworming" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
                                         <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id ?? 0 }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @endif
                                         @php
                                             // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $dewormPrescription = \App\Models\Prescription::where('pres_visit_id', $d->visit_id)->first();
@@ -800,15 +819,19 @@
                                 <td class="border px-4 py-2">{{ $d->workflow_status ?? ($d->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        @if(!$isSuperAdminBranchSwitching || hasPermission('view_prescription', $can))
                                         <button type="button" onclick="openViewVisitModal({{ $d->visit_id }}, 'diagnostics')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
                                             <i class="fas fa-eye"></i>
                                         </button>
+                                        @endif
+                                        @if(!$isSuperAdminBranchSwitching)
                                         <a href="{{ route('medical.visits.perform', ['id' => $d->visit_id]) }}?type=diagnostic" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
                                         <button type="button" onclick="openInitialAssessment({{ $d->visit_id }}, {{ $d->pet_id ?? 0 }}, '{{ $d->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @endif
                                         @php
                                             // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $diagPrescription = \App\Models\Prescription::where('pres_visit_id', $d->visit_id)->first();
@@ -940,15 +963,19 @@
                                 <td class="border px-4 py-2">{{ $s->workflow_status ?? ($s->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        @if(!$isSuperAdminBranchSwitching || hasPermission('view_prescription', $can))
                                         <button type="button" onclick="openViewVisitModal({{ $s->visit_id }}, 'surgical')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
                                             <i class="fas fa-eye"></i>
                                         </button>
+                                        @endif
+                                        @if(!$isSuperAdminBranchSwitching)
                                         <a href="{{ route('medical.visits.perform', ['id' => $s->visit_id]) }}?type=surgical" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
                                         <button type="button" onclick="openInitialAssessment({{ $s->visit_id }}, {{ $s->pet_id ?? 0 }}, '{{ $s->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @endif
                                         @php
                                             // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $surgPrescription = \App\Models\Prescription::where('pres_visit_id', $s->visit_id)->first();
@@ -1080,15 +1107,19 @@
                                 <td class="border px-4 py-2">{{ $e->workflow_status ?? ($e->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        @if(!$isSuperAdminBranchSwitching || hasPermission('view_prescription', $can))
                                         <button type="button" onclick="openViewVisitModal({{ $e->visit_id }}, 'emergency')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
                                             <i class="fas fa-eye"></i>
                                         </button>
+                                        @endif
+                                        @if(!$isSuperAdminBranchSwitching)
                                         <a href="{{ route('medical.visits.perform', ['id' => $e->visit_id]) }}?type=emergency" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
                                         <button type="button" onclick="openInitialAssessment({{ $e->visit_id }}, {{ $e->pet_id ?? 0 }}, '{{ $e->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @endif
                                         @php
                                             // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $emergPrescription = \App\Models\Prescription::where('pres_visit_id', $e->visit_id)->first();
@@ -1220,15 +1251,19 @@
                                 <td class="border px-4 py-2">{{ $v->workflow_status ?? ($v->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        @if(!$isSuperAdminBranchSwitching || hasPermission('view_prescription', $can))
                                         <button type="button" onclick="openViewVisitModal({{ $v->visit_id }}, 'vaccination')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
                                             <i class="fas fa-eye"></i>
                                         </button>
+                                        @endif
+                                        @if(!$isSuperAdminBranchSwitching)
                                         <a href="{{ route('medical.visits.perform', ['id' => $v->visit_id]) }}?type=vaccination" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
                                         <button type="button" onclick="openInitialAssessment({{ $v->visit_id }}, {{ $v->pet_id ?? 0 }}, '{{ $v->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @endif
                                         @php
                                             // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $vaccPrescription = \App\Models\Prescription::where('pres_visit_id', $v->visit_id)->first();
@@ -1360,15 +1395,19 @@
                                 <td class="border px-4 py-2">{{ $g->workflow_status ?? ($g->visit_status ?? '-') }}</td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        @if(!$isSuperAdminBranchSwitching || hasPermission('view_prescription', $can))
                                         <button type="button" onclick="openViewVisitModal({{ $g->visit_id }}, 'grooming')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
                                             <i class="fas fa-eye"></i>
                                         </button>
+                                        @endif
+                                        @if(!$isSuperAdminBranchSwitching)
                                         <a href="{{ route('medical.visits.perform', ['id' => $g->visit_id]) }}?type=grooming" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
                                         <button type="button" onclick="openInitialAssessment({{ $g->visit_id }}, {{ $g->pet_id ?? 0 }}, '{{ $g->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @endif
                                         @php
                                             // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $groomPrescription = \App\Models\Prescription::where('pres_visit_id', $g->visit_id)->first();
@@ -1516,15 +1555,19 @@
                                 </td>
                                 <td class="border px-2 py-1">
                                     <div class="flex justify-center items-center gap-1">
+                                        @if(!$isSuperAdminBranchSwitching || hasPermission('view_prescription', $can))
                                         <button type="button" onclick="openViewVisitModal({{ $b->visit_id }}, 'boarding')" class="bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600 text-xs" title="view details">
                                             <i class="fas fa-eye"></i>
                                         </button>
+                                        @endif
+                                        @if(!$isSuperAdminBranchSwitching)
                                         <a href="{{ route('medical.visits.perform', ['id' => $b->visit_id]) }}?type=boarding" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs" title="attend">
                                             <i class="fas fa-user-check"></i>
                                         </a>
                                         <button type="button" onclick="openInitialAssessment({{ $b->visit_id }}, {{ $b->pet_id ?? 0 }}, '{{ $b->pet->owner->own_id ?? '' }}')" class="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-xs" title="initial assessment">
                                             <i class="fas fa-notes-medical"></i>
                                         </button>
+                                        @endif
                                         @php
                                             // Check if prescription exists for this visit - use pres_visit_id ONLY
                                             $boardPrescription = \App\Models\Prescription::where('pres_visit_id', $b->visit_id)->first();

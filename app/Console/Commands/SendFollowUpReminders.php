@@ -46,7 +46,7 @@ class SendFollowUpReminders extends Command
         $appointments = Appointment::with(['pet.owner'])
             ->where('appoint_date', $tomorrow)
             ->where('appoint_status', 'scheduled')
-            ->whereIn('appoint_type', ['Follow-up', 'Vaccination Follow-up', 'Deworming Follow-up', 'Post-Surgical Recheck'])
+            ->whereIn('appoint_type', ['General Follow-up', 'Vaccination Follow-up', 'Deworming Follow-up', 'Post-Surgical Recheck'])
             ->get();
 
         if ($appointments->isEmpty()) {

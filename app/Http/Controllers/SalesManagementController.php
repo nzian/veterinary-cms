@@ -357,38 +357,9 @@ class SalesManagementController extends Controller
                     }
                 }
                 
-                // Add prescription totals for each billing in the group
-                $prescriptionTotal = 0;
-                foreach($group as $billing) {
-                    if($billing->visit) {
-                        // Get prescriptions by visit_id first
-                        $prescriptions = \App\Models\Prescription::where('pres_visit_id', $billing->visit->visit_id)->get();
-                        // Fallback to pet_id + date if no prescriptions found
-                        if ($prescriptions->isEmpty() && $billing->visit->pet_id) {
-                            $prescriptions = \App\Models\Prescription::where('pet_id', $billing->visit->pet_id)
-                                ->whereDate('prescription_date', $billing->visit->visit_date)
-                                ->get();
-                        }
-                        foreach($prescriptions as $prescription) {
-                            $medications = json_decode($prescription->medication, true) ?? [];
-                            foreach($medications as $med) {
-                                // Try to get price from multiple possible keys
-                                $medPrice = 0;
-                                if (isset($med['price']) && $med['price'] > 0) {
-                                    $medPrice = (float) $med['price'];
-                                } elseif (isset($med['unit_price']) && $med['unit_price'] > 0) {
-                                    $qty = $med['quantity'] ?? $med['qty'] ?? 1;
-                                    $medPrice = (float) $med['unit_price'] * $qty;
-                                } elseif (isset($med['prod_price']) && $med['prod_price'] > 0) {
-                                    $qty = $med['quantity'] ?? $med['qty'] ?? 1;
-                                    $medPrice = (float) $med['prod_price'] * $qty;
-                                }
-                                $prescriptionTotal += $medPrice;
-                            }
-                        }
-                    }
-                }
-                $totalAmount += $prescriptionTotal;
+                // NOTE: Prescription totals are already included in individual billing total_amounts
+                // calculated by GroupedBillingService::calculateVisitTotal(), so we don't add them again here
+                // to avoid double-counting
                 
                 $paidAmount = $group->sum('paid_amount');
                 $balance = round($totalAmount - $paidAmount, 2);

@@ -50,7 +50,7 @@ class POSController extends Controller
         ]);
 
         // 3. FETCH AND FILTER PRODUCTS (Items)
-        // Only show products marked as 'Sale' type for POS
+        // Only show products marked as 'Sale' type for POS that are not disabled
         $itemsQuery = Product::select('prod_id', 'prod_name', 'prod_price', 'prod_stocks', 'prod_category')
             ->where('prod_stocks', '>', 0)
             ->where('prod_type', 'Sale')
@@ -61,9 +61,13 @@ class POSController extends Controller
             $itemsQuery->where('branch_id', $activeBranchId);
         }
         
-        $items = $itemsQuery->get();
+        // Get all products first, then filter out disabled ones
+        $allItems = $itemsQuery->get();
+        $items = $allItems->filter(function($product) {
+            return !$product->is_disabled; // Filter out disabled products
+        });
 
-        Log::info("POS loaded: " . $items->count() . " products");
+        Log::info("POS loaded: " . $items->count() . " active products");
 
         return view('pos', compact('owners', 'items'));
     }

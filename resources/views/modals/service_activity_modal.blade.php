@@ -53,7 +53,7 @@
             {{-- Appointment Tab Content (Form content remains the same) --}}
             <div id="activity_appointment_content" class="activity-tab-content space-y-4">
                 <h4 class="text-lg font-semibold text-blue-600">Set Follow-up Appointment</h4>
-                <form id="activityAppointmentForm" action="{{ route('medical.appointments.store') }}" method="POST" class="space-y-4 border border-blue-200 p-4 rounded-lg bg-blue-50">
+                <form id="activityAppointmentForm" action="{{ route('medical.appointments.store') }}" method="POST" class="space-y-4 border border-blue-200 p-4 rounded-lg bg-blue-50" onsubmit="return handleActivityAppointmentSubmit(event)">
                     @csrf
                     <input type="hidden" name="pet_id" id="activity_appoint_pet_id">
                     <input type="hidden" name="appoint_status" value="Scheduled">
@@ -63,7 +63,7 @@
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Follow-up Type</label>
                             <select name="appoint_type" id="activity_appoint_type" class="w-full border border-gray-300 p-2 rounded-lg" required>
-                                <option value="Follow-up">General Follow-up</option>
+                                <option value="General Follow-up">General Follow-up</option>
                                 <option value="Vaccination Follow-up">Vaccination Follow-up</option>
                                 <option value="Deworming Follow-up">Deworming Follow-up</option>
                                 <option value="Post-Surgical Recheck">Post-Surgical Recheck</option>
@@ -72,14 +72,6 @@
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Date</label>
                             <input type="date" name="appoint_date" value="{{ \Carbon\Carbon::now()->format('Y-m-d') }}" class="w-full border border-gray-300 p-2 rounded-lg" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Time</label>
-                            <select name="appoint_time" class="w-full border border-gray-300 p-2 rounded-lg" required>
-                                @foreach (['09:00:00','10:00:00','11:00:00','13:00:00','14:00:00','15:00:00','16:00:00'] as $time)
-                                    <option value="{{ $time }}">{{ \Carbon\Carbon::parse($time)->format('h:i A') }}</option>
-                                @endforeach
-                            </select>
                         </div>
                         <div class="col-span-2">
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Description</label>
@@ -463,13 +455,79 @@
         activityMedicationCounter = 0;
         addActivityMedicationField();
         
-        // 4. Show default tab and modal
+        // 4. Load existing initial assessment data if visit exists
+        if (visitId) {
+            loadInitialAssessmentData(visitId);
+        } else {
+            // Reset initial assessment form if no visit
+            resetInitialAssessmentForm();
+        }
+        
+        // 5. Show default tab and modal
         switchActivityTab('appointment');
         modal.classList.remove('hidden');
     }
 
     function closeActivityModal() {
         document.getElementById('serviceActivityModal').classList.add('hidden');
+    }
+    
+    // Load existing initial assessment data for a visit
+    function loadInitialAssessmentData(visitId) {
+        fetch(`/api/initial-assessment/${visitId}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.assessment) {
+                populateInitialAssessmentForm(data.assessment);
+            } else {
+                resetInitialAssessmentForm();
+            }
+        })
+        .catch(error => {
+            console.log('No existing assessment data found for visit:', visitId);
+            resetInitialAssessmentForm();
+        });
+    }
+    
+    // Populate form with existing assessment data
+    function populateInitialAssessmentForm(assessment) {
+        const form = document.getElementById('activityInitialAssessmentForm');
+        if (!form) return;
+        
+        // Populate radio buttons and checkboxes
+        Object.keys(assessment).forEach(field => {
+            const value = assessment[field];
+            
+            // Handle radio buttons (yes/no fields)
+            const radioYes = form.querySelector(`input[name="${field}"][value="yes"]`);
+            const radioNo = form.querySelector(`input[name="${field}"][value="no"]`);
+            
+            if (radioYes && radioNo) {
+                if (value === 1 || value === '1' || value === 'yes') {
+                    radioYes.checked = true;
+                } else if (value === 0 || value === '0' || value === 'no') {
+                    radioNo.checked = true;
+                }
+            }
+        });
+    }
+    
+    // Reset initial assessment form to default state
+    function resetInitialAssessmentForm() {
+        const form = document.getElementById('activityInitialAssessmentForm');
+        if (!form) return;
+        
+        // Reset all radio buttons to unchecked
+        const radios = form.querySelectorAll('input[type="radio"]');
+        radios.forEach(radio => {
+            radio.checked = false;
+        });
     }
     
     // --- Prescription Sub-Functions ---
@@ -580,6 +638,60 @@
             if (!searchInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
                 suggestionsDiv.classList.add('hidden');
             }
+        });
+    }
+
+    function handleActivityAppointmentSubmit(e) {
+        e.preventDefault();
+        
+        const form = e.target;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const formData = new FormData(form);
+        
+        // Show loading state
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Creating...';
+        
+        // Submit via AJAX
+        fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+            }
+        })
+        .then(response => {
+            if (response.redirected) {
+                // If it's a redirect (success), show success message
+                showToast('success', 'Appointment created successfully!');
+                form.reset();
+                setTimeout(() => {
+                    closeActivityModal();
+                }, 1500);
+                return;
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.error) {
+                showToast('error', data.error);
+            } else if (data && data.message) {
+                showToast('success', data.message);
+                form.reset();
+                setTimeout(() => {
+                    closeActivityModal();
+                }, 1500);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('error', 'Failed to create appointment. Please try again.');
+        })
+        .finally(() => {
+            // Restore button state
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-calendar-alt mr-1"></i> Create Appointment';
         });
     }
 

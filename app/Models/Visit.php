@@ -323,6 +323,9 @@ public function checkAllServicesCompleted()
         }
 
         // --- Custom logic: create follow-up appointment and send SMS if vaccination or deworming ---
+        // Only create appointments when visit is first being marked as completed (not on subsequent updates)
+        $isNewlyCompleted = $this->isDirty('visit_status') && $this->visit_status === 'completed';
+        
         $services = $this->services()->get();
         $hasVaccination = $services->contains(function($s) {
             return strtolower($s->serv_type) === 'vaccination';
@@ -331,9 +334,11 @@ public function checkAllServicesCompleted()
             return strtolower($s->serv_type) === 'deworming';
         });
 
-        if ($hasVaccination || $hasDeworming) {
+        if (($hasVaccination || $hasDeworming) && $isNewlyCompleted) {
             // Determine follow-up date: use next_due_date from vaccination/deworming record if available, else +1 year for vaccination, +3 months for deworming
             $followUpDate = null;
+            $appointmentType = 'follow-up';
+            
             if ($hasVaccination) {
                 $vaccRecord = \DB::table('tbl_vaccination_record')->where('visit_id', $this->visit_id)->first();
                 if ($vaccRecord && $vaccRecord->next_due_date) {
@@ -341,6 +346,7 @@ public function checkAllServicesCompleted()
                 } else {
                     $followUpDate = now()->addYear()->toDateString();
                 }
+                $appointmentType = 'Vaccination Follow-up';
             } elseif ($hasDeworming) {
                 $dewormRecord = \DB::table('tbl_deworming_record')->where('visit_id', $this->visit_id)->first();
                 if ($dewormRecord && $dewormRecord->next_due_date) {
@@ -348,41 +354,56 @@ public function checkAllServicesCompleted()
                 } else {
                     $followUpDate = now()->addMonths(3)->toDateString();
                 }
+                $appointmentType = 'Deworming Follow-up';
             }
 
-            // Create follow-up appointment
-            $pet = $this->pet()->with('owner')->first();
-            if ($pet && $pet->owner) {
-                $appointment = new \App\Models\Appointment();
-                $appointment->appoint_date = $followUpDate;
-                $appointment->appoint_time = '09:00:00'; // default time
-                $appointment->appoint_status = 'pending';
-                $appointment->appoint_type = 'follow-up';
-                $appointment->pet_id = $pet->pet_id;
-                $appointment->user_id = $this->user_id;
-                $appointment->appoint_description = $hasVaccination ? 'Vaccination Follow-up' : 'Deworming Follow-up';
-                $appointment->save();
+            // Check if appointment already exists for this pet on this date with same type
+            $existingAppointment = \App\Models\Appointment::where('pet_id', $this->pet_id)
+                ->whereDate('appoint_date', $followUpDate)
+                ->where(function($query) use ($appointmentType) {
+                    $query->where('appoint_type', $appointmentType)
+                          ->orWhere('appoint_type', 'LIKE', '%Follow-up%');
+                })
+                ->whereIn('appoint_status', ['scheduled', 'confirmed', 'pending'])
+                ->first();
 
-                // Attach the relevant service to the appointment
-                if ($hasVaccination) {
-                    $service = $services->first(function($s){ return strtolower($s->serv_type) === 'vaccination'; });
-                    if ($service) {
-                        $appointment->services()->attach($service->serv_id);
+            // Only create appointment if it doesn't already exist
+            if (!$existingAppointment) {
+                $pet = $this->pet()->with('owner')->first();
+                if ($pet && $pet->owner) {
+                    $appointment = new \App\Models\Appointment();
+                    $appointment->appoint_date = $followUpDate;
+                    $appointment->appoint_time = '09:00:00'; // default time
+                    $appointment->appoint_status = 'scheduled'; // Set to scheduled instead of pending
+                    $appointment->appoint_type = $appointmentType;
+                    $appointment->pet_id = $pet->pet_id;
+                    $appointment->user_id = $this->user_id;
+                    $appointment->appoint_description = "Auto-scheduled from visit #{$this->visit_id}";
+                    $appointment->save();
+
+                    // Attach the relevant service to the appointment
+                    if ($hasVaccination) {
+                        $service = $services->first(function($s){ return strtolower($s->serv_type) === 'vaccination'; });
+                        if ($service) {
+                            $appointment->services()->attach($service->serv_id);
+                        }
+                    } elseif ($hasDeworming) {
+                        $service = $services->first(function($s){ return strtolower($s->serv_type) === 'deworming'; });
+                        if ($service) {
+                            $appointment->services()->attach($service->serv_id);
+                        }
                     }
-                } elseif ($hasDeworming) {
-                    $service = $services->first(function($s){ return strtolower($s->serv_type) === 'deworming'; });
-                    if ($service) {
-                        $appointment->services()->attach($service->serv_id);
+
+                    // Send SMS to owner
+                    try {
+                        $smsService = new \App\Services\DynamicSMSService();
+                        $smsService->sendFollowUpSMS($appointment);
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::error('Failed to send follow-up SMS for appointment ' . $appointment->appoint_id . ': ' . $e->getMessage());
                     }
                 }
-
-                // Send SMS to owner
-                try {
-                    $smsService = new \App\Services\DynamicSMSService();
-                    $smsService->sendFollowUpSMS($appointment);
-                } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Failed to send follow-up SMS for appointment ' . $appointment->appoint_id . ': ' . $e->getMessage());
-                }
+            } else {
+                \Illuminate\Support\Facades\Log::info("Follow-up appointment already exists for pet {$this->pet_id} on {$followUpDate} - Appointment ID: {$existingAppointment->appoint_id}");
             }
         }
         // --- End custom logic ---

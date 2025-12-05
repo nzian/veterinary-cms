@@ -19,14 +19,23 @@
                 </div>
 
                 <div>
-                    <label class="font-medium">Time</label>
-                    <input type="time" name="appoint_time" class="w-full border rounded p-2" required>
+                    <label class="font-medium">Follow-up Type</label>
+                    <select name="appoint_type" class="w-full border rounded p-2" required>
+                        <option value="General Follow-up">General Follow-up</option>
+                        <option value="Vaccination Follow-up">Vaccination Follow-up</option>
+                        <option value="Deworming Follow-up">Deworming Follow-up</option>
+                        <option value="Post-Surgical Recheck">Post-Surgical Recheck</option>
+                    </select>
                 </div>
 
                 <div>
                     <label class="font-medium">Purpose / Description</label>
                     <textarea name="appoint_description" class="w-full border rounded p-2" rows="3"></textarea>
                 </div>
+                
+                <!-- Hidden fields required by medical management -->
+                <input type="hidden" name="appoint_status" value="scheduled">
+                <input type="hidden" name="active_tab" value="appointments">
             </div>
 
             <div class="flex justify-end gap-2 mt-4">
@@ -61,8 +70,13 @@
                 </div>
 
                 <div>
-                    <label class="font-medium">Time</label>
-                    <input type="time" name="appoint_time" class="w-full border rounded p-2">
+                    <label class="font-medium">Follow-up Type</label>
+                    <select name="appoint_type" class="w-full border rounded p-2">
+                        <option value="General Follow-up">General Follow-up</option>
+                        <option value="Vaccination Follow-up">Vaccination Follow-up</option>
+                        <option value="Deworming Follow-up">Deworming Follow-up</option>
+                        <option value="Post-Surgical Recheck">Post-Surgical Recheck</option>
+                    </select>
                 </div>
 
                 <div>

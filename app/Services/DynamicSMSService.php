@@ -65,7 +65,7 @@ class DynamicSMSService
             return false;
         }
 
-        if (strtolower($appointment->appoint_type) !== 'follow-up') {
+        if (!str_contains(strtolower($appointment->appoint_type), 'follow-up')) {
             return false;
         }
 

@@ -71,6 +71,11 @@ class User extends Authenticatable
     return $this->user_id;
 }
 
+     public function getNameAttribute()
+{
+    return $this->user_name;
+}
+
 
     public function getAuthPassword()
     {

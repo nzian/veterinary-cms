@@ -207,93 +207,164 @@
 
     <div class="title">{{ $title ?? 'REPORT DETAILS' }}</div>
     <p style="text-align: center; font-size: 12px; color: #6b7280; margin-top: -15px;">
-        **Branch:** {{ $branch->branch_name ?? 'N/A' }} | **Generated:** {{ \Carbon\Carbon::now()->format('F d, Y h:i A') }}
+        <strong>Branch:</strong> {{ $branch->branch_name ?? 'N/A' }} | <strong>Generated:</strong> {{ \Carbon\Carbon::now()->format('F d, Y h:i A') }}
     </p>
 
-    {{-- 1. VISITS REPORT --}}
-    @if($reportType === 'visits')
-        <div class="section">
-            <div class="section-header">Visit Information</div>
-            <table>
+    {{-- Enhanced Table for All Report Types --}}
+    @if(in_array($reportType, ['visits', 'pets', 'billing', 'sales', 'referrals', 'equipment', 'services', 'inventory']))
+    <div class="section">
+        <div class="section-header">{{ $title ?? 'Report' }}</div>
+        <table>
+            <thead>
                 <tr>
-                    <td class="label">Visit ID</td>
-                    <td class="value">{{ getField($record, 'visit_id') ?? 'N/A' }}</td>
-                    <td class="label">Branch</td>
-                    <td class="value">{{ getField($record, 'user.branch.branch_name') ?? 'N/A' }}</td>
+                    @if($reportType === 'visits')
+                        <th>#</th>
+                        <th>Visit Date</th>
+                        <th>Owner Name</th>
+                        <th>Contact</th>
+                        <th>Pet Name</th>
+                        <th>Patient Type</th>
+                        <th>Services</th>
+                        <th>Status</th>
+                    @elseif($reportType === 'pets')
+                        <th>#</th>
+                        <th>Registration Date</th>
+                        <th>Owner Name</th>
+                        <th>Contact</th>
+                        <th>Pet Name</th>
+                        <th>Species</th>
+                        <th>Breed</th>
+                        <th>Age</th>
+                        <th>Gender</th>
+                    @elseif($reportType === 'billing')
+                        <th>#</th>
+                        <th>Service Date</th>
+                        <th>Pet Owner</th>
+                        <th>Pet Name</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                    @elseif($reportType === 'sales')
+                        <th>#</th>
+                        <th>Sale Date</th>
+                        <th>Customer</th>
+                        <th>Product</th>
+                        <th>Quantity</th>
+                        <th>Unit Price</th>
+                        <th>Total Amount</th>
+                        <th>Cashier</th>
+                    @elseif($reportType === 'referrals')
+                        <th>#</th>
+                        <th>Date</th>
+                        <th>Owner</th>
+                        <th>Pet</th>
+                        <th>Reason</th>
+                        <th>Referred By</th>
+                        <th>Referred To</th>
+                    @elseif($reportType === 'equipment')
+                        <th>#</th>
+                        <th>Equipment Name</th>
+                        <th>Category</th>
+                        <th>Description</th>
+                        <th>Total In Use</th>
+                        <th>Total Maintenance</th>
+                        <th>Total Available</th>
+                        <th>Total Out of Service</th>
+                    @elseif($reportType === 'services')
+                        <th>#</th>
+                        <th>Service Name</th>
+                        <th>Service Type</th>
+                        <th>Description</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                    @elseif($reportType === 'inventory')
+                        <th>#</th>
+                        <th>Product Name</th>
+                        <th>Product Type</th>
+                        <th>Description</th>
+                        <th>Total Pull Out</th>
+                        <th>Total Damage</th>
+                        <th>Total Stocks</th>
+                    @endif
                 </tr>
-                <tr>
-                    <td class="label">Visit Date</td>
-                    <td class="value">{{ formatDate(getField($record, 'visit_date')) }}</td>
-                    <td class="label">Patient Type</td>
-                    <td class="value">
-                        @php
-                            $patientType = getField($record, 'patient_type');
-                            if (is_object($patientType) && method_exists($patientType, 'value')) {
-                                echo ucfirst($patientType->value);
-                            } elseif (is_string($patientType)) {
-                                echo ucfirst($patientType);
-                            } else {
-                                echo 'N/A';
-                            }
-                        @endphp
-                    </td>
-                </tr>
-                <tr>
-                    <td class="label">Status</td>
-                    <td class="value">
-                        <span class="status-badge {{ getStatusClass(getField($record, 'visit_status')) }}">
-                            {{ ucfirst(getField($record, 'visit_status') ?? 'N/A') }}
-                        </span>
-                    </td>
-                    <td class="label">Veterinarian</td>
-                    <td class="value">{{ getField($record, 'user.name') ?? 'N/A' }}</td>
-                </tr>
-            </table>
-        </div>
-
-        <div class="section">
-            <div class="section-header orange">Patient & Owner Information</div>
-            <table>
-                <tr>
-                    <td class="label">Owner Name</td>
-                    <td class="value">{{ getField($record, 'pet.owner.own_name') ?? 'N/A' }}</td>
-                    <td class="label">Contact Number</td>
-                    <td class="value">{{ getField($record, 'pet.owner.own_contactnum') ?? 'N/A' }}</td>
-                </tr>
-                <tr>
-                    <td class="label">Pet Name</td>
-                    <td class="value">{{ getField($record, 'pet.pet_name') ?? 'N/A' }}</td>
-                    <td class="label">Species</td>
-                    <td class="value">{{ getField($record, 'pet.pet_species') ?? 'N/A' }}</td>
-                </tr>
-                <tr>
-                    <td class="label">Breed</td>
-                    <td class="value">{{ getField($record, 'pet.pet_breed') ?? 'N/A' }}</td>
-                    <td class="label">Age</td>
-                    <td class="value">{{ getField($record, 'pet.pet_age') ?? 'N/A' }} years</td>
-                </tr>
-            </table>
-        </div>
-
-        @if($record->services && $record->services->isNotEmpty())
-        <div class="section">
-            <div class="section-header green">Services Provided</div>
-            <table>
-                <tr>
-                    <td class="label" style="width: 100%; font-weight: bold; text-align: center;">Service Name</td>
-                </tr>
-                @foreach($record->services as $service)
-                <tr>
-                    <td class="value">{{ $service->serv_name ?? 'N/A' }}</td>
-                </tr>
+            </thead>
+            <tbody>
+                @foreach($data as $i => $row)
+                    <tr>
+                        @if($reportType === 'visits')
+                            <td>{{ $i+1 }}</td>
+                            <td>{{ formatDate($row->visit_date) }}</td>
+                            <td>{{ $row->owner_name }}</td>
+                            <td>{{ $row->owner_contact }}</td>
+                            <td>{{ $row->pet_name }}</td>
+                            <td>{{ $row->patient_type }}</td>
+                            <td>{{ $row->services }}</td>
+                            <td>{{ $row->status }}</td>
+                        @elseif($reportType === 'pets')
+                            <td>{{ $i+1 }}</td>
+                            <td>{{ formatDate($row->registration_date) }}</td>
+                            <td>{{ $row->owner_name }}</td>
+                            <td>{{ $row->owner_contact }}</td>
+                            <td>{{ $row->pet_name }}</td>
+                            <td>{{ $row->pet_species }}</td>
+                            <td>{{ $row->pet_breed }}</td>
+                            <td>{{ $row->pet_age }}</td>
+                            <td>{{ $row->pet_gender }}</td>
+                        @elseif($reportType === 'billing')
+                            <td>{{ $i+1 }}</td>
+                            <td>{{ formatDate($row->service_date) }}</td>
+                            <td>{{ $row->customer_name }}</td>
+                            <td>{{ $row->pet_name }}</td>
+                            <td>{{ $row->pay_total }}</td>
+                            <td>{{ $row->payment_status }}</td>
+                        @elseif($reportType === 'sales')
+                            <td>{{ $i+1 }}</td>
+                            <td>{{ formatDate($row->sale_date) }}</td>
+                            <td>{{ $row->customer_name }}</td>
+                            <td>{{ $row->product_name }}</td>
+                            <td>{{ $row->quantity_sold }}</td>
+                            <td>{{ $row->unit_price }}</td>
+                            <td>{{ $row->total_amount }}</td>
+                            <td>{{ $row->cashier }}</td>
+                        @elseif($reportType === 'referrals')
+                            <td>{{ $i+1 }}</td>
+                            <td>{{ formatDate($row->ref_date) }}</td>
+                            <td>{{ $row->owner_name }}</td>
+                            <td>{{ $row->pet_name }}</td>
+                            <td>{{ $row->referral_reason }}</td>
+                            <td>{{ $row->referred_by }}</td>
+                            <td>{{ $row->referred_to }}</td>
+                        @elseif($reportType === 'equipment')
+                            <td>{{ $i+1 }}</td>
+                            <td>{{ $row->equipment_name }}</td>
+                            <td>{{ $row->equipment_category }}</td>
+                            <td>{{ $row->equipment_description }}</td>
+                            <td>{{ $row->total_in_use }}</td>
+                            <td>{{ $row->total_maintenance }}</td>
+                            <td>{{ $row->total_available }}</td>
+                            <td>{{ $row->total_out_of_service }}</td>
+                        @elseif($reportType === 'services')
+                            <td>{{ $i+1 }}</td>
+                            <td>{{ $row->service_name }}</td>
+                            <td>{{ $row->service_type }}</td>
+                            <td>{{ $row->service_description }}</td>
+                            <td>{{ $row->service_price }}</td>
+                            <td>{{ $row->status }}</td>
+                        @elseif($reportType === 'inventory')
+                            <td>{{ $i+1 }}</td>
+                            <td>{{ $row->product_name }}</td>
+                            <td>{{ $row->product_type }}</td>
+                            <td>{{ $row->product_description }}</td>
+                            <td>{{ $row->total_pull_out }}</td>
+                            <td>{{ $row->total_damage }}</td>
+                            <td>{{ $row->total_stocks }}</td>
+                        @endif
+                    </tr>
                 @endforeach
-            </table>
-        </div>
-        @endif
-
-    {{-- 2. APPOINTMENTS REPORT (Includes Pets data for eloquent models) --}}
-    @elseif($reportType === 'appointments')
-        <div class="section">
+            </tbody>
+        </table>
+    </div>
+    @else
+        ...existing code...
             <div class="section-header">Appointment & Handler Information</div>
             <table>
                 <tr>

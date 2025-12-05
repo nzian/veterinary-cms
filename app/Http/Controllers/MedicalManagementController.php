@@ -316,12 +316,25 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
 
         // Appointments query - show all if Super Admin in global mode
         if ($showAllBranches) {
-            $appointments = Appointment::with('pet.owner', 'services')->paginate(10);
+            $appointments = Appointment::with('pet.owner', 'services')
+                ->orderBy('appoint_date', 'desc')
+                ->orderBy('appoint_time', 'desc')
+                ->orderBy('appoint_id', 'desc')
+                ->paginate(10);
         } else {
-            $appointments = Appointment::whereHas('user', fn($q) => $q->where('branch_id', $activeBranchId))->with('pet.owner', 'services')->paginate(10);
+            $appointments = Appointment::whereHas('user', fn($q) => $q->where('branch_id', $activeBranchId))
+                ->with('pet.owner', 'services')
+                ->orderBy('appoint_date', 'desc')
+                ->orderBy('appoint_time', 'desc')
+                ->orderBy('appoint_id', 'desc')
+                ->paginate(10);
         }
         
-        $prescriptions = Prescription::whereIn('user_id', $branchUserIds)->with('pet.owner')->paginate(10);
+        $prescriptions = Prescription::whereIn('user_id', $branchUserIds)
+            ->with('pet.owner')
+            ->orderBy('prescription_date', 'desc')
+            ->orderBy('prescription_id', 'desc')
+            ->paginate(10);
 
         
         // Load referrals - show all if Super Admin in global mode
@@ -359,7 +372,7 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
             'surgicalVisits', 'emergencyVisits', 'vaccinationVisits', 'boardingVisits', 
             'appointments', 'prescriptions', 'referrals', 'activeTab', 'pendingCounts',
             // MUST be included explicitly for the Visit Modal to find available owners
-            'filteredOwners', 'filteredPets', 'serviceTypes' 
+            'filteredOwners', 'filteredPets', 'serviceTypes', 'showAllBranches', 'isInBranchMode'
         ), $lookups));
     }
 
@@ -732,13 +745,24 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
             $appointType = $schedule['next_appoint_type'] ?? ('Vaccination Follow-up for ' . $vaccine->prod_name);
             $newDose = $schedule['new_dose'] ?? 1;
 
-            $this->autoScheduleFollowUp(
-                $visitModel,
-                $appointType,
-                $nextDueDate,
-                $vaccine->prod_name,
-                $newDose
-            );
+            // Only auto-schedule if this is a new vaccination record (not an update)
+            $existingRecord = DB::table('tbl_vaccination_record')
+                ->where('visit_id', $visitModel->visit_id)
+                ->where('pet_id', $visitModel->pet_id)
+                ->first();
+            
+            // Only create appointment if this is the first time saving this vaccination record
+            if (!$existingRecord || $existingRecord->created_at == $existingRecord->updated_at) {
+                $this->autoScheduleFollowUp(
+                    $visitModel,
+                    $appointType,
+                    $nextDueDate,
+                    $vaccine->prod_name,
+                    $newDose
+                );
+            } else {
+                Log::info("Skipping auto-schedule for vaccination update - visit {$visitModel->visit_id}, pet {$visitModel->pet_id}");
+            }
 
             // Ensure vaccination service pivot is marked completed (attach if missing)
             $this->ensureServiceCompleted($visitModel, $validated['service_id'] ?? null, ['vaccination'], 1);
@@ -896,13 +920,24 @@ public function updateServiceStatus(Request $request, $visitId, $serviceId)
             $dwAppointType = $schedule['next_appoint_type'] ?? ('Deworming Follow-up for ' . $currentDewormName);
             $dwNewDose = $schedule['new_dose'] ?? 1;
 
-           /* $this->autoScheduleFollowUp(
-                $visitModel,
-                $dwAppointType,
-                $dwNextDueDate,
-                $currentDewormName,
-                $dwNewDose
-            );*/
+            // Only auto-schedule if this is a new deworming record (not an update)
+            $existingRecord = DB::table('tbl_deworming_record')
+                ->where('visit_id', $visitModel->visit_id)
+                ->where('pet_id', $visitModel->pet_id)
+                ->first();
+            
+            // Only create appointment if this is the first time saving this deworming record
+            if (!$existingRecord || $existingRecord->created_at == $existingRecord->updated_at) {
+                $this->autoScheduleFollowUp(
+                    $visitModel,
+                    $dwAppointType,
+                    $dwNextDueDate,
+                    $currentDewormName,
+                    $dwNewDose
+                );
+            } else {
+                Log::info("Skipping auto-schedule for deworming update - visit {$visitModel->visit_id}, pet {$visitModel->pet_id}");
+            }
 
             // Get all deworming services (pending, null status, or empty) and detach those not selected
             $branchId = Auth::user()->branch_id ?? session('active_branch_id');
@@ -2455,14 +2490,21 @@ public function completeService(Request $request, $visitId, $serviceId)
     public function storeAppointment(Request $request)
     {
         $validated = $request->validate([
-            'appoint_time' => 'required', 'appoint_date' => 'required|date', 'appoint_status' => 'required',
+            'appoint_date' => 'required|date', 'appoint_status' => 'required',
             'pet_id' => 'required|exists:tbl_pet,pet_id', 'appoint_type' => 'required|string', 
             'appoint_description' => 'nullable|string', 'services' => 'array', 'services.*' => 'exists:tbl_serv,serv_id',
         ]);
 
+        // Set default time since we no longer validate it from frontend
+        $validated['appoint_time'] = '09:00:00';
         $validated['user_id'] = Auth::id() ?? $request->input('user_id');
         $services = $validated['services'] ?? [];
         unset($validated['services']);
+
+        // Set default status to 'scheduled' if not specified
+        if (!isset($validated['appoint_status']) || $validated['appoint_status'] === 'Scheduled') {
+            $validated['appoint_status'] = 'scheduled';
+        }
 
         // Check for duplicate appointments (same pet, date, type, and active status)
         $existingAppointment = Appointment::where('pet_id', $validated['pet_id'])
@@ -2488,6 +2530,15 @@ public function completeService(Request $request, $visitId, $serviceId)
         
         // Assuming History and Service Sync Logic is restored/handled elsewhere
         
+        // Return JSON response for inline success message if requested
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Appointment created successfully',
+                'appointment' => $appointment->load(['pet.owner'])
+            ]);
+        }
+        
         $activeTab = $request->input('tab', 'appointments');
         return redirect()->route('medical.index', ['tab' => $activeTab])->with('success', 'Appointment added successfully');
     }
@@ -2505,11 +2556,14 @@ public function completeService(Request $request, $visitId, $serviceId)
     public function updateAppointment(Request $request, Appointment $appointment)
     {
         $validated = $request->validate([
-            'appoint_date' => 'required|date', 'appoint_time' => 'required',
+            'appoint_date' => 'required|date',
             'appoint_status' => 'required|in:pending,arrived,completed,refer,rescheduled',
             'appoint_type' => 'required|string', 'pet_id' => 'required|integer|exists:tbl_pet,pet_id',
             'appoint_description' => 'nullable|string', 'services' => 'array', 'services.*' => 'exists:tbl_serv,serv_id',
         ]);
+
+        // Use default time if not provided
+        $validated['appoint_time'] = '09:00:00';
 
         // Store old values for SMS notification
         $oldDate = $appointment->appoint_date;
@@ -3438,6 +3492,17 @@ public function completeService(Request $request, $visitId, $serviceId)
      */
     protected function calculateNextSchedule($type, $itemName, $petId)
     {
+        // Get the actual product name (remove ID if present)
+        $cleanItemName = $itemName;
+        if (is_numeric($itemName)) {
+            // If itemName is just a product ID, get the product name from database
+            $product = \App\Models\Product::find($itemName);
+            $cleanItemName = $product ? $product->prod_name : $itemName;
+        } else if (preg_match('/^(\d+)\s*-?\s*(.+)/', $itemName, $matches)) {
+            // If itemName contains ID followed by name (e.g., "623 - Product Name" or "623-Product Name")
+            $cleanItemName = trim($matches[2]);
+        }
+        
         // Get the most recent record for this pet and item
         $tableName = $type === 'vaccination' ? 'tbl_vaccination_record' : 'tbl_deworming_record';
         $itemColumn = $type === 'vaccination' ? 'vaccine_name' : 'dewormer_name';
@@ -3469,18 +3534,18 @@ public function completeService(Request $request, $visitId, $serviceId)
                 } else {
                     $newDose = 2;
                 }
-                $nextAppointType = "Vaccination Follow-up - {$itemName} (Dose {$newDose})";
+                $nextAppointType = "Vaccination Follow-up (Dose {$newDose})";
             } else {
                 // For deworming
-                $nextAppointType = "Deworming Follow-up - {$itemName}";
+                $nextAppointType = "Deworming Follow-up";
             }
         } else {
             // First time for this pet
             if ($type === 'vaccination') {
-                $nextAppointType = "Vaccination Follow-up - {$itemName} (Dose 2)";
+                $nextAppointType = "Vaccination Follow-up (Dose 2)";
                 $newDose = 2;
             } else {
-                $nextAppointType = "Deworming Follow-up - {$itemName}";
+                $nextAppointType = "Deworming Follow-up";
             }
         }
         

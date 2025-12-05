@@ -97,8 +97,8 @@ class ReportController extends Controller
             'title' => $titles[$reportType] ?? 'Report Details',
             'reportMetadata' => $reportMetadata,
         ]);
-
-        return $pdf->stream($titles[$reportType] ?? 'report' . '_' . $recordId . '.pdf');
+        $pdf->setPaper('letter', 'landscape');
+        return $pdf->stream(($titles[$reportType] ?? 'report') . '_' . $recordId . '.pdf');
     }
 
     /**

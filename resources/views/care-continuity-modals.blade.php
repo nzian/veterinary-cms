@@ -19,11 +19,6 @@
                 </div>
 
                 <div>
-                    <label class="font-medium">Time</label>
-                    <input type="time" name="appoint_time" class="w-full border rounded p-2" required>
-                </div>
-
-                <div>
                     <label class="font-medium">Purpose / Description</label>
                     <textarea name="appoint_description" class="w-full border rounded p-2" rows="3"></textarea>
                 </div>
@@ -58,11 +53,6 @@
                 <div>
                     <label class="font-medium">Appointment Date</label>
                     <input type="date" name="appoint_date" class="w-full border rounded p-2">
-                </div>
-
-                <div>
-                    <label class="font-medium">Time</label>
-                    <input type="time" name="appoint_time" class="w-full border rounded p-2">
                 </div>
 
                 <div>

@@ -434,6 +434,8 @@ class ProdServEquipController extends Controller
                 $recentServiceUsage = DB::table('tbl_inventory_transactions as it')
                     ->leftJoin('tbl_serv as serv', 'it.serv_id', '=', 'serv.serv_id')
                     ->leftJoin('tbl_user as performer', 'it.performed_by', '=', 'performer.user_id')
+                    ->leftJoin('tbl_appoint as appt', 'it.appoint_id', '=', 'appt.appoint_id')
+                    ->leftJoin('tbl_pet as pet', 'appt.pet_id', '=', 'pet.pet_id')
                     ->where('it.prod_id', $id)
                     ->where('it.transaction_type', 'service_usage')
                     ->select(
@@ -442,7 +444,9 @@ class ProdServEquipController extends Controller
                         'it.notes',
                         'it.reference',
                         'serv.serv_name',
-                        'performer.user_name as performed_by'
+                        'performer.user_name as performed_by',
+                        'appt.appoint_id as visit_id',
+                        'pet.pet_name'
                     )
                     ->orderBy('it.created_at', 'desc')
                     ->limit(15)
@@ -490,14 +494,19 @@ class ProdServEquipController extends Controller
         try {
             $service = Service::with('branch')->findOrFail($id);
             
-            $visits = DB::table('tbl_visit_record')
+            // Calculate revenue data properly
+            $revenueQuery = DB::table('tbl_visit_record')
                 ->join('tbl_visit_service', 'tbl_visit_record.visit_id', '=', 'tbl_visit_service.visit_id')
                 ->where('tbl_visit_service.serv_id', $id)
-                ->pluck('tbl_visit_record.visit_id');
+                ->selectRaw('
+                    COUNT(DISTINCT tbl_visit_record.visit_id) as total_bookings,
+                    COUNT(DISTINCT tbl_visit_record.visit_id) * ? as total_revenue
+                ', [$service->serv_price])
+                ->first();
 
             $revenueData = (object)[
-                'total_bookings' => $visits->count(),
-                'total_revenue' => $visits ->sum('total_price'),
+                'total_bookings' => $revenueQuery->total_bookings ?? 0,
+                'total_revenue' => $revenueQuery->total_revenue ?? 0,
                 'average_booking_value' => $service->serv_price
             ];
 
@@ -604,15 +613,49 @@ class ProdServEquipController extends Controller
                 }
             }
 
-            $utilizationData = DB::table('tbl_visit_record')
-                ->join('tbl_visit_service', 'tbl_visit_record.visit_id', '=', 'tbl_visit_service.visit_id')
-                ->where('tbl_visit_service.serv_id', $id)
+            // Get utilization data from appointments (more accurate than visits)
+            $utilizationData = DB::table('tbl_appoint as a')
+                ->join('tbl_appoint_serv as aps', 'a.appoint_id', '=', 'aps.appoint_id')
+                ->where('aps.serv_id', $id)
                 ->selectRaw('
-                    tbl_visit_record.visit_status,
+                    CASE 
+                        WHEN a.appoint_status IN ("complete", "completed") THEN "completed"
+                        WHEN a.appoint_status IN ("cancel", "cancelled") THEN "cancelled" 
+                        ELSE "pending"
+                    END as appoint_status,
                     COUNT(*) as count
                 ')
-                ->groupBy('tbl_visit_record.visit_status')
+                ->groupBy(DB::raw('
+                    CASE 
+                        WHEN a.appoint_status IN ("complete", "completed") THEN "completed"
+                        WHEN a.appoint_status IN ("cancel", "cancelled") THEN "cancelled" 
+                        ELSE "pending"
+                    END
+                '))
                 ->get();
+
+            // Fallback to visit data if no appointments found
+            if ($utilizationData->isEmpty()) {
+                $utilizationData = DB::table('tbl_visit_record as vr')
+                    ->join('tbl_visit_service as vs', 'vr.visit_id', '=', 'vs.visit_id')
+                    ->where('vs.serv_id', $id)
+                    ->selectRaw('
+                        CASE 
+                            WHEN vr.visit_status IN ("complete", "completed") THEN "completed"
+                            WHEN vr.visit_status IN ("cancel", "cancelled") THEN "cancelled" 
+                            ELSE "pending"
+                        END as appoint_status,
+                        COUNT(*) as count
+                    ')
+                    ->groupBy(DB::raw('
+                        CASE 
+                            WHEN vr.visit_status IN ("complete", "completed") THEN "completed"
+                            WHEN vr.visit_status IN ("cancel", "cancelled") THEN "cancelled" 
+                            ELSE "pending"
+                        END
+                    '))
+                    ->get();
+            }
 
             $peakTimes = DB::table('tbl_visit_record')
                 ->join('tbl_visit_service', 'tbl_visit_record.visit_id', '=', 'tbl_visit_service.visit_id')
@@ -662,7 +705,8 @@ class ProdServEquipController extends Controller
                     ->join('tbl_service_products as sp', 'it.prod_id', '=', 'sp.prod_id')
                     ->join('tbl_prod as p', 'it.prod_id', '=', 'p.prod_id')
                     ->leftJoin('tbl_user as u', 'it.performed_by', '=', 'u.user_id')
-                   // ->leftJoin('tbl_appoint as a', 'it.appoint_id', '=', 'a.appoint_id')
+                    ->leftJoin('tbl_appoint as a', 'it.appoint_id', '=', 'a.appoint_id')
+                    ->leftJoin('tbl_pet as pet', 'a.pet_id', '=', 'pet.pet_id')
                     ->where('sp.serv_id', $id)
                     ->where('it.transaction_type', 'service_usage')
                     ->select(
@@ -672,7 +716,8 @@ class ProdServEquipController extends Controller
                         'it.reference',
                         'it.notes',
                         'u.user_name',
-                        //'a.appoint_id',
+                        'a.appoint_id',
+                        'pet.pet_name',
                         'it.transaction_type'
                     )
                     ->orderBy('it.created_at', 'desc')
@@ -953,51 +998,73 @@ class ProdServEquipController extends Controller
         $validated = $request->validate([
             'add_stock' => 'required|integer|min:1',
             'batch' => 'required|string|max:100',
-            'new_expiry' => 'required|date|after:today',
+            'new_expiry' => 'nullable|date|after:today',
+            'non_expiring' => 'nullable|boolean',
             'notes' => 'nullable|string',
             'tab' => 'nullable|string|in:products,services,equipment'
         ]);
+
+        // Custom validation: if non_expiring is not checked, expiry date is required
+        if (!$request->boolean('non_expiring') && empty($validated['new_expiry'])) {
+            return redirect()->back()->withErrors(['new_expiry' => 'Expiry date is required for expiring products.']);
+        }
+
+        // If non_expiring is checked, expiry date should not be provided
+        if ($request->boolean('non_expiring') && !empty($validated['new_expiry'])) {
+            return redirect()->back()->withErrors(['new_expiry' => 'Expiry date should not be set for non-expiring products.']);
+        }
 
         $product = Product::findOrFail($id);
         
         DB::beginTransaction();
         try {
             $addedStock = $validated['add_stock'];
+            $isNonExpiring = $request->boolean('non_expiring');
+            $expiryDate = $isNonExpiring ? null : $validated['new_expiry'];
             
             // Create new stock batch record
             $stockBatch = \App\Models\ProductStock::create([
                 'stock_prod_id' => $product->prod_id,
                 'batch' => $validated['batch'],
                 'quantity' => $addedStock,
-                'expire_date' => $validated['new_expiry'],
+                'expire_date' => $expiryDate,
                 'note' => $validated['notes'],
                 'created_by' => Auth::id(),
             ]);
             
-            // Update product's total stock (sum of all non-expired batches)
+            // Update product's total stock (sum of all available batches)
+            // Include both non-expired and non-expiring batches
             $product->prod_stocks = $product->stockBatches()
-                ->notExpired()
+                ->where(function($query) {
+                    $query->whereNull('expire_date') // Non-expiring products
+                          ->orWhere('expire_date', '>=', now()->format('Y-m-d')); // Non-expired products
+                })
                 ->get()
                 ->sum('available_quantity');
             
             $product->save();
             
             // ✅ Record the restock transaction
+            $expiryText = $expiryDate ? "Expiry: {$expiryDate}" : "Non-expiring product";
             $this->recordInventoryTransaction(
                 $product->prod_id,
                 'purchase',
                 $addedStock,
                 'Manual Stock Update',
-                "Added batch '{$validated['batch']}' with {$addedStock} units. Expiry: {$validated['new_expiry']}",
+                "Added batch '{$validated['batch']}' with {$addedStock} units. {$expiryText}",
                 ($validated['notes'] ? " - {$validated['notes']}" : ''),
                 $stockBatch->id
             );
             
             DB::commit();
             
+            $batchInfo = $isNonExpiring ? 
+                "Stock batch added successfully! Added {$addedStock} units (Batch: {$validated['batch']}) - Non-expiring product." :
+                "Stock batch added successfully! Added {$addedStock} units (Batch: {$validated['batch']}) - Expires: {$expiryDate}.";
+            
             $redirectTab = $this->getRedirectTab($request, 'products');
             return redirect()->route('prodServEquip.index', ['tab' => $redirectTab])
-                ->with('success', "Stock batch added successfully! Added {$addedStock} units (Batch: {$validated['batch']}).");
+                ->with('success', $batchInfo);
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()->with('error', 'Failed to update stock: ' . $e->getMessage());
@@ -1690,7 +1757,7 @@ public function getProductServiceUsage($productId)
                     'appointment_id' => $trans->appoint_id,
                     'pet_name' => $trans->appointment->pet->pet_name ?? 'N/A',
                     'owner_name' => $trans->appointment->pet->owner->own_name ?? 'N/A',
-                    'quantity_used' => abs($trans->quantity_change),
+                    'quantity_used' => abs((float)$trans->quantity_change),
                     'reference' => $trans->reference,
                 ];
             });
