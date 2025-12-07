@@ -2106,19 +2106,32 @@ function openEditVisitModal(visitId, attending) {
 
         // Load service types
         const servicesList = document.getElementById('edit_services_list');
+        //console.log(v.visit_service_type);
+        let serviceTypesData = [];
+        if(v.visit_service_type !== null) {
+            serviceTypesData = v.visit_service_type.split(', ');
+        }
+        
         if (servicesList) {
             // Initialize checkbox listeners
             initEditServiceCheckboxes();
             
-            if (v.services && v.services.length > 0) {
+            if (v.services && v.services.length > 0 || serviceTypesData.length > 0) {
                 // Get unique service types from services
                 const serviceTypesSet = new Set();
-                v.services.forEach(service => {
-                    const serviceType = (service.serv_type || service.serv_name || '').toLowerCase();
-                    if (serviceType) {
-                        serviceTypesSet.add(serviceType);
-                    }
-                });
+                if(v.services && v.services.length > 0) {
+                    v.services.forEach(service => {
+                        const serviceType = (service.serv_type || service.serv_name || '').toLowerCase();
+                        if (serviceType) {
+                            serviceTypesSet.add(serviceType);
+                        }
+                    });
+                }
+                else if(serviceTypesData.length > 0) {
+                    serviceTypesData.forEach(st => {
+                        serviceTypesSet.add(st.toLowerCase());
+                    });
+                }
                 // Set checkboxes for the service types
                 setEditServiceCheckboxes(Array.from(serviceTypesSet));
             } else {

@@ -251,22 +251,14 @@ class BranchReportController extends Controller
                 $reports['referrals'] = [
                     'title' => 'Referral Report',
                     'description' => 'Patient referrals (interbranch and external) for ' . $branch->branch_name,
-                    'data' => $referralQuery->with(['appointment', 'refFromBranch', 'refToBranch'])
+                    'data' => $referralQuery->with(['pet.owner', 'refFromBranch', 'refToBranch'])
                         ->get()
                         ->map(function($referral) {
-                            $pet = null;
-                            $owner = null;
-                            if ($referral->appointment && $referral->appointment->pet_id) {
-                                $pet = \App\Models\Pet::withoutGlobalScopes()->find($referral->appointment->pet_id);
-                                if ($pet && $pet->own_id) {
-                                    $owner = \App\Models\Owner::withoutGlobalScope('branch_owner_scope')->find($pet->own_id);
-                                }
-                            }
                             return (object)[
                                 'ref_id' => $referral->ref_id,
                                 'ref_date' => $referral->ref_date,
-                                'owner_name' => $owner && $owner->own_name ? $owner->own_name : ($pet && $pet->own_id ? 'Owner ID: ' . $pet->own_id : 'N/A'),
-                                'pet_name' => $pet && $pet->pet_name ? $pet->pet_name : ($referral->appointment && $referral->appointment->pet_id ? 'Pet ID: ' . $referral->appointment->pet_id : 'N/A'),
+                                'owner_name' => $referral->pet && $referral->pet->owner ? $referral->pet->owner->own_name : 'N/A',
+                                'pet_name' => $referral->pet ? $referral->pet->pet_name : 'N/A',
                                 'referral_reason' => $referral->ref_description,
                                 'referred_by' => optional($referral->refFromBranch)->branch_name ?? 'External',
                                 'referred_to' => optional($referral->refToBranch)->branch_name ?? 'External',
@@ -552,7 +544,7 @@ class BranchReportController extends Controller
     {
         //dd($request->all());
         $user = auth()->user();
-        $branchId = $user->branch_id;
+        $branchId = $user->branch_id ?? session('active_branch_id');
         $branch = Branch::find($branchId);
         $reportType = $request->get('report', 'visits');
         $startDate = $request->get('start_date', Carbon::now()->startOfMonth()->format('Y-m-d'));
@@ -574,7 +566,7 @@ class BranchReportController extends Controller
             'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"$filename\"",
         ];
-
+        //dd($reportType);
         $callback = function() use ($reportType, $startDate, $endDate, $branchId, $branch, $visitStatus, $petSpecies, $billingStatus, $serviceCategory, $stockStatus, $productType, $referralStatus, $equipmentCategory) {
             $file = fopen('php://output', 'w');
             
@@ -600,7 +592,6 @@ class BranchReportController extends Controller
                             static $counter = 0;
                             foreach($visits as $visit) {
                                 $counter++;
-                                
                                 fputcsv($file, [
                                     $counter, // # instead of visit_id
                                     $visit->visit_date,
@@ -725,19 +716,19 @@ class BranchReportController extends Controller
                     fputcsv($file, ['Referral ID', 'Referral Date', 'Owner Name', 'Pet Name', 'Referral Reason', 'Referred By', 'Referred To']);
                     
                     Referral::whereBetween('ref_date', [$startDate, $endDate])
-                        ->whereHas('appointment.user', function($q) use ($branchId) {
+                        ->whereHas('visit.user', function($q) use ($branchId) {
                             $q->where('branch_id', $branchId);
                         })
-                        ->with(['appointment.pet.owner', 'appointment.user'])
+                        ->with(['pet.owner', 'refFromBranch', 'refToBranch'])
                         ->chunk(100, function($referrals) use ($file) {
                             foreach($referrals as $referral) {
                                 fputcsv($file, [
                                     $referral->ref_id,
                                     $referral->ref_date,
-                                    $referral->appointment->pet->owner->own_name ?? 'N/A',
-                                    $referral->appointment->pet->pet_name ?? 'N/A',
+                                    $referral->pet->owner->own_name ?? 'N/A',
+                                    $referral->pet->pet_name ?? 'N/A',
                                     $referral->ref_description,
-                                    $referral->appointment->user->name ?? 'N/A',
+                                    $referral->visit->user->name ?? 'N/A',
                                     $referral->ref_to
                                 ]);
                             }

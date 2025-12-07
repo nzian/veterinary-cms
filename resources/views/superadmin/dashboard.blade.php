@@ -543,7 +543,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                     @php
-                        $recentReferrals = \App\Models\Referral::with(['appointment.pet.owner', 'refToBranch', 'refByBranch'])
+                        $recentReferrals = \App\Models\Referral::with(['pet.owner', 'refToBranch', 'refFromBranch'])
                             ->orderBy('ref_date', 'desc')
                             ->limit(10)
                             ->get();
@@ -551,14 +551,15 @@
                     @forelse($recentReferrals as $referral)
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 sm:px-6 py-3 sm:py-4">
-                            <p class="text-sm font-semibold text-gray-900">{{ $referral->appointment->pet->pet_name ?? 'N/A' }}</p>
-                            <p class="text-xs text-gray-500">{{ $referral->appointment->pet->owner->own_name ?? 'N/A' }}</p>
+                            <p class="text-sm font-semibold text-gray-900">{{ $referral->pet->pet_name ?? 'N/A' }}</p>
+                            <p class="text-xs text-gray-500">{{ $referral->pet->owner->own_name ?? 'N/A' }}</p>
                         </td>
                         <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
-                            {{ $referral->refByBranch?->branch_name ?? 'N/A' }}
+                            {{ $referral->refFromBranch?->branch_name ?? 'N/A' }}
                         </td>
                         <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
-                            {{ $referral->refToBranch?->branch_name ?? 'N/A' }}
+                            {{ $referral->refToBranch?->branch_name ?? $referral->external_clinic_name
+                                 ?? 'N/A' }}
                         </td>
                         <td class="px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600">
                             {{ \Carbon\Carbon::parse($referral->ref_date)->format('M d, Y') }}

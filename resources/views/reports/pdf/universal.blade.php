@@ -410,8 +410,8 @@
                 <tr>
                     <td class="label">Customer/Owner</td>
                     <td class="value">{{ getField($record, 'own_name', 'owner_name', 'customer_name') ?? 'N/A' }}</td>
-                    <td class="label">Pet Name</td>
-                    <td class="value">{{ $record->pet_name ?? 'N/A' }}</td>
+                    <td class="label">Contact</td>
+                    <td class="value">{{ $record->own_contactnum ?? 'N/A' }}</td>
                 </tr>
             </table>
         </div>
@@ -459,7 +459,7 @@
             <table>
                 <tr>
                     <td class="label">Order ID</td>
-                    <td class="value">{{ getField($record, 'ord_id', 'ord_id') ?? 'N/A' }}</td>
+                    <td class="value">{{ getField($record, 'orderId', 'orderId') ?? 'N/A' }}</td>
                     <td class="label">Date</td>
                     <td class="value">{{ formatDate(getField($record, 'ord_date', 'sale_date', 'order_date')) }}</td>
                 </tr>
