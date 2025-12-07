@@ -32,7 +32,7 @@ class ReportController extends Controller
     public function generatePDF($reportType, $recordId)
     {
         $record = $this->getRecordByType($reportType, $recordId);
-        
+        dd($record);
         if (!$record) {
             abort(404, 'Record not found');
         }
@@ -135,6 +135,7 @@ class ReportController extends Controller
                 return $this->getBillingDetails($recordId);
 
             case 'product_sales':
+
                 return $this->getSalesDetails($recordId);
 
             case 'payment_collection':
@@ -163,6 +164,7 @@ class ReportController extends Controller
 
     public function export(Request $request)
     {
+        //dd($request->all());
         $reportType = $request->get('report', 'visits');
         $startDate = $request->get('start_date');
         $endDate = $request->get('end_date');
@@ -931,15 +933,15 @@ class ReportController extends Controller
 
     private function getBillingDetails($billId)
     {
-        return DB::table('tbl_bill')
-            ->leftJoin('tbl_appoint', 'tbl_appoint.appoint_id', '=', 'tbl_bill.appoint_id')
-            ->leftJoin('tbl_pet', 'tbl_pet.pet_id', '=', 'tbl_appoint.pet_id')
-            ->leftJoin('tbl_own', 'tbl_own.own_id', '=', 'tbl_pet.own_id')
-            ->leftJoin('tbl_pay', 'tbl_pay.bill_id', '=', 'tbl_bill.bill_id')
-            ->leftJoin('tbl_user', 'tbl_user.user_id', '=', 'tbl_appoint.user_id')
+        return DB::table('tbl_bill as b')
+            ->leftJoin('tbl_ord as ord', 'b.ord_id', '=', 'ord.ord_id')
+            //->leftJoin('tbl_pet', 'tbl_pet.pet_id', '=', 'tbl_appoint.pet_id')
+            ->leftJoin('tbl_own', 'tbl_own.own_id', '=', 'ord.own_id')
+            ->leftJoin('tbl_pay', 'tbl_pay.bill_id', '=', 'b.bill_id')
+            ->leftJoin('tbl_user', 'tbl_user.user_id', '=', 'ord.user_id')
             ->leftJoin('tbl_branch', 'tbl_branch.branch_id', '=', 'tbl_user.branch_id')
             ->select('*')
-            ->where('tbl_bill.bill_id', $billId)
+            ->where('b.bill_id', $billId)
             ->first();
     }
 
@@ -950,7 +952,14 @@ class ReportController extends Controller
             ->join('tbl_user', 'tbl_user.user_id', '=', 'tbl_ord.user_id')
             ->leftJoin('tbl_own', 'tbl_own.own_id', '=', 'tbl_ord.own_id')
             ->join('tbl_branch', 'tbl_branch.branch_id', '=', 'tbl_user.branch_id')
-            ->select('*')
+            ->select(
+                'tbl_ord.ord_id as orderId',
+                'tbl_ord.*',
+                'tbl_user.*',
+                'tbl_prod.*',
+                'tbl_own.*',
+                'tbl_branch.*'
+            )
             ->where('tbl_ord.ord_id', $orderId)
             ->first();
     }
@@ -1155,14 +1164,26 @@ class ReportController extends Controller
 
     private function getPaymentCollectionDetails($payId)
     {
+        
         return DB::table('tbl_pay as pay')
             ->join('tbl_bill as b', 'pay.bill_id', '=', 'b.bill_id')
-            ->join('tbl_appoint as a', 'b.appoint_id', '=', 'a.appoint_id')
-            ->join('tbl_pet as p', 'a.pet_id', '=', 'p.pet_id')
+            ->join('tbl_visit_record as v', 'b.visit_id', '=', 'v.visit_id')
+            ->join('tbl_pet as p', 'v.pet_id', '=', 'p.pet_id')
             ->join('tbl_own as o', 'p.own_id', '=', 'o.own_id')
-            ->join('tbl_user as u', 'a.user_id', '=', 'u.user_id')
+            ->join('tbl_user as u', 'v.user_id', '=', 'u.user_id')
             ->leftJoin('tbl_branch as br', 'u.branch_id', '=', 'br.branch_id') // FIX: Join Branch via User
-            ->select('*')
+            ->select(
+                'pay.pay_id',
+                'u.user_name as collected_by',
+                'o.own_name',
+                'p.pet_name',
+                'v.visit_date',
+                'b.bill_id',
+                'pay.pay_total',
+                'pay.pay_cashAmount',
+                'pay.pay_change',
+                'br.branch_name'
+            )
             ->where('pay.pay_id', $payId)
             ->first();
     }
@@ -1197,14 +1218,27 @@ class ReportController extends Controller
 
     private function getDamagedProductDetails($orderId)
     {
-        return DB::table('tbl_ord as ord')
+        $query = DB::table('tbl_ord as ord')
             ->join('tbl_prod as pr', 'ord.prod_id', '=', 'pr.prod_id')
             ->join('tbl_own as o', 'ord.own_id', '=', 'o.own_id')
             ->join('tbl_user as u', 'ord.user_id', '=', 'u.user_id')
             ->leftJoin('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id')
-            ->select('*')
-            ->where('ord.ord_id', $orderId)
-            ->first();
+            ->select(
+                'ord.ord_id',
+                'o.own_name',
+                'u.user_name as handled_by',
+                'pr.prod_name',
+                'pr.prod_damaged',
+                'pr.prod_pullout',
+                'ord.ord_quantity',
+                'ord.ord_date'
+            )
+            ->where(function($q) {
+                $q->where('pr.prod_damaged', '>', 0)
+                  ->orWhere('pr.prod_pullout', '>', 0);
+            });
+
+        return $query->orderBy('ord.ord_date', 'desc')->get();
     }
 
     private function getBranchPaymentDetails($branchName)

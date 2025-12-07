@@ -5,7 +5,7 @@
     <div class="max-w-7xl mx-auto p-6">
 
         <div class="bg-white rounded-lg shadow-sm p-6 mb-6 no-print">
-            <form method="GET" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <form method="GET" id="reportform" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Report Type</label>
                     <select name="report" id="reportSelect" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
@@ -429,13 +429,14 @@
 
     // Retained original functions for export/view, updated to use fixed values
     function exportReport() {
-        const form = document.querySelector('form');
+        const form = document.querySelector('#reportform');
         const exportForm = document.createElement('form');
         exportForm.method = 'GET';
         exportForm.action = '{{ route("reports.export") }}';
         
         const formData = new FormData(form);
         for (let [key, value] of formData.entries()) {
+            console.log(key, value); // Debug log
             const input = document.createElement('input');
             input.type = 'hidden';
             input.name = key;
