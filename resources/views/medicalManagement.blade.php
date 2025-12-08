@@ -2211,10 +2211,31 @@ function renderVisitDetails(v, serviceType) {
         year: 'numeric', month: 'long', day: 'numeric' 
     }) : 'N/A';
     
-    // Get services list
+    // Get services list - check both services relationship and visit_service_type field
     let servicesHtml = '-';
+    const serviceTypesSet = new Set();
+    
+    // First, try to get service types from services relationship
     if (v.services && v.services.length > 0) {
-        const serviceTypes = [...new Set(v.services.map(s => s.serv_type || s.serv_name))];
+        v.services.forEach(service => {
+            const serviceType = (service.serv_type || service.serv_name || '').trim();
+            if (serviceType) {
+                serviceTypesSet.add(serviceType);
+            }
+        });
+    }
+    
+    // Fallback to visit_service_type field if services relationship is empty
+    if (serviceTypesSet.size === 0 && v.visit_service_type) {
+        const serviceTypesData = v.visit_service_type.split(',').map(st => st.trim()).filter(st => st);
+        serviceTypesData.forEach(st => {
+            if (st) serviceTypesSet.add(st);
+        });
+    }
+    
+    // Generate HTML for service types
+    if (serviceTypesSet.size > 0) {
+        const serviceTypes = Array.from(serviceTypesSet);
         servicesHtml = serviceTypes.map(t => `<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-1 mb-1">${capitalizeFirstLetter(t)}</span>`).join('');
     }
     
@@ -2265,10 +2286,6 @@ function renderVisitDetails(v, serviceType) {
                     <div>
                         <p class="text-xs text-gray-500 uppercase">Contact</p>
                         <p class="font-medium">${v.pet?.owner?.own_contactnum || 'N/A'}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-gray-500 uppercase">Email</p>
-                        <p class="font-medium">${v.pet?.owner?.own_email || 'N/A'}</p>
                     </div>
                 </div>
             </div>

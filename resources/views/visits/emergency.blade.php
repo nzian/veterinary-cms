@@ -75,13 +75,12 @@
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Emergency Type</label>
                             <select name="emergency_type" id="emergency_type_select" class="w-full border border-gray-300 p-3 rounded-lg">
-                                @php($selectedType = old('emergency_type', $__emerg['emergency_type'] ?? ''))
+                                @php $selectedType = old('emergency_type', $__emerg['emergency_type'] ?? '') @endphp
                                 <option value="">Select type</option>
                                 @if(isset($availableServices) && $availableServices->count() > 0)
                                     @foreach($availableServices as $service)
-                                        <option value="{{ $service->serv_name }}" 
-                                                data-service-id="{{ $service->serv_id }}"
-                                                data-products='@json($service->products->map(function($p) {
+                                        @php
+                                          $serv_prod = $service->products->map(function($p) {
                                                     return [
                                                         "prod_id" => $p->prod_id,
                                                         "prod_name" => $p->prod_name,
@@ -89,7 +88,11 @@
                                                         "prod_expiry" => $p->prod_expiry,
                                                         "quantity_used" => $p->pivot->quantity_used ?? 1
                                                     ];
-                                                }))'
+                                                });
+                                        @endphp
+                                        <option value="{{ $service->serv_name }}" 
+                                                data-service-id="{{ $service->serv_id }}"
+                                                data-products='@json($serv_prod)'
                                                 {{ $selectedType === $service->serv_name ? 'selected' : '' }}>
                                             {{ $service->serv_name }}
                                         </option>

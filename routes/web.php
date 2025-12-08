@@ -346,7 +346,6 @@ Route::get('/reports/export-pdf', [ReportController::class, 'exportPdf'])->name(
 Route::get('/reports/export', [ReportController::class, 'export'])->name('reports.export');
 Route::get('/reports/{reportType}/{recordId}/view', [ReportController::class, 'viewRecord'])->name('reports.viewRecord');
 Route::get('/reports/{reportType}/{recordId}', [ReportController::class, 'viewRecord'])->name('reports.view');
-Route::get('/reports/{reportType}/{recordId}/pdf', [ReportController::class, 'viewRecordPDF'])->name('reports.viewPDF');
 Route::get('/reports/{reportType}/{recordId}/pdf', [ReportController::class, 'generatePDF'])
     ->name('reports.pdf');
 

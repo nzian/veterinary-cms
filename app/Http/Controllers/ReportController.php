@@ -31,10 +31,38 @@ class ReportController extends Controller
      */
     public function generatePDF($reportType, $recordId)
     {
+        // Validate report type
+        $validReportTypes = [
+            'visits', 'owner_pets', 'visit_billing', 'product_purchases', 'referrals',
+            'visit_services', 'branch_visits', 'multi_service_visits', 'billing_orders',
+            'product_sales', 'payment_collection', 'branch_payments', 'medical_history',
+            'prescriptions', 'referral_medical', 'branch_users', 'branch_equipment',
+            'damaged_products', 'service_utilization'
+        ];
+        
+        if (!in_array($reportType, $validReportTypes)) {
+            abort(404, 'Invalid report type: ' . $reportType);
+        }
+        
+        try {
         $record = $this->getRecordByType($reportType, $recordId);
-        dd($record);
         if (!$record) {
-            abort(404, 'Record not found');
+                \Log::warning('Record not found', ['reportType' => $reportType, 'recordId' => $recordId]);
+                abort(404, 'Record not found for report type: ' . $reportType . ' with ID: ' . $recordId);
+            }
+            
+            // Convert to object if it's an array
+            if (is_array($record)) {
+                $record = (object) $record;
+            }
+        } catch (\Exception $e) {
+            \Log::error('Error fetching record', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'reportType' => $reportType,
+                'recordId' => $recordId
+            ]);
+            abort(500, 'Error fetching record: ' . $e->getMessage());
         }
 
         // --- Handle report-specific data transformation before PDF rendering ---
@@ -49,6 +77,7 @@ class ReportController extends Controller
 
         if ($reportType === 'prescriptions') {
             // FIX: Decode and format raw medication data for display in PDF detail view/modal
+            if (isset($record->medication) && $record->medication) {
             $medications = json_decode($record->medication, true);
             $formattedMedication = '';
             if (is_array($medications)) {
@@ -59,6 +88,9 @@ class ReportController extends Controller
                 $formattedMedication = $record->medication; // Fallback
             }
             $record->formatted_medication = trim($formattedMedication);
+            } else {
+                $record->formatted_medication = 'No medication data';
+            }
         }
 
         // Define titles for each report type
@@ -80,7 +112,7 @@ class ReportController extends Controller
             'referral_medical' => 'Referrals with Medical History',
             'branch_users' => 'Users Assigned per Branch',
             'branch_equipment' => 'Branch Equipment Summary',
-            'damaged_products' => 'Damaged/Pullout Products',
+            'damaged_products' => 'Complete Stock Movement History',
             'service_utilization' => 'Service Utilization per Branch',
         ];
         
@@ -91,14 +123,64 @@ class ReportController extends Controller
             'generated_at' => Carbon::now()->format('M d, Y h:i A'),
         ];
 
-        $pdf = PDF::loadView('reports.pdf.universal', [
+        // Generate PDF
+        try {
+            // Use the correct view path - Laravel uses dot notation for nested views
+            $viewPath = 'reports.pdf.universal';
+            
+            // Verify view exists and file exists
+            $viewFile = resource_path('views/reports/pdf/universal.blade.php');
+            if (!file_exists($viewFile)) {
+                \Log::error('PDF view file not found', ['path' => $viewFile]);
+                abort(500, 'PDF view file does not exist at: ' . $viewFile);
+            }
+            
+            if (!View::exists($viewPath)) {
+                \Log::error('PDF view not found in Laravel', ['path' => $viewPath, 'file_exists' => file_exists($viewFile)]);
+                abort(500, 'PDF view not found: ' . $viewPath);
+            }
+            
+            // Ensure record is an object (not null)
+            if (!$record || (!is_object($record) && !is_array($record))) {
+                \Log::error('Invalid record data', ['reportType' => $reportType, 'recordId' => $recordId, 'record' => $record]);
+                abort(500, 'Invalid record data for PDF generation');
+            }
+            
+            // Prepare data for view
+            $viewData = [
             'record' => $record,
             'reportType' => $reportType,
             'title' => $titles[$reportType] ?? 'Report Details',
             'reportMetadata' => $reportMetadata,
-        ]);
+            ];
+            
+            \Log::info('Generating PDF', ['reportType' => $reportType, 'recordId' => $recordId, 'viewPath' => $viewPath]);
+            
+            // Generate PDF directly - let DomPDF handle the view
+            $pdf = PDF::loadView($viewPath, $viewData);
+            // Landscape for PDF view to fit all details
         $pdf->setPaper('letter', 'landscape');
-        return $pdf->stream(($titles[$reportType] ?? 'report') . '_' . $recordId . '.pdf');
+            // Enable remote access for images
+            $pdf->setOption('isRemoteEnabled', true);
+        // Sanitize filename: remove all invalid chars from title and recordId
+        $safeTitle = preg_replace('#[\\/\%\?\*\:\|"<>]#', '', $titles[$reportType] ?? 'report');
+        $safeRecordId = preg_replace('#[\\/\%\?\*\:\|"<>]#', '', $recordId);
+        $filename = $safeTitle . '_' . $safeRecordId . '.pdf';
+        return $pdf->stream($filename);
+        } catch (\Illuminate\View\Exceptions\ViewNotFoundException $e) {
+            \Log::error('ViewNotFoundException', ['error' => $e->getMessage(), 'reportType' => $reportType]);
+            abort(500, 'PDF view not found: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            \Log::error('PDF generation error', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'reportType' => $reportType,
+                'recordId' => $recordId
+            ]);
+            abort(500, 'Error generating PDF: ' . $e->getMessage() . ' | Check logs for details');
+        }
     }
 
     /**
@@ -259,11 +341,11 @@ class ReportController extends Controller
                 'description' => 'Veterinarian handles a Visit for a Pet owned by a Pet Owner at a Branch',
                 'data' => $this->getBranchVisitsReport($startDate, $endDate, $branch)
             ],
-            'billing_orders' => [
-                'title' => 'Billing with Orders',
-                'description' => 'Billing information with related Orders to the Pet Owner',
-                'data' => $this->getBillingOrdersReport($startDate, $endDate)
-            ],
+            // 'billing_orders' => [
+            //     'title' => 'Billing with Orders',
+            //     'description' => 'Billing information with related Orders to the Pet Owner',
+            //     'data' => $this->getBillingOrdersReport($startDate, $endDate)
+            // ],
             'product_sales' => [
                 'title' => 'Product Sales by User',
                 'description' => 'Users sell Products to Pet Owners with details of quantity and date of purchase',
@@ -335,9 +417,12 @@ class ReportController extends Controller
                 'v.visit_id',
                 'o.own_name as owner_name',
                 DB::raw('REPLACE(o.own_contactnum, ",", "") as owner_contact'),
+                'o.own_location',
                 'p.pet_name',
                 'p.pet_species',
                 'p.pet_breed',
+                'p.pet_age',
+                'p.pet_gender',
                 'v.visit_date',
                 'v.patient_type',
                 'v.visit_status as status',
@@ -345,14 +430,15 @@ class ReportController extends Controller
                 'v.weight',
                 'v.temperature',
                 'b.branch_name',
+                'b.branch_address',
                 'u.user_name as veterinarian',
                 DB::raw("GROUP_CONCAT(DISTINCT s.serv_name SEPARATOR ', ') as services")
             )
             ->groupBy(
-                'v.visit_id', 'o.own_name', 'o.own_contactnum', 'p.pet_name', 
-                'p.pet_species', 'p.pet_breed', 'v.visit_date', 'v.patient_type',
+                'v.visit_id', 'o.own_name', 'o.own_contactnum', 'o.own_location', 'p.pet_name', 
+                'p.pet_species', 'p.pet_breed', 'p.pet_age', 'p.pet_gender', 'v.visit_date', 'v.patient_type',
                 'v.visit_status', 'v.workflow_status', 'v.weight', 'v.temperature',
-                'b.branch_name', 'u.user_name'
+                'b.branch_name', 'b.branch_address', 'u.user_name'
             );
 
         if ($startDate) $query->whereDate('v.visit_date', '>=', $startDate);
@@ -360,7 +446,13 @@ class ReportController extends Controller
         if ($branch) $query->where('u.branch_id', $branch);
         if ($status) $query->where('v.visit_status', $status);
 
-        return $query->orderBy('v.visit_date', 'desc')->get();
+        $results = $query->orderBy('v.visit_date', 'desc')->get();
+        
+        // Map to add hidden _id field
+        return $results->map(function($item) {
+            $item->_id = $item->visit_id;
+            return $item;
+        });
     }
 
     /**
@@ -379,6 +471,7 @@ class ReportController extends Controller
                 DB::raw('GROUP_CONCAT(DISTINCT p.pet_species SEPARATOR ", ") as pet_species'),
                 DB::raw('GROUP_CONCAT(DISTINCT p.pet_breed SEPARATOR ", ") as pet_breeds'),
                 DB::raw('GROUP_CONCAT(DISTINCT p.pet_age SEPARATOR ", ") as pet_ages'),
+                DB::raw('GROUP_CONCAT(DISTINCT p.pet_gender SEPARATOR ", ") as pet_genders'),
                 DB::raw('COUNT(p.pet_id) as total_pets')
             )
             ->groupBy('o.own_id', 'o.own_name', 'o.own_contactnum', 'o.own_location');
@@ -387,7 +480,13 @@ class ReportController extends Controller
         if ($startDate) $query->whereDate('p.pet_registration', '>=', $startDate); 
         if ($endDate) $query->whereDate('p.pet_registration', '<=', $endDate);
 
-        return $query->get();
+        $results = $query->get();
+        
+        // Map to add hidden _id field
+        return $results->map(function($item) {
+            $item->_id = $item->own_id;
+            return $item;
+        });
     }
 
     private function getVisitBillingReport($startDate, $endDate, $branch)
@@ -402,22 +501,31 @@ class ReportController extends Controller
             ->select(
                 'v.visit_id',
                 'o.own_name',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as own_contactnum'),
                 'p.pet_name',
+                'p.pet_species',
+                'p.pet_breed',
                 'v.visit_date',
                 'v.patient_type',
-                'b.bill_id',
                 'b.bill_status',
                 'pay.pay_total',
                 'pay.pay_cashAmount',
                 'pay.pay_change',
-                'br.branch_name'
+                'br.branch_name',
+                'u.user_name as veterinarian'
             );
 
         if ($startDate) $query->whereDate('v.visit_date', '>=', $startDate);
         if ($endDate) $query->whereDate('v.visit_date', '<=', $endDate);
         if ($branch) $query->where('u.branch_id', $branch);
 
-        return $query->orderBy('v.visit_date', 'desc')->get();
+        $results = $query->orderBy('v.visit_date', 'desc')->get();
+        
+        // Map to add hidden _id field
+        return $results->map(function($item) {
+            $item->_id = $item->visit_id;
+            return $item;
+        });
     }
 
     private function getProductPurchasesReport($startDate, $endDate, $branch)
@@ -430,20 +538,36 @@ class ReportController extends Controller
             ->select(
                 'o2.ord_id',
                 'o.own_name',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as own_contactnum'),
                 'pr.prod_name',
                 'pr.prod_category',
+                'pr.prod_description',
                 'o2.ord_quantity',
                 'o2.ord_total',
                 'o2.ord_date',
                 'u.user_name as handled_by',
-                'b.branch_name'
+                'b.branch_name',
+                'b.branch_address'
             );
 
         if ($startDate) $query->whereDate('o2.ord_date', '>=', $startDate);
         if ($endDate) $query->whereDate('o2.ord_date', '<=', $endDate);
         if ($branch) $query->where('u.branch_id', $branch);
 
-        return $query->orderBy('o2.ord_date', 'desc')->get();
+        $results = $query->orderBy('o2.ord_date', 'desc')->get();
+        
+        // Map to add hidden _id field
+        return $results->map(function($item) {
+            $item->_id = $item->ord_id;
+            // Format currency fields
+            if (isset($item->ord_total)) {
+                $item->ord_total_formatted = 'PHP ' . number_format($item->ord_total, 2);
+            }
+            if (isset($item->prod_price)) {
+                $item->prod_price_formatted = 'PHP ' . number_format($item->prod_price, 2);
+            }
+            return $item;
+        });
     }
 
     /**
@@ -465,10 +589,15 @@ class ReportController extends Controller
             ->select(
                 'r.ref_id',
                 'o.own_name',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as own_contactnum'),
                 'p.pet_name',
+                'p.pet_species',
+                'p.pet_breed',
                 'v.visit_date',
                 'r.ref_date',
                 'r.ref_description',
+                'r.ref_type',
+                'r.ref_status',
                 'b1.branch_name as referred_by',
                 'b2.branch_name as referred_to',
                 'u.user_name as created_by'
@@ -478,7 +607,13 @@ class ReportController extends Controller
         if ($endDate) $query->whereDate('r.ref_date', '<=', $endDate);
         if ($branch) $query->where('b1.branch_id', $branch);
 
-        return $query->orderBy('r.ref_date', 'desc')->get();
+        $results = $query->orderBy('r.ref_date', 'desc')->get();
+        
+        // Map to add hidden _id field
+        return $results->map(function($item) {
+            $item->_id = $item->ref_id;
+            return $item;
+        });
     }
 
     private function getVisitServicesReport($startDate, $endDate, $branch)
@@ -493,20 +628,32 @@ class ReportController extends Controller
             ->select(
                 'vs.id as visit_service_id',
                 'o.own_name',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as own_contactnum'),
                 'p.pet_name',
+                'p.pet_species',
+                'p.pet_breed',
                 's.serv_name',
+                's.serv_type',
                 's.serv_price',
                 'vs.status as service_status',
                 'v.visit_date',
+                'v.patient_type',
                 'u.user_name as veterinarian',
-                'b.branch_name'
+                'b.branch_name',
+                'b.branch_address'
             );
 
         if ($startDate) $query->whereDate('v.visit_date', '>=', $startDate);
         if ($endDate) $query->whereDate('v.visit_date', '<=', $endDate);
         if ($branch) $query->where('u.branch_id', $branch);
 
-        return $query->orderBy('v.visit_date', 'desc')->get();
+        $results = $query->orderBy('v.visit_date', 'desc')->get();
+        
+        // Map to add hidden _id field
+        return $results->map(function($item) {
+            $item->_id = $item->visit_service_id;
+            return $item;
+        });
     }
 
     /**
@@ -520,16 +667,22 @@ class ReportController extends Controller
                 'u.user_id',
                 'u.user_name',
                 'u.user_role',
+                'u.user_email',
                 'b.branch_name',
                 'b.branch_address',
                 'u.user_status',
-                'u.user_email',
                 DB::raw('REPLACE(u.user_contactNum, ",", "") as user_contactNum')
             );
 
         if ($branch) $query->where('u.branch_id', $branch);
 
-        return $query->orderBy('b.branch_name')->orderBy('u.user_role')->get();
+        $results = $query->orderBy('b.branch_name')->orderBy('u.user_role')->get();
+        
+        // Map to add hidden _id field
+        return $results->map(function($item) {
+            $item->_id = $item->user_id;
+            return $item;
+        });
     }
 
     /**
@@ -548,23 +701,36 @@ class ReportController extends Controller
                 'v.visit_id',
                 'u.user_name as veterinarian',
                 'o.own_name',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as own_contactnum'),
                 'p.pet_name',
+                'p.pet_species',
+                'p.pet_breed',
                 'v.visit_date',
                 'v.patient_type',
                 'v.visit_status',
+                'v.weight',
+                'v.temperature',
                 'b.branch_name',
+                'b.branch_address',
                 DB::raw("GROUP_CONCAT(DISTINCT s.serv_name SEPARATOR ', ') as services")
             )
             ->groupBy(
-                'v.visit_id', 'u.user_name', 'o.own_name', 'p.pet_name',
-                'v.visit_date', 'v.patient_type', 'v.visit_status', 'b.branch_name'
+                'v.visit_id', 'u.user_name', 'o.own_name', 'o.own_contactnum', 'p.pet_name',
+                'p.pet_species', 'p.pet_breed', 'v.visit_date', 'v.patient_type', 
+                'v.visit_status', 'v.weight', 'v.temperature', 'b.branch_name', 'b.branch_address'
             );
 
         if ($startDate) $query->whereDate('v.visit_date', '>=', $startDate);
         if ($endDate) $query->whereDate('v.visit_date', '<=', $endDate);
         if ($branch) $query->where('u.branch_id', $branch);
 
-        return $query->orderBy('v.visit_date', 'desc')->get();
+        $results = $query->orderBy('v.visit_date', 'desc')->get();
+        
+        // Map to add hidden _id field
+        return $results->map(function($item) {
+            $item->_id = $item->visit_id;
+            return $item;
+        });
     }
 
     private function getBillingOrdersReport($startDate, $endDate)
@@ -600,18 +766,35 @@ class ReportController extends Controller
                 'ord.ord_id',
                 'u.user_name as seller',
                 'o.own_name',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as own_contactnum'),
                 'pr.prod_name',
+                'pr.prod_category',
                 'ord.ord_quantity',
+                'pr.prod_price as unit_price',
                 'ord.ord_total',
                 'ord.ord_date',
-                'b.branch_name'
+                'b.branch_name',
+                'b.branch_address'
             );
 
         if ($startDate) $query->whereDate('ord.ord_date', '>=', $startDate);
         if ($endDate) $query->whereDate('ord.ord_date', '<=', $endDate);
         if ($branch) $query->where('u.branch_id', $branch);
 
-        return $query->orderBy('ord.ord_date', 'desc')->get();
+        $results = $query->orderBy('ord.ord_date', 'desc')->get();
+        
+        // Map to add hidden _id field
+        return $results->map(function($item) {
+            $item->_id = $item->ord_id;
+            // Format currency fields
+            if (isset($item->ord_total)) {
+                $item->ord_total_formatted = 'PHP ' . number_format($item->ord_total, 2);
+            }
+            if (isset($item->unit_price)) {
+                $item->unit_price_formatted = 'PHP ' . number_format($item->unit_price, 2);
+            }
+            return $item;
+        });
     }
 
     private function getPaymentCollectionReport($startDate, $endDate, $branch)
@@ -627,20 +810,39 @@ class ReportController extends Controller
                 'pay.pay_id',
                 'u.user_name as collected_by',
                 'o.own_name',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as own_contactnum'),
                 'p.pet_name',
+                'p.pet_species',
                 'v.visit_date',
-                'b.bill_id',
                 'pay.pay_total',
                 'pay.pay_cashAmount',
                 'pay.pay_change',
-                'br.branch_name'
+                'b.bill_status',
+                'br.branch_name',
+                'br.branch_address'
             );
 
         if ($startDate) $query->whereDate('b.bill_date', '>=', $startDate);
         if ($endDate) $query->whereDate('b.bill_date', '<=', $endDate);
         if ($branch) $query->where('u.branch_id', $branch);
 
-        return $query->orderBy('v.visit_date', 'desc')->get();
+        $results = $query->orderBy('v.visit_date', 'desc')->get();
+        
+        // Map to add hidden _id field
+        return $results->map(function($item) {
+            $item->_id = $item->pay_id;
+            // Format currency fields
+            if (isset($item->pay_total)) {
+                $item->pay_total_formatted = 'PHP ' . number_format($item->pay_total, 2);
+            }
+            if (isset($item->pay_cashAmount)) {
+                $item->pay_cashAmount_formatted = 'PHP ' . number_format($item->pay_cashAmount, 2);
+            }
+            if (isset($item->pay_change)) {
+                $item->pay_change_formatted = 'PHP ' . number_format($item->pay_change, 2);
+            }
+            return $item;
+        });
     }
 
     private function getMedicalHistoryReport($startDate, $endDate)
@@ -651,10 +853,14 @@ class ReportController extends Controller
 
         $query = DB::table('tbl_history as h')
             ->join('tbl_pet as p', 'h.pet_id', '=', 'p.pet_id')
+            ->join('tbl_own as o', 'p.own_id', '=', 'o.own_id')
             ->join('tbl_user as u', 'h.user_id', '=', 'u.user_id')
             ->select(
                 'h.history_id',
                 'p.pet_name',
+                'p.pet_species',
+                'p.pet_breed',
+                'o.own_name',
                 'h.visit_date',
                 'h.diagnosis',
                 'h.treatment',
@@ -667,7 +873,13 @@ class ReportController extends Controller
         if ($startDate) $query->whereDate('h.visit_date', '>=', $startDate);
         if ($endDate) $query->whereDate('h.visit_date', '<=', $endDate);
 
-        return $query->orderBy('h.visit_date', 'desc')->get();
+        $results = $query->orderBy('h.visit_date', 'desc')->get();
+        
+        // Map to add hidden _id field
+        return $results->map(function($item) {
+            $item->_id = $item->history_id;
+            return $item;
+        });
     }
 
    /**
@@ -689,6 +901,7 @@ class ReportController extends Controller
             ->join('tbl_user as u', 'pr.user_id', '=', 'u.user_id')
             ->join('tbl_branch as b', 'pr.branch_id', '=', 'b.branch_id')
             ->join('tbl_pet as p', 'pr.pet_id', '=', 'p.pet_id')
+            ->join('tbl_own as o', 'p.own_id', '=', 'o.own_id')
             ->select(
                 'pr.prescription_id',
                 'pr.prescription_date',
@@ -698,14 +911,24 @@ class ReportController extends Controller
                 'pr.notes',
                 'u.user_name as prescribed_by',
                 'b.branch_name',
-                'p.pet_name'
+                'b.branch_address',
+                'p.pet_name',
+                'p.pet_species',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as own_contactnum'),
+                'o.own_name'
             );
 
         if ($startDate) $query->whereDate('pr.prescription_date', '>=', $startDate);
         if ($endDate) $query->whereDate('pr.prescription_date', '<=', $endDate);
         if ($branch) $query->where('pr.branch_id', $branch);
 
-        return $query->orderBy('pr.prescription_date', 'desc')->get();
+        $results = $query->orderBy('pr.prescription_date', 'desc')->get();
+        
+        // Map to add hidden _id field
+        return $results->map(function($item) {
+            $item->_id = $item->prescription_id;
+            return $item;
+        });
     }
     private function getMultiServiceVisitsReport($startDate, $endDate)
     {
@@ -718,70 +941,231 @@ class ReportController extends Controller
                 'v.visit_id',
                 'v.visit_date',
                 'p.pet_name',
+                'p.pet_species',
+                'p.pet_breed',
                 'o.own_name',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as own_contactnum'),
                 DB::raw('GROUP_CONCAT(s.serv_name SEPARATOR ", ") as services'),
                 DB::raw('SUM(s.serv_price) as total_service_price'),
                 DB::raw('COUNT(vs.serv_id) as service_count')
             )
-            ->groupBy('v.visit_id', 'v.visit_date', 'p.pet_name', 'o.own_name')
+            ->groupBy('v.visit_id', 'v.visit_date', 'p.pet_name', 'p.pet_species', 'p.pet_breed', 'o.own_name', 'o.own_contactnum')
             ->having('service_count', '>', 1);
 
         if ($startDate) $query->whereDate('v.visit_date', '>=', $startDate);
         if ($endDate) $query->whereDate('v.visit_date', '<=', $endDate);
 
-        return $query->orderBy('v.visit_date', 'desc')->get();
+        $results = $query->orderBy('v.visit_date', 'desc')->get();
+        
+        // Map to add hidden _id field
+        return $results->map(function($item) {
+            $item->_id = $item->visit_id;
+            return $item;
+        });
     }
 
     /**
-     * FIX: Total Equipment and Total Quantity is a count, not a peso
+     * FIX: Get Equipment Assignment History from tbl_boarding_record and tbl_equipment_assignment_log (like prodServEquip equipment tab)
      */
     private function getBranchEquipmentReport($branch)
     {
-        if (!DB::getSchemaBuilder()->hasTable('tbl_equipment')) {
+        $movements = collect();
+
+        // Get equipment assignments from boarding records
+        if (DB::getSchemaBuilder()->hasTable('tbl_boarding_record') && 
+            DB::getSchemaBuilder()->hasColumn('tbl_boarding_record', 'equipment_id')) {
+            $query = DB::table('tbl_boarding_record as br')
+                ->join('tbl_visit_record as v', 'br.visit_id', '=', 'v.visit_id')
+                ->join('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+                ->join('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id')
+                ->leftJoin('tbl_equipment as eq', 'br.equipment_id', '=', 'eq.equipment_id')
+                ->leftJoin('tbl_pet as pet', 'v.pet_id', '=', 'pet.pet_id')
+                ->leftJoin('tbl_own as owner', 'pet.own_id', '=', 'owner.own_id')
+                ->leftJoin('tbl_serv as s', 'br.serv_id', '=', 's.serv_id')
+                ->whereNotNull('br.equipment_id')
+                ->select(
+                    DB::raw('CONCAT(br.visit_id, "-", br.pet_id) as id'),
+                    'br.visit_id',
+                    'br.pet_id',
+                    'br.equipment_id',
+                    'br.check_in_date',
+                    'br.check_out_date',
+                    'br.room_no',
+                    'br.status as boarding_status',
+                    'br.handled_by',
+                    'eq.equipment_name',
+                    'eq.equipment_category',
+                    'pet.pet_name',
+                    'pet.pet_species',
+                    'pet.pet_breed',
+                    'owner.own_name as owner_name',
+                    's.serv_name as service_name',
+                    's.serv_type as service_type',
+                    'u.user_name as vet_name',
+                    'v.visit_date',
+                    'b.branch_name',
+                    'b.branch_address'
+                );
+
+            if ($branch) $query->where('b.branch_id', $branch);
+
+            $boardingAssignments = $query->orderBy('br.check_in_date', 'desc')->get();
+            $movements = $movements->concat($boardingAssignments);
+        }
+
+        // Get from equipment assignment log if exists
+        if (DB::getSchemaBuilder()->hasTable('tbl_equipment_assignment_log')) {
+            $query = DB::table('tbl_equipment_assignment_log as eal')
+                ->join('tbl_equipment as eq', 'eal.equipment_id', '=', 'eq.equipment_id')
+                ->join('tbl_branch as b', 'eq.branch_id', '=', 'b.branch_id')
+                ->leftJoin('tbl_visit_record as v', 'eal.visit_id', '=', 'v.visit_id')
+                ->leftJoin('tbl_user as u', 'eal.performed_by', '=', 'u.user_id')
+                ->leftJoin('tbl_pet as pet', 'eal.pet_id', '=', 'pet.pet_id')
+                ->leftJoin('tbl_own as owner', 'pet.own_id', '=', 'owner.own_id')
+            ->select(
+                    'eal.id',
+                    'eal.equipment_id',
+                    'eal.action_type',
+                    'eal.visit_id',
+                    'eal.pet_id',
+                    'eal.quantity_changed',
+                    'eal.previous_status',
+                    'eal.new_status',
+                    'eal.reference',
+                    'eal.notes as log_notes',
+                    'eal.created_at',
+                    'eq.equipment_name',
+                    'eq.equipment_category',
+                    'pet.pet_name',
+                    'pet.pet_species',
+                    'owner.own_name as owner_name',
+                    'u.user_name as performed_by_name',
+                'b.branch_name',
+                    'b.branch_address'
+                );
+
+            if ($branch) $query->where('b.branch_id', $branch);
+
+            $logAssignments = $query->orderBy('eal.created_at', 'desc')->get();
+            $movements = $movements->concat($logAssignments);
+        }
+
+        // Map to add hidden _id field
+        return $movements->map(function($item) {
+            $item->_id = $item->id ?? ($item->visit_id . '-' . $item->pet_id);
+            return $item;
+        });
+    }
+
+    /**
+     * FIX: Get Complete Stock Movement History from tbl_inventory_transactions (like prodServEquip product tab inventory button)
+     * Shows ALL transaction types: sale, restock, damage, pullout, service_usage, adjustment, return
+     */
+    private function getDamagedProductsReport($startDate, $endDate)
+    {
+        if (!DB::getSchemaBuilder()->hasTable('tbl_inventory_transactions')) {
             return collect();
         }
 
-        $query = DB::table('tbl_equipment as e')
-            ->join('tbl_branch as b', 'e.branch_id', '=', 'b.branch_id')
-            ->select(
-                'b.branch_name',
-                'e.equipment_category',
-                DB::raw('COUNT(e.equipment_id) as total_equipment_count'),
-                DB::raw('SUM(e.equipment_quantity) as total_quantity_sum')
-            )
-            ->groupBy('b.branch_name', 'e.equipment_category');
+        $hasPerformedByCol = DB::getSchemaBuilder()->hasColumn('tbl_inventory_transactions', 'performed_by');
+        $hasUserIdCol = DB::getSchemaBuilder()->hasColumn('tbl_inventory_transactions', 'user_id');
+        $hasServIdCol = DB::getSchemaBuilder()->hasColumn('tbl_inventory_transactions', 'serv_id');
+        $hasVisitIdCol = DB::getSchemaBuilder()->hasColumn('tbl_inventory_transactions', 'visit_id');
+        $hasAppointIdCol = DB::getSchemaBuilder()->hasColumn('tbl_inventory_transactions', 'appoint_id');
 
-        if ($branch) $query->where('e.branch_id', $branch);
+        $query = DB::table('tbl_inventory_transactions as it')
+            ->join('tbl_prod as p', 'it.prod_id', '=', 'p.prod_id')
+            ->leftJoin('tbl_branch as b', 'p.branch_id', '=', 'b.branch_id');
 
-        return $query->get();
-    }
+        // Prefer performed_by if it exists, otherwise fallback to user_id if present
+        if ($hasPerformedByCol) {
+            $query->leftJoin('tbl_user as u', 'it.performed_by', '=', 'u.user_id');
+        } elseif ($hasUserIdCol) {
+            $query->leftJoin('tbl_user as u', 'it.user_id', '=', 'u.user_id');
+        }
+        if ($hasServIdCol) {
+            $query->leftJoin('tbl_serv as s', 'it.serv_id', '=', 's.serv_id');
+        }
+        if ($hasVisitIdCol) {
+            $query->leftJoin('tbl_visit_record as v', 'it.visit_id', '=', 'v.visit_id');
+        }
 
-    private function getDamagedProductsReport($startDate, $endDate)
-    {
-        $query = DB::table('tbl_ord as ord')
-            ->join('tbl_prod as pr', 'ord.prod_id', '=', 'pr.prod_id')
-            ->join('tbl_own as o', 'ord.own_id', '=', 'o.own_id')
-            ->join('tbl_user as u', 'ord.user_id', '=', 'u.user_id')
-            ->leftJoin('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id')
-            ->select(
-                'ord.ord_id',
-                'o.own_name',
-                'u.user_name as handled_by',
-                'pr.prod_name',
-                'pr.prod_damaged',
-                'pr.prod_pullout',
-                'ord.ord_quantity',
-                'ord.ord_date'
-            )
-            ->where(function($q) {
-                $q->where('pr.prod_damaged', '>', 0)
-                  ->orWhere('pr.prod_pullout', '>', 0);
-            });
+        $selects = [
+            'it.transaction_id as id',
+            'it.created_at',
+            'it.transaction_type',
+            'it.quantity_change',
+            'it.reference',
+            'it.notes',
+            'p.prod_id',
+            'p.prod_name',
+            'p.prod_category',
+            'p.prod_type',
+            'b.branch_name',
+            'b.branch_address'
+        ];
 
-        if ($startDate) $query->whereDate('ord.ord_date', '>=', $startDate);
-        if ($endDate) $query->whereDate('ord.ord_date', '<=', $endDate);
+        if ($hasPerformedByCol || $hasUserIdCol) {
+            $selects[] = 'u.user_name';
+        } else {
+            $selects[] = DB::raw('NULL as user_name');
+        }
+        if ($hasServIdCol) {
+            $selects[] = 's.serv_name';
+        } else {
+            $selects[] = DB::raw('NULL as serv_name');
+        }
+        if ($hasVisitIdCol) {
+            $selects[] = 'it.visit_id';
+        } else {
+            $selects[] = DB::raw('NULL as visit_id');
+        }
+        if ($hasAppointIdCol) {
+            $selects[] = 'it.appoint_id';
+        } else {
+            $selects[] = DB::raw('NULL as appoint_id');
+        }
 
-        return $query->orderBy('ord.ord_date', 'desc')->get();
+        // Get ALL transaction types (not just damage/pullout)
+        $query->select($selects);
+
+        if ($startDate) $query->whereDate('it.created_at', '>=', $startDate);
+        if ($endDate) $query->whereDate('it.created_at', '<=', $endDate);
+
+        $result = $query->orderBy('it.created_at', 'desc')->get();
+        
+        // Map to add hidden _id field and format data, ensuring correct column order
+        $index = 0;
+        return $result->map(function($item) use (&$index) {
+            $index++;
+            // Format transaction type for display - store as 'type' for column name
+            $typeLabels = [
+                'restock' => 'Stock Added',
+                'sale' => 'POS Sale',
+                'service_usage' => 'Service Usage',
+                'damage' => 'Damaged',
+                'pullout' => 'Pull-out',
+                'adjustment' => 'Adjustment',
+                'return' => 'Return',
+            ];
+            
+            // Create new object with columns in the desired order
+            $orderedItem = (object)[
+                '_id' => $item->id,
+                'row_number' => $index,
+                'prod_name' => $item->prod_name ?? 'N/A',
+                'prod_category' => $item->prod_category ?? 'N/A',
+                'prod_type' => $item->prod_type ?? 'N/A',
+                'branch_name' => $item->branch_name ?? 'N/A',
+                'user_name' => $item->user_name ?? 'System',
+                'serv_name' => $item->serv_name ?? 'N/A',
+                'reference' => $item->reference ?? 'N/A',
+                'type' => $typeLabels[$item->transaction_type] ?? ucfirst($item->transaction_type ?? 'N/A'),
+                'quantity' => $item->quantity_change ?? 0,
+            ];
+            
+            return $orderedItem;
+        });
     }
 
     private function getReferralMedicalReport($startDate, $endDate)
@@ -791,27 +1175,43 @@ class ReportController extends Controller
         }
 
         $query = DB::table('tbl_ref as r')
-            ->join('tbl_appoint as a', 'r.appoint_id', '=', 'a.appoint_id')
-            ->join('tbl_pet as p', 'a.pet_id', '=', 'p.pet_id')
-            ->join('tbl_own as o', 'p.own_id', '=', 'o.own_id')
-            ->join('tbl_user as u', 'r.ref_by', '=', 'u.user_id')
+            ->leftJoin('tbl_visit_record as v', 'r.visit_id', '=', 'v.visit_id')
+            ->leftJoin('tbl_pet as p', function($join) {
+                $join->on('p.pet_id', '=', 'r.pet_id')
+                     ->orOn('p.pet_id', '=', 'v.pet_id');
+            })
+            ->leftJoin('tbl_own as o', 'p.own_id', '=', 'o.own_id')
+            ->leftJoin('tbl_user as u', 'r.ref_by', '=', 'u.user_id')
+            ->leftJoin('tbl_branch as b1', 'u.branch_id', '=', 'b1.branch_id')
             ->leftJoin('tbl_branch as b2', 'r.ref_to', '=', 'b2.branch_id')
             ->select(
-                'a.appoint_id',
-                'a.appoint_date',
-                'p.pet_name',
-                'o.own_name',
+                'r.ref_id',
                 'r.ref_date',
                 'r.ref_description',
+                'r.ref_type',
+                'r.ref_status',
                 'r.medical_history',
+                'o.own_name',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as own_contactnum'),
+                'p.pet_name',
+                'p.pet_species',
+                'p.pet_breed',
+                'v.visit_date',
+                'b1.branch_name as referred_by',
                 'b2.branch_name as referred_to',
-                'u.user_name as referred_by'
+                'u.user_name as created_by'
             );
 
         if ($startDate) $query->whereDate('r.ref_date', '>=', $startDate);
         if ($endDate) $query->whereDate('r.ref_date', '<=', $endDate);
 
-        return $query->orderBy('r.ref_date', 'desc')->get();
+        $results = $query->orderBy('r.ref_date', 'desc')->get();
+        
+        // Map to add hidden _id field
+        return $results->map(function($item) {
+            $item->_id = $item->ref_id;
+            return $item;
+        });
     }
 
     /**
@@ -827,49 +1227,75 @@ class ReportController extends Controller
             ->join('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id') // FIX: Join Branch via User
             ->select(
                 'b.branch_name',
+                'b.branch_address',
                 'u.user_name as collected_by',
                 DB::raw('COUNT(pay.pay_id) as total_payments_count'),
                 DB::raw('SUM(pay.pay_total) as total_amount_collected')
             )
-            ->groupBy('b.branch_name', 'u.user_name');
+            ->groupBy('b.branch_name', 'b.branch_address', 'u.user_name');
 
         if ($startDate) $query->whereDate('bl.bill_date', '>=', $startDate);
         if ($endDate) $query->whereDate('bl.bill_date', '<=', $endDate);
         if ($branch) $query->where('b.branch_id', $branch);
 
-        return $query->orderBy('total_amount_collected', 'desc')->get();
+        $results = $query->orderBy('total_amount_collected', 'desc')->get();
+        
+        // Map to add hidden _id field - use branch_name+user_name as identifier
+        return $results->map(function($item, $index) {
+            // For grouped branch payments, create a composite ID
+            $item->_id = md5($item->branch_name . $item->collected_by . $index);
+            // Format currency
+            if (isset($item->total_amount_collected)) {
+                $item->total_amount_collected_formatted = 'PHP ' . number_format($item->total_amount_collected, 2);
+            }
+            return $item;
+        });
     }
 
     /**
-     * FIX: total used is a count, not a peso.
-     * NOTE: This report links service to branch directly, assuming tbl_serv.branch_id exists.
+     * FIX: Get Complete Service Usage History from tbl_visit_service (like prodServEquip service tab)
+     * Only return: Visit Date, Owner Name, Pet Name, Pet Species, Pet Breed, Patient Type, Serv Name, Serv Type, Total Price, Performed By, Branch Name, Service Status
      */
     private function getServiceUtilizationReport($startDate, $endDate, $branch)
     {
-        if (!DB::getSchemaBuilder()->hasTable('tbl_appoint_serv')) {
+        if (!DB::getSchemaBuilder()->hasTable('tbl_visit_service')) {
             return collect();
         }
 
-        $query = DB::table('tbl_appoint_serv as aps')
-            ->join('tbl_serv as s', 'aps.serv_id', '=', 's.serv_id')
-            // Assuming tbl_serv has branch_id, keeping this as is based on context.
-            ->join('tbl_branch as b', 's.branch_id', '=', 'b.branch_id') 
-            ->leftJoin('tbl_appoint as a', 'aps.appoint_id', '=', 'a.appoint_id')
+        $query = DB::table('tbl_visit_service as vs')
+            ->join('tbl_visit_record as v', 'vs.visit_id', '=', 'v.visit_id')
+            ->join('tbl_serv as s', 'vs.serv_id', '=', 's.serv_id')
+            ->join('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+            ->join('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id')
+            ->leftJoin('tbl_pet as pet', 'v.pet_id', '=', 'pet.pet_id')
+            ->leftJoin('tbl_own as owner', 'pet.own_id', '=', 'owner.own_id')
             ->select(
-                'b.branch_name',
+                'vs.id',
+                'v.visit_date',
+                'owner.own_name as owner_name',
+                'pet.pet_name',
+                'pet.pet_species',
+                'pet.pet_breed',
+                'v.patient_type',
                 's.serv_name',
-                DB::raw('COUNT(aps.appoint_serv_id) as total_used_count')
-            )
-            ->groupBy('b.branch_name', 's.serv_name');
+                's.serv_type',
+                'vs.total_price',
+                'u.user_name as performed_by',
+                'b.branch_name',
+                'vs.status as service_status'
+            );
 
-        if ($startDate || $endDate) {
-            if ($startDate) $query->whereDate('a.appoint_date', '>=', $startDate);
-            if ($endDate) $query->whereDate('a.appoint_date', '<=', $endDate);
-        }
-        
+        if ($startDate) $query->whereDate('vs.created_at', '>=', $startDate);
+        if ($endDate) $query->whereDate('vs.created_at', '<=', $endDate);
         if ($branch) $query->where('b.branch_id', $branch);
 
-        return $query->orderBy('total_used_count', 'desc')->get();
+        $result = $query->orderBy('vs.created_at', 'desc')->get();
+        
+        // Map to add hidden _id field
+        return $result->map(function($item) {
+            $item->_id = $item->id;
+            return $item;
+        });
     }
 
     // ==================== DETAIL VIEW METHODS (FIXED) ====================
@@ -879,46 +1305,103 @@ class ReportController extends Controller
      */
     private function getVisitDetails($visitId)
     {
-        return DB::table('tbl_visit_record')
-            ->join('tbl_pet', 'tbl_pet.pet_id', '=', 'tbl_visit_record.pet_id')
-            ->join('tbl_own', 'tbl_own.own_id', '=', 'tbl_pet.own_id')
-            ->leftJoin('tbl_user', 'tbl_user.user_id', '=', 'tbl_visit_record.user_id')
-            ->leftJoin('tbl_branch', 'tbl_branch.branch_id', '=', 'tbl_user.branch_id')
-            ->leftJoin('tbl_bill', 'tbl_bill.visit_id', '=', 'tbl_visit_record.visit_id')
+        $visit = DB::table('tbl_visit_record as v')
+            ->join('tbl_pet as p', 'v.pet_id', '=', 'p.pet_id')
+            ->join('tbl_own as o', 'p.own_id', '=', 'o.own_id')
+            ->leftJoin('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+            ->leftJoin('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id')
+            ->leftJoin('tbl_visit_service as vs', 'v.visit_id', '=', 'vs.visit_id')
+            ->leftJoin('tbl_serv as s', 'vs.serv_id', '=', 's.serv_id')
+            ->leftJoin('tbl_bill', 'tbl_bill.visit_id', '=', 'v.visit_id')
             ->leftJoin('tbl_pay', 'tbl_pay.bill_id', '=', 'tbl_bill.bill_id')
-            ->select('tbl_visit_record.*', 'tbl_pet.*', 'tbl_own.*', 'tbl_user.user_name', 'tbl_branch.branch_name', 
-                     'tbl_bill.bill_id', 'tbl_bill.bill_status', 'tbl_pay.pay_total')
-            ->where('tbl_visit_record.visit_id', $visitId)
+            ->select(
+                'o.own_name as owner_name',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as owner_contact'),
+                'o.own_location',
+                'p.pet_name',
+                'p.pet_species',
+                'p.pet_breed',
+                'p.pet_age',
+                'p.pet_gender',
+                'v.visit_date',
+                'v.patient_type',
+                'v.visit_status as status',
+                'v.workflow_status',
+                'v.weight',
+                'v.temperature',
+                'b.branch_name',
+                'b.branch_address',
+                'u.user_name as veterinarian',
+                DB::raw("GROUP_CONCAT(DISTINCT s.serv_name SEPARATOR ', ') as services"),
+                'tbl_bill.bill_status',
+                'tbl_pay.pay_total'
+            )
+            ->where('v.visit_id', $visitId)
+            ->groupBy(
+                'o.own_name', 'o.own_contactnum', 'o.own_location', 'p.pet_name', 
+                'p.pet_species', 'p.pet_breed', 'p.pet_age', 'p.pet_gender', 'v.visit_date', 'v.patient_type',
+                'v.visit_status', 'v.workflow_status', 'v.weight', 'v.temperature',
+                'b.branch_name', 'b.branch_address', 'u.user_name', 'tbl_bill.bill_id', 'tbl_bill.bill_status', 'tbl_pay.pay_id', 'tbl_pay.pay_total'
+            )
             ->first();
+        
+        return $visit;
     }
 
     private function getVisitServiceDetails($visitServiceId)
     {
-        return DB::table('tbl_visit_service')
-            ->join('tbl_visit_record', 'tbl_visit_record.visit_id', '=', 'tbl_visit_service.visit_id')
-            ->join('tbl_serv', 'tbl_serv.serv_id', '=', 'tbl_visit_service.serv_id')
-            ->join('tbl_pet', 'tbl_pet.pet_id', '=', 'tbl_visit_record.pet_id')
-            ->join('tbl_own', 'tbl_own.own_id', '=', 'tbl_pet.own_id')
-            ->leftJoin('tbl_user', 'tbl_user.user_id', '=', 'tbl_visit_record.user_id')
-            ->leftJoin('tbl_branch', 'tbl_branch.branch_id', '=', 'tbl_user.branch_id')
-            ->select('tbl_visit_service.*', 'tbl_visit_record.visit_date', 'tbl_serv.serv_name', 'tbl_serv.serv_price',
-                     'tbl_pet.pet_name', 'tbl_own.own_name', 'tbl_user.user_name', 'tbl_branch.branch_name')
-            ->where('tbl_visit_service.id', $visitServiceId)
+        return DB::table('tbl_visit_service as vs')
+            ->join('tbl_visit_record as v', 'v.visit_id', '=', 'vs.visit_id')
+            ->join('tbl_serv as s', 's.serv_id', '=', 'vs.serv_id')
+            ->join('tbl_pet as p', 'p.pet_id', '=', 'v.pet_id')
+            ->join('tbl_own as o', 'o.own_id', '=', 'p.own_id')
+            ->leftJoin('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+            ->leftJoin('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id')
+            ->select(
+                's.serv_name',
+                's.serv_type',
+                's.serv_price',
+                'v.visit_date',
+                'v.patient_type',
+                'vs.status as service_status',
+                'p.pet_name',
+                'p.pet_species',
+                'p.pet_breed',
+                'o.own_name',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as own_contactnum'),
+                'u.user_name',
+                'b.branch_name',
+                'b.branch_address'
+            )
+            ->where('vs.id', $visitServiceId)
             ->first();
     }
 
     private function getVisitBillingDetails($visitId)
     {
-        return DB::table('tbl_visit_record')
-            ->join('tbl_pet', 'tbl_pet.pet_id', '=', 'tbl_visit_record.pet_id')
-            ->join('tbl_own', 'tbl_own.own_id', '=', 'tbl_pet.own_id')
-            ->join('tbl_bill', 'tbl_bill.visit_id', '=', 'tbl_visit_record.visit_id')
-            ->join('tbl_pay', 'tbl_pay.bill_id', '=', 'tbl_bill.bill_id')
-            ->leftJoin('tbl_user', 'tbl_user.user_id', '=', 'tbl_visit_record.user_id')
-            ->leftJoin('tbl_branch', 'tbl_branch.branch_id', '=', 'tbl_user.branch_id')
-            ->select('tbl_visit_record.*', 'tbl_pet.*', 'tbl_own.*', 'tbl_user.user_name', 'tbl_branch.branch_name',
-                     'tbl_bill.*', 'tbl_pay.*')
-            ->where('tbl_visit_record.visit_id', $visitId)
+        return DB::table('tbl_visit_record as v')
+            ->join('tbl_pet as p', 'v.pet_id', '=', 'p.pet_id')
+            ->join('tbl_own as o', 'p.own_id', '=', 'o.own_id')
+            ->join('tbl_bill as b', 'b.visit_id', '=', 'v.visit_id')
+            ->join('tbl_pay as pay', 'pay.bill_id', '=', 'b.bill_id')
+            ->leftJoin('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+            ->leftJoin('tbl_branch as br', 'u.branch_id', '=', 'br.branch_id')
+            ->select(
+                'o.own_name',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as own_contactnum'),
+                'p.pet_name',
+                'p.pet_species',
+                'p.pet_breed',
+                'v.visit_date',
+                'v.patient_type',
+                'b.bill_status',
+                'pay.pay_total',
+                'pay.pay_cashAmount',
+                'pay.pay_change',
+                'br.branch_name',
+                'u.user_name'
+            )
+            ->where('v.visit_id', $visitId)
             ->first();
     }
 
@@ -947,20 +1430,26 @@ class ReportController extends Controller
 
     private function getSalesDetails($orderId)
     {
-        return DB::table('tbl_ord')
-            ->join('tbl_prod', 'tbl_prod.prod_id', '=', 'tbl_ord.prod_id')
-            ->join('tbl_user', 'tbl_user.user_id', '=', 'tbl_ord.user_id')
-            ->leftJoin('tbl_own', 'tbl_own.own_id', '=', 'tbl_ord.own_id')
-            ->join('tbl_branch', 'tbl_branch.branch_id', '=', 'tbl_user.branch_id')
+        return DB::table('tbl_ord as ord')
+            ->join('tbl_prod as pr', 'pr.prod_id', '=', 'ord.prod_id')
+            ->join('tbl_user as u', 'u.user_id', '=', 'ord.user_id')
+            ->leftJoin('tbl_own as o', 'o.own_id', '=', 'ord.own_id')
+            ->join('tbl_branch as b', 'b.branch_id', '=', 'u.branch_id')
             ->select(
-                'tbl_ord.ord_id as orderId',
-                'tbl_ord.*',
-                'tbl_user.*',
-                'tbl_prod.*',
-                'tbl_own.*',
-                'tbl_branch.*'
+                'ord.ord_date as sale_date',
+                'o.own_name as customer_name',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as customer_contact'),
+                'pr.prod_name as product_name',
+                'pr.prod_category as product_category',
+                'pr.prod_description as product_description',
+                'ord.ord_quantity as quantity_sold',
+                'pr.prod_price as unit_price',
+                'ord.ord_total as total_amount',
+                'u.user_name as cashier',
+                'b.branch_name',
+                'b.branch_address'
             )
-            ->where('tbl_ord.ord_id', $orderId)
+            ->where('ord.ord_id', $orderId)
             ->first();
     }
 
@@ -970,39 +1459,85 @@ class ReportController extends Controller
             return null;
         }
 
-        return DB::table('tbl_history')
-            ->join('tbl_pet', 'tbl_pet.pet_id', '=', 'tbl_history.pet_id')
-            ->join('tbl_own', 'tbl_own.own_id', '=', 'tbl_pet.own_id')
-            ->join('tbl_user', 'tbl_user.user_id', '=', 'tbl_history.user_id')
-            ->select('*')
-            ->where('tbl_history.history_id', $medicalId)
+        return DB::table('tbl_history as h')
+            ->join('tbl_pet as p', 'p.pet_id', '=', 'h.pet_id')
+            ->join('tbl_own as o', 'o.own_id', '=', 'p.own_id')
+            ->join('tbl_user as u', 'u.user_id', '=', 'h.user_id')
+            ->select(
+                'p.pet_name',
+                'p.pet_species',
+                'p.pet_breed',
+                'o.own_name',
+                'h.visit_date',
+                'h.diagnosis',
+                'h.treatment',
+                'h.medication',
+                'h.follow_up_date',
+                'h.notes',
+                'u.user_name as veterinarian'
+            )
+            ->where('h.history_id', $medicalId)
             ->first();
     }
 
     private function getStaffDetails($userId)
     {
-        return DB::table('tbl_user')
-            ->join('tbl_branch', 'tbl_branch.branch_id', '=', 'tbl_user.branch_id')
-            ->select('*')
-            ->where('tbl_user.user_id', $userId)
+        return DB::table('tbl_user as u')
+            ->join('tbl_branch as b', 'b.branch_id', '=', 'u.branch_id')
+            ->select(
+                'u.user_name',
+                'u.user_role',
+                'u.user_email',
+                'u.user_status',
+                DB::raw('REPLACE(u.user_contactNum, ",", "") as user_contactNum'),
+                'b.branch_name',
+                'b.branch_address'
+            )
+            ->where('u.user_id', $userId)
             ->first();
     }
 
     private function getInventoryDetails($prodId)
     {
-        return DB::table('tbl_prod')
-            ->leftJoin('tbl_branch', 'tbl_branch.branch_id', '=', 'tbl_prod.branch_id')
-            ->select('*')
-            ->where('tbl_prod.prod_id', $prodId)
+        $product = DB::table('tbl_prod as pr')
+            ->leftJoin('tbl_branch as b', 'b.branch_id', '=', 'pr.branch_id')
+            ->select(
+                'pr.prod_name as product_name',
+                'pr.prod_type as product_type',
+                'pr.prod_category as product_category',
+                'pr.prod_description as product_description',
+                'pr.prod_pullout as total_pull_out',
+                'pr.prod_damaged as total_damage',
+                DB::raw('COALESCE(pr.prod_quantity, pr.prod_stocks, 0) as total_stocks'),
+                'pr.prod_price as unit_price',
+                'b.branch_name',
+                'b.branch_address'
+            )
+            ->where('pr.prod_id', $prodId)
             ->first();
+        
+        if ($product) {
+            $quantity = $product->total_stocks ?? 0;
+            $product->stock_status = $quantity > 20 ? 'Good Stock' : 
+                                    ($quantity > 0 ? 'Low Stock' : 'Out of Stock');
+        }
+        
+        return $product;
     }
 
     private function getServiceDetails($serviceId)
     {
-        return DB::table('tbl_serv')
-            ->leftJoin('tbl_branch', 'tbl_branch.branch_id', '=', 'tbl_serv.branch_id')
-            ->select('*')
-            ->where('tbl_serv.serv_id', $serviceId)
+        return DB::table('tbl_serv as s')
+            ->leftJoin('tbl_branch as b', 'b.branch_id', '=', 's.branch_id')
+            ->select(
+                's.serv_name as service_name',
+                's.serv_type as service_type',
+                's.serv_description as service_description',
+                's.serv_price as service_price',
+                'b.branch_name',
+                'b.branch_address'
+            )
+            ->where('s.serv_id', $serviceId)
             ->first();
     }
 
@@ -1026,13 +1561,24 @@ class ReportController extends Controller
             return null;
         }
 
-        return DB::table('tbl_prescription')
-            ->join('tbl_pet', 'tbl_pet.pet_id', '=', 'tbl_prescription.pet_id')
-            ->join('tbl_own', 'tbl_own.own_id', '=', 'tbl_pet.own_id')
-            ->join('tbl_user', 'tbl_user.user_id', '=', 'tbl_prescription.user_id')
-            ->leftJoin('tbl_branch', 'tbl_branch.branch_id', '=', 'tbl_prescription.branch_id')
-            ->select('*')
-            ->where('tbl_prescription.prescription_id', $prescriptionId)
+        return DB::table('tbl_prescription as pr')
+            ->join('tbl_pet as p', 'p.pet_id', '=', 'pr.pet_id')
+            ->join('tbl_own as o', 'o.own_id', '=', 'p.own_id')
+            ->join('tbl_user as u', 'u.user_id', '=', 'pr.user_id')
+            ->leftJoin('tbl_branch as b', 'b.branch_id', '=', 'pr.branch_id')
+            ->select(
+                'pr.prescription_date',
+                'pr.medication as raw_medication_data',
+                'pr.differential_diagnosis',
+                'pr.notes',
+                'p.pet_name',
+                'p.pet_species',
+                'o.own_name',
+                'u.user_name as prescribed_by',
+                'b.branch_name',
+                'b.branch_address'
+            )
+            ->where('pr.prescription_id', $prescriptionId)
             ->first();
     }
 
@@ -1042,29 +1588,36 @@ class ReportController extends Controller
             return null;
         }
 
-        return DB::table('tbl_ref')
-            ->leftJoin('tbl_appoint', 'tbl_appoint.appoint_id', '=', 'tbl_ref.appoint_id')
-            ->leftJoin('tbl_pet', 'tbl_pet.pet_id', '=', 'tbl_appoint.pet_id')
-            ->leftJoin('tbl_own', 'tbl_own.own_id', '=', 'tbl_pet.own_id')
-            ->leftJoin('tbl_user', 'tbl_user.user_id', '=', 'tbl_ref.ref_by')
-            ->leftJoin('tbl_branch as b1', 'b1.branch_id', '=', 'tbl_user.branch_id') // Referring Branch Info
-            ->leftJoin('tbl_branch as b2', 'b2.branch_id', '=', 'tbl_ref.ref_to') // Referred To Branch Info
+        return DB::table('tbl_ref as r')
+            ->leftJoin('tbl_visit_record as v', 'v.visit_id', '=', 'r.visit_id')
+            ->leftJoin('tbl_pet as p', function($join) {
+                $join->on('p.pet_id', '=', 'r.pet_id')
+                     ->orOn('p.pet_id', '=', 'v.pet_id');
+            })
+            ->leftJoin('tbl_own as o', 'o.own_id', '=', 'p.own_id')
+            ->leftJoin('tbl_user as u', 'u.user_id', '=', 'r.ref_by')
+            ->leftJoin('tbl_branch as b1', 'b1.branch_id', '=', 'u.branch_id') // Referring Branch Info
+            ->leftJoin('tbl_branch as b2', 'b2.branch_id', '=', 'r.ref_to') // Referred To Branch Info
             ->select(
-                'tbl_ref.*',
-                'tbl_pet.pet_name',
-                'tbl_pet.pet_birthdate',
-                'tbl_pet.pet_gender',
-                'tbl_pet.pet_species',
-                'tbl_pet.pet_breed',
-                DB::raw('REPLACE(tbl_own.own_contactnum, ",", "") as own_contactnum'),
-                'tbl_own.own_name',
-                'tbl_user.user_name as referring_vet_name',
-                'tbl_user.user_licenseNum as referring_vet_license',
-                DB::raw('REPLACE(tbl_user.user_contactNum, ",", "") as referring_vet_contact'),
+                'r.ref_id',
+                'r.ref_date',
+                'r.ref_description',
+                'r.ref_type',
+                'r.ref_status',
+                'p.pet_name',
+                'p.pet_birthdate',
+                'p.pet_gender',
+                'p.pet_species',
+                'p.pet_breed',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as own_contactnum'),
+                'o.own_name',
+                'u.user_name as referring_vet_name',
+                'u.user_licenseNum as referring_vet_license',
+                DB::raw('REPLACE(u.user_contactNum, ",", "") as referring_vet_contact'),
                 'b1.branch_name as referring_branch',
                 'b2.branch_name as referred_to_name'
             )
-            ->where('tbl_ref.ref_id', $referralId)
+            ->where('r.ref_id', $referralId)
             ->first();
     }
 
@@ -1130,7 +1683,21 @@ class ReportController extends Controller
             ->join('tbl_own as ow', 'o.own_id', '=', 'ow.own_id')
             ->join('tbl_user as u', 'o.user_id', '=', 'u.user_id')
             ->leftJoin('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id')
-            ->select('*')
+            ->select(
+                'o.ord_id',
+                'o.ord_date',
+                'ow.own_name',
+                DB::raw('REPLACE(ow.own_contactnum, ",", "") as own_contactnum'),
+                'pr.prod_name',
+                'pr.prod_category',
+                'pr.prod_description',
+                'o.ord_quantity',
+                'pr.prod_price',
+                'o.ord_total',
+                'u.user_name as handled_by',
+                'b.branch_name',
+                'b.branch_address'
+            )
             ->where('o.ord_id', $orderId)
             ->first();
     }
@@ -1157,32 +1724,41 @@ class ReportController extends Controller
     {
         return DB::table('tbl_user as u')
             ->join('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id')
-            ->select('*')
+            ->select(
+                'u.user_name',
+                'u.user_role',
+                'u.user_email',
+                'u.user_status',
+                DB::raw('REPLACE(u.user_contactNum, ",", "") as user_contactNum'),
+                'b.branch_name',
+                'b.branch_address'
+            )
             ->where('u.user_id', $userId)
             ->first();
     }
 
     private function getPaymentCollectionDetails($payId)
     {
-        
         return DB::table('tbl_pay as pay')
             ->join('tbl_bill as b', 'pay.bill_id', '=', 'b.bill_id')
             ->join('tbl_visit_record as v', 'b.visit_id', '=', 'v.visit_id')
             ->join('tbl_pet as p', 'v.pet_id', '=', 'p.pet_id')
             ->join('tbl_own as o', 'p.own_id', '=', 'o.own_id')
             ->join('tbl_user as u', 'v.user_id', '=', 'u.user_id')
-            ->leftJoin('tbl_branch as br', 'u.branch_id', '=', 'br.branch_id') // FIX: Join Branch via User
+            ->leftJoin('tbl_branch as br', 'u.branch_id', '=', 'br.branch_id')
             ->select(
-                'pay.pay_id',
                 'u.user_name as collected_by',
                 'o.own_name',
+                DB::raw('REPLACE(o.own_contactnum, ",", "") as own_contactnum'),
                 'p.pet_name',
+                'p.pet_species',
                 'v.visit_date',
-                'b.bill_id',
                 'pay.pay_total',
                 'pay.pay_cashAmount',
                 'pay.pay_change',
-                'br.branch_name'
+                'b.bill_status',
+                'br.branch_name',
+                'br.branch_address'
             )
             ->where('pay.pay_id', $payId)
             ->first();
@@ -1198,47 +1774,208 @@ class ReportController extends Controller
             ->join('tbl_pet as p', 'h.pet_id', '=', 'p.pet_id')
             ->join('tbl_user as u', 'h.user_id', '=', 'u.user_id')
             ->join('tbl_own as o', 'p.own_id', '=', 'o.own_id')
-            ->select('*')
+            ->select(
+                'p.pet_name',
+                'p.pet_species',
+                'p.pet_breed',
+                'o.own_name',
+                'h.visit_date',
+                'h.diagnosis',
+                'h.treatment',
+                'h.medication',
+                'h.follow_up_date',
+                'h.notes',
+                'u.user_name as veterinarian'
+            )
             ->where('h.history_id', $historyId)
             ->first();
     }
 
-    private function getBranchEquipmentDetails($equipmentId)
+    private function getBranchEquipmentDetails($recordId)
     {
-        if (!DB::getSchemaBuilder()->hasTable('tbl_equipment')) {
+        // Try to get from boarding record first (format: visit_id-pet_id)
+        if (strpos($recordId, '-') !== false) {
+            list($visitId, $petId) = explode('-', $recordId, 2);
+            
+            if (DB::getSchemaBuilder()->hasTable('tbl_boarding_record')) {
+                $record = DB::table('tbl_boarding_record as br')
+                    ->join('tbl_visit_record as v', 'br.visit_id', '=', 'v.visit_id')
+                    ->join('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+                    ->join('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id')
+                    ->leftJoin('tbl_equipment as eq', 'br.equipment_id', '=', 'eq.equipment_id')
+                    ->leftJoin('tbl_pet as pet', 'v.pet_id', '=', 'pet.pet_id')
+                    ->leftJoin('tbl_own as owner', 'pet.own_id', '=', 'owner.own_id')
+                    ->leftJoin('tbl_serv as s', 'br.serv_id', '=', 's.serv_id')
+                    ->where('br.visit_id', $visitId)
+                    ->where('br.pet_id', $petId)
+                    ->whereNotNull('br.equipment_id')
+                    ->select(
+                        DB::raw('CONCAT(br.visit_id, "-", br.pet_id) as id'),
+                        'br.visit_id',
+                        'br.pet_id',
+                        'br.equipment_id',
+                        'br.check_in_date',
+                        'br.check_out_date',
+                        'br.room_no',
+                        'br.status as boarding_status',
+                        'br.handled_by',
+                        'eq.equipment_name',
+                        'eq.equipment_category',
+                        'pet.pet_name',
+                        'pet.pet_species',
+                        'pet.pet_breed',
+                        'owner.own_name as owner_name',
+                        's.serv_name as service_name',
+                        's.serv_type as service_type',
+                        'u.user_name as vet_name',
+                        'v.visit_date',
+                        'b.branch_name',
+                        'b.branch_address'
+                    )
+            ->first();
+                
+                if ($record) {
+                    return $record;
+                }
+            }
+        }
+
+        // Try equipment assignment log
+        if (DB::getSchemaBuilder()->hasTable('tbl_equipment_assignment_log')) {
+            $record = DB::table('tbl_equipment_assignment_log as eal')
+                ->join('tbl_equipment as eq', 'eal.equipment_id', '=', 'eq.equipment_id')
+                ->join('tbl_branch as b', 'eq.branch_id', '=', 'b.branch_id')
+                ->leftJoin('tbl_visit_record as v', 'eal.visit_id', '=', 'v.visit_id')
+                ->leftJoin('tbl_user as u', 'eal.performed_by', '=', 'u.user_id')
+                ->leftJoin('tbl_pet as pet', 'eal.pet_id', '=', 'pet.pet_id')
+                ->leftJoin('tbl_own as owner', 'pet.own_id', '=', 'owner.own_id')
+            ->select(
+                    'eal.id',
+                    'eal.equipment_id',
+                    'eal.action_type',
+                    'eal.visit_id',
+                    'eal.pet_id',
+                    'eal.quantity_changed',
+                    'eal.previous_status',
+                    'eal.new_status',
+                    'eal.reference',
+                    'eal.notes as log_notes',
+                    'eal.created_at',
+                    'eq.equipment_name',
+                    'eq.equipment_category',
+                    'pet.pet_name',
+                    'pet.pet_species',
+                    'owner.own_name as owner_name',
+                    'u.user_name as performed_by_name',
+                    'b.branch_name',
+                    'b.branch_address'
+                )
+                ->where('eal.id', $recordId)
+                ->first();
+            
+            if ($record) {
+                return $record;
+            }
+        }
+
+        return null;
+    }
+
+    private function getDamagedProductDetails($recordId)
+    {
+        if (!DB::getSchemaBuilder()->hasTable('tbl_inventory_transactions')) {
             return null;
         }
 
-        return DB::table('tbl_equipment as e')
-            ->join('tbl_branch as b', 'e.branch_id', '=', 'b.branch_id')
-            ->select('*')
-            ->where('e.equipment_id', $equipmentId)
+        $hasPerformedByCol = DB::getSchemaBuilder()->hasColumn('tbl_inventory_transactions', 'performed_by');
+        $hasUserIdCol = DB::getSchemaBuilder()->hasColumn('tbl_inventory_transactions', 'user_id');
+        $hasServIdCol = DB::getSchemaBuilder()->hasColumn('tbl_inventory_transactions', 'serv_id');
+        $hasVisitIdCol = DB::getSchemaBuilder()->hasColumn('tbl_inventory_transactions', 'visit_id');
+        $hasAppointIdCol = DB::getSchemaBuilder()->hasColumn('tbl_inventory_transactions', 'appoint_id');
+
+        $query = DB::table('tbl_inventory_transactions as it')
+            ->join('tbl_prod as p', 'it.prod_id', '=', 'p.prod_id')
+            ->leftJoin('tbl_branch as b', 'p.branch_id', '=', 'b.branch_id');
+
+        // Prefer performed_by if it exists, otherwise fallback to user_id if present
+        if ($hasPerformedByCol) {
+            $query->leftJoin('tbl_user as u', 'it.performed_by', '=', 'u.user_id');
+        } elseif ($hasUserIdCol) {
+            $query->leftJoin('tbl_user as u', 'it.user_id', '=', 'u.user_id');
+        }
+        if ($hasServIdCol) {
+            $query->leftJoin('tbl_serv as s', 'it.serv_id', '=', 's.serv_id');
+        }
+        if ($hasVisitIdCol) {
+            $query->leftJoin('tbl_visit_record as v', 'it.visit_id', '=', 'v.visit_id');
+        }
+
+        $selects = [
+            'it.transaction_id as id',
+            'it.transaction_type',
+            'it.quantity_change',
+            'it.reference',
+            'p.prod_name',
+            'p.prod_category',
+            'p.prod_type',
+            'b.branch_name'
+        ];
+
+        if ($hasPerformedByCol || $hasUserIdCol) {
+            $selects[] = 'u.user_name';
+        } else {
+            $selects[] = DB::raw('NULL as user_name');
+        }
+        // Include serv_name for display
+        if ($hasServIdCol) {
+            $selects[] = 'it.serv_id';
+            $selects[] = 's.serv_name';
+        } else {
+            $selects[] = DB::raw('NULL as serv_id');
+            $selects[] = DB::raw('NULL as serv_name');
+        }
+        if ($hasAppointIdCol) {
+            $selects[] = 'it.appoint_id';
+        } else {
+            $selects[] = DB::raw('NULL as appoint_id');
+        }
+
+        // Get ALL transaction types (not just damage/pullout)
+        $record = $query->select($selects)
+            ->where('it.transaction_id', $recordId)
             ->first();
-    }
-
-    private function getDamagedProductDetails($orderId)
-    {
-        $query = DB::table('tbl_ord as ord')
-            ->join('tbl_prod as pr', 'ord.prod_id', '=', 'pr.prod_id')
-            ->join('tbl_own as o', 'ord.own_id', '=', 'o.own_id')
-            ->join('tbl_user as u', 'ord.user_id', '=', 'u.user_id')
-            ->leftJoin('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id')
-            ->select(
-                'ord.ord_id',
-                'o.own_name',
-                'u.user_name as handled_by',
-                'pr.prod_name',
-                'pr.prod_damaged',
-                'pr.prod_pullout',
-                'ord.ord_quantity',
-                'ord.ord_date'
-            )
-            ->where(function($q) {
-                $q->where('pr.prod_damaged', '>', 0)
-                  ->orWhere('pr.prod_pullout', '>', 0);
-            });
-
-        return $query->orderBy('ord.ord_date', 'desc')->get();
+        
+        if ($record) {
+            // Format transaction type for display - store as 'type' for column name
+            $typeLabels = [
+                'restock' => 'Stock Added',
+                'sale' => 'POS Sale',
+                'service_usage' => 'Service Usage',
+                'damage' => 'Damaged',
+                'pullout' => 'Pull-out',
+                'adjustment' => 'Adjustment',
+                'return' => 'Return',
+            ];
+            
+            // Create new object with columns in the desired order
+            $orderedRecord = (object)[
+                '_id' => $record->id,
+                'row_number' => 1, // Single record in PDF view
+                'prod_name' => $record->prod_name ?? 'N/A',
+                'prod_category' => $record->prod_category ?? 'N/A',
+                'prod_type' => $record->prod_type ?? 'N/A',
+                'branch_name' => $record->branch_name ?? 'N/A',
+                'user_name' => $record->user_name ?? 'System',
+                'serv_name' => $record->serv_name ?? 'N/A',
+                'reference' => $record->reference ?? 'N/A',
+                'type' => $typeLabels[$record->transaction_type] ?? ucfirst($record->transaction_type ?? 'N/A'),
+                'quantity' => $record->quantity_change ?? 0,
+            ];
+            
+            return $orderedRecord;
+        }
+        
+        return $record;
     }
 
     private function getBranchPaymentDetails($branchName)
@@ -1253,17 +1990,42 @@ class ReportController extends Controller
             ->first();
     }
 
-    private function getServiceUtilizationDetails($servId)
+    private function getServiceUtilizationDetails($recordId)
     {
-        if (!DB::getSchemaBuilder()->hasTable('tbl_appoint_serv')) {
+        if (!DB::getSchemaBuilder()->hasTable('tbl_visit_service')) {
             return null;
         }
 
-        return DB::table('tbl_appoint_serv as aps')
-            ->join('tbl_serv as s', 'aps.serv_id', '=', 's.serv_id')
-            ->join('tbl_branch as b', 's.branch_id', '=', 'b.branch_id')
-            ->select('*')
-            ->where('s.serv_id', $servId)
+        // Get visit service record by id - only selected columns
+        $record = DB::table('tbl_visit_service as vs')
+            ->join('tbl_visit_record as v', 'vs.visit_id', '=', 'v.visit_id')
+            ->join('tbl_serv as s', 'vs.serv_id', '=', 's.serv_id')
+            ->join('tbl_user as u', 'v.user_id', '=', 'u.user_id')
+            ->join('tbl_branch as b', 'u.branch_id', '=', 'b.branch_id')
+            ->leftJoin('tbl_pet as pet', 'v.pet_id', '=', 'pet.pet_id')
+            ->leftJoin('tbl_own as owner', 'pet.own_id', '=', 'owner.own_id')
+            ->select(
+                'vs.id',
+                'v.visit_date',
+                'owner.own_name as owner_name',
+                'pet.pet_name',
+                'pet.pet_species',
+                'pet.pet_breed',
+                'v.patient_type',
+                's.serv_name',
+                's.serv_type',
+                'vs.total_price',
+                'u.user_name as performed_by',
+                'b.branch_name',
+                'vs.status as service_status'
+            )
+            ->where('vs.id', $recordId)
             ->first();
+
+        if (!$record) {
+            return null;
+        }
+
+        return $record;
     }
 }

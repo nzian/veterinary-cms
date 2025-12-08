@@ -1916,7 +1916,7 @@ public function completeService(Request $request, $visitId, $serviceId)
 
     public function showVisit($id)
     {
-        $visit = Visit::with(['pet.owner', 'user'])->findOrFail($id);
+        $visit = Visit::with(['pet.owner', 'user', 'services'])->findOrFail($id);
         return response()->json($visit);
     }
 

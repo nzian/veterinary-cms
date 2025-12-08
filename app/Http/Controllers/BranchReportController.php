@@ -93,15 +93,23 @@ class BranchReportController extends Controller
                         ->get()
                         ->map(function($visit) {
                             return (object)[
-                                'visit_id' => $visit->visit_id,
+                                '_id' => $visit->visit_id, // Hidden ID for PDF link
                                 'owner_name' => $visit->pet->owner->own_name ?? 'N/A',
-                                'owner_contact' => $visit->pet->owner->own_contactnum ?? 'N/A',
+                                'owner_contact' => str_replace(',', '', $visit->pet->owner->own_contactnum ?? 'N/A'),
+                                'owner_location' => $visit->pet->owner->own_location ?? 'N/A',
                                 'pet_name' => $visit->pet->pet_name ?? 'N/A',
+                                'pet_species' => $visit->pet->pet_species ?? 'N/A',
                                 'pet_breed' => $visit->pet->pet_breed ?? 'N/A',
+                                'pet_age' => $visit->pet->pet_age ?? 'N/A',
+                                'pet_gender' => $visit->pet->pet_gender ?? 'N/A',
                                 'branch_name' => $visit->user->branch->branch_name ?? 'N/A',
+                                'veterinarian' => $visit->user->user_name ?? 'N/A',
                                 'visit_date' => $visit->visit_date,
-                                'patient_type' => $visit->patient_type,
+                                'patient_type' => is_object($visit->patient_type) ? $visit->patient_type->value : $visit->patient_type,
                                 'status' => $visit->visit_status,
+                                'workflow_status' => $visit->workflow_status ?? 'N/A',
+                                'weight' => $visit->weight ?? 'N/A',
+                                'temperature' => $visit->temperature ?? 'N/A',
                                 'services' => $visit->services->pluck('serv_name')->join(', ')
                             ];
                         })
@@ -135,14 +143,16 @@ class BranchReportController extends Controller
                         ->get()
                         ->map(function($pet) {
                             return (object)[
-                                'pet_id' => $pet->pet_id,
+                                '_id' => $pet->pet_id, // Hidden ID for PDF link
                                 'owner_name' => $pet->owner->own_name ?? 'N/A',
-                                'owner_contact' => $pet->owner->own_contactnum ?? 'N/A',
+                                'owner_contact' => str_replace(',', '', $pet->owner->own_contactnum ?? 'N/A'),
+                                'owner_location' => $pet->owner->own_location ?? 'N/A',
                                 'pet_name' => $pet->pet_name,
                                 'pet_species' => $pet->pet_species,
                                 'pet_breed' => $pet->pet_breed,
                                 'pet_age' => $pet->pet_age,
                                 'pet_gender' => $pet->pet_gender,
+                                'pet_birthdate' => $pet->pet_birthdate ?? 'N/A',
                                 'registration_date' => $pet->pet_registration
                             ];
                         })
@@ -177,21 +187,34 @@ class BranchReportController extends Controller
                         ->select(
                             'tbl_bill.bill_id',
                             'tbl_own.own_name as customer_name',
+                            DB::raw('REPLACE(tbl_own.own_contactnum, ",", "") as owner_contact'),
                             'tbl_pet.pet_name',
+                            'tbl_pet.pet_species',
                             'tbl_visit_record.visit_date as service_date',
                             DB::raw('COALESCE(SUM(tbl_serv.serv_price), 0) as pay_total'),
                             'tbl_branch.branch_name',
-                            'tbl_bill.bill_status as payment_status'
+                            'tbl_user.user_name as veterinarian',
+                            'tbl_bill.bill_status as payment_status',
+                            'tbl_bill.bill_date'
                         )
                         ->groupBy(
                             'tbl_bill.bill_id',
                             'tbl_own.own_name',
+                            'tbl_own.own_contactnum',
                             'tbl_pet.pet_name',
+                            'tbl_pet.pet_species',
                             'tbl_visit_record.visit_date',
                             'tbl_branch.branch_name',
-                            'tbl_bill.bill_status'
+                            'tbl_user.user_name',
+                            'tbl_bill.bill_status',
+                            'tbl_bill.bill_date'
                         )
                         ->get()
+                        ->map(function($bill) {
+                            $bill->_id = $bill->bill_id; // Hidden ID for PDF link
+                            unset($bill->bill_id);
+                            return $bill;
+                        })
                 ];
                 break;
 
@@ -219,14 +242,18 @@ class BranchReportController extends Controller
                         ->get()
                         ->map(function($order) {
                             return (object)[
-                                'ord_id' => $order->ord_id,
+                                '_id' => $order->ord_id, // Hidden ID for PDF link
                                 'sale_date' => $order->ord_date,
                                 'customer_name' => $order->owner->own_name ?? 'Walk-in',
+                                'customer_contact' => $order->owner ? str_replace(',', '', $order->owner->own_contactnum ?? 'N/A') : 'N/A',
                                 'product_name' => $order->product->prod_name ?? 'N/A',
+                                'product_category' => $order->product->prod_category ?? 'N/A',
+                                'product_description' => $order->product->prod_description ?? 'N/A',
                                 'quantity_sold' => $order->ord_quantity,
                                 'unit_price' => $order->product->prod_price ?? 0,
                                 'total_amount' => $order->ord_total,
-                                'cashier' => $order->user->name ?? 'N/A'
+                                'cashier' => $order->user->user_name ?? $order->user->name ?? 'N/A',
+                                'branch_name' => $order->user->branch->branch_name ?? 'N/A'
                             ];
                         })
                 ];
@@ -251,18 +278,22 @@ class BranchReportController extends Controller
                 $reports['referrals'] = [
                     'title' => 'Referral Report',
                     'description' => 'Patient referrals (interbranch and external) for ' . $branch->branch_name,
-                    'data' => $referralQuery->with(['pet.owner', 'refFromBranch', 'refToBranch'])
+                    'data' => $referralQuery->with(['pet.owner', 'refFromBranch', 'refToBranch', 'visit.user'])
                         ->get()
                         ->map(function($referral) {
                             return (object)[
-                                'ref_id' => $referral->ref_id,
+                                '_id' => $referral->ref_id, // Hidden ID for PDF link
                                 'ref_date' => $referral->ref_date,
                                 'owner_name' => $referral->pet && $referral->pet->owner ? $referral->pet->owner->own_name : 'N/A',
+                                'owner_contact' => $referral->pet && $referral->pet->owner ? str_replace(',', '', $referral->pet->owner->own_contactnum ?? 'N/A') : 'N/A',
                                 'pet_name' => $referral->pet ? $referral->pet->pet_name : 'N/A',
-                                'referral_reason' => $referral->ref_description,
-                                'referred_by' => optional($referral->refFromBranch)->branch_name ?? 'External',
+                                'pet_species' => $referral->pet ? $referral->pet->pet_species : 'N/A',
+                                'pet_breed' => $referral->pet ? $referral->pet->pet_breed : 'N/A',
+                                'referral_reason' => $referral->ref_description ?? 'N/A',
+                                'referred_by' => optional($referral->refFromBranch)->branch_name ?? (optional(optional($referral->visit)->user)->user_name ?? 'External'),
                                 'referred_to' => optional($referral->refToBranch)->branch_name ?? 'External',
-                                'ref_type' => $referral->ref_type
+                                'ref_type' => $referral->ref_type ?? 'N/A',
+                                'ref_status' => $referral->ref_status ?? 'N/A'
                             ];
                         })
                 ];
@@ -295,10 +326,10 @@ class BranchReportController extends Controller
                 // Map to new structure for the report
                 $equipmentData = $equipmentData->map(function($equipment) {
                     return (object) [
-                        'equipment_id' => $equipment->equipment_id,
+                        '_id' => $equipment->equipment_id, // Hidden ID for PDF link
                         'equipment_name' => $equipment->equipment_name,
                         'equipment_category' => $equipment->equipment_category,
-                        'equipment_description' => $equipment->equipment_description,
+                        'equipment_description' => $equipment->equipment_description ?? 'N/A',
                         'branch_name' => $equipment->branch_name,
                         'total_in_use' => $equipment->total_in_use ?? 0,
                         'total_maintenance' => $equipment->equipment_maintenance ?? 0,
@@ -329,12 +360,13 @@ class BranchReportController extends Controller
                         ->get()
                         ->map(function($service) {
                             return (object)[
-                                'service_id' => $service->serv_id,
+                                '_id' => $service->serv_id, // Hidden ID for PDF link
                                 'service_name' => $service->serv_name,
                                 'service_type' => $service->serv_type ?? 'General',
-                                'service_description' => $service->serv_description,
+                                'service_description' => $service->serv_description ?? 'N/A',
                                 'service_price' => $service->serv_price,
                                 'branch_name' => $service->branch->branch_name ?? 'N/A',
+                                'branch_address' => $service->branch->branch_address ?? 'N/A',
                                 'status' => 'Active'
                             ];
                         })
@@ -353,15 +385,17 @@ class BranchReportController extends Controller
                                         ($quantity > 0 ? 'Low Stock' : 'Out of Stock');
                         
                         return (object)[
-                            'product_id' => $product->prod_id,
+                            '_id' => $product->prod_id, // Hidden ID for PDF link
                             'product_name' => $product->prod_name,
                             'product_type' => $product->prod_type ?? $product->prod_category ?? 'N/A',
-                            'product_description' => $product->prod_description,
+                            'product_category' => $product->prod_category ?? 'N/A',
+                            'product_description' => $product->prod_description ?? 'N/A',
                             'total_pull_out' => $product->prod_pullout ?? 0,
                             'total_damage' => $product->prod_damaged ?? 0,
                             'total_stocks' => $quantity,
                             'unit_price' => ($productType === 'sales') ? $product->prod_price : null,
                             'branch_name' => $product->branch->branch_name ?? 'N/A',
+                            'branch_address' => $product->branch->branch_address ?? 'N/A',
                             'stock_status' => $status
                         ];
                     });
@@ -388,13 +422,16 @@ class BranchReportController extends Controller
                 break;
 
             case 'revenue':
-                $totalSales = Order::whereBetween('ord_date', [$startDate, $endDate])
+                $periodStart = $hasValidDates ? $startDate : Carbon::now()->startOfYear()->format('Y-m-d');
+                $periodEnd = $hasValidDates ? $endDate : Carbon::now()->format('Y-m-d');
+
+                $totalSales = Order::whereBetween('ord_date', [$periodStart, $periodEnd])
                     ->whereHas('user', function($q) use ($branchId) {
                         $q->where('branch_id', $branchId);
                     })
                     ->sum('ord_total');
 
-                $totalBillings = Billing::whereBetween('bill_date', [$startDate, $endDate])
+                $totalBillings = Billing::whereBetween('bill_date', [$periodStart, $periodEnd])
                     ->where('branch_id', $branchId)
                     ->sum('total_amount');
 
@@ -405,12 +442,12 @@ class BranchReportController extends Controller
                     'description' => 'Revenue analysis for ' . $branch->branch_name,
                     'data' => collect([(object)[
                         'branch_name' => $branch->branch_name,
-                        'period_start' => $startDate,
-                        'period_end' => $endDate,
+                        'period_start' => $periodStart,
+                        'period_end' => $periodEnd,
                         'total_sales' => $totalSales,
                         'total_billings' => $totalBillings,
                         'total_revenue' => $totalRevenue,
-                        'total_transactions' => Order::whereBetween('ord_date', [$startDate, $endDate])
+                        'total_transactions' => Order::whereBetween('ord_date', [$periodStart, $periodEnd])
                             ->whereHas('user', function($q) use ($branchId) {
                                 $q->where('branch_id', $branchId);
                             })->count()
@@ -706,7 +743,7 @@ class BranchReportController extends Controller
                                     $order->ord_quantity,
                                     $order->product->prod_price ?? 0,
                                     $order->ord_total,
-                                    $order->user->name ?? 'N/A'
+                                    $order->user->user_name ?? $order->user->name ?? 'N/A'
                                 ]);
                             }
                         });
@@ -728,8 +765,8 @@ class BranchReportController extends Controller
                                     $referral->pet->owner->own_name ?? 'N/A',
                                     $referral->pet->pet_name ?? 'N/A',
                                     $referral->ref_description,
-                                    $referral->visit->user->name ?? 'N/A',
-                                    $referral->ref_to
+                                    $referral->visit->user->user_name ?? $referral->visit->user->name ?? 'N/A',
+                                    optional($referral->refToBranch)->branch_name ?? 'External'
                                 ]);
                             }
                         });
@@ -874,22 +911,42 @@ class BranchReportController extends Controller
         return response()->stream($callback, 200, $headers);
     }
     
-    // START: Updated function to unify data retrieval for PDF
+    // START: Updated function to unify data retrieval for PDF - returns mapped data like table
     private function getRecordForPDF($reportType, $id, $branchId)
     {
         switch($reportType) {
             case 'visits':
-                 // Eager load everything needed for the universal view
-                return Visit::where('visit_id', $id)
+                $visit = Visit::where('visit_id', $id)
                     ->whereHas('user', function($q) use ($branchId) {
                         $q->where('branch_id', $branchId);
                     })
                     ->with(['pet.owner', 'user.branch', 'services'])
                     ->first();
+                
+                if (!$visit) return null;
+                
+                return (object)[
+                    'owner_name' => $visit->pet->owner->own_name ?? 'N/A',
+                    'owner_contact' => str_replace(',', '', $visit->pet->owner->own_contactnum ?? 'N/A'),
+                    'owner_location' => $visit->pet->owner->own_location ?? 'N/A',
+                    'pet_name' => $visit->pet->pet_name ?? 'N/A',
+                    'pet_species' => $visit->pet->pet_species ?? 'N/A',
+                    'pet_breed' => $visit->pet->pet_breed ?? 'N/A',
+                    'pet_age' => $visit->pet->pet_age ?? 'N/A',
+                    'pet_gender' => $visit->pet->pet_gender ?? 'N/A',
+                    'branch_name' => $visit->user->branch->branch_name ?? 'N/A',
+                    'veterinarian' => $visit->user->user_name ?? 'N/A',
+                    'visit_date' => $visit->visit_date,
+                    'patient_type' => is_object($visit->patient_type) ? $visit->patient_type->value : $visit->patient_type,
+                    'status' => $visit->visit_status,
+                    'workflow_status' => $visit->workflow_status ?? 'N/A',
+                    'weight' => $visit->weight ?? 'N/A',
+                    'temperature' => $visit->temperature ?? 'N/A',
+                    'services' => $visit->services->pluck('serv_name')->join(', ')
+                ];
 
             case 'pets':
-                // Need owner data and context for branch check
-                return Pet::where('pet_id', $id)
+                $pet = Pet::where('pet_id', $id)
                     ->whereHas('visits', function($q) use ($branchId) {
                         $q->whereHas('user', function($userQuery) use ($branchId) {
                             $userQuery->where('branch_id', $branchId);
@@ -897,18 +954,52 @@ class BranchReportController extends Controller
                     })
                     ->with('owner')
                     ->first();
+                
+                if (!$pet) return null;
+                
+                return (object)[
+                    'owner_name' => $pet->owner->own_name ?? 'N/A',
+                    'owner_contact' => str_replace(',', '', $pet->owner->own_contactnum ?? 'N/A'),
+                    'owner_location' => $pet->owner->own_location ?? 'N/A',
+                    'pet_name' => $pet->pet_name,
+                    'pet_species' => $pet->pet_species,
+                    'pet_breed' => $pet->pet_breed,
+                    'pet_age' => $pet->pet_age,
+                    'pet_gender' => $pet->pet_gender,
+                    'pet_birthdate' => $pet->pet_birthdate ?? 'N/A',
+                    'registration_date' => $pet->pet_registration
+                ];
             
             case 'referrals':
-                return Referral::where('ref_id', $id)
-                    ->whereHas('visit.user', function($q) use ($branchId) {
-                        $q->where('branch_id', $branchId);
+                $referral = Referral::where('ref_id', $id)
+                    ->where(function($q) use ($branchId) {
+                        $q->where('ref_from', $branchId)
+                          ->orWhere('ref_to', $branchId)
+                          ->orWhereHas('visit.user', function($userQuery) use ($branchId) {
+                              $userQuery->where('branch_id', $branchId);
+                          });
                     })
-                    ->with(['visit.pet.owner', 'visit.user.branch'])
+                    ->with(['pet.owner', 'visit.pet.owner', 'visit.user.branch', 'refFromBranch', 'refToBranch', 'refByBranch'])
                     ->first();
+                
+                if (!$referral) return null;
+                
+                return (object)[
+                    'ref_date' => $referral->ref_date,
+                    'owner_name' => $referral->pet && $referral->pet->owner ? $referral->pet->owner->own_name : 'N/A',
+                    'owner_contact' => $referral->pet && $referral->pet->owner ? str_replace(',', '', $referral->pet->owner->own_contactnum ?? 'N/A') : 'N/A',
+                    'pet_name' => $referral->pet ? $referral->pet->pet_name : 'N/A',
+                    'pet_species' => $referral->pet ? $referral->pet->pet_species : 'N/A',
+                    'pet_breed' => $referral->pet ? $referral->pet->pet_breed : 'N/A',
+                    'referral_reason' => $referral->ref_description ?? 'N/A',
+                    'referred_by' => optional($referral->refFromBranch)->branch_name ?? (optional(optional($referral->visit)->user)->user_name ?? 'External'),
+                    'referred_to' => optional($referral->refToBranch)->branch_name ?? 'External',
+                    'ref_type' => $referral->ref_type ?? 'N/A',
+                    'ref_status' => $referral->ref_status ?? 'N/A'
+                ];
 
             case 'billing':
-                // Use a DB raw query to group billing details for the single bill ID
-                return DB::table('tbl_bill')
+                $bill = DB::table('tbl_bill')
                     ->where('tbl_bill.bill_id', $id)
                     ->join('tbl_visit_record', 'tbl_bill.visit_id', '=', 'tbl_visit_record.visit_id')
                     ->join('tbl_pet', 'tbl_visit_record.pet_id', '=', 'tbl_pet.pet_id')
@@ -917,41 +1008,133 @@ class BranchReportController extends Controller
                     ->join('tbl_branch', 'tbl_user.branch_id', '=', 'tbl_branch.branch_id')
                     ->where('tbl_user.branch_id', $branchId)
                     ->select(
-                        'tbl_bill.*', 
-                        'tbl_own.own_name', 
-                        'tbl_own.own_contactnum', 
+                        'tbl_own.own_name as customer_name',
+                        DB::raw('REPLACE(tbl_own.own_contactnum, ",", "") as owner_contact'),
                         'tbl_pet.pet_name',
-                        'tbl_visit_record.visit_date',
+                        'tbl_pet.pet_species',
+                        'tbl_visit_record.visit_date as service_date',
                         'tbl_branch.branch_name',
+                        'tbl_user.user_name as veterinarian',
+                        'tbl_bill.bill_status as payment_status',
+                        'tbl_bill.bill_date',
                         DB::raw('(SELECT COALESCE(SUM(s.serv_price), 0) FROM tbl_visit_service vs JOIN tbl_serv s ON vs.serv_id = s.serv_id WHERE vs.visit_id = tbl_visit_record.visit_id) as pay_total')
                     )
                     ->first();
+                
+                if (!$bill) return null;
+                
+                return (object)[
+                    'customer_name' => $bill->customer_name ?? 'N/A',
+                    'owner_contact' => $bill->owner_contact ?? 'N/A',
+                    'pet_name' => $bill->pet_name ?? 'N/A',
+                    'pet_species' => $bill->pet_species ?? 'N/A',
+                    'service_date' => $bill->service_date,
+                    'bill_date' => $bill->bill_date,
+                    'branch_name' => $bill->branch_name ?? 'N/A',
+                    'veterinarian' => $bill->veterinarian ?? 'N/A',
+                    'pay_total' => $bill->pay_total ?? 0,
+                    'payment_status' => $bill->payment_status ?? 'N/A'
+                ];
 
             case 'sales':
-                return Order::where('ord_id', $id)
+                $order = Order::where('ord_id', $id)
                     ->whereHas('user', function($q) use ($branchId) {
                         $q->where('branch_id', $branchId);
                     })
                     ->with(['product', 'owner', 'user.branch'])
                     ->first();
+                
+                if (!$order) return null;
+                
+                return (object)[
+                    'sale_date' => $order->ord_date,
+                    'customer_name' => $order->owner->own_name ?? 'Walk-in',
+                    'customer_contact' => $order->owner ? str_replace(',', '', $order->owner->own_contactnum ?? 'N/A') : 'N/A',
+                    'product_name' => $order->product->prod_name ?? 'N/A',
+                    'product_category' => $order->product->prod_category ?? 'N/A',
+                    'product_description' => $order->product->prod_description ?? 'N/A',
+                    'quantity_sold' => $order->ord_quantity,
+                    'unit_price' => $order->product->prod_price ?? 0,
+                    'total_amount' => $order->ord_total,
+                    'cashier' => $order->user->user_name ?? $order->user->name ?? 'N/A',
+                    'branch_name' => $order->user->branch->branch_name ?? 'N/A'
+                ];
 
             case 'equipment':
-                return DB::table('tbl_equipment')
-                    ->where('equipment_id', $id)
-                    ->where('branch_id', $branchId)
+                $equipment = DB::table('tbl_equipment')
+                    ->join('tbl_branch', 'tbl_equipment.branch_id', '=', 'tbl_branch.branch_id')
+                    ->where('tbl_equipment.equipment_id', $id)
+                    ->where('tbl_equipment.branch_id', $branchId)
+                    ->select(
+                        'tbl_equipment.equipment_name',
+                        'tbl_equipment.equipment_category',
+                        'tbl_equipment.equipment_description',
+                        'tbl_branch.branch_name',
+                        'tbl_branch.branch_address',
+                        'tbl_equipment.equipment_available',
+                        'tbl_equipment.equipment_maintenance',
+                        'tbl_equipment.equipment_quantity as total_in_use',
+                        'tbl_equipment.equipment_out_of_service'
+                    )
                     ->first();
+                
+                if (!$equipment) return null;
+                
+                return (object)[
+                    'equipment_name' => $equipment->equipment_name,
+                    'equipment_category' => $equipment->equipment_category,
+                    'equipment_description' => $equipment->equipment_description ?? 'N/A',
+                    'branch_name' => $equipment->branch_name,
+                    'branch_address' => $equipment->branch_address ?? 'N/A',
+                    'total_in_use' => $equipment->total_in_use ?? 0,
+                    'total_maintenance' => $equipment->equipment_maintenance ?? 0,
+                    'total_available' => $equipment->equipment_available ?? 0,
+                    'total_out_of_service' => $equipment->equipment_out_of_service ?? 0
+                ];
 
             case 'services':
-                return Service::where('serv_id', $id)
+                $service = Service::where('serv_id', $id)
                     ->where('branch_id', $branchId)
                     ->with('branch')
                     ->first();
+                
+                if (!$service) return null;
+                
+                return (object)[
+                    'service_name' => $service->serv_name,
+                    'service_type' => $service->serv_type ?? 'General',
+                    'service_description' => $service->serv_description ?? 'N/A',
+                    'service_price' => $service->serv_price,
+                    'branch_name' => $service->branch->branch_name ?? 'N/A',
+                    'branch_address' => $service->branch->branch_address ?? 'N/A',
+                    'status' => 'Active'
+                ];
 
             case 'inventory':
-                return Product::where('prod_id', $id)
+                $product = Product::where('prod_id', $id)
                     ->where('branch_id', $branchId)
                     ->with('branch')
                     ->first();
+                
+                if (!$product) return null;
+                
+                $quantity = $product->prod_quantity ?? $product->prod_stocks ?? 0;
+                $status = $quantity > 20 ? 'Good Stock' : 
+                                ($quantity > 0 ? 'Low Stock' : 'Out of Stock');
+                
+                return (object)[
+                    'product_name' => $product->prod_name,
+                    'product_type' => $product->prod_type ?? $product->prod_category ?? 'N/A',
+                    'product_category' => $product->prod_category ?? 'N/A',
+                    'product_description' => $product->prod_description ?? 'N/A',
+                    'total_pull_out' => $product->prod_pullout ?? 0,
+                    'total_damage' => $product->prod_damaged ?? 0,
+                    'total_stocks' => $quantity,
+                    'unit_price' => $product->prod_price ?? null,
+                    'branch_name' => $product->branch->branch_name ?? 'N/A',
+                    'branch_address' => $product->branch->branch_address ?? 'N/A',
+                    'stock_status' => $status
+                ];
 
             default:
                 return null;
@@ -961,8 +1144,22 @@ class BranchReportController extends Controller
     public function showDetailedPDF($reportType, $id)
     {
         $user = auth()->user();
-        $branchId = $user->branch_id;
+        $isSuperAdmin = strtolower(trim($user->user_role)) === 'superadmin';
+        $branchMode = session('branch_mode') === 'active';
+        $activeBranchId = session('active_branch_id');
+
+        // Determine which branch to use (same logic as index method)
+        if ($isSuperAdmin && $branchMode && $activeBranchId) {
+            $branchId = $activeBranchId;
+        } else {
+            $branchId = $user->branch_id;
+        }
+        
         $branch = Branch::find($branchId);
+        
+        if (!$branch) {
+            abort(404, 'Branch not found');
+        }
         
         $data = $this->getRecordForPDF($reportType, $id, $branchId);
 
@@ -987,15 +1184,26 @@ class BranchReportController extends Controller
         
         // Pass the single record data to the PDF view
         // The PDF view should handle presentation based on $reportType and $data content.
-        $pdf = \PDF::loadView('branch-reports-pdf', compact('data', 'reportType', 'title', 'branch'));
-        
-        // Set paper size and orientation
-        $pdf->setPaper('letter', 'landscape');
-        
-        // Enable remote access for images (for public_path('images/header.jpg'))
-        $pdf->setOption('isRemoteEnabled', true);
-        
-        // Stream the PDF (opens in browser)
-        return $pdf->stream($title . '_' . $id . '.pdf');
+        try {
+            // Check if view exists
+            if (!view()->exists('branch-reports-pdf')) {
+                abort(500, 'PDF view not found: branch-reports-pdf');
+            }
+            
+            $pdf = \PDF::loadView('branch-reports-pdf', compact('data', 'reportType', 'title', 'branch'));
+            
+            // Set paper size and orientation - Landscape for PDF view to fit all details
+            $pdf->setPaper('letter', 'landscape');
+            
+            // Enable remote access for images (for public_path('images/header.jpg'))
+            $pdf->setOption('isRemoteEnabled', true);
+            
+            // Stream the PDF (opens in browser)
+            return $pdf->stream($title . '_' . $id . '.pdf');
+        } catch (\Illuminate\View\Exceptions\ViewNotFoundException $e) {
+            abort(500, 'PDF view not found: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            abort(500, 'Error generating PDF: ' . $e->getMessage() . ' | File: ' . $e->getFile() . ' | Line: ' . $e->getLine());
+        }
     }
 }
