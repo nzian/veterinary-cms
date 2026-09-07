@@ -144,6 +144,12 @@ class ListFilter {
                 console.log('Checking filter:', filter.selectId, 'element found:', !!select);
                 if (select) {
                     console.log('Filter value:', select.value);
+                    if (typeof filter.customMatch === 'function') {
+                        const beforeCount = this.filteredRows.length;
+                        this.filteredRows = this.filteredRows.filter(row => filter.customMatch(row, select.value));
+                        console.log('Filter', filter.selectId, 'reduced from', beforeCount, 'to', this.filteredRows.length);
+                        return;
+                    }
                     if (select.value && select.value !== 'all' && select.value !== 'All' && select.value !== '') {
                         const beforeCount = this.filteredRows.length;
                         this.filteredRows = this.filteredRows.filter(row => {

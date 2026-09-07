@@ -55,9 +55,15 @@ class ProductStock extends Model
      */
     public function getAvailableQuantityAttribute()
     {
-        $damagePulloutTotal = $this->damagePullouts()
-            ->sum(\DB::raw('pullout_quantity + damage_quantity'));
-        
+        if ($this->relationLoaded('damagePullouts')) {
+            $damagePulloutTotal = $this->damagePullouts->sum(function ($record) {
+                return ($record->pullout_quantity ?? 0) + ($record->damage_quantity ?? 0);
+            });
+        } else {
+            $damagePulloutTotal = $this->damagePullouts()
+                ->sum(\DB::raw('pullout_quantity + damage_quantity'));
+        }
+
         return max(0, $this->quantity - $damagePulloutTotal);
     }
 

@@ -141,8 +141,13 @@ class POSController extends Controller
                         throw new \Exception("Product with ID {$item['product_id']} not found.");
                     }
 
-                    if ($product->prod_stocks < $item['quantity']) {
-                        throw new \Exception("Insufficient stock for {$product->prod_name}. Available: {$product->prod_stocks}");
+                    if ($product->is_disabled || $product->all_expired) {
+                        throw new \Exception("{$product->prod_name} is expired or unavailable for sale.");
+                    }
+
+                    $sellableStock = $product->current_stock;
+                    if ($sellableStock < $item['quantity']) {
+                        throw new \Exception("Insufficient stock for {$product->prod_name}. Available: {$sellableStock}");
                     }
                 }
                 

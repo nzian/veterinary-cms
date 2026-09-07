@@ -822,7 +822,7 @@ class ProdServEquipController extends Controller
         }
 
         // Load all data for client-side filtering
-        $products = Product::with('branch')
+        $products = Product::with(['branch', 'manufacturer', 'stockBatches.damagePullouts'])
             ->where('prod_category', '!=', 'Service')
             ->when($user->user_role !== 'superadmin', function ($query) use ($activeBranchId) {
                 $query->where('branch_id', $activeBranchId);
@@ -2514,7 +2514,7 @@ public function getServiceInventoryOverview()
                         'batch' => $batch->batch,
                         'quantity' => $batch->quantity,
                         'available_quantity' => $batch->available_quantity,
-                        'expire_date' => $batch->expire_date->format('Y-m-d'),
+                        'expire_date' => $batch->expire_date?->format('Y-m-d'),
                         'is_expired' => $batch->isExpired(),
                         'note' => $batch->note,
                     ];

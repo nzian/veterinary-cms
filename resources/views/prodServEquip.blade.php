@@ -102,7 +102,7 @@
                         <label for="productsType" class="whitespace-nowrap text-sm text-black ml-2">Filter</label>
                         <select name="productsType" id="productsType"
                             class="border border-gray-400 rounded px-2 py-1.5 text-sm" onchange="toggleManufacturerColumn()">
-                            @foreach (['All', 'Sale', 'Consumable'] as $type)
+                            @foreach (['All', 'Sale', 'Consumable', 'Expired'] as $type)
                                 <option value="{{ $type }}" {{ request('productsType', 'All') == $type ? 'selected' : '' }}>
                                     {{ $type }}
                                 </option>
@@ -154,7 +154,7 @@
                                     $statusLabel = $product->stock_status_label;
                                     $rowClass = $isDisabled ? 'bg-gray-100 opacity-60' : '';
                                 @endphp
-                                <tr class="{{ $rowClass }}">
+                                <tr class="{{ $rowClass }}" data-expired="{{ $isExpired ? '1' : '0' }}" data-type="{{ $product->prod_type }}">
                                     <td class="p-2 border">{{ $loop->iteration }}</td>
                                     <td class="p-2 border">
                                         @if($product->prod_image)
@@ -1412,6 +1412,22 @@
 
     <script>
 
+        function matchProductTypeFilter(row, value) {
+            const isExpired = row.dataset.expired === '1';
+            const type = (row.dataset.type || '').toLowerCase();
+            const filter = (value || 'All').toLowerCase();
+
+            if (filter === 'expired') {
+                return isExpired;
+            }
+
+            if (filter === 'all' || filter === '') {
+                return !isExpired;
+            }
+
+            return !isExpired && type === filter;
+        }
+
         // MANUFACTURER COLUMN TOGGLE
         function toggleManufacturerColumn() {
             const filterValue = document.getElementById('productsType').value;
@@ -1508,7 +1524,7 @@
                                 paginationContainerId: 'productsPagination',
                                 searchColumns: [1, 2, 3, 4, 5, 7],
                                 filterSelects: [
-                                    { selectId: 'productsType', columnIndex: 4 }
+                                    { selectId: 'productsType', columnIndex: 4, customMatch: matchProductTypeFilter }
                                 ],
                                 storageKey: 'productsFilter',
                                 noResultsMessage: 'No products found.'
@@ -4150,9 +4166,9 @@
                     if (data.success && data.batches && data.batches.length > 0) {
                         let options = '<option value="">-- Select Batch --</option>';
                         data.batches.forEach(batch => {
-                            const expiry = new Date(batch.expire_date).toLocaleDateString();
+                            const expiry = batch.expire_date ? new Date(batch.expire_date).toLocaleDateString() : 'N/A';
                             const status = batch.is_expired ? ' (EXPIRED)' : '';
-                            const disabled = batch.available_quantity <= 0 || batch.is_expired ? ' disabled' : '';
+                            const disabled = batch.available_quantity <= 0 ? ' disabled' : '';
                             options += `<option value="${batch.id}"${disabled}>
                                 Batch: ${batch.batch} | Available: ${batch.available_quantity}/${batch.quantity} | Exp: ${expiry}${status}
                             </option>`;
@@ -5178,7 +5194,7 @@
                                 paginationContainerId: 'productsPagination',
                                 searchColumns: [1, 2, 3, 4, 5, 7],
                                 filterSelects: [
-                                    { selectId: 'productsType', columnIndex: 4 }
+                                    { selectId: 'productsType', columnIndex: 4, customMatch: matchProductTypeFilter }
                                 ],
                                 storageKey: 'productsFilter',
                                 noResultsMessage: 'No products found.'

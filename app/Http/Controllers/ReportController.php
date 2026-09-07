@@ -32,7 +32,7 @@ class ReportController extends Controller
     public function generatePDF($reportType, $recordId)
     {
         $record = $this->getRecordByType($reportType, $recordId);
-        dd($record);
+        //dd($record);
         if (!$record) {
             abort(404, 'Record not found');
         }

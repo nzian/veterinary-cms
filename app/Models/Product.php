@@ -142,17 +142,27 @@ public function getBranchIdColumn()
     }
 
     /**
-     * Check if all stock batches are expired
+     * Check if leftover stock is only in expired batches.
+     * Depleted batches are ignored so a sold-out valid batch plus expired leftover stock is expired.
+     * No leftover stock is treated as out of stock, not expired.
      */
     public function getAllExpiredAttribute()
     {
-        $totalBatches = $this->stockBatches()->count();
-        if ($totalBatches === 0) {
-            return false; // No batches means not expired (just no stock)
+        $batches = $this->relationLoaded('stockBatches')
+            ? $this->stockBatches
+            : $this->stockBatches()->with('damagePullouts')->get();
+
+        $batchesWithStock = $batches->filter(function ($batch) {
+            return $batch->available_quantity > 0;
+        });
+
+        if ($batchesWithStock->isEmpty()) {
+            return false;
         }
-        
-        $expiredBatches = $this->stockBatches()->expired()->count();
-        return $totalBatches > 0 && $totalBatches === $expiredBatches;
+
+        return $batchesWithStock->every(function ($batch) {
+            return $batch->isExpired();
+        });
     }
 
     /**
