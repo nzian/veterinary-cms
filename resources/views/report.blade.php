@@ -1,3 +1,45 @@
+            @if(isset($currentReport) && isset($currentReport['data']))
+            <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+                @if($currentReport['data']->count() > 0)
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200" id="reportTable">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient / Owner</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visit Type</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Species / Breed</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fee</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Performed By</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                @foreach($currentReport['data'] as $record)
+                                    <tr class="hover:bg-gray-50 transition-colors duration-200">
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{!! $record['Date & Time'] ?? '' !!}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{!! $record['Service'] ?? '' !!}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{!! $record['Patient / Owner'] ?? '' !!}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{!! $record['Visit Type'] ?? '' !!}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{!! $record['Species / Breed'] ?? '' !!}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{!! $record['Fee'] ?? '' !!}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{!! $record['Performed By'] ?? '' !!}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{!! $record['Status'] ?? '' !!}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{!! $record['Notes'] ?? '' !!}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{!! $record['Branch'] ?? '' !!}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="p-6 text-gray-500">No service usage history found.</div>
+                @endif
+            </div>
+            @endif
 @extends('AdminBoard')
 
 @section('content')
@@ -17,28 +59,21 @@
             'visit_billing' => 'Visit with Billing & Payment',
             'product_purchases' => 'Product Purchase Report',
             'referrals' => 'Inter-Branch Referrals',
-            
             // Service & Scheduling Reports
             'visit_services' => 'Services in Visits',
             'branch_visits' => 'Branch Visit Schedule',
             'multi_service_visits' => 'Multiple Services Visits',
-            
             // Financial Reports
-            'billing_orders' => 'Billing with Orders',
             'product_sales' => 'Product Sales by User',
             'payment_collection' => 'Payment Collection Report',
             'branch_payments' => 'Branch Payment Summary',
-            
             // Medical Reports
             'prescriptions' => 'Prescriptions by Branch',
-            
             // Staff & Branch Reports
             'branch_users' => 'Users Assigned per Branch',
-            
             // Inventory & Equipment Reports
             'branch_equipment' => 'Branch Equipment Summary',
-            'damaged_products' => 'Damaged/Pullout Products',
-            
+            'damaged_products' => 'Complete Stock Movement History',
             // Utilization Reports
             'service_utilization' => 'Service Utilization per Branch',
         ];
@@ -128,9 +163,22 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     @php
-                                        $recordKeys = $currentReport['data']->first() ? array_keys((array) $currentReport['data']->first()) : [];
+                                        // For damaged_products, enforce column order
+                                        if ($reportType === 'damaged_products' && $currentReport['data']->count() > 0) {
+                                            $recordKeys = ['row_number', 'prod_name', 'prod_category', 'prod_type', 'branch_name', 'user_name', 'serv_name', 'reference', 'type', 'quantity'];
+                                        } else {
+                                            $recordKeys = $currentReport['data']->first() ? array_keys((array) $currentReport['data']->first()) : [];
+                                        }
+                                        // Hide technical/ID columns from the on-screen table
+                                        $hiddenColumns = [
+                                            'id','visit_id','bill_id','ord_id','orderId','appoint_id','appointId','pet_id','own_id','user_id','branch_id',
+                                            'prod_id','serv_id','service_id','ref_id','equipment_id','prescription_id','appoint_serv_id','pay_id','ref_to','ref_by',
+                                            'is_priority','workflow_status','is_group_parent','owner_id','prescription_id','sample','n/a','No Data','array','object','json','debug','IS PRIORITY','WORKFLOW STATUS','IS GROUP PARENT','OWNER ID','ORDER ID','PRESCRIPTION ID','unit price','total amount','raw','pivot','group','priority','parent','contact','date','status','count','amount','price','maintenance','available','out of service','sample','No Data','N/A','array','object','json','[','{',']','}',
+                                            'formatted_reference','type_label','transaction_type','quantity_change','created_at','notes','branch_address','appoint_id','visit_id','_id' // Hide helper fields for damaged_products (keep serv_name and row_number visible)
+                                        ];
                                     @endphp
                                     @foreach($recordKeys as $key)
+                                        @continue(in_array($key, $hiddenColumns))
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                             @if(($reportType === 'visits' || $reportType === 'visit_services' || $reportType === 'branch_visits') && $key === 'veterinarian')
                                                 Veterinarian
@@ -146,6 +194,26 @@
                                                 Total Used
                                             @elseif($reportType === 'prescriptions' && $key === 'raw_medication_data')
                                                 Medications
+                                            @elseif($reportType === 'damaged_products' && $key === 'row_number')
+                                                #
+                                            @elseif($reportType === 'damaged_products' && $key === 'prod_name')
+                                                Prod Name
+                                            @elseif($reportType === 'damaged_products' && $key === 'prod_category')
+                                                Prod Category
+                                            @elseif($reportType === 'damaged_products' && $key === 'prod_type')
+                                                Prod Type
+                                            @elseif($reportType === 'damaged_products' && $key === 'branch_name')
+                                                Branch Name
+                                            @elseif($reportType === 'damaged_products' && $key === 'user_name')
+                                                User Name
+                                            @elseif($reportType === 'damaged_products' && $key === 'serv_name')
+                                                Serv Name
+                                            @elseif($reportType === 'damaged_products' && $key === 'reference')
+                                                Reference
+                                            @elseif($reportType === 'damaged_products' && $key === 'type')
+                                                Type
+                                            @elseif($reportType === 'damaged_products' && $key === 'quantity')
+                                                Quantity
                                             @else
                                                 {{ ucwords(str_replace('_', ' ', $key)) }}
                                             @endif
@@ -158,6 +226,7 @@
                                 @foreach($currentReport['data'] as $record)
                                     <tr class="hover:bg-gray-50 transition-colors duration-200">
                                         @foreach($record as $key => $value)
+                                            @continue(in_array($key, $hiddenColumns))
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                 @php
                                                     $displayValue = $value;
@@ -165,43 +234,56 @@
                                                     $isCurrency = str_contains($key, 'price') || str_contains($key, 'amount') || str_contains($key, 'total');
                                                     $isCount = str_contains($key, '_count') || str_contains($key, '_sum') || $key === 'total_pets' || $key === 'ord_quantity';
 
-                                                    // Apply fixes based on report type and key
-                                                    if ($reportType === 'owner_pets' && $key === 'own_contactnum') {
+                                                    // Display services as readable list for visits
+                                                    if (($reportType === 'visits' || $reportType === 'visit_services' || $reportType === 'branch_visits') && ($key === 'services' || $key === 'visit_services')) {
+                                                        if (is_array($value) || (is_object($value) && (method_exists($value, 'toArray') || $value instanceof \Illuminate\Support\Collection))) {
+                                                            $services = is_object($value) && method_exists($value, 'toArray') ? $value->toArray() : (array)$value;
+                                                            $serviceList = [];
+                                                            foreach ($services as $service) {
+                                                                $name = $service['serv_name'] ?? ($service['service_name'] ?? 'Service');
+                                                                $serviceList[] = trim($name);
+                                                            }
+                                                            $displayValue = count($serviceList) ? implode(', ', $serviceList) : 'No services';
+                                                        } else {
+                                                            $displayValue = $value ?: 'No services';
+                                                        }
+                                                    } elseif ($reportType === 'owner_pets' && $key === 'own_contactnum') {
                                                         $displayValue = $value;
                                                     } elseif ($reportType === 'branch_users' && $key === 'user_contactNum') {
                                                         $displayValue = $value;
                                                     } elseif ($reportType === 'branch_visits' && $key === 'visit_date') {
                                                         $displayValue = date('M d, Y', strtotime($value));
                                                     } elseif ($reportType === 'prescriptions' && $key === 'raw_medication_data') {
-                                                        // FIX: Updated logic to concatenate product_name and instructions with a semicolon (;)
                                                         $medications = json_decode($value, true);
-                                                        $concatenatedList = [];
-                                                        $maxItems = 3; 
-                                                        $count = 0;
-                                                        
+                                                        $productNames = [];
                                                         if (is_array($medications)) {
                                                             foreach ($medications as $med) {
-                                                                if ($count >= $maxItems) {
-                                                                    // Add an indicator if there are more items
-                                                                    $concatenatedList[] = '... (' . (count($medications) - $maxItems) . ' more)';
-                                                                    break;
-                                                                }
-                                                                
-                                                                // Concatenate product_name and instructions with a semicolon
-                                                                $name = $med['product_name'] ?? 'Unknown Product';
-                                                                $instruction = $med['instructions'] ?? 'No Instruction';
-                                                                $concatenatedList[] = $name . '; ' . $instruction;
-                                                                
-                                                                $count++;
+                                                                $name = $med['product_name'] ?? null;
+                                                                if ($name) $productNames[] = $name;
                                                             }
-                                                            // Join all entries with a line break
-                                                            $displayValue = implode('<br>', $concatenatedList); 
+                                                            $displayValue = count($productNames) ? implode(', ', $productNames) : '';
                                                         } else {
-                                                            $displayValue = $value; // Fallback for non-JSON string
+                                                            $displayValue = '';
                                                         }
+                                                    } elseif ($reportType === 'damaged_products' && $key === 'type') {
+                                                        // Display transaction type with color coding
+                                                        $typeClasses = [
+                                                            'Stock Added' => 'bg-green-100 text-green-800',
+                                                            'POS Sale' => 'bg-blue-100 text-blue-800',
+                                                            'Service Usage' => 'bg-purple-100 text-purple-800',
+                                                            'Damaged' => 'bg-red-100 text-red-800',
+                                                            'Pull-out' => 'bg-orange-100 text-orange-800',
+                                                            'Adjustment' => 'bg-gray-100 text-gray-800',
+                                                            'Return' => 'bg-teal-100 text-teal-800',
+                                                        ];
+                                                        $typeClass = $typeClasses[$value] ?? 'bg-gray-100 text-gray-800';
+                                                        $displayValue = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' . $typeClass . '">' . ($value ?? 'N/A') . '</span>';
+                                                    } elseif ($reportType === 'damaged_products' && $key === 'quantity') {
+                                                        // Show quantity as-is (can be positive or negative)
+                                                        $displayValue = $value ?? 0;
                                                     } elseif (str_contains($key, 'date')) {
-                                                        $displayValue = $value ? \Carbon\Carbon::parse($value)->format('M d, Y') : 'N/A';
-                                                    } elseif ($isNumeric && $isCurrency) {
+                                                        $displayValue = $value ? \Carbon\Carbon::parse($value)->format('M d, Y') : '';
+                                                    } elseif ($isNumeric && $isCurrency && !$isCount) {
                                                         $displayValue = '<span class="text-green-600 font-semibold">₱' . number_format($value, 2) . '</span>';
                                                     } elseif ($isNumeric && $isCount) {
                                                         $displayValue = number_format($value);
@@ -220,10 +302,59 @@
                                         @endforeach
                                         
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium no-print">
-                                            <button onclick="viewRecordDetails('{{ $reportType }}', '{{ $record->{array_keys((array)$record)[0]} }}')" 
+                                            @php
+                                                // Prefer a meaningful identifier for the action button
+                                                $idFields = [
+                                                    'id','visit_id','bill_id','ord_id','orderId','appoint_id','pet_id','own_id','user_id',
+                                                    'prod_id','serv_id','service_id','ref_id','equipment_id','prescription_id','appoint_serv_id','pay_id',
+                                                    '_id' // Hidden ID field
+                                                ];
+                                                $recordId = null;
+                                                
+                                                // Handle both objects and arrays
+                                                if (is_object($record)) {
+                                                    foreach ($idFields as $idField) {
+                                                        if (isset($record->$idField)) { 
+                                                            $recordId = $record->$idField; 
+                                                            break; 
+                                                        }
+                                                    }
+                                                    // If still no ID, try to get first property
+                                                    if (!$recordId) {
+                                                        $recordArray = (array)$record;
+                                                        $firstKey = array_key_first($recordArray);
+                                                        if ($firstKey && isset($recordArray[$firstKey])) {
+                                                            $recordId = is_numeric($recordArray[$firstKey]) ? $recordArray[$firstKey] : null;
+                                                        }
+                                                    }
+                                                } elseif (is_array($record)) {
+                                                    foreach ($idFields as $idField) {
+                                                        if (isset($record[$idField])) { 
+                                                            $recordId = $record[$idField]; 
+                                                            break; 
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                // Final fallback - use first numeric value found
+                                                if (!$recordId && is_object($record)) {
+                                                    $recordArray = (array)$record;
+                                                    foreach ($recordArray as $key => $value) {
+                                                        if (is_numeric($value) && $value > 0) {
+                                                            $recordId = $value;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            @endphp
+                                            @if($recordId)
+                                            <button onclick="viewRecordDetails('{{ $reportType }}', '{{ $recordId }}')" 
                                                 class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View Details/PDF">
                                                 <i class="fas fa-eye"></i>
                                             </button>
+                                            @else
+                                            <span class="text-gray-400 text-xs">N/A</span>
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforeach
@@ -319,8 +450,8 @@
                         print-color-adjust: exact;
                     }
                     @page {
-                        size: A4 portrait; /* FIX: Changed to PORTRAIT */
-                        margin: 15mm;
+                        size: A4 landscape; /* Landscape for print to fit all data */
+                        margin: 10mm;
                         @bottom-right {
                             content: "Page " counter(page) " of " counter(pages);
                             font-size: 8pt;

@@ -306,7 +306,7 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="openDetailedPDF('visits', '{{ $row->visit_id }}')" 
+                                                    <button onclick="openDetailedPDF('visits', '{{ $row->_id ?? $row->visit_id ?? '' }}')" 
                                                             class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
@@ -328,7 +328,7 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="openDetailedPDF('pets', '{{ $row->pet_id }}')" 
+                                                    <button onclick="openDetailedPDF('pets', '{{ $row->_id ?? $row->pet_id ?? '' }}')" 
                                                              class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
@@ -347,7 +347,7 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="openDetailedPDF('billing', '{{ $row->bill_id }}')" 
+                                                    <button onclick="openDetailedPDF('billing', '{{ $row->_id ?? $row->bill_id ?? '' }}')" 
                                                              class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
@@ -364,7 +364,7 @@
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->cashier }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="openDetailedPDF('sales', '{{ $row->ord_id }}')" 
+                                                    <button onclick="openDetailedPDF('sales', '{{ $row->_id ?? $row->ord_id ?? '' }}')" 
                                                              class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
@@ -380,7 +380,7 @@
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->referred_to }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="openDetailedPDF('referrals', '{{ $row->ref_id }}')" 
+                                                    <button onclick="openDetailedPDF('referrals', '{{ $row->_id ?? $row->ref_id ?? '' }}')" 
                                                              class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
@@ -397,7 +397,7 @@
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $row->total_out_of_service }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="openDetailedPDF('equipment', '{{ $row->equipment_id }}')" 
+                                                    <button onclick="openDetailedPDF('equipment', '{{ $row->_id ?? $row->equipment_id ?? '' }}')" 
                                                              class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
@@ -416,7 +416,7 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="openDetailedPDF('services', '{{ $row->service_id }}')"
+                                                    <button onclick="openDetailedPDF('services', '{{ $row->_id ?? $row->service_id ?? $row->serv_id ?? '' }}')"
                                                             class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
@@ -444,7 +444,7 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div class="flex gap-1">
-                                                    <button onclick="openDetailedPDF('inventory', '{{ $row->product_id }}')"
+                                                    <button onclick="openDetailedPDF('inventory', '{{ $row->_id ?? $row->product_id ?? $row->prod_id ?? '' }}')"
                                                              class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors duration-200" title="View PDF Report">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
